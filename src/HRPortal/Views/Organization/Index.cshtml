@@ -1,9 +1,135 @@
 @model HRPortal.Models.OrganizationStructureRevision?
-@{ViewData["Title"]="ساختار سازمانی";var revs=ViewBag.Revisions as List<HRPortal.Models.OrganizationStructureRevision>??[];var editable=Model!=null&&!Model.IsFinalized;var roots=Model?.Nodes.Where(x=>x.ParentId==null).OrderBy(x=>x.SortOrder).ThenBy(x=>x.Title).ToList()??[];}
-<div class="page-head"><div><h1>ساختار سازمانی</h1><p>نسخه‌بندی ساختار، تاریخ اجرا و ثبت تاریخچه تغییرات</p></div></div>
-@if(TempData["Error"]!=null){<div class="alert error">@TempData["Error"]</div>}
-<div class="split"><div class="card"><h3>نسخه‌ها</h3><form method="post" action="/Organization/NewRevision" class="mini-form">@Html.AntiForgeryToken()<label>تاریخ اجرا<input name="effectiveDate" value="@HRPortal.Services.PersianDateService.Format(DateTime.Today)" placeholder="۱۴۰۵/۰۷/۰۵"></label><label>عنوان<input name="title" required></label><label>یادداشت<textarea name="notes"></textarea></label><button class="btn btn-main">ایجاد نسخه جدید</button></form><hr>@foreach(var r in revs){<a class="revision @(Model?.Id==r.Id?"selected":"")" href="/Organization?revisionId=@r.Id"><strong>@r.Title</strong><span>@r.RevisionCode - @HRPortal.Services.PersianDateService.Format(r.EffectiveDate) - @(r.IsFinalized?"نهایی":"پیش‌نویس")</span></a>}</div>
-<div class="card"><div class="section-head"><div><h3>@(Model?.Title??"ساختار تعریف نشده")</h3><span>@(Model?.RevisionCode)</span></div>@if(editable){<form method="post" action="/Organization/Finalize">@Html.AntiForgeryToken()<input type="hidden" name="revisionId" value="@Model!.Id"><button class="btn btn-main">نهایی‌سازی نسخه</button></form>}</div>
-@if(editable){<form method="post" action="/Organization/AddNode" class="mini-form grid-4">@Html.AntiForgeryToken()<input type="hidden" name="revisionId" value="@Model!.Id"><input name="code" placeholder="کد" required><input name="title" placeholder="عنوان" required><select name="rankType"><option>مدیریت</option><option>ریاست</option><option>سرپرستی</option></select><input name="sortOrder" type="number" value="0"><button class="btn btn-outline">افزودن ریشه</button></form>}
-<div class="tree">@foreach(var n in roots){<partial name="_Node" model="n"/>}</div></div></div>
-<div class="card"><h3>تاریخچه تغییرات</h3>@if(Model?.Changes.Any()==true){<table><thead><tr><th>نوع</th><th>کد</th><th>شرح</th><th>زمان</th></tr></thead><tbody>@foreach(var c in Model.Changes.OrderByDescending(x=>x.ChangedAt)){<tr><td>@c.ChangeType</td><td>@c.EntityCode</td><td>@c.Description</td><td>@c.ChangedAt.ToLocalTime()</td></tr>}</tbody></table>}else{<p>تغییری ثبت نشده است.</p>}</div>
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "ساختار سازمانی";
+    var revisions = ViewBag.Revisions as List<HRPortal.Models.OrganizationStructureRevision> ?? [];
+    var editable = Model is not null && !Model.IsFinalized;
+    var roots = Model?.Nodes.Where(x => x.ParentId is null).OrderBy(x => x.SortOrder).ThenBy(x => x.Title).ToList() ?? [];
+    ViewData["Editable"] = editable;
+}
+<div class="page-head">
+    <div>
+        <h1>ساختار سازمانی</h1>
+        <p>ساختار درختی، بازنگری نسخه، تاریخ اجرا و سوابق تغییرات</p>
+    </div>
+</div>
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert error">@TempData["Error"]</div>
+}
+
+<div class="split">
+    <div class="card">
+        <div class="section-head"><h3>نسخه‌های ساختار</h3></div>
+        <form method="post" action="/Organization/NewRevision" class="mini-form">
+            @Html.AntiForgeryToken()
+            <label>تاریخ اجرا<input name="effectiveDate" value="@HRPortal.Services.PersianDateService.Format(DateTime.Today)" placeholder="۱۴۰۵/۰۷/۰۵" required /></label>
+            <label>عنوان بازنگری<input name="title" placeholder="عنوان نسخه" required /></label>
+            <label class="wide">یادداشت<textarea name="notes" placeholder="توضیحات بازنگری"></textarea></label>
+            <button class="btn btn-main" type="submit">ایجاد نسخه جدید</button>
+        </form>
+
+        <div class="revision-list">
+        @foreach (var r in revisions)
+        {
+            <a class="revision @(Model?.Id == r.Id ? "selected" : "")"
+               href="/Organization?revisionId=@r.Id">
+                <strong>@r.Title</strong>
+                <span>@r.RevisionCode</span>
+                <span>@HRPortal.Services.PersianDateService.Format(r.EffectiveDate) — @(r.IsFinalized ? "نهایی" : "در حال بازنگری")</span>
+            </a>
+        }
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="section-head">
+            <div>
+                <h3>@(Model?.Title ?? "نسخه‌ای انتخاب نشده است")</h3>
+                @if (Model is not null)
+                {
+                    <div class="muted">@Model.RevisionCode — تاریخ اجرا @HRPortal.Services.PersianDateService.Format(Model.EffectiveDate)</div>
+                }
+            </div>
+            @if (editable)
+            {
+                <form method="post" action="/Organization/Finalize">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="revisionId" value="@Model!.Id" />
+                    <button class="btn btn-main" type="submit">اتمام بازنگری و نهایی‌سازی</button>
+                </form>
+            }
+        </div>
+
+        @if (editable)
+        {
+            <div class="node-create-box">
+                <h4>افزودن گره ریشه</h4>
+                <form method="post" action="/Organization/AddNode" class="node-create-form">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="revisionId" value="@Model!.Id" />
+                    <input type="text" name="code" placeholder="کد" required />
+                    <input type="text" name="title" placeholder="عنوان" required />
+                    <select name="rankType"><option value="مدیریت">مدیریت</option></select>
+                    <input type="number" name="sortOrder" value="0" placeholder="ترتیب" />
+                    <label class="inline-check"><input type="checkbox" name="isActive" value="true" checked /> فعال</label>
+                    <input type="text" name="notes" placeholder="توضیحات" />
+                    <button class="btn btn-outline" type="submit">افزودن گره</button>
+                </form>
+            </div>
+        }
+
+        <div class="tree">
+            @if (roots.Count == 0)
+            {
+                <div class="empty tree-empty">برای این نسخه هنوز گره‌ای ثبت نشده است.</div>
+            }
+            else
+            {
+                <ul class="tree-list">
+                @foreach (var node in roots)
+                {
+                    <partial name="_Node" model="node" />
+                }
+                </ul>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="section-head"><h3>تاریخچه تغییرات</h3></div>
+    @if (Model?.Changes.Any() == true)
+    {
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>نوع</th><th>کد</th><th>شرح</th><th>زمان</th></tr></thead>
+                <tbody>
+                @foreach (var change in Model.Changes.OrderByDescending(x => x.ChangedAt))
+                {
+                    <tr><td>@change.ChangeType</td><td>@change.EntityCode</td><td>@change.Description</td><td>@change.ChangedAt.ToLocalTime()</td></tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <div class="empty">برای این نسخه تغییری ثبت نشده است.</div>
+    }
+</div>
+
+@section Scripts {
+<script>
+document.querySelectorAll('.tree-toggle').forEach(function(button){
+    button.addEventListener('click', function(){
+        const target = document.getElementById(button.dataset.target);
+        if (!target) return;
+        target.classList.toggle('collapsed');
+        button.textContent = target.classList.contains('collapsed') ? '+' : '−';
+        button.setAttribute('aria-expanded', (!target.classList.contains('collapsed')).toString());
+    });
+});
+</script>
+}

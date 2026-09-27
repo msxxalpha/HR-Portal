@@ -1,3 +1,80 @@
 @inject HRPortal.Services.EnvironmentSettingsService SettingsService
-@{var cfg=await SettingsService.GetAsync();var company=cfg.System;}
-<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>@ViewData["Title"] - @company.ApplicationName</title>@if(!string.IsNullOrWhiteSpace(company.FaviconUrl)){<link rel="icon" href="@company.FaviconUrl">}<link rel="stylesheet" href="~/css/site.css" asp-append-version="true"></head><body style="--navy:@company.PrimaryColor;--navy2:@company.SecondaryColor"><div class="app-shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">@company.ShortName</div><div><strong>@company.ApplicationName</strong><small>@company.OrganizationName</small></div></div><nav><div class="nav-caption">داشبورد</div><a href="/">⌂ داشبورد</a><div class="nav-caption">اطلاعات پایه</div><a href="/Employees">👥 کارکنان</a><a href="/Organization">🌳 ساختار سازمانی</a><div class="nav-caption">خدمات کارکنان</div><a href="/Payroll/Payslip">▣ فیش حقوقی</a><div class="nav-caption">مدیریت سامانه</div><a href="/SystemSettings">⚙ تنظیمات محیط سامانه</a><a href="/Account/Login">⇥ ورود به سامانه</a></nav><div class="sidebar-foot">وضعیت سامانه: فعال</div></aside><div class="main"><header class="topbar"><div><span class="muted">@company.ApplicationName</span><h2>@ViewData["Title"]</h2></div><div class="user-box">@if(User.Identity?.IsAuthenticated==true){<span>@User.Identity.Name</span><form method="post" action="/Account/Logout">@Html.AntiForgeryToken()<button class="link">خروج</button></form>}else{<a href="/Account/Login">ورود</a>}</div></header><main class="content">@RenderBody()</main><footer>@(string.IsNullOrWhiteSpace(company.FooterText)?company.ApplicationName:company.FooterText) — @company.OrganizationName</footer></div></div>@RenderSection("Scripts",required:false)</body></html>
+@{
+    var cfg = await SettingsService.GetAsync();
+    var company = cfg.System;
+}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="@company.PrimaryColor" />
+    <title>@ViewData["Title"] - @company.ApplicationName</title>
+    @if (!string.IsNullOrWhiteSpace(company.FaviconUrl))
+    {
+        <link rel="icon" href="@company.FaviconUrl" />
+    }
+    <link rel="stylesheet" href="@Url.Content("~/css/site.css")" asp-append-version="true" />
+</head>
+<body style="--navy:@company.PrimaryColor;--navy2:@company.SecondaryColor;">
+<div class="app-shell">
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-mark">@company.ShortName</div>
+            <div class="brand-text">
+                <strong>@company.ApplicationName</strong>
+                <small>@company.OrganizationName</small>
+            </div>
+        </div>
+        <nav class="nav">
+            <div class="nav-caption">داشبورد</div>
+            <a href="/">داشبورد</a>
+            <div class="nav-caption">اطلاعات پایه</div>
+            <a href="/Employees">کارکنان</a>
+            <a href="/Organization">ساختار سازمانی</a>
+            <div class="nav-caption">خدمات کارکنان</div>
+            <a href="/Payroll/Payslip">فیش حقوقی</a>
+            <div class="nav-caption">مدیریت سامانه</div>
+            <a href="/SystemSettings">تنظیمات محیط سامانه</a>
+        </nav>
+        <div class="sidebar-foot">سامانه آماده استفاده است</div>
+    </aside>
+
+    <div class="main">
+        <header class="topbar">
+            <div>
+                <div class="topbar-caption">@company.ApplicationName</div>
+                <h2>@ViewData["Title"]</h2>
+            </div>
+            <div class="user-box">
+                @if (User.Identity?.IsAuthenticated == true)
+                {
+                    <span>@User.Identity.Name</span>
+                    <form method="post" action="/Account/Logout">
+                        @Html.AntiForgeryToken()
+                        <button class="link" type="submit">خروج</button>
+                    </form>
+                }
+                else
+                {
+                    <a href="/Account/Login">ورود</a>
+                }
+            </div>
+        </header>
+
+        <main class="content">
+            @RenderBody()
+        </main>
+
+        <footer>
+            @(string.IsNullOrWhiteSpace(company.FooterText) ? company.ApplicationName : company.FooterText)
+            @if (!string.IsNullOrWhiteSpace(company.OrganizationName))
+            {
+                <span> | @company.OrganizationName</span>
+            }
+        </footer>
+    </div>
+</div>
+@RenderSection("Scripts", required: false)
+</body>
+</html>

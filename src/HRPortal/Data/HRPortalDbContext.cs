@@ -15,6 +15,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
     public DbSet<OrganizationChange> OrganizationChanges => Set<OrganizationChange>();
     public DbSet<OtpChallenge> OtpChallenges => Set<OtpChallenge>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<AdminUser> AdminUsers => Set<AdminUser>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -59,5 +60,10 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
         modelBuilder.Entity<OtpSettings>().HasKey(x => x.Id);
         modelBuilder.Entity<SmsSettings>().HasKey(x => x.Id);
         modelBuilder.Entity<PayrollReportSettings>().HasKey(x => x.Id);
+        modelBuilder.Entity<AdminUser>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.Username).IsUnique();
+        });
     }
 }

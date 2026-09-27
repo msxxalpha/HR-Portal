@@ -1,4 +1,25 @@
-@{ViewData["Title"]="داشبورد";}
-<div class="hero"><div><div class="eyebrow">سامانه یکپارچه منابع انسانی</div><h1>پورتال جامع منابع انسانی</h1><p>مدیریت اطلاعات کارکنان، ساختار سازمانی و خدمات پرسنلی در یک محیط یکپارچه.</p></div><a class="btn btn-main" href="/Employees/Create">ثبت کارمند جدید</a></div>
-<div class="stats"><div class="stat"><span>کل کارکنان</span><strong>@ViewBag.EmployeeCount</strong></div><div class="stat"><span>کارکنان فعال</span><strong>@ViewBag.ActiveEmployeeCount</strong></div><div class="stat"><span>نسخه‌های نهایی ساختار</span><strong>@ViewBag.RevisionCount</strong></div></div>
-<div class="module-grid"><a class="module" href="/Employees"><b>👥</b><h3>مدیریت کارکنان</h3><p>ثبت، ویرایش، غیرفعال‌سازی، فیلتر و تبادل اکسل.</p></a><a class="module" href="/Organization"><b>🌳</b><h3>ساختار سازمانی</h3><p>نسخه‌بندی، تاریخ اجرا و کنترل سوابق ساختار.</p></a><a class="module" href="/Payroll/Payslip"><b>▣</b><h3>فیش حقوقی</h3><p>نمایش گزارش RDL/SSRS بر اساس سال، ماه و شماره پرسنلی کاربر.</p></a><a class="module" href="/SystemSettings"><b>⚙</b><h3>تنظیمات محیط سامانه</h3><p>ظاهر، تقویم، OTP، پیامک و تنظیمات گزارش حقوق.</p></a></div>
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "داشبورد";
+}
+<div class="hero">
+    <div>
+        <div class="eyebrow">سامانه یکپارچه منابع انسانی</div>
+        <h1>پورتال جامع منابع انسانی</h1>
+        <p>مدیریت اطلاعات کارکنان، ساختار سازمانی و خدمات پرسنلی در یک محیط یکپارچه.</p>
+    </div>
+    <a class="btn btn-main btn-hero" href="/Employees/Create">ثبت کارمند جدید</a>
+</div>
+
+<div class="stats">
+    <div class="stat"><span>کل کارکنان</span><strong>@ViewBag.EmployeeCount</strong></div>
+    <div class="stat"><span>کارکنان فعال</span><strong>@ViewBag.ActiveEmployeeCount</strong></div>
+    <div class="stat"><span>نسخه‌های نهایی ساختار</span><strong>@ViewBag.RevisionCount</strong></div>
+</div>
+
+<div class="module-grid">
+    <a class="module" href="/Employees"><b>01</b><h3>مدیریت کارکنان</h3><p>ثبت، ویرایش، غیرفعال‌سازی، جستجو، فیلتر و تبادل Excel.</p></a>
+    <a class="module" href="/Organization"><b>02</b><h3>ساختار سازمانی</h3><p>ساختار درختی، بازنگری، نسخه‌بندی و تاریخچه تغییرات.</p></a>
+    <a class="module" href="/Payroll/Payslip"><b>03</b><h3>فیش حقوقی</h3><p>نمایش فیش حقوقی بر اساس ماه و شماره پرسنلی حساب کاربر.</p></a>
+    <a class="module" href="/SystemSettings"><b>04</b><h3>تنظیمات محیط سامانه</h3><p>تنظیمات عمومی، ظاهر، OTP، پیامک و SSRS.</p></a>
+</div>

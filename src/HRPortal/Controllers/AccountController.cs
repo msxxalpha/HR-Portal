@@ -14,7 +14,7 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
     public IActionResult Login(string? returnUrl = null, string? mode = null)
     {
         if (User.Identity?.IsAuthenticated == true)
-            return Redirect("/");
+            return Redirect("/Home/Index");
 
         ViewBag.Mode = string.Equals(mode, "admin", StringComparison.OrdinalIgnoreCase) ? "admin" : "employee";
         return View(new LoginVm { ReturnUrl = returnUrl, Mode = ViewBag.Mode });

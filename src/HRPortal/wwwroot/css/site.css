@@ -64,3 +64,11 @@
 .node-tools{margin-top:12px}
 .node-actions{display:flex;gap:15px;align-items:center;flex-wrap:wrap;margin-top:12px}
 .child-create{margin-top:10px}
+
+.report-user-row{display:flex;align-items:stretch;gap:16px;flex-wrap:wrap}
+.report-user{min-width:250px;padding:12px 15px;background:#f7f9fa;border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;justify-content:center}
+.report-user span,.report-user small{font-size:9px;color:var(--muted)}
+.report-user strong{font-size:14px;color:var(--navy);margin:4px 0}
+.report-filter-inline{margin:0;flex:1;border:0;padding:0;min-width:320px;background:transparent}
+.report-filter-inline .btn{white-space:nowrap}
+@media(max-width:700px){.report-user-row{display:block}.report-filter-inline{display:flex;margin-top:12px}.report-filter-inline .report-period{flex:1}}

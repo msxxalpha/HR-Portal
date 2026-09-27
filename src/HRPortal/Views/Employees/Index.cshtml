@@ -1,5 +1,5 @@
 @model IEnumerable<HRPortal.Models.Employee>
-@{ViewData["Title"]="مدیریت کارکنان";}
+@{ Layout = "~/Views/Shared/_Layout.cshtml"; ViewData["Title"]="مدیریت کارکنان"; }
 <div class="page-head"><div><h1>مدیریت کارکنان</h1><p>ثبت، ویرایش، غیرفعال‌سازی، فیلتر، مرتب‌سازی و تبادل اکسل</p></div><div class="actions"><a class="btn btn-main" href="/Employees/Create">+ کارمند جدید</a><a class="btn btn-outline" href="/Employees/Import">ورود از اکسل</a><a class="btn btn-outline" href="/Employees/Export?q=@ViewBag.Q&status=@ViewBag.Status">خروجی اکسل</a></div></div>
 <form class="filterbar" method="get"><input name="q" value="@ViewBag.Q" placeholder="جستجو: پرسنلی، کد ملی، نام، موبایل"><select name="status"><option value="">همه وضعیت‌ها</option><option selected="@(ViewBag.Status=="فعال")">فعال</option><option selected="@(ViewBag.Status=="غیرفعال")">غیرفعال</option></select><button class="btn btn-main">اعمال فیلتر</button></form>
 @if(TempData["Error"]!=null){<div class="alert error">@TempData["Error"]</div>}

@@ -1,2 +1,97 @@
 @model HRPortal.Models.OrganizationNode
-<div class="tree-node"><div class="node-main"><span class="rank">@Model.RankType</span><strong>@Model.Title</strong><small>@Model.Code</small></div><details><summary>عملیات</summary><form method="post" action="/Organization/EditNode" class="mini-form grid-4">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@Model.Id"><input name="code" value="@Model.Code"><input name="title" value="@Model.Title"><select name="rankType"><option selected="@(Model.RankType=="مدیریت")">مدیریت</option><option selected="@(Model.RankType=="ریاست")">ریاست</option><option selected="@(Model.RankType=="سرپرستی")">سرپرستی</option></select><input name="sortOrder" type="number" value="@Model.SortOrder"><button class="btn btn-outline">ذخیره</button></form><form method="post" action="/Organization/DeleteNode">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@Model.Id"><button class="link danger">حذف</button></form><form method="post" action="/Organization/AddNode" class="mini-form">@Html.AntiForgeryToken()<input type="hidden" name="revisionId" value="@Model.OrganizationStructureRevisionId"><input type="hidden" name="parentId" value="@Model.Id"><input name="code" placeholder="کد زیرگره" required><input name="title" placeholder="عنوان زیرگره" required><select name="rankType"><option>مدیریت</option><option>ریاست</option><option>سرپرستی</option></select><button class="btn btn-outline">افزودن زیرگره</button></form></details>@if(Model.Children.Any()){<div class="children">@foreach(var child in Model.Children.OrderBy(x=>x.SortOrder).ThenBy(x=>x.Title)){<partial name="_Node" model="child"/>}</div>}</div>
+@{
+    var editable = ViewData["Editable"] is bool b && b;
+    var hasChildren = Model.Children is not null && Model.Children.Count > 0;
+    var childId = "tree-children-" + Model.Id;
+}
+<li class="tree-item">
+    <div class="tree-node-card">
+        <div class="tree-node-main">
+            @if (hasChildren)
+            {
+                <button type="button" class="tree-toggle" data-target="@childId" aria-expanded="true">−</button>
+            }
+            else
+            {
+                <span class="tree-toggle-placeholder"></span>
+            }
+            <span class="tree-node-title">@Model.Title</span>
+            <span class="rank">@Model.RankType</span>
+            <span class="tree-node-meta">کد: @Model.Code</span>
+            <span class="tree-node-meta">ترتیب: @Model.SortOrder</span>
+            <span class="tree-node-meta">@(Model.IsActive ? "فعال" : "غیرفعال")</span>
+        </div>
+
+        @if (editable)
+        {
+            <details class="node-details">
+                <summary>مشخصات و عملیات گره</summary>
+                <div class="node-tools">
+                    <form method="post" action="/Organization/EditNode" class="node-fields">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@Model.Id" />
+                        <label>کد<input name="code" value="@Model.Code" required /></label>
+                        <label>عنوان<input name="title" value="@Model.Title" required /></label>
+                        <label>نوع رده
+                            <select name="rankType">
+                                <option selected="@(Model.RankType == "مدیریت")">مدیریت</option>
+                                <option selected="@(Model.RankType == "ریاست")">ریاست</option>
+                                <option selected="@(Model.RankType == "سرپرستی")">سرپرستی</option>
+                            </select>
+                        </label>
+                        <label>ترتیب<input name="sortOrder" type="number" value="@Model.SortOrder" /></label>
+                        <label class="inline-check">فعال <input type="checkbox" name="isActive" value="true" checked="@Model.IsActive" /></label>
+                        <label class="wide">توضیحات<textarea name="notes">@Model.Notes</textarea></label>
+                        <button class="btn btn-outline" type="submit">ذخیره گره</button>
+                    </form>
+
+                    <div class="node-actions">
+                        <form method="post" action="/Organization/DeleteNode">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="id" value="@Model.Id" />
+                            <button class="link danger" type="submit">حذف گره</button>
+                        </form>
+
+                        @if (Model.RankType is "مدیریت" or "ریاست")
+                        {
+                            <details>
+                                <summary>افزودن زیرگره</summary>
+                                <form method="post" action="/Organization/AddNode" class="mini-form child-create">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="revisionId" value="@Model.OrganizationStructureRevisionId" />
+                                    <input type="hidden" name="parentId" value="@Model.Id" />
+                                    <input name="code" placeholder="کد" required />
+                                    <input name="title" placeholder="عنوان" required />
+                                    <select name="rankType">
+                                        @if (Model.RankType == "مدیریت")
+                                        {
+                                            <option value="ریاست">ریاست</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="سرپرستی">سرپرستی</option>
+                                        }
+                                    </select>
+                                    <input name="sortOrder" type="number" value="0" placeholder="ترتیب" />
+                                    <label class="inline-check"><input type="checkbox" name="isActive" value="true" checked /> فعال</label>
+                                    <input name="notes" placeholder="توضیحات" />
+                                    <button class="btn btn-outline" type="submit">افزودن</button>
+                                </form>
+                            </details>
+                        }
+                    </div>
+                </div>
+            </details>
+        }
+    </div>
+
+    @if (hasChildren)
+    {
+        <ul id="@childId" class="tree-list tree-children">
+        @foreach (var child in Model.Children.OrderBy(x => x.SortOrder).ThenBy(x => x.Title))
+        {
+            <partial name="_Node" model="child" />
+        }
+        </ul>
+    }
+</li>

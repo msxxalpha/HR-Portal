@@ -2,6 +2,7 @@
 @{
     var cfg = await SettingsService.GetAsync();
     var company = cfg.System;
+    var isAdmin = User.HasClaim("IsAdmin", "1");
 }
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
@@ -14,6 +15,7 @@
     {
         <link rel="icon" href="@company.FaviconUrl" />
     }
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazir-font@v30.1.0/dist/font-face.css" />
     <link rel="stylesheet" href="@Url.Content("~/css/site.css")" asp-append-version="true" />
 </head>
 <body style="--navy:@company.PrimaryColor;--navy2:@company.SecondaryColor;">
@@ -26,18 +28,29 @@
                 <small>@company.OrganizationName</small>
             </div>
         </div>
+
         <nav class="nav">
             <div class="nav-caption">داشبورد</div>
             <a href="/">داشبورد</a>
-            <div class="nav-caption">اطلاعات پایه</div>
-            <a href="/Employees">کارکنان</a>
-            <a href="/Organization">ساختار سازمانی</a>
+
+            @if (isAdmin)
+            {
+                <div class="nav-caption">اطلاعات پایه</div>
+                <a href="/Employees">مدیریت کارکنان</a>
+                <a href="/Organization">ساختار سازمانی</a>
+
+                <div class="nav-caption">مدیریت سامانه</div>
+                <a href="/SystemSettings">تنظیمات محیط سامانه</a>
+                <a href="/Account/ChangePassword">تغییر رمز مدیر</a>
+            }
+
             <div class="nav-caption">خدمات کارکنان</div>
             <a href="/Payroll/Payslip">فیش حقوقی</a>
-            <div class="nav-caption">مدیریت سامانه</div>
-            <a href="/SystemSettings">تنظیمات محیط سامانه</a>
         </nav>
-        <div class="sidebar-foot">سامانه آماده استفاده است</div>
+
+        <div class="sidebar-foot">
+            @(isAdmin ? "مدیر سامانه" : "کاربر کارکنان")
+        </div>
     </aside>
 
     <div class="main">
@@ -54,10 +67,6 @@
                         @Html.AntiForgeryToken()
                         <button class="link" type="submit">خروج</button>
                     </form>
-                }
-                else
-                {
-                    <a href="/Account/Login">ورود</a>
                 }
             </div>
         </header>

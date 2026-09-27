@@ -1,0 +1,35 @@
+@model HRPortal.Models.SystemSettings
+@{
+    ViewData["Title"] = "تنظیمات محیط سامانه";
+}
+<div dir="rtl" class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div><h3>تنظیمات محیط سامانه</h3><p class="text-muted mb-0">پیکربندی ظاهر، منطقه، امنیت و رفتار عمومی پورتال</p></div>
+  </div>
+  @if (TempData["Success"] != null) { <div class="alert alert-success">@TempData["Success"]</div> }
+  <form asp-action="Save" method="post">
+    @Html.AntiForgeryToken()
+    <ul class="nav nav-tabs mb-3" role="tablist">
+      <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#general" type="button">عمومی</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#appearance" type="button">ظاهر سامانه</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#security" type="button">امنیت و رفتار</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#maintenance" type="button">نگهداری</button></li>
+    </ul>
+    <div class="tab-content card border-0 shadow-sm p-4">
+      <div class="tab-pane fade show active" id="general">
+        <div class="row g-3">
+          <div class="col-md-6"><label class="form-label">نام سامانه</label><input asp-for="ApplicationName" class="form-control" /></div>
+          <div class="col-md-6"><label class="form-label">نام سازمان</label><input asp-for="OrganizationName" class="form-control" /></div>
+          <div class="col-md-4"><label class="form-label">زبان پیش‌فرض</label><input asp-for="DefaultLanguage" class="form-control" /></div>
+          <div class="col-md-4"><label class="form-label">تقویم</label><select asp-for="Calendar" class="form-select"><option value="Persian">شمسی</option><option value="Gregorian">میلادی</option></select></div>
+          <div class="col-md-4"><label class="form-label">منطقه زمانی</label><input asp-for="TimeZone" class="form-control" /></div>
+          <div class="col-md-4"><label class="form-label">تعداد رکورد در صفحه</label><input asp-for="ItemsPerPage" type="number" class="form-control" /></div>
+        </div>
+      </div>
+      <div class="tab-pane fade" id="appearance"><div class="row g-3"><div class="col-md-4"><label class="form-label">تم</label><input asp-for="Theme" class="form-control" /></div><div class="col-md-4"><label class="form-label">رنگ اصلی</label><input asp-for="PrimaryColor" class="form-control" /></div><div class="col-md-4"><label class="form-label">رنگ ثانویه</label><input asp-for="SecondaryColor" class="form-control" /></div><div class="col-md-8"><label class="form-label">مسیر لوگو</label><input asp-for="LogoUrl" class="form-control" /></div></div></div>
+      <div class="tab-pane fade" id="security"><div class="form-check form-switch"><input asp-for="AllowUserSelfService" class="form-check-input" /><label class="form-check-label">فعال بودن خدمات کاربری</label></div><div class="form-check form-switch mt-3"><input asp-for="EnableAuditLog" class="form-check-input" /><label class="form-check-label">ثبت رویدادهای سامانه</label></div></div>
+      <div class="tab-pane fade" id="maintenance"><div class="form-check form-switch mb-3"><input asp-for="MaintenanceMode" class="form-check-input" /><label class="form-check-label">حالت تعمیر و نگهداری</label></div><label class="form-label">پیام حالت تعمیر</label><textarea asp-for="MaintenanceMessage" class="form-control" rows="3"></textarea></div>
+    </div>
+    <div class="text-start mt-3"><button class="btn btn-primary px-4" type="submit">ذخیره تنظیمات</button></div>
+  </form>
+</div>

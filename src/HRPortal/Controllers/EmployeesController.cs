@@ -220,7 +220,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         }
     }
 
-    private static void ValidateEmployee(Employee employee)
+    private void ValidateEmployee(Employee employee)
     {
         if (string.IsNullOrWhiteSpace(employee.PersonnelNumber))
             ModelState.AddModelError("Employee.PersonnelNumber", "شماره پرسنلی الزامی است.");

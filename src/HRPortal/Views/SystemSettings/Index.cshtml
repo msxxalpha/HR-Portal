@@ -1,17 +1,120 @@
 @model HRPortal.Models.SystemSettingsViewModel
-@{ViewData["Title"]="تنظیمات محیط سامانه";}
-<div class="page-head"><div><h1>تنظیمات محیط سامانه</h1><p>پیکربندی عمومی، ظاهر، امنیت، پیامک، فیش حقوقی و نگهداری</p></div><a class="btn btn-outline" asp-controller="Home" asp-action="Index">بازگشت</a></div>
-@if(TempData["Success"]!=null){<div class="alert success">@TempData["Success"]</div>}
-<form method="post" asp-action="Save">@Html.AntiForgeryToken()
-<div class="tabs">
-<button type="button" class="tab active" onclick="openTab(event,'t1')">عمومی</button><button type="button" class="tab" onclick="openTab(event,'t2')">ظاهر و برند</button><button type="button" class="tab" onclick="openTab(event,'t3')">امنیت و OTP</button><button type="button" class="tab" onclick="openTab(event,'t4')">پیامک</button><button type="button" class="tab" onclick="openTab(event,'t5')">فیش حقوقی</button><button type="button" class="tab" onclick="openTab(event,'t6')">نگهداری</button>
+@{
+    ViewData["Title"] = "تنظیمات محیط سامانه";
+}
+<div class="page-head">
+    <div>
+        <h1>تنظیمات محیط سامانه</h1>
+        <p>تنظیمات عمومی، ظاهر، امنیت، پیامک و گزارش فیش حقوقی</p>
+    </div>
 </div>
-<div id="t1" class="tab-panel active"><div class="grid-3"><label>نام سامانه<input asp-for="System.ApplicationName"></label><label>نام سازمان<input asp-for="System.OrganizationName"></label><label>نام کوتاه<input asp-for="System.ShortName"></label><label>شعار سامانه<input asp-for="System.Slogan"></label><label>تلفن<input asp-for="System.Phone"></label><label>ایمیل<input asp-for="System.Email"></label><label>وب‌سایت<input asp-for="System.Website"></label><label>شناسه ملی<input asp-for="System.NationalId"></label><label>کد اقتصادی<input asp-for="System.EconomicCode"></label><label>زبان<input asp-for="System.DefaultLanguage"></label><label>تقویم<select asp-for="System.Calendar"><option value="Persian">شمسی</option><option value="Gregorian">میلادی</option></select></label><label>منطقه زمانی<input asp-for="System.TimeZone"></label><label>رکورد در صفحه<input asp-for="System.ItemsPerPage" type="number"></label></div></div>
-<div id="t2" class="tab-panel"><div class="grid-3"><label>تم<input asp-for="System.Theme"></label><label>رنگ اصلی<input asp-for="System.PrimaryColor" type="color"></label><label>رنگ ثانویه<input asp-for="System.SecondaryColor" type="color"></label><label>مسیر لوگو<input asp-for="System.LogoUrl"></label><label>مسیر Favicon<input asp-for="System.FaviconUrl"></label><label class="wide">متن پایین صفحه<input asp-for="System.FooterText"></label></div></div>
-<div id="t3" class="tab-panel"><div class="grid-3"><label>طول OTP<input asp-for="Otp.Length" type="number"></label><label>اعتبار OTP (ثانیه)<input asp-for="Otp.ValiditySeconds" type="number"></label><label>حداکثر تلاش<input asp-for="Otp.MaxAttempts" type="number"></label></div><label class="switch"><input asp-for="Otp.Enabled"> فعال بودن ورود با OTP</label><label class="switch"><input asp-for="System.AllowUserSelfService"> فعال بودن خدمات کاربری</label><label class="switch"><input asp-for="System.EnableAuditLog"> ثبت رویدادهای سامانه</label></div>
-<div id="t4" class="tab-panel"><div class="grid-2"><label>ارائه‌دهنده<input asp-for="Sms.ProviderName"></label><label>آدرس سرویس<input asp-for="Sms.ServiceUrl"></label><label>نام کاربری سرویس<input asp-for="Sms.Username"></label><label>رمز/کلید سرویس<input asp-for="Sms.Password" type="password"></label><label>شماره ارسال‌کننده<input asp-for="Sms.SenderNumber"></label><label>API Key<input asp-for="Sms.ApiKey" type="password"></label><label class="wide">متن OTP<input asp-for="Sms.OtpTemplate"></label></div><label class="switch"><input asp-for="Sms.Enabled"> فعال بودن ارسال پیامک</label></div>
-<div id="t5" class="tab-panel"><div class="grid-2"><label>آدرس Report Server<input asp-for="Payroll.ReportServerUrl"></label><label>مسیر گزارش RDL<input asp-for="Payroll.ReportPath"></label><label>پارامتر سال/ماه<input asp-for="Payroll.YearParameter"></label><label>پارامتر شماره پرسنلی<input asp-for="Payroll.PersonnelParameter"></label><label>فرمت گزارش<input asp-for="Payroll.ReportFormat"></label></div><label class="switch"><input asp-for="Payroll.Enabled"> فعال بودن فیش حقوقی</label><label class="switch"><input asp-for="Payroll.UseIntegratedSecurity"> استفاده از احراز هویت یکپارچه SSRS</label></div>
-<div id="t6" class="tab-panel"><label class="switch"><input asp-for="System.MaintenanceMode"> فعال کردن حالت تعمیر و نگهداری</label><label>پیام نگهداری<textarea asp-for="System.MaintenanceMessage"></textarea></label><div class="note">اطلاعات محرمانه سرویس پیامک را در مخزن Git قرار ندهید؛ مقادیر واقعی فقط در محیط اجرا وارد شوند.</div></div>
-<div class="form-actions"><button class="btn btn-main">ذخیره همه تنظیمات</button></div>
+@if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
+@if (!ViewData.ModelState.IsValid)
+{
+    <div class="alert error">@foreach (var e in ViewData.ModelState.Values.SelectMany(v=>v.Errors)){<div>@e.ErrorMessage</div>}</div>
+}
+<form method="post" asp-action="Save">
+    @Html.AntiForgeryToken()
+    <div class="tabs">
+        <button type="button" class="tab active" data-tab="general">عمومی</button>
+        <button type="button" class="tab" data-tab="appearance">ظاهر و برند</button>
+        <button type="button" class="tab" data-tab="security">امنیت و OTP</button>
+        <button type="button" class="tab" data-tab="sms">سرویس پیامک</button>
+        <button type="button" class="tab" data-tab="payroll">فیش حقوقی / SSRS</button>
+        <button type="button" class="tab" data-tab="maintenance">نگهداری</button>
+    </div>
+
+    <section id="general" class="tab-panel active">
+        <div class="grid-3">
+            <label>نام سامانه<input asp-for="System.ApplicationName" /></label>
+            <label>نام سازمان<input asp-for="System.OrganizationName" /></label>
+            <label>نام کوتاه<input asp-for="System.ShortName" /></label>
+            <label>شعار<input asp-for="System.Slogan" /></label>
+            <label>تلفن<input asp-for="System.Phone" /></label>
+            <label>ایمیل<input asp-for="System.Email" /></label>
+            <label>وب‌سایت<input asp-for="System.Website" /></label>
+            <label>شناسه ملی<input asp-for="System.NationalId" /></label>
+            <label>کد اقتصادی<input asp-for="System.EconomicCode" /></label>
+            <label>زبان<input asp-for="System.DefaultLanguage" /></label>
+            <label>تقویم<select asp-for="System.Calendar"><option value="Persian">شمسی</option><option value="Gregorian">میلادی</option></select></label>
+            <label>منطقه زمانی<input asp-for="System.TimeZone" /></label>
+            <label>تعداد رکورد در صفحه<input asp-for="System.ItemsPerPage" type="number" min="5" max="200" /></label>
+        </div>
+    </section>
+
+    <section id="appearance" class="tab-panel">
+        <div class="grid-3">
+            <label>تم<input asp-for="System.Theme" /></label>
+            <label>رنگ اصلی<input asp-for="System.PrimaryColor" type="color" /></label>
+            <label>رنگ ثانویه<input asp-for="System.SecondaryColor" type="color" /></label>
+            <label>مسیر لوگو<input asp-for="System.LogoUrl" /></label>
+            <label>مسیر Favicon<input asp-for="System.FaviconUrl" /></label>
+            <label class="wide">متن پایین صفحه<textarea asp-for="System.FooterText"></textarea></label>
+        </div>
+    </section>
+
+    <section id="security" class="tab-panel">
+        <div class="grid-3">
+            <label>طول OTP<input asp-for="Otp.Length" type="number" min="4" max="8" /></label>
+            <label>اعتبار OTP (ثانیه)<input asp-for="Otp.ValiditySeconds" type="number" min="30" max="900" /></label>
+            <label>حداکثر تلاش<input asp-for="Otp.MaxAttempts" type="number" min="1" max="20" /></label>
+        </div>
+        <label class="switch"><input asp-for="Otp.Enabled" /> فعال بودن ورود OTP</label>
+        <label class="switch"><input asp-for="System.AllowUserSelfService" /> فعال بودن خدمات کاربری</label>
+        <label class="switch"><input asp-for="System.EnableAuditLog" /> ثبت رویدادهای سامانه</label>
+    </section>
+
+    <section id="sms" class="tab-panel">
+        <div class="grid-2">
+            <label>نام سرویس‌دهنده<input asp-for="Sms.ProviderName" /></label>
+            <label>آدرس Web Service<input asp-for="Sms.ServiceUrl" /></label>
+            <label>نام کاربری<input asp-for="Sms.Username" /></label>
+            <label>رمز سرویس<input asp-for="Sms.Password" type="password" /></label>
+            <label>شماره ارسال‌کننده<input asp-for="Sms.SenderNumber" /></label>
+            <label>API Key<input asp-for="Sms.ApiKey" type="password" /></label>
+            <label class="wide">الگوی پیام OTP<input asp-for="Sms.OtpTemplate" /></label>
+        </div>
+        <label class="switch"><input asp-for="Sms.Enabled" /> فعال بودن سرویس پیامک</label>
+        <div class="note">عبارت <code>{code}</code> با کد یکبارمصرف و <code>{mobile}</code> با شماره همراه جایگزین می‌شود.</div>
+    </section>
+
+    <section id="payroll" class="tab-panel">
+        <div class="grid-2">
+            <label class="wide">آدرس کامل گزارش SSRS / Report URL
+                <input asp-for="Payroll.ReportUrl" placeholder="https://SERVER/ReportServer?/Folder/PayrollSlip" />
+            </label>
+            <label>آدرس Report Server<input asp-for="Payroll.ReportServerUrl" placeholder="https://SERVER/ReportServer" /></label>
+            <label>مسیر گزارش RDL<input asp-for="Payroll.ReportPath" placeholder="/Folder/PayrollSlip" /></label>
+            <label>نام پارامتر سال/ماه<input asp-for="Payroll.YearParameter" /></label>
+            <label>نام پارامتر شماره پرسنلی<input asp-for="Payroll.PersonnelParameter" /></label>
+            <label>فرمت گزارش<input asp-for="Payroll.ReportFormat" placeholder="HTML4.0" /></label>
+        </div>
+        <label class="switch"><input asp-for="Payroll.Enabled" /> فعال بودن فیش حقوقی</label>
+        <div class="note">
+            اگر «آدرس کامل گزارش» وارد شود، همان URL مبنا قرار می‌گیرد. سامانه فقط پارامترهای سال/ماه و شماره پرسنلی کاربر لاگین‌شده را به آن اضافه می‌کند.
+        </div>
+    </section>
+
+    <section id="maintenance" class="tab-panel">
+        <label class="switch"><input asp-for="System.MaintenanceMode" /> حالت تعمیر و نگهداری</label>
+        <label>پیام نگهداری<textarea asp-for="System.MaintenanceMessage"></textarea></label>
+        <div class="note">اطلاعات حساس سرویس پیامک را در GitHub قرار ندهید.</div>
+    </section>
+
+    <div class="form-actions">
+        <button class="btn btn-main" type="submit">ذخیره همه تنظیمات</button>
+    </div>
 </form>
-@section Scripts{<script>function openTab(e,id){document.querySelectorAll('.tab-panel').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.getElementById(id).classList.add('active');e.currentTarget.classList.add('active')}</script>}
+
+@section Scripts {
+<script>
+document.querySelectorAll('.tab').forEach(function (button) {
+    button.addEventListener('click', function () {
+        document.querySelectorAll('.tab').forEach(function (b) { b.classList.remove('active'); });
+        document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
+        button.classList.add('active');
+        document.getElementById(button.dataset.tab).classList.add('active');
+    });
+});
+</script>
+}

@@ -1,4 +1,130 @@
 @model HRPortal.Controllers.EmployeesController.FormVm
-@{var edit=Model.Employee.Id>0;ViewData["Title"]=edit?"ویرایش کارمند":"کارمند جدید";}
-<div class="page-head"><div><h1>@ViewData["Title"]</h1></div><a class="btn btn-outline" href="/Employees">بازگشت</a></div>
-<form method="post" asp-action="@(edit?"Edit":"Create")"><input type="hidden" asp-for="Employee.Id">@Html.AntiForgeryToken()<div class="card"><div class="grid-3"><label>شماره پرسنلی*<input asp-for="Employee.PersonnelNumber" required></label><label>کد ملی*<input asp-for="Employee.NationalId" required></label><label>نام*<input asp-for="Employee.FirstName" required></label><label>نام خانوادگی*<input asp-for="Employee.LastName" required></label><label>موبایل*<input asp-for="Employee.Mobile" required></label><label>جنسیت*<select asp-for="Employee.Gender" required><option value="">انتخاب</option><option>مرد</option><option>زن</option></select></label><label>واحد سازمانی<select asp-for="Employee.OrganizationUnitId"><option value="">انتخاب</option>@foreach(var n in Model.Units){<option value="@n.Id">@n.Title (@n.Code)</option>}</select></label><label>اداره<select asp-for="Employee.OrganizationDepartmentId"><option value="">انتخاب</option>@foreach(var n in Model.Departments){<option value="@n.Id">@n.Title (@n.Code)</option>}</select></label><label>بخش<select asp-for="Employee.OrganizationSectionId"><option value="">انتخاب</option>@foreach(var n in Model.Sections){<option value="@n.Id">@n.Title (@n.Code)</option>}</select></label><label>سمت<input asp-for="Employee.PositionTitle"></label><label>نوع استخدام<input asp-for="Employee.EmploymentType"></label><label>ایمیل<input asp-for="Employee.Email"></label><label>نام پدر<input asp-for="Employee.FatherName"></label><label>وضعیت<select asp-for="Employee.Status"><option>فعال</option><option>غیرفعال</option></select></label></div></div><div class="form-actions"><button class="btn btn-main">ذخیره</button></div></form>
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var edit = Model.Employee.Id > 0;
+    ViewData["Title"] = edit ? "ویرایش کارمند" : "کارمند جدید";
+}
+<div class="page-head">
+    <div><h1>@ViewData["Title"]</h1><p>اطلاعات شناسایی و ارتباطی کارمند</p></div>
+    <a class="btn btn-outline" href="/Employees">بازگشت</a>
+</div>
+
+@if (!ViewData.ModelState.IsValid)
+{
+    <div class="alert error">
+    @foreach (var e in ViewData.ModelState.Values.SelectMany(v => v.Errors)) { <div>@e.ErrorMessage</div> }
+    </div>
+}
+
+<form method="post" asp-action="@(edit ? "Edit" : "Create")" class="employee-form">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="Employee.Id" />
+
+    <div class="card">
+        <div class="section-head"><div><h3>اطلاعات اصلی</h3><span class="muted">موارد دارای * اجباری هستند.</span></div></div>
+        <div class="grid-3">
+            <label>شماره پرسنلی *<input asp-for="Employee.PersonnelNumber" required /></label>
+            <label>کد ملی *<input asp-for="Employee.NationalId" required /></label>
+            <label>نام *<input asp-for="Employee.FirstName" required /></label>
+            <label>نام خانوادگی *<input asp-for="Employee.LastName" required /></label>
+            <label>شماره موبایل *<input asp-for="Employee.Mobile" required inputmode="tel" /></label>
+            <label>جنسیت *
+                <select asp-for="Employee.Gender" required>
+                    <option value="">انتخاب کنید</option>
+                    <option value="مرد">مرد</option>
+                    <option value="زن">زن</option>
+                </select>
+            </label>
+            <label>نام پدر<input asp-for="Employee.FatherName" /></label>
+            <label>ایمیل<input asp-for="Employee.Email" type="email" /></label>
+            <label>سمت<input asp-for="Employee.PositionTitle" /></label>
+            <label>نوع استخدام<input asp-for="Employee.EmploymentType" /></label>
+            <label>وضعیت
+                <select asp-for="Employee.Status">
+                    <option value="فعال">فعال</option>
+                    <option value="غیرفعال">غیرفعال</option>
+                </select>
+            </label>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="section-head"><div><h3>ساختار سازمانی</h3><span class="muted">اداره و بخش متناسب با انتخاب والد فیلتر می‌شوند.</span></div></div>
+        <div class="grid-3">
+            <label>واحد سازمانی
+                <select asp-for="Employee.OrganizationUnitId" id="unitSelect">
+                    <option value="">انتخاب واحد</option>
+                    @foreach (var n in Model.Units)
+                    {
+                        <option value="@n.Id">@n.Title (@n.Code)</option>
+                    }
+                </select>
+            </label>
+            <label>اداره سازمانی
+                <select asp-for="Employee.OrganizationDepartmentId" id="departmentSelect">
+                    <option value="">انتخاب اداره</option>
+                    @foreach (var n in Model.Departments)
+                    {
+                        <option value="@n.Id" data-parent-id="@n.ParentId">@n.Title (@n.Code)</option>
+                    }
+                </select>
+            </label>
+            <label>بخش سازمانی
+                <select asp-for="Employee.OrganizationSectionId" id="sectionSelect">
+                    <option value="">انتخاب بخش</option>
+                    @foreach (var n in Model.Sections)
+                    {
+                        <option value="@n.Id" data-parent-id="@n.ParentId">@n.Title (@n.Code)</option>
+                    }
+                </select>
+            </label>
+        </div>
+    </div>
+
+    <div class="form-actions"><button class="btn btn-main" type="submit">@(edit ? "ذخیره تغییرات" : "ثبت کارمند")</button></div>
+</form>
+
+@section Scripts {
+<script>
+(function(){
+    const unit = document.getElementById('unitSelect');
+    const department = document.getElementById('departmentSelect');
+    const section = document.getElementById('sectionSelect');
+
+    function filterChildren(parentSelect, childSelect) {
+        const parentId = parentSelect.value;
+        Array.from(childSelect.options).forEach(function(opt, index){
+            if (index === 0) { opt.hidden = false; return; }
+            const show = !!parentId && opt.dataset.parentId === parentId;
+            opt.hidden = !show;
+        });
+    }
+
+    function resetInvalidSelection(select) {
+        if (select.selectedOptions.length && select.selectedOptions[0].hidden)
+            select.value = "";
+    }
+
+    function refresh() {
+        filterChildren(unit, department);
+        resetInvalidSelection(department);
+        filterChildren(department, section);
+        resetInvalidSelection(section);
+    }
+
+    unit.addEventListener('change', function(){
+        filterChildren(unit, department);
+        department.value = "";
+        section.value = "";
+        filterChildren(department, section);
+    });
+
+    department.addEventListener('change', function(){
+        section.value = "";
+        filterChildren(department, section);
+    });
+
+    refresh();
+})();
+</script>
+}

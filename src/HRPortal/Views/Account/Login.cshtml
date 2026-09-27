@@ -1,2 +1,61 @@
 @model HRPortal.Controllers.AccountController.LoginVm
-@{Layout=null;}<html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ورود - پورتال جامع منابع انسانی</title><link rel="stylesheet" href="~/css/site.css"></head><body class="login-page"><div class="login-card"><div class="brand">پورتال جامع منابع انسانی</div><h2>ورود به سامانه</h2><p>شماره پرسنلی خود را وارد کنید. کد ورود به شماره همراه ثبت‌شده ارسال می‌شود.</p><form method="post">@Html.AntiForgeryToken()<input type="hidden" name="returnUrl" value="@Model.ReturnUrl"><label>شماره پرسنلی<input name="PersonnelNumber" autofocus autocomplete="username"></label><button class="btn btn-main">ارسال کد ورود</button></form></div></body></html>
+@{
+    Layout = "~/Views/Shared/_AuthLayout.cshtml";
+    ViewData["Title"] = "ورود";
+    var adminMode = string.Equals(ViewBag.Mode as string, "admin", StringComparison.OrdinalIgnoreCase);
+}
+<div class="auth-shell">
+    <div class="auth-card">
+        <div class="auth-brand">
+            <div class="auth-logo">HR</div>
+            <div><strong>پورتال جامع منابع انسانی</strong><span>سامانه خدمات کارکنان</span></div>
+        </div>
+        <div class="login-tabs">
+            <button type="button" class="login-tab @(adminMode ? "" : "active")" data-mode="employee">ورود کارکنان</button>
+            <button type="button" class="login-tab @(adminMode ? "active" : "")" data-mode="admin">ورود مدیر سامانه</button>
+        </div>
+        @if (!ViewData.ModelState.IsValid)
+        {
+            <div class="alert error">
+                @foreach (var e in ViewData.ModelState.Values.SelectMany(v => v.Errors)) { <div>@e.ErrorMessage</div> }
+            </div>
+        }
+        <div id="employeePanel" class="login-panel @(adminMode ? "hidden" : "")">
+            <div class="auth-intro"><h1>ورود کارکنان</h1><p>شماره پرسنلی را وارد کنید تا کد پنج رقمی یکبارمصرف برای موبایل ثبت‌شده ارسال شود.</p></div>
+            <form method="post" action="/Account/EmployeeLogin" class="login-form">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
+                <label>شماره پرسنلی<input name="PersonnelNumber" value="@Model.PersonnelNumber" autocomplete="username" inputmode="numeric" autofocus="@(!adminMode)" required /></label>
+                <button type="submit" class="btn btn-main btn-block">ارسال کد ورود</button>
+            </form>
+        </div>
+        <div id="adminPanel" class="login-panel @(adminMode ? "" : "hidden")">
+            <div class="auth-intro"><h1>ورود مدیر سامانه</h1><p>نام کاربری و رمز عبور حساب مدیر سامانه را وارد کنید.</p></div>
+            <form method="post" action="/Account/AdminLogin" class="login-form">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
+                <label>نام کاربری<input name="Username" value="@Model.Username" autocomplete="username" autofocus="@adminMode" required /></label>
+                <label>رمز عبور<input type="password" name="Password" autocomplete="current-password" required /></label>
+                <button type="submit" class="btn btn-main btn-block">ورود مدیر</button>
+            </form>
+        </div>
+        <div class="auth-note">کارکنان در هر ورود یک کد یکبارمصرف جدید دریافت می‌کنند.</div>
+    </div>
+</div>
+@section Scripts {
+<script>
+(function () {
+    const tabs = document.querySelectorAll('.login-tab');
+    const employee = document.getElementById('employeePanel');
+    const admin = document.getElementById('adminPanel');
+    tabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+            const isAdmin = tab.dataset.mode === 'admin';
+            tabs.forEach(function (x) { x.classList.toggle('active', x === tab); });
+            employee.classList.toggle('hidden', isAdmin);
+            admin.classList.toggle('hidden', !isAdmin);
+        });
+    });
+})();
+</script>
+}

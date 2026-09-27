@@ -1,135 +1,377 @@
-@model HRPortal.Models.OrganizationStructureRevision?
 @{
     Layout = "~/Views/Shared/_Layout.cshtml";
     ViewData["Title"] = "ساختار سازمانی";
     var revisions = ViewBag.Revisions as List<HRPortal.Models.OrganizationStructureRevision> ?? [];
-    var editable = Model is not null && !Model.IsFinalized;
-    var roots = Model?.Nodes.Where(x => x.ParentId is null).OrderBy(x => x.SortOrder).ThenBy(x => x.Title).ToList() ?? [];
-    ViewData["Editable"] = editable;
+    var editable = (bool?)ViewBag.IsEditable ?? false;
+    var revisionId = (int?)ViewBag.RevisionId ?? 0;
+    var treeJson = (string?)ViewBag.TreeJson ?? "[]";
+    var companyName = (string?)ViewBag.CompanyName ?? "شرکت";
 }
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jstree@3.3.17/dist/themes/default/style.min.css" />
+
 <div class="page-head">
     <div>
         <h1>ساختار سازمانی</h1>
-        <p>ساختار درختی، بازنگری نسخه، تاریخ اجرا و سوابق تغییرات</p>
+        <p>مدیریت ساختار سازمانی با Tree، بازنگری، راست‌کلیک و Drag &amp; Drop</p>
+    </div>
+    <div class="actions">
+        @if (editable)
+        {
+            <form method="post" action="/Organization/Finalize">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="revisionId" value="@revisionId" />
+                <button class="btn btn-main" type="submit">اتمام بازنگری و نهایی‌سازی</button>
+            </form>
+        }
     </div>
 </div>
 
-@if (TempData["Error"] != null)
-{
-    <div class="alert error">@TempData["Error"]</div>
-}
+@if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
+@if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
 
 <div class="split">
-    <div class="card">
-        <div class="section-head"><h3>نسخه‌های ساختار</h3></div>
-        <form method="post" action="/Organization/NewRevision" class="mini-form">
+    <section class="card">
+        <div class="section-head">
+            <div><h3>نسخه‌های ساختار</h3><span class="muted">نسخه جاری و سوابق بازنگری</span></div>
+        </div>
+
+        @if (!editable)
+        {
+            <div class="note">
+                برای شروع ساخت یا اصلاح ساختار، یک نسخه بازنگری جدید ایجاد کنید. ساختار نسخه قبلی برای بازنگری کپی می‌شود.
+            </div>
+        }
+
+        <form method="post" action="/Organization/NewRevision" class="revision-create-form">
             @Html.AntiForgeryToken()
-            <label>تاریخ اجرا<input name="effectiveDate" value="@HRPortal.Services.PersianDateService.Format(DateTime.Today)" placeholder="۱۴۰۵/۰۷/۰۵" required /></label>
-            <label>عنوان بازنگری<input name="title" placeholder="عنوان نسخه" required /></label>
-            <label class="wide">یادداشت<textarea name="notes" placeholder="توضیحات بازنگری"></textarea></label>
-            <button class="btn btn-main" type="submit">ایجاد نسخه جدید</button>
+            <label>تاریخ اجرای نسخه
+                <input name="effectiveDate" value="@HRPortal.Services.PersianDateService.Format(DateTime.Today)" placeholder="۱۴۰۵/۰۷/۰۵" required />
+            </label>
+            <label>عنوان بازنگری
+                <input name="title" placeholder="مثلاً ساختار پیشنهادی ۱۴۰۵" required />
+            </label>
+            <label>یادداشت
+                <textarea name="notes" placeholder="توضیحات بازنگری"></textarea>
+            </label>
+            <button class="btn btn-outline" type="submit">ایجاد نسخه بازنگری</button>
         </form>
 
         <div class="revision-list">
-        @foreach (var r in revisions)
-        {
-            <a class="revision @(Model?.Id == r.Id ? "selected" : "")"
-               href="/Organization?revisionId=@r.Id">
-                <strong>@r.Title</strong>
-                <span>@r.RevisionCode</span>
-                <span>@HRPortal.Services.PersianDateService.Format(r.EffectiveDate) — @(r.IsFinalized ? "نهایی" : "در حال بازنگری")</span>
-            </a>
-        }
+            @foreach (var r in revisions)
+            {
+                <a class="revision @(revisionId == r.Id ? "selected" : "")" href="/Organization?revisionId=@r.Id">
+                    <strong>@r.Title</strong>
+                    <span>@r.RevisionCode</span>
+                    <span>@HRPortal.Services.PersianDateService.Format(r.EffectiveDate)</span>
+                    <span>@(r.IsFinalized ? "نهایی" : "در حال بازنگری")</span>
+                </a>
+            }
         </div>
-    </div>
+    </section>
 
-    <div class="card">
+    <section class="card tree-card">
         <div class="section-head">
             <div>
-                <h3>@(Model?.Title ?? "نسخه‌ای انتخاب نشده است")</h3>
-                @if (Model is not null)
-                {
-                    <div class="muted">@Model.RevisionCode — تاریخ اجرا @HRPortal.Services.PersianDateService.Format(Model.EffectiveDate)</div>
-                }
+                <h3>ساختار سازمانی - @companyName</h3>
+                <span class="muted">
+                    @(revisionId > 0 ? $"{ViewBag.RevisionTitle} | تاریخ اجرا: {ViewBag.EffectiveDate}" : "هنوز نسخه‌ای برای ساخت انتخاب نشده است")
+                </span>
             </div>
             @if (editable)
             {
-                <form method="post" action="/Organization/Finalize">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="revisionId" value="@Model!.Id" />
-                    <button class="btn btn-main" type="submit">اتمام بازنگری و نهایی‌سازی</button>
-                </form>
-            }
-        </div>
-
-        @if (editable)
-        {
-            <div class="node-create-box">
-                <h4>افزودن گره ریشه</h4>
-                <form method="post" action="/Organization/AddNode" class="node-create-form">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="revisionId" value="@Model!.Id" />
-                    <input type="text" name="code" placeholder="کد" required />
-                    <input type="text" name="title" placeholder="عنوان" required />
-                    <select name="rankType"><option value="مدیریت">مدیریت</option></select>
-                    <input type="number" name="sortOrder" value="0" placeholder="ترتیب" />
-                    <label class="inline-check"><input type="checkbox" name="isActive" value="true" checked /> فعال</label>
-                    <input type="text" name="notes" placeholder="توضیحات" />
-                    <button class="btn btn-outline" type="submit">افزودن گره</button>
-                </form>
-            </div>
-        }
-
-        <div class="tree">
-            @if (roots.Count == 0)
-            {
-                <div class="empty tree-empty">برای این نسخه هنوز گره‌ای ثبت نشده است.</div>
+                <span class="badge">قابل ویرایش</span>
             }
             else
             {
-                <ul class="tree-list">
-                @foreach (var node in roots)
-                {
-                    <partial name="_Node" model="node" />
-                }
-                </ul>
+                <span class="badge badge-neutral">فقط مشاهده</span>
             }
         </div>
-    </div>
+
+        @if (revisionId > 0)
+        {
+            <div class="tree-help">
+                <span>راست‌کلیک روی گره: افزودن، ویرایش و حذف</span>
+                <span>نگه‌داشتن کلیک چپ: جابجایی با Drag &amp; Drop</span>
+                <span>روی ریشه کلیک راست: افزودن گره اصلی</span>
+            </div>
+
+            <div id="organizationTree" class="organization-tree"></div>
+        }
+        else
+        {
+            <div class="empty tree-empty">
+                یک نسخه بازنگری ایجاد کنید تا ساخت درخت را آغاز کنید.
+            </div>
+        }
+    </section>
 </div>
 
 <div class="card">
-    <div class="section-head"><h3>تاریخچه تغییرات</h3></div>
-    @if (Model?.Changes.Any() == true)
+    <div class="section-head"><div><h3>تاریخچه تغییرات</h3><span class="muted">@ViewBag.ChangeCount تغییر ثبت‌شده برای نسخه انتخابی</span></div></div>
+    @if (revisionId > 0)
     {
         <div class="table-wrap">
             <table>
                 <thead><tr><th>نوع</th><th>کد</th><th>شرح</th><th>زمان</th></tr></thead>
                 <tbody>
-                @foreach (var change in Model.Changes.OrderByDescending(x => x.ChangedAt))
+                @{
+                    var revisionForLog = revisions.FirstOrDefault(x => x.Id == revisionId);
+                }
+                @if (revisionForLog?.Changes?.Any() == true)
                 {
-                    <tr><td>@change.ChangeType</td><td>@change.EntityCode</td><td>@change.Description</td><td>@change.ChangedAt.ToLocalTime()</td></tr>
+                    foreach (var change in revisionForLog.Changes.OrderByDescending(x => x.ChangedAt))
+                    {
+                        <tr><td>@change.ChangeType</td><td>@change.EntityCode</td><td>@change.Description</td><td>@change.ChangedAt.ToLocalTime()</td></tr>
+                    }
+                }
+                else
+                {
+                    <tr><td colspan="4" class="empty">تغییری ثبت نشده است.</td></tr>
                 }
                 </tbody>
             </table>
         </div>
     }
-    else
-    {
-        <div class="empty">برای این نسخه تغییری ثبت نشده است.</div>
-    }
 </div>
 
+@if (editable)
+{
+    <div id="nodeModal" class="modal-backdrop hidden">
+        <div class="modal-card">
+            <div class="modal-head">
+                <div><h3 id="nodeModalTitle">افزودن گره</h3><span id="nodeModalSubtitle">مشخصات گره سازمانی</span></div>
+                <button type="button" class="modal-close" id="closeNodeModal">×</button>
+            </div>
+            <form id="nodeForm" class="form-stack">
+                @Html.AntiForgeryToken()
+                <input type="hidden" id="nodeId" />
+                <input type="hidden" id="nodeParentId" />
+                <div class="grid-2">
+                    <label>عنوان گره *
+                        <input id="nodeTitle" required />
+                    </label>
+                    <label>کد *
+                        <input id="nodeCode" required />
+                    </label>
+                    <label>رده *
+                        <select id="nodeRank" required></select>
+                    </label>
+                    <label>ترتیب نمایش
+                        <input id="nodeSortOrder" type="number" value="0" />
+                    </label>
+                    <label class="inline-check">فعال
+                        <input id="nodeActive" type="checkbox" checked />
+                    </label>
+                    <label class="wide">توضیحات
+                        <textarea id="nodeNotes"></textarea>
+                    </label>
+                </div>
+                <div id="nodeModalError" class="alert error hidden"></div>
+                <div class="form-actions">
+                    <button class="btn btn-outline" type="button" id="cancelNode">انصراف</button>
+                    <button class="btn btn-main" type="submit">ذخیره</button>
+                </div>
+            </form>
+        </div>
+    </div>
+}
+
 @section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jstree@3.3.17/dist/jstree.min.js"></script>
 <script>
-document.querySelectorAll('.tree-toggle').forEach(function(button){
-    button.addEventListener('click', function(){
-        const target = document.getElementById(button.dataset.target);
-        if (!target) return;
-        target.classList.toggle('collapsed');
-        button.textContent = target.classList.contains('collapsed') ? '+' : '−';
-        button.setAttribute('aria-expanded', (!target.classList.contains('collapsed')).toString());
+(function () {
+    const editable = @(editable.ToString().ToLowerInvariant());
+    const revisionId = @revisionId;
+    const treeData = [
+        {
+            id: "root",
+            parent: "#",
+            text: "ساختار سازمانی - @Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(companyName))",
+            state: { opened: true },
+            icon: "jstree-folder",
+            data: { virtualRoot: true, title: "ساختار سازمانی - @Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(companyName))" }
+        }
+    ].concat(@Html.Raw(treeJson));
+
+    if (!revisionId || !document.getElementById("organizationTree")) return;
+
+    const token = document.querySelector('#nodeModal input[name="__RequestVerificationToken"]')?.value;
+
+    function api(url, values) {
+        const body = new URLSearchParams();
+        body.append("__RequestVerificationToken", token || "");
+        Object.keys(values || {}).forEach(function (key) {
+            body.append(key, values[key] == null ? "" : values[key]);
+        });
+        return fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
+            body: body.toString()
+        }).then(function (r) { return r.json(); });
+    }
+
+    function setRankOptions(parentRank, currentRank) {
+        const select = document.getElementById("nodeRank");
+        select.innerHTML = "";
+        let ranks = parentRank == null ? ["معاونت", "مدیریت"] :
+            parentRank === "معاونت" ? ["مدیریت"] :
+            parentRank === "مدیریت" ? ["ریاست"] :
+            parentRank === "ریاست" ? ["سرپرستی"] : [];
+
+        ranks.forEach(function (r) {
+            const opt = document.createElement("option");
+            opt.value = r; opt.textContent = r; if (r === currentRank) opt.selected = true;
+            select.appendChild(opt);
+        });
+    }
+
+    function showError(message) {
+        const box = document.getElementById("nodeModalError");
+        box.textContent = message || "";
+        box.classList.toggle("hidden", !message);
+    }
+
+    function openModal(mode, node, parentNode) {
+        showError("");
+        document.getElementById("nodeModalTitle").textContent = mode === "edit" ? "ویرایش گره" : "افزودن گره";
+        document.getElementById("nodeModalSubtitle").textContent =
+            mode === "edit" ? "اطلاعات گره انتخاب‌شده" : "اطلاعات گره جدید";
+
+        const id = document.getElementById("nodeId");
+        const parentId = document.getElementById("nodeParentId");
+        id.value = mode === "edit" ? node.data.id : "";
+        parentId.value = parentNode && parentNode.id !== "root" ? parentNode.data.id : "";
+
+        document.getElementById("nodeTitle").value = mode === "edit" ? node.data.title : "";
+        document.getElementById("nodeCode").value = mode === "edit" ? node.data.code : "";
+        document.getElementById("nodeSortOrder").value = mode === "edit" ? node.data.sortOrder : 0;
+        document.getElementById("nodeActive").checked = mode === "edit" ? !!node.data.isActive : true;
+        document.getElementById("nodeNotes").value = mode === "edit" ? (node.data.notes || "") : "";
+
+        let parentRank = parentNode && parentNode.id !== "root" ? parentNode.data.rankType : null;
+        setRankOptions(parentRank, mode === "edit" ? node.data.rankType : null);
+
+        const rank = document.getElementById("nodeRank");
+        if (!rank.options.length) {
+            showError("برای این گره هیچ رده مجازی وجود ندارد.");
+            return;
+        }
+
+        const modal = document.getElementById("nodeModal");
+        modal.classList.remove("hidden");
+        document.getElementById("nodeTitle").focus();
+        document.getElementById("nodeForm").dataset.mode = mode;
+    }
+
+    function closeModal() {
+        document.getElementById("nodeModal").classList.add("hidden");
+        showError("");
+    }
+
+    $(function () {
+        const tree = $('#organizationTree').jstree({
+            core: {
+                data: treeData,
+                multiple: false,
+                check_callback: editable
+            },
+            plugins: editable ? ["contextmenu", "dnd", "wholerow"] : ["wholerow"],
+            contextmenu: {
+                items: function (node) {
+                    if (!editable) return {};
+                    if (node.id === "root") {
+                        return {
+                            create: {
+                                label: "افزودن گره",
+                                action: function () { openModal("create", null, node); }
+                            }
+                        };
+                    }
+                    return {
+                        create: {
+                            label: "افزودن زیرگره",
+                            action: function () { openModal("create", null, node); }
+                        },
+                        edit: {
+                            label: "ویرایش گره",
+                            action: function () { openModal("edit", node, tree.jstree(true).get_node(node.parent)); }
+                        },
+                        remove: {
+                            label: "حذف گره",
+                            action: function () {
+                                if (!confirm("آیا از حذف این گره اطمینان دارید؟")) return;
+                                api("/Organization/DeleteNode", { id: node.data.id })
+                                    .then(function (result) {
+                                        if (!result.success) { alert(result.message); return; }
+                                        tree.jstree(true).delete_node(node);
+                                    })
+                                    .catch(function () { alert("خطا در حذف گره."); });
+                            }
+                        }
+                    };
+                }
+            }
+        });
+
+        tree.on("move_node.jstree", function (e, data) {
+            if (!editable || data.node.id === "root") return;
+            const parentId = data.parent === "root" ? "" : tree.jstree(true).get_node(data.parent).data.id;
+            api("/Organization/MoveNode", {
+                id: data.node.data.id,
+                parentId: parentId,
+                position: data.position
+            }).then(function (result) {
+                if (!result.success) {
+                    alert(result.message);
+                    window.location.reload();
+                    return;
+                }
+            }).catch(function () {
+                alert("خطا در ذخیره جابجایی گره.");
+                window.location.reload();
+            });
+        });
+
+        document.getElementById("nodeForm")?.addEventListener("submit", function (event) {
+            event.preventDefault();
+            showError("");
+
+            const mode = this.dataset.mode;
+            const nodeId = document.getElementById("nodeId").value;
+            const parentId = document.getElementById("nodeParentId").value;
+            const values = {
+                revisionId: revisionId,
+                code: document.getElementById("nodeCode").value.trim(),
+                title: document.getElementById("nodeTitle").value.trim(),
+                rankType: document.getElementById("nodeRank").value,
+                sortOrder: document.getElementById("nodeSortOrder").value || 0,
+                isActive: document.getElementById("nodeActive").checked ? "true" : "false",
+                notes: document.getElementById("nodeNotes").value
+            };
+
+            const url = mode === "edit" ? "/Organization/UpdateNode" : "/Organization/CreateNode";
+            if (mode === "edit") values.id = nodeId;
+            else values.parentId = parentId;
+
+            api(url, values).then(function (result) {
+                if (!result.success) {
+                    showError(result.message);
+                    return;
+                }
+                closeModal();
+                window.location.reload();
+            }).catch(function () {
+                showError("خطا در ارتباط با سرور.");
+            });
+        });
+
+        document.getElementById("closeNodeModal")?.addEventListener("click", closeModal);
+        document.getElementById("cancelNode")?.addEventListener("click", closeModal);
+        document.getElementById("nodeModal")?.addEventListener("click", function (e) {
+            if (e.target === this) closeModal();
+        });
     });
-});
+})();
 </script>
 }

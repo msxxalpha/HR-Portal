@@ -90,6 +90,36 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllerRoute(
+    name: "root",
+    pattern: "",
+    defaults: new { controller = "Home", action = "Index" });
+
+app.MapControllerRoute(
+    name: "employees",
+    pattern: "Employees/{action=Index}/{id?}",
+    defaults: new { controller = "Employees" });
+
+app.MapControllerRoute(
+    name: "organization",
+    pattern: "Organization/{action=Index}/{id?}",
+    defaults: new { controller = "Organization" });
+
+app.MapControllerRoute(
+    name: "payroll",
+    pattern: "Payroll/{action=Payslip}/{id?}",
+    defaults: new { controller = "Payroll" });
+
+app.MapControllerRoute(
+    name: "settings",
+    pattern: "SystemSettings/{action=Index}/{id?}",
+    defaults: new { controller = "SystemSettings" });
+
+app.MapControllerRoute(
+    name: "account",
+    pattern: "Account/{action=Login}/{id?}",
+    defaults: new { controller = "Account" });
+
+app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
 

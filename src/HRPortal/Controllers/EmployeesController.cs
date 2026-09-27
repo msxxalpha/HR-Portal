@@ -50,6 +50,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
     public async Task<IActionResult> Create(FormVm model)
     {
         ValidateEmployee(model.Employee);
+        await ValidateOrganizationAssignmentsAsync(model.Employee);
 
         if (!ModelState.IsValid)
             return View("Form", await BuildFormVmAsync(model.Employee));
@@ -184,6 +185,38 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         }
 
         return View();
+    }
+
+    private async Task ValidateOrganizationAssignmentsAsync(Employee employee)
+    {
+        if (employee.OrganizationUnitId.HasValue)
+        {
+            var unit = await db.OrganizationNodes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == employee.OrganizationUnitId.Value);
+            if (unit is null || unit.RankType != "مدیریت")
+                ModelState.AddModelError("Employee.OrganizationUnitId", "واحد سازمانی باید از رده مدیریت انتخاب شود.");
+        }
+
+        if (employee.OrganizationDepartmentId.HasValue)
+        {
+            var department = await db.OrganizationNodes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == employee.OrganizationDepartmentId.Value);
+            if (department is null || department.RankType != "ریاست")
+                ModelState.AddModelError("Employee.OrganizationDepartmentId", "اداره سازمانی باید از رده ریاست انتخاب شود.");
+
+            if (employee.OrganizationUnitId.HasValue &&
+                (department is null || department.ParentId != employee.OrganizationUnitId.Value))
+                ModelState.AddModelError("Employee.OrganizationDepartmentId", "اداره انتخاب‌شده زیرمجموعه واحد انتخاب‌شده نیست.");
+        }
+
+        if (employee.OrganizationSectionId.HasValue)
+        {
+            var section = await db.OrganizationNodes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == employee.OrganizationSectionId.Value);
+            if (section is null || section.RankType != "سرپرستی")
+                ModelState.AddModelError("Employee.OrganizationSectionId", "بخش سازمانی باید از رده سرپرستی انتخاب شود.");
+
+            if (employee.OrganizationDepartmentId.HasValue &&
+                (section is null || section.ParentId != employee.OrganizationDepartmentId.Value))
+                ModelState.AddModelError("Employee.OrganizationSectionId", "بخش انتخاب‌شده زیرمجموعه اداره انتخاب‌شده نیست.");
+        }
     }
 
     private static void ValidateEmployee(Employee employee)

@@ -1,23 +1,22 @@
 using HRPortal.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HRPortal.Controllers;
 
+[Authorize]
 public class PayrollController(ReportService reports) : Controller
 {
     [HttpGet]
-    public IActionResult Payslip(string? yearMonth)
+    public IActionResult Payslip(string? yearMonth = null)
     {
-        var personnel = User.FindFirst("PersonnelNumber")?.Value;
+        var personnelNumber = User.FindFirst("PersonnelNumber")?.Value;
 
-        if (string.IsNullOrWhiteSpace(personnel))
-        {
-            ViewBag.Message = "برای مشاهده فیش حقوقی ابتدا وارد سامانه شوید.";
-            return View();
-        }
+        if (string.IsNullOrWhiteSpace(personnelNumber))
+            return RedirectToAction("Login", "Account", new { returnUrl = "/Payroll/Payslip" });
 
-        ViewBag.YearMonth = yearMonth ?? PersianMonth();
-        ViewBag.PersonnelNumber = personnel;
+        ViewBag.YearMonth = string.IsNullOrWhiteSpace(yearMonth) ? PersianMonth() : yearMonth;
+        ViewBag.ReportUrl = null;
         return View();
     }
 
@@ -25,29 +24,29 @@ public class PayrollController(ReportService reports) : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> GeneratePayslip(string yearMonth)
     {
-        var personnel = User.FindFirst("PersonnelNumber")?.Value;
+        var personnelNumber = User.FindFirst("PersonnelNumber")?.Value;
 
-        if (string.IsNullOrWhiteSpace(personnel))
-        {
+        if (string.IsNullOrWhiteSpace(personnelNumber))
             return RedirectToAction("Login", "Account", new { returnUrl = "/Payroll/Payslip" });
-        }
 
         ViewBag.YearMonth = yearMonth;
-        ViewBag.PersonnelNumber = personnel;
 
         if (string.IsNullOrWhiteSpace(yearMonth))
         {
-            ModelState.AddModelError("", "سال و ماه را وارد کنید.");
+            ModelState.AddModelError("", "سال و ماه را به صورت ۱۴۰۵/۰۶ وارد کنید.");
             return View("Payslip");
         }
 
-        var url = await reports.BuildUrlAsync(yearMonth, personnel);
-        ViewBag.ReportUrl = url;
-
-        if (url == null)
+        if (!System.Text.RegularExpressions.Regex.IsMatch(yearMonth.Trim(), @"^[0-9۰-۹]{4}/[0-9۰-۹]{2}$"))
         {
-            ViewBag.Message = "تنظیمات گزارش فیش حقوقی تکمیل نشده است.";
+            ModelState.AddModelError("", "قالب سال و ماه باید مانند ۱۴۰۵/۰۶ باشد.");
+            return View("Payslip");
         }
+
+        ViewBag.ReportUrl = await reports.BuildUrlAsync(yearMonth.Trim(), personnelNumber);
+
+        if (ViewBag.ReportUrl is null)
+            ViewBag.Message = "آدرس گزارش فیش حقوقی در تنظیمات سامانه ثبت نشده یا گزارش غیرفعال است.";
 
         return View("Payslip");
     }

@@ -4,44 +4,75 @@ using HRPortal.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace HRPortal.Controllers;
 
 [Authorize(Policy = "AdminOnly")]
-public class OrganizationController(HRPortalDbContext db, OrganizationService service) : Controller
+public class OrganizationController(
+    HRPortalDbContext db,
+    OrganizationService service,
+    EnvironmentSettingsService settings) : Controller
 {
     public async Task<IActionResult> Index(int? revisionId)
     {
         var revisions = await service.RevisionsAsync();
-        var current = revisionId.HasValue
-            ? revisions.FirstOrDefault(x => x.Id == revisionId)
-            : await service.CurrentAsync();
 
-        if (current is not null)
+        var revision = revisionId.HasValue
+            ? revisions.FirstOrDefault(x => x.Id == revisionId.Value)
+            : revisions.FirstOrDefault(x => !x.IsFinalized) ?? await service.CurrentAsync();
+
+        ViewBag.CompanyName = (await settings.GetAsync()).System.OrganizationName;
+        ViewBag.Revisions = revisions;
+        ViewBag.IsEditable = revision is not null && !revision.IsFinalized;
+
+        if (revision is not null)
         {
             var nodes = await db.OrganizationNodes
-                .Where(x => x.OrganizationStructureRevisionId == current.Id)
+                .AsNoTracking()
+                .Where(x => x.OrganizationStructureRevisionId == revision.Id)
                 .OrderBy(x => x.SortOrder)
                 .ThenBy(x => x.Title)
                 .ToListAsync();
 
-            var map = nodes.ToDictionary(x => x.Id);
-            foreach (var node in nodes)
-                node.Children = new List<OrganizationNode>();
+            var tree = nodes.Select(n => new
+            {
+                id = "node-" + n.Id,
+                parent = n.ParentId.HasValue ? "node-" + n.ParentId.Value : "root",
+                text = n.Title + "  [" + n.RankType + "]",
+                data = new
+                {
+                    id = n.Id,
+                    code = n.Code,
+                    title = n.Title,
+                    rankType = n.RankType,
+                    sortOrder = n.SortOrder,
+                    isActive = n.IsActive,
+                    notes = n.Notes,
+                    parentId = n.ParentId,
+                    revisionId = n.OrganizationStructureRevisionId
+                },
+                state = new { opened = true }
+            }).ToList();
 
-            foreach (var node in nodes.Where(x => x.ParentId.HasValue))
-                if (map.TryGetValue(node.ParentId!.Value, out var parent))
-                    parent.Children.Add(node);
-
-            current.Nodes = nodes;
-            current.Changes = await db.OrganizationChanges
-                .Where(x => x.OrganizationStructureRevisionId == current.Id)
-                .OrderByDescending(x => x.ChangedAt)
-                .ToListAsync();
+            ViewBag.TreeJson = JsonSerializer.Serialize(tree);
+            ViewBag.RevisionId = revision.Id;
+            ViewBag.RevisionTitle = revision.Title;
+            ViewBag.EffectiveDate = PersianDateService.Format(revision.EffectiveDate);
+            ViewBag.IsFinalized = revision.IsFinalized;
+            ViewBag.ChangeCount = await db.OrganizationChanges.CountAsync(x => x.OrganizationStructureRevisionId == revision.Id);
+        }
+        else
+        {
+            ViewBag.TreeJson = "[]";
+            ViewBag.RevisionId = 0;
+            ViewBag.RevisionTitle = "نسخه‌ای ایجاد نشده است";
+            ViewBag.EffectiveDate = "";
+            ViewBag.IsFinalized = true;
+            ViewBag.ChangeCount = 0;
         }
 
-        ViewBag.Revisions = revisions;
-        return View(current);
+        return View();
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -49,7 +80,7 @@ public class OrganizationController(HRPortalDbContext db, OrganizationService se
     {
         if (!PersianDateService.TryParse(effectiveDate, out var date))
         {
-            TempData["Error"] = "تاریخ اجرا را به صورت شمسی مانند ۱۴۰۵/۰۷/۰۵ وارد کنید.";
+            TempData["Error"] = "تاریخ اجرا را به‌صورت شمسی مانند ۱۴۰۵/۰۷/۰۵ وارد کنید.";
             return RedirectToAction(nameof(Index));
         }
 
@@ -59,46 +90,43 @@ public class OrganizationController(HRPortalDbContext db, OrganizationService se
             return RedirectToAction(nameof(Index));
         }
 
-        await service.CreateRevisionAsync(date, title.Trim(), notes);
-        return RedirectToAction(nameof(Index));
+        var revision = await service.CreateRevisionAsync(date, title.Trim(), notes);
+        return RedirectToAction(nameof(Index), new { revisionId = revision.Id });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> AddNode(
-        int revisionId, int? parentId, string code, string title, string rankType,
-        int sortOrder = 0, bool isActive = true, string? notes = null)
+    public async Task<IActionResult> CreateNode(
+        int revisionId,
+        int? parentId,
+        string code,
+        string title,
+        string rankType,
+        int sortOrder = 0,
+        bool isActive = true,
+        string? notes = null)
     {
-        var revision = await db.OrganizationStructureRevisions.FindAsync(revisionId);
-        if (revision is null || revision.IsFinalized)
-        {
-            TempData["Error"] = "فقط نسخه در حال بازنگری قابل تغییر است.";
-            return RedirectToAction(nameof(Index), new { revisionId });
-        }
+        var result = await EnsureEditableRevision(revisionId);
+        if (result is not null)
+            return result;
 
-        code = code?.Trim() ?? "";
-        title = title?.Trim() ?? "";
+        var validation = await ValidateNodeParentAsync(revisionId, parentId, rankType);
+        if (validation is not null)
+            return Json(new { success = false, message = validation });
+
+        code = code.Trim();
+        title = title.Trim();
 
         if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(title))
-        {
-            TempData["Error"] = "کد و عنوان گره الزامی است.";
-            return RedirectToAction(nameof(Index), new { revisionId });
-        }
-
-        var validation = await ValidateHierarchyAsync(parentId, rankType, revisionId);
-        if (validation is not null)
-        {
-            TempData["Error"] = validation;
-            return RedirectToAction(nameof(Index), new { revisionId });
-        }
+            return Json(new { success = false, message = "کد و عنوان الزامی است." });
 
         if (await db.OrganizationNodes.AnyAsync(x =>
-                x.OrganizationStructureRevisionId == revisionId && x.Code == code))
+                x.OrganizationStructureRevisionId == revisionId &&
+                x.Code == code))
         {
-            TempData["Error"] = "کد این گره در این نسخه قبلاً استفاده شده است.";
-            return RedirectToAction(nameof(Index), new { revisionId });
+            return Json(new { success = false, message = "کد این گره در این نسخه قبلاً استفاده شده است." });
         }
 
-        db.OrganizationNodes.Add(new OrganizationNode
+        var node = new OrganizationNode
         {
             OrganizationStructureRevisionId = revisionId,
             ParentId = parentId,
@@ -107,9 +135,10 @@ public class OrganizationController(HRPortalDbContext db, OrganizationService se
             RankType = rankType,
             SortOrder = sortOrder,
             IsActive = isActive,
-            Notes = notes
-        });
+            Notes = notes?.Trim()
+        };
 
+        db.OrganizationNodes.Add(node);
         db.OrganizationChanges.Add(new OrganizationChange
         {
             OrganizationStructureRevisionId = revisionId,
@@ -119,56 +148,121 @@ public class OrganizationController(HRPortalDbContext db, OrganizationService se
         });
 
         await db.SaveChangesAsync();
-        return RedirectToAction(nameof(Index), new { revisionId });
+
+        return Json(new
+        {
+            success = true,
+            node = new
+            {
+                id = node.Id,
+                parentId = node.ParentId,
+                code = node.Code,
+                title = node.Title,
+                rankType = node.RankType,
+                sortOrder = node.SortOrder,
+                isActive = node.IsActive,
+                notes = node.Notes
+            }
+        });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> EditNode(
-        int id, string code, string title, string rankType,
-        int sortOrder, bool isActive, string? notes)
+    public async Task<IActionResult> UpdateNode(
+        int id,
+        string code,
+        string title,
+        string rankType,
+        int sortOrder,
+        bool isActive,
+        string? notes)
     {
         var node = await db.OrganizationNodes
             .Include(x => x.Revision)
             .FirstOrDefaultAsync(x => x.Id == id);
 
         if (node is null)
-            return NotFound();
+            return Json(new { success = false, message = "گره یافت نشد." });
 
         if (node.Revision.IsFinalized)
-        {
-            TempData["Error"] = "نسخه نهایی قابل ویرایش نیست.";
-        }
-        else if (await IsNodeUsedAsync(node.Id))
-        {
-            TempData["Error"] = "این گره در اطلاعات کارکنان استفاده شده است و ویرایش مستقیم آن مجاز نیست.";
-        }
-        else
-        {
-            var validation = await ValidateHierarchyAsync(node.ParentId, rankType, node.OrganizationStructureRevisionId);
-            if (validation is not null)
-                TempData["Error"] = validation;
-            else
-            {
-                node.Code = code.Trim();
-                node.Title = title.Trim();
-                node.RankType = rankType;
-                node.SortOrder = sortOrder;
-                node.IsActive = isActive;
-                node.Notes = notes;
+            return Json(new { success = false, message = "نسخه نهایی قابل ویرایش نیست." });
 
-                db.OrganizationChanges.Add(new OrganizationChange
-                {
-                    OrganizationStructureRevisionId = node.OrganizationStructureRevisionId,
-                    ChangeType = "ویرایش",
-                    EntityCode = node.Code,
-                    Description = $"ویرایش {node.Title}"
-                });
+        if (await IsNodeUsedAsync(id))
+            return Json(new { success = false, message = "این گره در اطلاعات کارکنان استفاده شده و قابل ویرایش مستقیم نیست." });
 
-                await db.SaveChangesAsync();
-            }
+        var validation = await ValidateNodeParentAsync(node.OrganizationStructureRevisionId, node.ParentId, rankType);
+        if (validation is not null)
+            return Json(new { success = false, message = validation });
+
+        if (await db.OrganizationNodes.AnyAsync(x =>
+                x.Id != id &&
+                x.OrganizationStructureRevisionId == node.OrganizationStructureRevisionId &&
+                x.Code == code.Trim()))
+            return Json(new { success = false, message = "کد این گره قبلاً استفاده شده است." });
+
+        node.Code = code.Trim();
+        node.Title = title.Trim();
+        node.RankType = rankType;
+        node.SortOrder = sortOrder;
+        node.IsActive = isActive;
+        node.Notes = notes?.Trim();
+
+        db.OrganizationChanges.Add(new OrganizationChange
+        {
+            OrganizationStructureRevisionId = node.OrganizationStructureRevisionId,
+            ChangeType = "ویرایش",
+            EntityCode = node.Code,
+            Description = $"ویرایش {node.Title}"
+        });
+
+        await db.SaveChangesAsync();
+
+        return Json(new { success = true });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> MoveNode(int id, int? parentId, int position)
+    {
+        var node = await db.OrganizationNodes
+            .Include(x => x.Revision)
+            .FirstOrDefaultAsync(x => x.Id == id);
+
+        if (node is null)
+            return Json(new { success = false, message = "گره یافت نشد." });
+
+        if (node.Revision.IsFinalized)
+            return Json(new { success = false, message = "نسخه نهایی قابل تغییر نیست." });
+
+        if (node.ParentId == parentId)
+        {
+            node.SortOrder = position * 10;
+            await db.SaveChangesAsync();
+            return Json(new { success = true });
         }
 
-        return RedirectToAction(nameof(Index), new { revisionId = node.OrganizationStructureRevisionId });
+        if (parentId == id)
+            return Json(new { success = false, message = "یک گره نمی‌تواند والد خودش باشد." });
+
+        var validation = await ValidateNodeParentAsync(node.OrganizationStructureRevisionId, parentId, node.RankType);
+        if (validation is not null)
+            return Json(new { success = false, message = validation });
+
+        if (parentId.HasValue && await WouldCreateCycleAsync(id, parentId.Value))
+            return Json(new { success = false, message = "جابجایی باعث ایجاد چرخه در ساختار می‌شود." });
+
+        node.ParentId = parentId;
+        node.SortOrder = position * 10;
+
+        db.OrganizationChanges.Add(new OrganizationChange
+        {
+            OrganizationStructureRevisionId = node.OrganizationStructureRevisionId,
+            ChangeType = "جابجایی",
+            EntityCode = node.Code,
+            Description = $"جابجایی {node.Title}"
+        });
+
+        await db.SaveChangesAsync();
+
+        return Json(new { success = true });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -179,38 +273,72 @@ public class OrganizationController(HRPortalDbContext db, OrganizationService se
             .FirstOrDefaultAsync(x => x.Id == id);
 
         if (node is null)
-            return NotFound();
+            return Json(new { success = false, message = "گره یافت نشد." });
 
-        if (node.Revision.IsFinalized ||
-            await IsNodeUsedAsync(node.Id) ||
-            await db.OrganizationNodes.AnyAsync(x => x.ParentId == node.Id))
+        if (node.Revision.IsFinalized)
+            return Json(new { success = false, message = "نسخه نهایی قابل حذف نیست." });
+
+        if (await IsNodeUsedAsync(id))
+            return Json(new { success = false, message = "این گره در اطلاعات کارکنان استفاده شده است." });
+
+        if (await db.OrganizationNodes.AnyAsync(x => x.ParentId == id))
+            return Json(new { success = false, message = "ابتدا زیرگره‌های این گره را منتقل یا حذف کنید." });
+
+        db.OrganizationChanges.Add(new OrganizationChange
         {
-            TempData["Error"] = "حذف این گره مجاز نیست؛ نسخه نهایی، مورد استفاده کارکنان یا دارای زیرگره است.";
-        }
-        else
-        {
-            db.OrganizationChanges.Add(new OrganizationChange
-            {
-                OrganizationStructureRevisionId = node.OrganizationStructureRevisionId,
-                ChangeType = "حذف",
-                EntityCode = node.Code,
-                Description = $"حذف {node.Title}"
-            });
+            OrganizationStructureRevisionId = node.OrganizationStructureRevisionId,
+            ChangeType = "حذف",
+            EntityCode = node.Code,
+            Description = $"حذف {node.Title}"
+        });
 
-            db.OrganizationNodes.Remove(node);
-            await db.SaveChangesAsync();
-        }
+        db.OrganizationNodes.Remove(node);
+        await db.SaveChangesAsync();
 
-        return RedirectToAction(nameof(Index), new { revisionId = node.OrganizationStructureRevisionId });
+        return Json(new { success = true });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Finalize(int revisionId)
     {
-        try { await service.FinalizeAsync(revisionId); }
-        catch (Exception ex) { TempData["Error"] = ex.Message; }
+        try
+        {
+            await service.FinalizeAsync(revisionId);
+            TempData["Success"] = "نسخه ساختار با موفقیت نهایی شد.";
+        }
+        catch (Exception ex)
+        {
+            TempData["Error"] = ex.Message;
+        }
 
         return RedirectToAction(nameof(Index), new { revisionId });
+    }
+
+    private async Task<IActionResult?> EnsureEditableRevision(int revisionId)
+    {
+        var revision = await db.OrganizationStructureRevisions.FindAsync(revisionId);
+        if (revision is null)
+            return Json(new { success = false, message = "نسخه ساختار یافت نشد." });
+
+        if (revision.IsFinalized)
+            return Json(new { success = false, message = "ابتدا یک نسخه بازنگری جدید ایجاد کنید." });
+
+        return null;
+    }
+
+    private async Task<string?> ValidateNodeParentAsync(int revisionId, int? parentId, string childRank)
+    {
+        if (parentId is null)
+            return OrganizationService.ValidateHierarchy("", childRank, true);
+
+        var parent = await db.OrganizationNodes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == parentId && x.OrganizationStructureRevisionId == revisionId);
+
+        if (parent is null)
+            return "والد انتخاب‌شده یافت نشد.";
+
+        return OrganizationService.ValidateHierarchy(parent.RankType, childRank, false);
     }
 
     private async Task<bool> IsNodeUsedAsync(int id) =>
@@ -219,29 +347,19 @@ public class OrganizationController(HRPortalDbContext db, OrganizationService se
             e.OrganizationDepartmentId == id ||
             e.OrganizationSectionId == id);
 
-    private async Task<string?> ValidateHierarchyAsync(int? parentId, string rankType, int revisionId)
+    private async Task<bool> WouldCreateCycleAsync(int id, int newParentId)
     {
-        if (rankType is not ("مدیریت" or "ریاست" or "سرپرستی"))
-            return "نوع رده نامعتبر است.";
+        var current = await db.OrganizationNodes.FindAsync(newParentId);
+        var guard = 0;
 
-        if (parentId is null)
-            return rankType == "مدیریت" ? null : "گره ریشه فقط باید از رده مدیریت باشد.";
+        while (current is not null && current.ParentId.HasValue && guard++ < 1000)
+        {
+            if (current.ParentId.Value == id)
+                return true;
 
-        var parent = await db.OrganizationNodes.FirstOrDefaultAsync(
-            x => x.Id == parentId && x.OrganizationStructureRevisionId == revisionId);
+            current = await db.OrganizationNodes.FindAsync(current.ParentId.Value);
+        }
 
-        if (parent is null)
-            return "والد انتخاب‌شده یافت نشد.";
-
-        if (parent.RankType == "مدیریت" && rankType != "ریاست")
-            return "زیرمجموعه مدیریت باید از رده ریاست باشد.";
-
-        if (parent.RankType == "ریاست" && rankType != "سرپرستی")
-            return "زیرمجموعه ریاست باید از رده سرپرستی باشد.";
-
-        if (parent.RankType == "سرپرستی")
-            return "رده سرپرستی نمی‌تواند زیررده دیگری داشته باشد.";
-
-        return null;
+        return false;
     }
 }

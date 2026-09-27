@@ -34,13 +34,13 @@
                         <label>عنوان<input name="title" value="@Model.Title" required /></label>
                         <label>نوع رده
                             <select name="rankType">
-                                <option selected="@(Model.RankType == "مدیریت")">مدیریت</option>
-                                <option selected="@(Model.RankType == "ریاست")">ریاست</option>
-                                <option selected="@(Model.RankType == "سرپرستی")">سرپرستی</option>
+                                @if (Model.RankType == "مدیریت") { <option value="مدیریت" selected>مدیریت</option> } else { <option value="مدیریت">مدیریت</option> }
+                                @if (Model.RankType == "ریاست") { <option value="ریاست" selected>ریاست</option> } else { <option value="ریاست">ریاست</option> }
+                                @if (Model.RankType == "سرپرستی") { <option value="سرپرستی" selected>سرپرستی</option> } else { <option value="سرپرستی">سرپرستی</option> }
                             </select>
                         </label>
                         <label>ترتیب<input name="sortOrder" type="number" value="@Model.SortOrder" /></label>
-                        <label class="inline-check">فعال <input type="checkbox" name="isActive" value="true" checked="@Model.IsActive" /></label>
+                        <label class="inline-check">فعال <input type="checkbox" name="isActive" value="true" @(Model.IsActive ? "checked" : "") /></label>
                         <label class="wide">توضیحات<textarea name="notes">@Model.Notes</textarea></label>
                         <button class="btn btn-outline" type="submit">ذخیره گره</button>
                     </form>

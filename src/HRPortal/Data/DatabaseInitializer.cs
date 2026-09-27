@@ -144,6 +144,7 @@ IF COL_LENGTH(N'SystemSettings', N'Email') IS NULL ALTER TABLE [SystemSettings] 
 IF COL_LENGTH(N'SystemSettings', N'EconomicCode') IS NULL ALTER TABLE [SystemSettings] ADD [EconomicCode] nvarchar(100) NOT NULL CONSTRAINT [DF_SystemSettings_EconomicCode] DEFAULT N'';
 IF COL_LENGTH(N'SystemSettings', N'NationalId') IS NULL ALTER TABLE [SystemSettings] ADD [NationalId] nvarchar(100) NOT NULL CONSTRAINT [DF_SystemSettings_NationalId] DEFAULT N'';
 IF COL_LENGTH(N'SystemSettings', N'FaviconUrl') IS NULL ALTER TABLE [SystemSettings] ADD [FaviconUrl] nvarchar(500) NOT NULL CONSTRAINT [DF_SystemSettings_FaviconUrl] DEFAULT N'';
+IF COL_LENGTH(N'PayrollReportSettings', N'ReportUrl') IS NULL ALTER TABLE [PayrollReportSettings] ADD [ReportUrl] nvarchar(2000) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportUrl] DEFAULT N'';
 
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_Employees_PersonnelNumber') CREATE UNIQUE INDEX [IX_Employees_PersonnelNumber] ON [Employees]([PersonnelNumber]);
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_Employees_NationalId') CREATE UNIQUE INDEX [IX_Employees_NationalId] ON [Employees]([NationalId]);

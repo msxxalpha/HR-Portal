@@ -12,11 +12,15 @@ public class PayrollController(ReportService reports) : Controller
     {
         var personnelNumber = User.FindFirst("PersonnelNumber")?.Value;
 
-        if (string.IsNullOrWhiteSpace(personnelNumber))
-            return RedirectToAction("Login", "Account", new { returnUrl = "/Payroll/Payslip" });
-
+        ViewBag.PersonnelNumber = personnelNumber;
         ViewBag.YearMonth = string.IsNullOrWhiteSpace(yearMonth) ? PersianMonth() : yearMonth;
         ViewBag.ReportUrl = null;
+
+        if (string.IsNullOrWhiteSpace(personnelNumber))
+        {
+            ViewBag.Message = "این حساب کاربری شماره پرسنلی ندارد؛ فیش حقوقی برای حساب کارکنان فعال است.";
+        }
+
         return View();
     }
 
@@ -26,10 +30,14 @@ public class PayrollController(ReportService reports) : Controller
     {
         var personnelNumber = User.FindFirst("PersonnelNumber")?.Value;
 
-        if (string.IsNullOrWhiteSpace(personnelNumber))
-            return RedirectToAction("Login", "Account", new { returnUrl = "/Payroll/Payslip" });
-
         ViewBag.YearMonth = yearMonth;
+        ViewBag.PersonnelNumber = personnelNumber;
+
+        if (string.IsNullOrWhiteSpace(personnelNumber))
+        {
+            ViewBag.Message = "این حساب کاربری شماره پرسنلی ندارد؛ فیش حقوقی برای حساب کارکنان فعال است.";
+            return View("Payslip");
+        }
 
         if (string.IsNullOrWhiteSpace(yearMonth))
         {
@@ -46,7 +54,9 @@ public class PayrollController(ReportService reports) : Controller
         ViewBag.ReportUrl = await reports.BuildUrlAsync(yearMonth.Trim(), personnelNumber);
 
         if (ViewBag.ReportUrl is null)
+        {
             ViewBag.Message = "آدرس گزارش فیش حقوقی در تنظیمات سامانه ثبت نشده یا گزارش غیرفعال است.";
+        }
 
         return View("Payslip");
     }

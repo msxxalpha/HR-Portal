@@ -1,1 +1,32 @@
-@{Layout=null;}<html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>تایید کد</title><link rel="stylesheet" href="~/css/site.css"></head><body class="login-page"><div class="login-card"><div class="brand">پورتال جامع منابع انسانی</div><h2>تایید کد ورود</h2><p>کد پنج رقمی ارسال‌شده را وارد کنید.</p>@if(TempData["DebugOtp"]!=null){<div class="alert success">کد آزمایشی محیط توسعه: <strong>@TempData["DebugOtp"]</strong></div>}@if(TempData["OtpError"]!=null){<div class="alert error">@TempData["OtpError"]</div>}<form method="post">@Html.AntiForgeryToken()<input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl"><label>کد ورود<input name="code" inputmode="numeric" maxlength="5" autofocus></label><button class="btn btn-main">ورود</button></form><a class="back-link" href="/Account/Login">بازگشت</a></div></body></html>
+@{
+    Layout = "~/Views/Shared/_AuthLayout.cshtml";
+    ViewData["Title"] = "تأیید کد ورود";
+}
+<div class="auth-shell">
+    <div class="auth-card">
+        <div class="auth-brand"><div class="auth-logo">HR</div><div><strong>پورتال جامع منابع انسانی</strong><span>تأیید ورود کارکنان</span></div></div>
+        <div class="otp-icon">۵</div>
+        <h1 class="auth-title">کد ورود را وارد کنید</h1>
+        <p class="auth-description">کد پنج رقمی برای شماره همراه ثبت‌شده کارمند ارسال شده است.</p>
+        <div class="otp-meta">شماره پرسنلی: <strong>@ViewBag.PersonnelNumber</strong></div>
+        @if (TempData["DebugOtp"] != null) {
+            <div class="alert success">کد آزمایشی محیط توسعه: <strong>@TempData["DebugOtp"]</strong></div>
+        }
+        @if (TempData["OtpError"] != null) {
+            <div class="alert error">@TempData["OtpError"]</div>
+        }
+        @if (!ViewData.ModelState.IsValid) {
+            <div class="alert error">
+            @foreach (var e in ViewData.ModelState.Values.SelectMany(v => v.Errors)) {
+                <div>@e.ErrorMessage</div>
+            }
+            </div>
+        }
+        <form method="post" action="/Account/Verify" class="login-form">
+            @Html.AntiForgeryToken()
+            <label>کد یکبارمصرف<input name="code" class="otp-input" maxlength="5" inputmode="numeric" autocomplete="one-time-code" autofocus required /></label>
+            <button type="submit" class="btn btn-main btn-block">تأیید و ورود به سامانه</button>
+        </form>
+        <a class="back-link" href="/Account/Login">بازگشت به صفحه ورود</a>
+    </div>
+</div>

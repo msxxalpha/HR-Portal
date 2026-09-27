@@ -10,6 +10,8 @@ public static class DatabaseInitializer
         await db.Database.EnsureCreatedAsync();
         await EnsureSchemaAsync(db);
 
+        await EnsureAdminTableAsync(db);
+
         if (!await db.SystemSettings.AnyAsync())
             db.SystemSettings.Add(new SystemSettings { OrganizationName = "شرکت کمک فنرسازی ایندامین سایپا", ApplicationName = "پورتال جامع منابع انسانی" });
 
@@ -33,6 +35,32 @@ public static class DatabaseInitializer
             });
 
         await db.SaveChangesAsync();
+        var adminService = new global::HRPortal.Services.AdminService(db);
+        await adminService.SeedAsync();
+    }
+
+    private static async Task EnsureAdminTableAsync(HRPortalDbContext db)
+    {
+        const string sql = @"
+IF OBJECT_ID(N'[AdminUsers]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [AdminUsers](
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_AdminUsers] PRIMARY KEY,
+        [Username] nvarchar(100) NOT NULL,
+        [PasswordHash] nvarchar(1000) NOT NULL,
+        [DisplayName] nvarchar(200) NOT NULL CONSTRAINT [DF_AdminUsers_DisplayName] DEFAULT N'مدیر سامانه',
+        [IsActive] bit NOT NULL CONSTRAINT [DF_AdminUsers_IsActive] DEFAULT 1,
+        [MustChangePassword] bit NOT NULL CONSTRAINT [DF_AdminUsers_MustChangePassword] DEFAULT 1,
+        [CreatedAt] datetime2 NOT NULL,
+        [UpdatedAt] datetime2 NOT NULL,
+        [LastLoginAt] datetime2 NULL
+    );
+END;
+
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_AdminUsers_Username')
+    CREATE UNIQUE INDEX [IX_AdminUsers_Username] ON [AdminUsers]([Username]);
+";
+        await db.Database.ExecuteSqlRawAsync(sql);
     }
 
     private static async Task EnsureSchemaAsync(HRPortalDbContext db)

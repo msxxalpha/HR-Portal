@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - پورتال جامع منابع انسانی</title>
+    <link rel="icon" href="~/favicon.ico" />
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/gh/rastikerdar/vazir-font@v30.1.0/dist/font-face.css" />
+    <link rel="stylesheet" href="@Url.Content("~/css/site.css")" asp-append-version="true" />
+</head>
+<body class="auth-body">
+    @RenderBody()
+    @RenderSection("Scripts", required: false)
+</body>
+</html>

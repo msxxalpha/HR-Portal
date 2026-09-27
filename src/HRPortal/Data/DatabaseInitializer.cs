@@ -41,6 +41,9 @@ IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name='IX_OrganizationNodes_Revisio
 IF NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name='FK_OrganizationNodes_Revisions') ALTER TABLE OrganizationNodes ADD CONSTRAINT FK_OrganizationNodes_Revisions FOREIGN KEY(OrganizationStructureRevisionId) REFERENCES OrganizationStructureRevisions(Id) ON DELETE CASCADE;
 IF NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name='FK_OrganizationNodes_Parent') ALTER TABLE OrganizationNodes ADD CONSTRAINT FK_OrganizationNodes_Parent FOREIGN KEY(ParentId) REFERENCES OrganizationNodes(Id);
 IF NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name='FK_OrganizationChanges_Revisions') ALTER TABLE OrganizationChanges ADD CONSTRAINT FK_OrganizationChanges_Revisions FOREIGN KEY(OrganizationStructureRevisionId) REFERENCES OrganizationStructureRevisions(Id) ON DELETE CASCADE;
+IF NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name='FK_Employees_Unit') ALTER TABLE Employees ADD CONSTRAINT FK_Employees_Unit FOREIGN KEY(OrganizationUnitId) REFERENCES OrganizationNodes(Id);
+IF NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name='FK_Employees_Department') ALTER TABLE Employees ADD CONSTRAINT FK_Employees_Department FOREIGN KEY(OrganizationDepartmentId) REFERENCES OrganizationNodes(Id);
+IF NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name='FK_Employees_Section') ALTER TABLE Employees ADD CONSTRAINT FK_Employees_Section FOREIGN KEY(OrganizationSectionId) REFERENCES OrganizationNodes(Id);
 ";
   await db.Database.ExecuteSqlRawAsync(sql);
  }

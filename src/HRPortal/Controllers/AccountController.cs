@@ -104,10 +104,7 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
 
         await audit.WriteAsync("ورود موفق مدیر", "AdminUser", admin.Id.ToString(), admin.Username);
 
-        if (admin.MustChangePassword)
-            return RedirectToAction(nameof(ChangePassword));
-
-        return Redirect("/");
+        return RedirectToAction("Index", "Home");
     }
 
     [HttpGet, AllowAnonymous]

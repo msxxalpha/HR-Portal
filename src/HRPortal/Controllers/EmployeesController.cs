@@ -76,6 +76,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
     public async Task<IActionResult> Edit(FormVm model)
     {
         ValidateEmployee(model.Employee);
+        await ValidateOrganizationAssignmentsAsync(model.Employee);
 
         if (!ModelState.IsValid)
             return View("Form", await BuildFormVmAsync(model.Employee));

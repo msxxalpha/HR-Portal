@@ -1,1 +1,55 @@
-@{ViewData["Title"]="فیش حقوقی";}<div class="page-head"><div><h1>فیش حقوقی</h1><p>شماره پرسنلی از کاربر واردشده به سامانه دریافت می‌شود.</p></div></div><div class="card"><form method="post" asp-action="GeneratePayslip" class="report-filter">@Html.AntiForgeryToken()<label>سال / ماه (مثلاً ۱۴۰۵/۰۶)<input name="yearMonth" value="@ViewBag.YearMonth" required></label><label>شماره پرسنلی<input value="@ViewBag.PersonnelNumber" readonly></label><button class="btn btn-main">مشاهده فیش حقوقی</button></form></div>@if(ViewBag.Message!=null){<div class="alert error">@ViewBag.Message</div>}@if(ViewBag.ReportUrl!=null){<div class="report-frame"><iframe src="@ViewBag.ReportUrl" title="گزارش فیش حقوقی"></iframe></div>}else{<div class="card empty">پس از تنظیم Report Server و مسیر گزارش، گزارش در این قسمت نمایش داده می‌شود.</div>}
+@{
+    ViewData["Title"] = "فیش حقوقی";
+}
+<div class="page-head">
+    <div>
+        <h1>فیش حقوقی</h1>
+        <p>فیش حقوقی بر اساس شماره پرسنلی کاربر لاگین‌شده نمایش داده می‌شود.</p>
+    </div>
+</div>
+
+@if (!ViewData.ModelState.IsValid)
+{
+    <div class="alert error">
+        @foreach (var item in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+        {
+            <div>@item.ErrorMessage</div>
+        }
+    </div>
+}
+
+@if (ViewBag.Message != null)
+{
+    <div class="alert error">@ViewBag.Message</div>
+}
+
+<div class="card">
+    <form method="post" asp-controller="Payroll" asp-action="GeneratePayslip" class="report-filter">
+        @Html.AntiForgeryToken()
+        <label class="report-period">
+            سال / ماه
+            <input name="yearMonth"
+                   value="@ViewBag.YearMonth"
+                   placeholder="۱۴۰۵/۰۶"
+                   maxlength="7"
+                   inputmode="numeric"
+                   autocomplete="off"
+                   required />
+        </label>
+
+        <div class="report-user">
+            <span>کاربر جاری</span>
+            <strong>@User.Identity?.Name</strong>
+            <small>شماره پرسنلی از حساب کاربری خوانده می‌شود و قابل ویرایش نیست.</small>
+        </div>
+
+        <button class="btn btn-main" type="submit">مشاهده فیش حقوقی</button>
+    </form>
+</div>
+
+@if (ViewBag.ReportUrl != null)
+{
+    <div class="report-frame">
+        <iframe src="@ViewBag.ReportUrl" title="گزارش فیش حقوقی"></iframe>
+    </div>
+}

@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace HRPortal.Controllers;
 
 [Authorize(Policy = "Employees.View")]
-public class EmployeesController(HRPortalDbContext db, EmployeeExcelService excel, AuditService audit) : Controller
+public class EmployeesController(HRPortalDbContext db, EmployeeExcelService excel, AuditService audit, RoleService roles) : Controller
 {
     public async Task<IActionResult> Index(string? q, string? status, string sort = "PersonnelNumber", string dir = "asc")
     {
@@ -71,6 +71,10 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
 
         db.Employees.Add(employee);
         await db.SaveChangesAsync();
+
+        var defaultRole = await db.Roles.FirstOrDefaultAsync(x => x.Code == "EMPLOYEE" && x.IsActive);
+        if (defaultRole is not null)
+            await roles.SaveEmployeeRolesAsync(employee.Id, new[] { defaultRole.Id });
 
         await audit.WriteAsync("ایجاد کارمند", "Employee", employee.Id.ToString(), employee.PersonnelNumber);
         return RedirectToAction(nameof(Index));

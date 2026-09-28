@@ -133,3 +133,25 @@
 .permission-item span{display:flex;flex-direction:column;gap:3px}
 .permission-item small{color:#6b7280;font-size:11px}
 .btn-sm{padding:6px 12px;font-size:12px}
+
+/* Reliable boolean switches: hidden fallback first, checkbox adjacent to slider. */
+.switch-control{position:relative;width:52px;height:30px;flex:0 0 52px;display:inline-block}
+.switch-control input[type="hidden"]{display:none!important}
+.switch-control input[type="checkbox"]{
+ position:absolute!important;inset:0!important;width:100%!important;height:100%!important;margin:0!important;
+ opacity:0!important;cursor:pointer!important;z-index:2!important;pointer-events:auto!important
+}
+.switch-control .switch-slider{
+ position:absolute;inset:0;background:#c8d1d7;border-radius:999px;transition:.2s;
+ box-shadow:inset 0 0 0 1px rgba(0,0,0,.06);z-index:1
+}
+.switch-control .switch-slider:before{
+ content:"";position:absolute;width:22px;height:22px;top:4px;right:4px;border-radius:50%;
+ background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.16);transition:.2s
+}
+.switch-control input[type="checkbox"]:checked + .switch-slider{background:#22a060}
+.switch-control input[type="checkbox"]:checked + .switch-slider:before{transform:translateX(-22px)}
+.switch-control input[type="checkbox"]:focus-visible + .switch-slider{box-shadow:0 0 0 3px rgba(34,160,96,.18)}
+.switch-control input[type="checkbox"]:not(:checked) + .switch-slider{background:#c8d1d7}
+.toggle-card:has(input[type="checkbox"]:checked){border-color:#b9dfc7;background:#f4fbf6}
+.toggle-card:has(input[type="checkbox"]:not(:checked)){border-color:#d9e0e5;background:#f8fafb}

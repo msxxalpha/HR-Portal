@@ -26,7 +26,7 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
 
         try
         {
-            var request = BuildRequest(settings, mobile, message);
+            var request = BuildRequest(settings, mobile, code, message);
             using var client = clients.CreateClient();
             client.Timeout = TimeSpan.FromSeconds(20);
 
@@ -45,7 +45,7 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
         }
     }
 
-    private static HttpRequestMessage BuildRequest(SmsSettings settings, string recipient, string message)
+    private static HttpRequestMessage BuildRequest(SmsSettings settings, string recipient, string code, string message)
     {
         var endpoint = settings.Endpoint?.Trim() ?? "";
         if (endpoint.Length == 0)
@@ -64,6 +64,12 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
         var messageField = settings.MessageField?.Trim() ?? "";
         if (messageField.Length > 0)
             data[messageField] = message;
+
+        // Some SMS providers require the OTP value as a dedicated request field
+        // in addition to the rendered message text (for example: { "code": "12345" }).
+        var codeField = settings.CodeField?.Trim() ?? "";
+        if (codeField.Length > 0)
+            data[codeField] = code;
 
         var senderField = settings.SenderField?.Trim() ?? "";
         if (senderField.Length > 0 && !string.IsNullOrWhiteSpace(settings.Sender))

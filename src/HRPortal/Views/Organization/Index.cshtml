@@ -188,7 +188,7 @@
 (function () {
     const editable = @editable.ToString().ToLowerInvariant();
     const revisionId = @revisionId;
-    const companyName = @Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(companyName));
+    const companyName = "@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(companyName))";
     const nodes = @Html.Raw(treeJson);
     const treeHost = document.getElementById("organizationTree");
 

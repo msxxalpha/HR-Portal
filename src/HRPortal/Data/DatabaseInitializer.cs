@@ -174,6 +174,36 @@ IF COL_LENGTH(N'SystemSettings', N'NationalId') IS NULL ALTER TABLE [SystemSetti
 IF COL_LENGTH(N'SystemSettings', N'FaviconUrl') IS NULL ALTER TABLE [SystemSettings] ADD [FaviconUrl] nvarchar(500) NOT NULL CONSTRAINT [DF_SystemSettings_FaviconUrl] DEFAULT N'';
 IF COL_LENGTH(N'PayrollReportSettings', N'ReportUrl') IS NULL ALTER TABLE [PayrollReportSettings] ADD [ReportUrl] nvarchar(2000) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportUrl] DEFAULT N'';
 
+IF COL_LENGTH(N'SmsSettings', N'Endpoint') IS NULL ALTER TABLE [SmsSettings] ADD [Endpoint] nvarchar(2000) NOT NULL CONSTRAINT [DF_SmsSettings_Endpoint] DEFAULT N'';
+IF COL_LENGTH(N'SmsSettings', N'Method') IS NULL ALTER TABLE [SmsSettings] ADD [Method] nvarchar(20) NOT NULL CONSTRAINT [DF_SmsSettings_Method] DEFAULT N'POST';
+IF COL_LENGTH(N'SmsSettings', N'Format') IS NULL ALTER TABLE [SmsSettings] ADD [Format] nvarchar(30) NOT NULL CONSTRAINT [DF_SmsSettings_Format] DEFAULT N'json';
+IF COL_LENGTH(N'SmsSettings', N'AuthMode') IS NULL ALTER TABLE [SmsSettings] ADD [AuthMode] nvarchar(30) NOT NULL CONSTRAINT [DF_SmsSettings_AuthMode] DEFAULT N'header';
+IF COL_LENGTH(N'SmsSettings', N'ApiKeyName') IS NULL ALTER TABLE [SmsSettings] ADD [ApiKeyName] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_ApiKeyName] DEFAULT N'Api-Key';
+IF COL_LENGTH(N'SmsSettings', N'SenderField') IS NULL ALTER TABLE [SmsSettings] ADD [SenderField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_SenderField] DEFAULT N'sender';
+IF COL_LENGTH(N'SmsSettings', N'Sender') IS NULL ALTER TABLE [SmsSettings] ADD [Sender] nvarchar(200) NOT NULL CONSTRAINT [DF_SmsSettings_Sender] DEFAULT N'';
+IF COL_LENGTH(N'SmsSettings', N'RecipientField') IS NULL ALTER TABLE [SmsSettings] ADD [RecipientField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_RecipientField] DEFAULT N'recipient';
+IF COL_LENGTH(N'SmsSettings', N'RecipientMode') IS NULL ALTER TABLE [SmsSettings] ADD [RecipientMode] nvarchar(30) NOT NULL CONSTRAINT [DF_SmsSettings_RecipientMode] DEFAULT N'scalar';
+IF COL_LENGTH(N'SmsSettings', N'MessageField') IS NULL ALTER TABLE [SmsSettings] ADD [MessageField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_MessageField] DEFAULT N'message';
+IF COL_LENGTH(N'SmsSettings', N'NumberFormatField') IS NULL ALTER TABLE [SmsSettings] ADD [NumberFormatField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_NumberFormatField] DEFAULT N'';
+IF COL_LENGTH(N'SmsSettings', N'NumberFormat') IS NULL ALTER TABLE [SmsSettings] ADD [NumberFormat] nvarchar(200) NOT NULL CONSTRAINT [DF_SmsSettings_NumberFormat] DEFAULT N'';
+IF COL_LENGTH(N'SmsSettings', N'StaticParams') IS NULL ALTER TABLE [SmsSettings] ADD [StaticParams] nvarchar(max) NOT NULL CONSTRAINT [DF_SmsSettings_StaticParams] DEFAULT N'';
+IF COL_LENGTH(N'SmsSettings', N'SuccessCodes') IS NULL ALTER TABLE [SmsSettings] ADD [SuccessCodes] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_SuccessCodes] DEFAULT N'200-299';
+IF COL_LENGTH(N'SmsSettings', N'Template') IS NULL ALTER TABLE [SmsSettings] ADD [Template] nvarchar(2000) NOT NULL CONSTRAINT [DF_SmsSettings_Template] DEFAULT N'کاربر محترم، کد ورود شما: {code}';
+IF COL_LENGTH(N'SmsSettings', N'TestRecipient') IS NULL ALTER TABLE [SmsSettings] ADD [TestRecipient] nvarchar(30) NOT NULL CONSTRAINT [DF_SmsSettings_TestRecipient] DEFAULT N'';
+
+IF COL_LENGTH(N'SmsSettings', N'ServiceUrl') IS NOT NULL
+BEGIN
+    UPDATE [SmsSettings] SET [Endpoint]=[ServiceUrl] WHERE ISNULL([Endpoint],N'')=N'' AND ISNULL([ServiceUrl],N'')<>N'';
+END;
+IF COL_LENGTH(N'SmsSettings', N'SenderNumber') IS NOT NULL
+BEGIN
+    UPDATE [SmsSettings] SET [Sender]=[SenderNumber] WHERE ISNULL([Sender],N'')=N'' AND ISNULL([SenderNumber],N'')<>N'';
+END;
+IF COL_LENGTH(N'SmsSettings', N'OtpTemplate') IS NOT NULL
+BEGIN
+    UPDATE [SmsSettings] SET [Template]=[OtpTemplate] WHERE ISNULL([Template],N'')=N'' AND ISNULL([OtpTemplate],N'')<>N'';
+END;
+
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_Employees_PersonnelNumber') CREATE UNIQUE INDEX [IX_Employees_PersonnelNumber] ON [Employees]([PersonnelNumber]);
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_Employees_NationalId') CREATE UNIQUE INDEX [IX_Employees_NationalId] ON [Employees]([NationalId]);
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_OrganizationStructureRevisions_RevisionCode') CREATE UNIQUE INDEX [IX_OrganizationStructureRevisions_RevisionCode] ON [OrganizationStructureRevisions]([RevisionCode]);

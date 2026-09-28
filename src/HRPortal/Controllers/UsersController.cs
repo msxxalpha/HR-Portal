@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HRPortal.Controllers;
 
-[Authorize(Policy = "AdminOnly")]
+[Authorize(Policy = "UsersRoles.Manage")]
 public class UsersController(HRPortalDbContext db, RoleService roles, AuditService audit) : Controller
 {
     [HttpGet]
@@ -23,7 +23,7 @@ public class UsersController(HRPortalDbContext db, RoleService roles, AuditServi
         return View(model);
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "Users.Manage"), ValidateAntiForgeryToken]
     public async Task<IActionResult> SaveUser(int employeeId, bool isSystemUser, int[]? roleIds)
     {
         var employee = await db.Employees.FindAsync(employeeId);
@@ -45,7 +45,7 @@ public class UsersController(HRPortalDbContext db, RoleService roles, AuditServi
         return RedirectToAction(nameof(Index));
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "Roles.Manage"), ValidateAntiForgeryToken]
     public async Task<IActionResult> SaveRole(RoleEditModel model)
     {
         if (string.IsNullOrWhiteSpace(model.Code) || string.IsNullOrWhiteSpace(model.Title))

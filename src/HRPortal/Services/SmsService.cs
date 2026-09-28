@@ -54,17 +54,41 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
         var data = ParseStaticParams(settings.StaticParams);
         var sendingType = GetStringValue(data, "sending_type");
 
+        var isIppanelEdge = IsIppanelEdgeEndpoint(endpoint);
+
         var recipientField = settings.RecipientField?.Trim() ?? "";
         if (recipientField.Length > 0)
         {
             var asArray = string.Equals(settings.RecipientMode, "array", StringComparison.OrdinalIgnoreCase)
                           || string.Equals(recipientField, "recipients", StringComparison.OrdinalIgnoreCase);
-            data[recipientField] = asArray ? new[] { recipient } : recipient;
+
+            if (isIppanelEdge && string.Equals(sendingType, "pattern", StringComparison.OrdinalIgnoreCase))
+            {
+                // IPPanel Edge Pattern API requires top-level recipients[] in E.164.
+                data.Remove("recipient");
+                data["recipients"] = new[] { NormalizeIranMobileE164(recipient) };
+            }
+            else
+            {
+                data[recipientField] = asArray ? new[] { recipient } : recipient;
+            }
+        }
+        else if (isIppanelEdge && string.Equals(sendingType, "pattern", StringComparison.OrdinalIgnoreCase))
+        {
+            data["recipients"] = new[] { NormalizeIranMobileE164(recipient) };
         }
 
         var senderField = settings.SenderField?.Trim() ?? "";
-        if (senderField.Length > 0 && !string.IsNullOrWhiteSpace(settings.Sender))
+        if (isIppanelEdge && string.Equals(sendingType, "pattern", StringComparison.OrdinalIgnoreCase))
+        {
+            data.Remove("sender");
+            if (!string.IsNullOrWhiteSpace(settings.Sender))
+                data["from_number"] = NormalizeIranMobileE164(settings.Sender);
+        }
+        else if (senderField.Length > 0 && !string.IsNullOrWhiteSpace(settings.Sender))
+        {
             data[senderField] = settings.Sender;
+        }
 
         var numberFormatField = settings.NumberFormatField?.Trim() ?? "";
         if (numberFormatField.Length > 0 && !string.IsNullOrWhiteSpace(settings.NumberFormat))
@@ -81,7 +105,10 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
         switch ((settings.AuthMode ?? "").Trim().ToLowerInvariant())
         {
             case "header" when apiKey.Length > 0:
-                headers[keyName] = apiKey;
+                if (isIppanelEdge)
+                    headers["Authorization"] = apiKey;
+                else
+                    headers[keyName] = apiKey;
                 break;
             case "bearer" when apiKey.Length > 0:
                 headers["Authorization"] = "Bearer " + apiKey;
@@ -144,6 +171,18 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
             if (patternMessageField.Length > 0 &&
                 !string.Equals(patternMessageField, "params", StringComparison.OrdinalIgnoreCase))
                 data.Remove(patternMessageField);
+
+            if (isIppanelEdge)
+            {
+                // IPPanel Edge requires exactly the pattern request contract:
+                // POST /api/send, JSON, code, recipients[], params, from_number.
+                data.Remove("recipient");
+                data["recipients"] = new[] { NormalizeIranMobileE164(recipient) };
+                if (!string.IsNullOrWhiteSpace(settings.Sender))
+                    data["from_number"] = NormalizeIranMobileE164(settings.Sender);
+
+                data.Remove("sender");
+            }
         }
         else
         {
@@ -309,6 +348,32 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
         {
             value = value.Replace(fa[i], (char)('0' + i)).Replace(ar[i], (char)('0' + i));
         }
+        return value;
+    }
+
+    private static bool IsIppanelEdgeEndpoint(string endpoint)
+    {
+        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri))
+            return false;
+
+        return uri.Host.Contains("ippanel", StringComparison.OrdinalIgnoreCase)
+               || uri.Host.Contains("ip-panel", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeIranMobileE164(string value)
+    {
+        value = NormalizeDigits(value);
+        value = new string(value.Where(c => char.IsDigit(c) || c == '+').ToArray());
+
+        if (value.StartsWith("+98", StringComparison.Ordinal))
+            return "+98" + value[3..];
+
+        if (value.StartsWith("98", StringComparison.Ordinal) && value.Length >= 12)
+            return "+" + value;
+
+        if (value.StartsWith("0", StringComparison.Ordinal) && value.Length >= 11)
+            return "+98" + value[1..];
+
         return value;
     }
 

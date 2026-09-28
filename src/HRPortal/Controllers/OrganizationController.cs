@@ -20,7 +20,7 @@ public class OrganizationController(
 
         var revision = revisionId.HasValue
             ? revisions.FirstOrDefault(x => x.Id == revisionId.Value)
-            : revisions.FirstOrDefault(x => !x.IsFinalized) ?? await service.CurrentAsync();
+            : revisions.FirstOrDefault(x => !x.IsFinalized) ?? await service.GetOrCreateDraftAsync();
 
         ViewBag.CompanyName = (await settings.GetAsync()).System.OrganizationName;
         ViewBag.Revisions = revisions;

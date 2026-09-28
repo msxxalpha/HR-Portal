@@ -11,6 +11,7 @@ public static class DatabaseInitializer
         await EnsureSchemaAsync(db);
 
         await EnsureAdminTableAsync(db);
+        await EnsureAdminColumnsAsync(db);
 
         if (!await db.SystemSettings.AnyAsync())
             db.SystemSettings.Add(new SystemSettings { OrganizationName = "شرکت کمک فنرسازی ایندامین سایپا", ApplicationName = "پورتال جامع منابع انسانی" });
@@ -60,6 +61,28 @@ END;
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_AdminUsers_Username')
     CREATE UNIQUE INDEX [IX_AdminUsers_Username] ON [AdminUsers]([Username]);
 ";
+        await db.Database.ExecuteSqlRawAsync(sql);
+    }
+
+    private static async Task EnsureAdminColumnsAsync(HRPortalDbContext db)
+    {
+        const string sql = @"
+IF COL_LENGTH(N'dbo.AdminUsers', N'Username') IS NULL
+    ALTER TABLE [dbo].[AdminUsers] ADD [Username] nvarchar(100) NOT NULL CONSTRAINT [DF_AdminUsers_Username] DEFAULT N'';
+IF COL_LENGTH(N'dbo.AdminUsers', N'PasswordHash') IS NULL
+    ALTER TABLE [dbo].[AdminUsers] ADD [PasswordHash] nvarchar(1000) NOT NULL CONSTRAINT [DF_AdminUsers_PasswordHash] DEFAULT N'';
+IF COL_LENGTH(N'dbo.AdminUsers', N'DisplayName') IS NULL
+    ALTER TABLE [dbo].[AdminUsers] ADD [DisplayName] nvarchar(200) NOT NULL CONSTRAINT [DF_AdminUsers_DisplayName] DEFAULT N'مدیر سامانه';
+IF COL_LENGTH(N'dbo.AdminUsers', N'IsActive') IS NULL
+    ALTER TABLE [dbo].[AdminUsers] ADD [IsActive] bit NOT NULL CONSTRAINT [DF_AdminUsers_IsActive] DEFAULT 1;
+IF COL_LENGTH(N'dbo.AdminUsers', N'MustChangePassword') IS NULL
+    ALTER TABLE [dbo].[AdminUsers] ADD [MustChangePassword] bit NOT NULL CONSTRAINT [DF_AdminUsers_MustChangePassword] DEFAULT 1;
+IF COL_LENGTH(N'dbo.AdminUsers', N'CreatedAt') IS NULL
+    ALTER TABLE [dbo].[AdminUsers] ADD [CreatedAt] datetime2 NOT NULL CONSTRAINT [DF_AdminUsers_CreatedAt] DEFAULT SYSUTCDATETIME();
+IF COL_LENGTH(N'dbo.AdminUsers', N'UpdatedAt') IS NULL
+    ALTER TABLE [dbo].[AdminUsers] ADD [UpdatedAt] datetime2 NOT NULL CONSTRAINT [DF_AdminUsers_UpdatedAt] DEFAULT SYSUTCDATETIME();
+IF COL_LENGTH(N'dbo.AdminUsers', N'LastLoginAt') IS NULL
+    ALTER TABLE [dbo].[AdminUsers] ADD [LastLoginAt] datetime2 NULL;";
         await db.Database.ExecuteSqlRawAsync(sql);
     }
 
@@ -178,7 +201,7 @@ IF COL_LENGTH(N'OtpSettings', N'ValiditySeconds') IS NULL ALTER TABLE [OtpSettin
 IF COL_LENGTH(N'OtpSettings', N'MaxAttempts') IS NULL ALTER TABLE [OtpSettings] ADD [MaxAttempts] int NOT NULL CONSTRAINT [DF_OtpSettings_MaxAttempts] DEFAULT 5;
 IF COL_LENGTH(N'OtpSettings', N'Enabled') IS NULL ALTER TABLE [OtpSettings] ADD [Enabled] bit NOT NULL CONSTRAINT [DF_OtpSettings_Enabled] DEFAULT 1;
 
-IF COL_LENGTH(N'SmsSettings', N'Enabled') IS NULL ALTER TABLE [SmsSettings] ADD [Enabled] bit NOT NULL CONSTRAINT [DF_SmsSettings_Enabled] DEFAULT 0;
+IF COL_LENGTH(N'dbo.SmsSettings', N'Enabled') IS NULL ALTER TABLE [dbo].[SmsSettings] ADD [Enabled] bit NOT NULL CONSTRAINT [DF_SmsSettings_Enabled] DEFAULT 0;
 IF COL_LENGTH(N'SmsSettings', N'Endpoint') IS NULL ALTER TABLE [SmsSettings] ADD [Endpoint] nvarchar(2000) NOT NULL CONSTRAINT [DF_SmsSettings_Endpoint] DEFAULT N'';
 IF COL_LENGTH(N'SmsSettings', N'Method') IS NULL ALTER TABLE [SmsSettings] ADD [Method] nvarchar(20) NOT NULL CONSTRAINT [DF_SmsSettings_Method] DEFAULT N'POST';
 IF COL_LENGTH(N'SmsSettings', N'Format') IS NULL ALTER TABLE [SmsSettings] ADD [Format] nvarchar(30) NOT NULL CONSTRAINT [DF_SmsSettings_Format] DEFAULT N'json';
@@ -303,25 +326,58 @@ BEGIN
     );
 END;
 
-IF COL_LENGTH(N'SmsSettings', N'ServiceUrl') IS NOT NULL
+
+";
+        // DDL is intentionally separated from data migration. SQL Server compiles a full batch
+        // before execution; a later UPDATE referencing a newly-added column can otherwise fail
+        // with "Invalid column name" and prevent the ALTER TABLE from running.
+        await db.Database.ExecuteSqlRawAsync(sql);
+        await MigrateLegacySmsAsync(db);
+        await EnsureIndexesAsync(db);
+    }
+
+    private static async Task MigrateLegacySmsAsync(HRPortalDbContext db)
+    {
+        const string sql = @"
+IF COL_LENGTH(N'dbo.SmsSettings', N'ServiceUrl') IS NOT NULL
+   AND COL_LENGTH(N'dbo.SmsSettings', N'Endpoint') IS NOT NULL
 BEGIN
-    UPDATE [SmsSettings] SET [Endpoint]=[ServiceUrl] WHERE ISNULL([Endpoint],N'')=N'' AND ISNULL([ServiceUrl],N'')<>N'';
-END;
-IF COL_LENGTH(N'SmsSettings', N'SenderNumber') IS NOT NULL
-BEGIN
-    UPDATE [SmsSettings] SET [Sender]=[SenderNumber] WHERE ISNULL([Sender],N'')=N'' AND ISNULL([SenderNumber],N'')<>N'';
-END;
-IF COL_LENGTH(N'SmsSettings', N'OtpTemplate') IS NOT NULL
-BEGIN
-    UPDATE [SmsSettings] SET [Template]=[OtpTemplate] WHERE ISNULL([Template],N'')=N'' AND ISNULL([OtpTemplate],N'')<>N'';
+    EXEC sys.sp_executesql N'UPDATE [dbo].[SmsSettings]
+        SET [Endpoint]=[ServiceUrl]
+        WHERE ISNULL([Endpoint],N'''')=N'''' AND ISNULL([ServiceUrl],N'''')<>N'''';';
 END;
 
-IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_Employees_PersonnelNumber') CREATE UNIQUE INDEX [IX_Employees_PersonnelNumber] ON [Employees]([PersonnelNumber]);
-IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_Employees_NationalId') CREATE UNIQUE INDEX [IX_Employees_NationalId] ON [Employees]([NationalId]);
-IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_OrganizationStructureRevisions_RevisionCode') CREATE UNIQUE INDEX [IX_OrganizationStructureRevisions_RevisionCode] ON [OrganizationStructureRevisions]([RevisionCode]);
-IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_OrganizationNodes_Revision_Code') CREATE UNIQUE INDEX [IX_OrganizationNodes_Revision_Code] ON [OrganizationNodes]([OrganizationStructureRevisionId],[Code]);
-IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_AuditLogs_CreatedAt') CREATE INDEX [IX_AuditLogs_CreatedAt] ON [AuditLogs]([CreatedAt]);
-";
+IF COL_LENGTH(N'dbo.SmsSettings', N'SenderNumber') IS NOT NULL
+   AND COL_LENGTH(N'dbo.SmsSettings', N'Sender') IS NOT NULL
+BEGIN
+    EXEC sys.sp_executesql N'UPDATE [dbo].[SmsSettings]
+        SET [Sender]=[SenderNumber]
+        WHERE ISNULL([Sender],N'''')=N'''' AND ISNULL([SenderNumber],N'''')<>N'''';';
+END;
+
+IF COL_LENGTH(N'dbo.SmsSettings', N'OtpTemplate') IS NOT NULL
+   AND COL_LENGTH(N'dbo.SmsSettings', N'Template') IS NOT NULL
+BEGIN
+    EXEC sys.sp_executesql N'UPDATE [dbo].[SmsSettings]
+        SET [Template]=[OtpTemplate]
+        WHERE ISNULL([Template],N'''')=N'''' AND ISNULL([OtpTemplate],N'''')<>N'''';';
+END;";
+        await db.Database.ExecuteSqlRawAsync(sql);
+    }
+
+    private static async Task EnsureIndexesAsync(HRPortalDbContext db)
+    {
+        const string sql = @"
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_Employees_PersonnelNumber' AND object_id=OBJECT_ID(N'dbo.Employees'))
+    CREATE UNIQUE INDEX [IX_Employees_PersonnelNumber] ON [dbo].[Employees]([PersonnelNumber]);
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_Employees_NationalId' AND object_id=OBJECT_ID(N'dbo.Employees'))
+    CREATE UNIQUE INDEX [IX_Employees_NationalId] ON [dbo].[Employees]([NationalId]);
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_OrganizationStructureRevisions_RevisionCode' AND object_id=OBJECT_ID(N'dbo.OrganizationStructureRevisions'))
+    CREATE UNIQUE INDEX [IX_OrganizationStructureRevisions_RevisionCode] ON [dbo].[OrganizationStructureRevisions]([RevisionCode]);
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_OrganizationNodes_Revision_Code' AND object_id=OBJECT_ID(N'dbo.OrganizationNodes'))
+    CREATE UNIQUE INDEX [IX_OrganizationNodes_Revision_Code] ON [dbo].[OrganizationNodes]([OrganizationStructureRevisionId],[Code]);
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_AuditLogs_CreatedAt' AND object_id=OBJECT_ID(N'dbo.AuditLogs'))
+    CREATE INDEX [IX_AuditLogs_CreatedAt] ON [dbo].[AuditLogs]([CreatedAt]);";
         await db.Database.ExecuteSqlRawAsync(sql);
     }
 }

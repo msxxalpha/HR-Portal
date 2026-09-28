@@ -13,12 +13,17 @@ public class UsersController(HRPortalDbContext db, RoleService roles, AuditServi
     [HttpGet]
     public async Task<IActionResult> Index(int? roleId)
     {
+        var canUsers = User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Users.Manage");
+        var canRoles = User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Roles.Manage");
+
         var model = new UserRoleManagementViewModel
         {
-            Users = await roles.GetUserRowsAsync(),
-            Permissions = await roles.GetPermissionsAsync(),
-            Roles = await BuildRoleModelsAsync()
+            Users = canUsers ? await roles.GetUserRowsAsync() : [],
+            Permissions = canRoles ? await roles.GetPermissionsAsync() : [],
+            Roles = canRoles ? await BuildRoleModelsAsync() : []
         };
+        ViewBag.CanUsers = canUsers;
+        ViewBag.CanRoles = canRoles;
         ViewBag.SelectedRoleId = roleId;
         return View(model);
     }

@@ -83,7 +83,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.RoleId, x.PermissionId }).IsUnique();
-            e.HasOne(x => x.Role).WithMany().HasForeignKey(x => x.RoleId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Role).WithMany(x => x.RolePermissions).HasForeignKey(x => x.RoleId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.Permission).WithMany().HasForeignKey(x => x.PermissionId).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<EmployeeRole>(e =>

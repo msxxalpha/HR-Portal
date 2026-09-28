@@ -18,6 +18,7 @@ public class SmsSettings
     public string RecipientField { get; set; } = "recipient";
     public string RecipientMode { get; set; } = "scalar";
     public string MessageField { get; set; } = "message";
+    public string CodeField { get; set; } = "code";
     public string NumberFormatField { get; set; } = "";
     public string NumberFormat { get; set; } = "";
     public string StaticParams { get; set; } = "";

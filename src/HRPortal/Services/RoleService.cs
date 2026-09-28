@@ -44,6 +44,10 @@ public class RoleService(HRPortalDbContext db)
             ["Settings.View", "Settings.Edit"]);
         await EnsureRoleAsync("PAYROLL_USER", "گزارش فیش حقوقی", "دسترسی به فیش حقوقی",
             ["Payroll.View"]);
+        await EnsureRoleAsync("USER_MANAGER", "مدیریت کاربران", "مدیریت وضعیت کاربر و تخصیص نقش به کارکنان",
+            ["Users.Manage"]);
+        await EnsureRoleAsync("ROLE_MANAGER", "مدیریت نقش‌ها", "ایجاد و ویرایش نقش‌ها و سطح دسترسی",
+            ["Roles.Manage"]);
     }
 
     private async Task EnsureRoleAsync(string code, string title, string description, IEnumerable<string> permissionCodes)

@@ -6,30 +6,24 @@ namespace HRPortal.Services;
 
 public class EnvironmentSettingsService(HRPortalDbContext db)
 {
-    public async Task<SystemSettingsViewModel> GetAsync()
+    public async Task<SystemSettingsEditModel> GetEditAsync()
     {
         var system = await db.SystemSettings.AsNoTracking().FirstOrDefaultAsync()
-            ?? new SystemSettings();
+                      ?? new SystemSettings();
 
         var otp = await db.OtpSettings.AsNoTracking().FirstOrDefaultAsync()
-            ?? new OtpSettings();
+                  ?? new OtpSettings();
 
         var sms = await db.SmsSettings.AsNoTracking().FirstOrDefaultAsync()
-            ?? new SmsSettings();
+                  ?? new SmsSettings();
 
         var payroll = await db.PayrollReportSettings.AsNoTracking().FirstOrDefaultAsync()
-            ?? new PayrollReportSettings();
+                      ?? new PayrollReportSettings();
 
-        return new SystemSettingsViewModel
-        {
-            System = system,
-            Otp = otp,
-            Sms = sms,
-            Payroll = payroll
-        };
+        return MapToEditModel(system, otp, sms, payroll);
     }
 
-    public async Task SaveAsync(SystemSettingsViewModel model)
+    public async Task SaveAsync(SystemSettingsEditModel model)
     {
         ArgumentNullException.ThrowIfNull(model);
 
@@ -38,114 +32,178 @@ public class EnvironmentSettingsService(HRPortalDbContext db)
         var system = await db.SystemSettings.FirstOrDefaultAsync();
         if (system is null)
         {
-            system = model.System ?? new SystemSettings();
-            system.UpdatedAt = DateTime.UtcNow;
+            system = new SystemSettings();
             db.SystemSettings.Add(system);
         }
-        else
-        {
-            CopySystem(system, model.System ?? new SystemSettings());
-            system.UpdatedAt = DateTime.UtcNow;
-        }
+        ApplySystem(system, model);
+        system.UpdatedAt = DateTime.UtcNow;
 
         var otp = await db.OtpSettings.FirstOrDefaultAsync();
         if (otp is null)
-            db.OtpSettings.Add(model.Otp ?? new OtpSettings());
-        else
-            CopyOtp(otp, model.Otp ?? new OtpSettings());
+        {
+            otp = new OtpSettings();
+            db.OtpSettings.Add(otp);
+        }
+        ApplyOtp(otp, model);
 
         var sms = await db.SmsSettings.FirstOrDefaultAsync();
         if (sms is null)
-            db.SmsSettings.Add(model.Sms ?? new SmsSettings());
-        else
         {
-            var incoming = model.Sms ?? new SmsSettings();
-            var existingApiKey = sms.ApiKey;
-            CopySms(sms, incoming);
-
-            // An empty API key means "keep the existing secret", not "erase it".
-            if (string.IsNullOrWhiteSpace(incoming.ApiKey))
-                sms.ApiKey = existingApiKey;
+            sms = new SmsSettings();
+            db.SmsSettings.Add(sms);
         }
+        ApplySms(sms, model);
 
         var payroll = await db.PayrollReportSettings.FirstOrDefaultAsync();
         if (payroll is null)
-            db.PayrollReportSettings.Add(model.Payroll ?? new PayrollReportSettings());
-        else
-            CopyPayroll(payroll, model.Payroll ?? new PayrollReportSettings());
+        {
+            payroll = new PayrollReportSettings();
+            db.PayrollReportSettings.Add(payroll);
+        }
+        ApplyPayroll(payroll, model);
 
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
         db.ChangeTracker.Clear();
     }
 
-    private static void CopySystem(SystemSettings target, SystemSettings source)
+    private static SystemSettingsEditModel MapToEditModel(
+        SystemSettings system,
+        OtpSettings otp,
+        SmsSettings sms,
+        PayrollReportSettings payroll)
     {
-        target.ApplicationName = source.ApplicationName?.Trim() ?? "";
-        target.OrganizationName = source.OrganizationName?.Trim() ?? "";
-        target.ShortName = source.ShortName?.Trim() ?? "";
-        target.Slogan = source.Slogan?.Trim() ?? "";
-        target.FooterText = source.FooterText?.Trim() ?? "";
-        target.Website = source.Website?.Trim() ?? "";
-        target.Phone = source.Phone?.Trim() ?? "";
-        target.Email = source.Email?.Trim() ?? "";
-        target.EconomicCode = source.EconomicCode?.Trim() ?? "";
-        target.NationalId = source.NationalId?.Trim() ?? "";
-        target.DefaultLanguage = source.DefaultLanguage?.Trim() ?? "fa-IR";
-        target.Calendar = source.Calendar?.Trim() ?? "Persian";
-        target.TimeZone = source.TimeZone?.Trim() ?? "Asia/Tehran";
-        target.Theme = source.Theme?.Trim() ?? "Indamin";
-        target.PrimaryColor = string.IsNullOrWhiteSpace(source.PrimaryColor) ? "#17324D" : source.PrimaryColor.Trim();
-        target.SecondaryColor = string.IsNullOrWhiteSpace(source.SecondaryColor) ? "#6C757D" : source.SecondaryColor.Trim();
-        target.LogoUrl = source.LogoUrl?.Trim() ?? "";
-        target.FaviconUrl = source.FaviconUrl?.Trim() ?? "";
-        target.ItemsPerPage = source.ItemsPerPage <= 0 ? 20 : source.ItemsPerPage;
-        target.EnableAuditLog = source.EnableAuditLog;
-        target.MaintenanceMode = source.MaintenanceMode;
-        target.MaintenanceMessage = source.MaintenanceMessage?.Trim() ?? "";
-        target.AllowUserSelfService = source.AllowUserSelfService;
+        return new SystemSettingsEditModel
+        {
+            ApplicationName = system.ApplicationName ?? "",
+            OrganizationName = system.OrganizationName ?? "",
+            ShortName = system.ShortName ?? "",
+            Slogan = system.Slogan ?? "",
+            FooterText = system.FooterText ?? "",
+            Website = system.Website ?? "",
+            Phone = system.Phone ?? "",
+            Email = system.Email ?? "",
+            EconomicCode = system.EconomicCode ?? "",
+            NationalId = system.NationalId ?? "",
+            DefaultLanguage = system.DefaultLanguage ?? "",
+            Calendar = system.Calendar ?? "",
+            TimeZone = system.TimeZone ?? "",
+            Theme = system.Theme ?? "",
+            PrimaryColor = system.PrimaryColor ?? "#17324D",
+            SecondaryColor = system.SecondaryColor ?? "#6C757D",
+            LogoUrl = system.LogoUrl ?? "",
+            FaviconUrl = system.FaviconUrl ?? "",
+            ItemsPerPage = system.ItemsPerPage,
+
+            OtpLength = otp.Length,
+            OtpValiditySeconds = otp.ValiditySeconds,
+            OtpMaxAttempts = otp.MaxAttempts,
+            OtpEnabled = otp.Enabled,
+            AllowUserSelfService = system.AllowUserSelfService,
+            EnableAuditLog = system.EnableAuditLog,
+
+            SmsEnabled = sms.Enabled,
+            SmsEndpoint = sms.Endpoint ?? "",
+            SmsMethod = sms.Method ?? "",
+            SmsFormat = sms.Format ?? "",
+            SmsAuthMode = sms.AuthMode ?? "",
+            SmsApiKeyName = sms.ApiKeyName ?? "",
+            SmsApiKey = "",
+            SmsSenderField = sms.SenderField ?? "",
+            SmsSender = sms.Sender ?? "",
+            SmsRecipientField = sms.RecipientField ?? "",
+            SmsRecipientMode = sms.RecipientMode ?? "",
+            SmsMessageField = sms.MessageField ?? "",
+            SmsNumberFormatField = sms.NumberFormatField ?? "",
+            SmsNumberFormat = sms.NumberFormat ?? "",
+            SmsStaticParams = sms.StaticParams ?? "",
+            SmsSuccessCodes = sms.SuccessCodes ?? "",
+            SmsTemplate = sms.Template ?? "",
+            SmsTestRecipient = sms.TestRecipient ?? "",
+
+            PayrollEnabled = payroll.Enabled,
+            PayrollReportUrl = payroll.ReportUrl ?? "",
+            PayrollReportServerUrl = payroll.ReportServerUrl ?? "",
+            PayrollReportPath = payroll.ReportPath ?? "",
+            PayrollYearParameter = payroll.YearParameter ?? "",
+            PayrollPersonnelParameter = payroll.PersonnelParameter ?? "",
+            PayrollReportFormat = payroll.ReportFormat ?? "",
+            PayrollUseIntegratedSecurity = payroll.UseIntegratedSecurity,
+
+            MaintenanceMode = system.MaintenanceMode,
+            MaintenanceMessage = system.MaintenanceMessage ?? ""
+        };
     }
 
-    private static void CopyOtp(OtpSettings target, OtpSettings source)
+    private static void ApplySystem(SystemSettings entity, SystemSettingsEditModel model)
     {
-        target.Length = source.Length is >= 4 and <= 8 ? source.Length : 5;
-        target.ValiditySeconds = source.ValiditySeconds is >= 30 and <= 900 ? source.ValiditySeconds : 120;
-        target.MaxAttempts = source.MaxAttempts is >= 1 and <= 20 ? source.MaxAttempts : 5;
-        target.Enabled = source.Enabled;
+        entity.ApplicationName = model.ApplicationName?.Trim() ?? "";
+        entity.OrganizationName = model.OrganizationName?.Trim() ?? "";
+        entity.ShortName = model.ShortName?.Trim() ?? "";
+        entity.Slogan = model.Slogan?.Trim() ?? "";
+        entity.FooterText = model.FooterText?.Trim() ?? "";
+        entity.Website = model.Website?.Trim() ?? "";
+        entity.Phone = model.Phone?.Trim() ?? "";
+        entity.Email = model.Email?.Trim() ?? "";
+        entity.EconomicCode = model.EconomicCode?.Trim() ?? "";
+        entity.NationalId = model.NationalId?.Trim() ?? "";
+        entity.DefaultLanguage = model.DefaultLanguage?.Trim() ?? "";
+        entity.Calendar = model.Calendar?.Trim() ?? "";
+        entity.TimeZone = model.TimeZone?.Trim() ?? "";
+        entity.Theme = model.Theme?.Trim() ?? "";
+        entity.PrimaryColor = model.PrimaryColor?.Trim() ?? "";
+        entity.SecondaryColor = model.SecondaryColor?.Trim() ?? "";
+        entity.LogoUrl = model.LogoUrl?.Trim() ?? "";
+        entity.FaviconUrl = model.FaviconUrl?.Trim() ?? "";
+        entity.ItemsPerPage = model.ItemsPerPage;
+        entity.EnableAuditLog = model.EnableAuditLog;
+        entity.MaintenanceMode = model.MaintenanceMode;
+        entity.MaintenanceMessage = model.MaintenanceMessage?.Trim() ?? "";
+        entity.AllowUserSelfService = model.AllowUserSelfService;
     }
 
-    private static void CopySms(SmsSettings target, SmsSettings source)
+    private static void ApplyOtp(OtpSettings entity, SystemSettingsEditModel model)
     {
-        target.Enabled = source.Enabled;
-        target.Endpoint = source.Endpoint?.Trim() ?? "";
-        target.Method = source.Method?.Trim() ?? "POST";
-        target.Format = source.Format?.Trim() ?? "json";
-        target.AuthMode = source.AuthMode?.Trim() ?? "header";
-        target.ApiKeyName = source.ApiKeyName?.Trim() ?? "Api-Key";
-        target.SenderField = source.SenderField?.Trim() ?? "sender";
-        target.Sender = source.Sender?.Trim() ?? "";
-        target.RecipientField = source.RecipientField?.Trim() ?? "recipient";
-        target.RecipientMode = source.RecipientMode?.Trim() ?? "scalar";
-        target.MessageField = source.MessageField?.Trim() ?? "message";
-        target.NumberFormatField = source.NumberFormatField?.Trim() ?? "";
-        target.NumberFormat = source.NumberFormat?.Trim() ?? "";
-        target.StaticParams = source.StaticParams ?? "";
-        target.SuccessCodes = source.SuccessCodes?.Trim() ?? "200-299";
-        target.Template = string.IsNullOrWhiteSpace(source.Template)
-            ? "کاربر محترم، کد ورود شما: {code}"
-            : source.Template.Trim();
-        target.TestRecipient = source.TestRecipient?.Trim() ?? "";
+        entity.Length = model.OtpLength;
+        entity.ValiditySeconds = model.OtpValiditySeconds;
+        entity.MaxAttempts = model.OtpMaxAttempts;
+        entity.Enabled = model.OtpEnabled;
     }
 
-    private static void CopyPayroll(PayrollReportSettings target, PayrollReportSettings source)
+    private static void ApplySms(SmsSettings entity, SystemSettingsEditModel model)
     {
-        target.Enabled = source.Enabled;
-        target.ReportUrl = source.ReportUrl?.Trim() ?? "";
-        target.ReportServerUrl = source.ReportServerUrl?.Trim() ?? "";
-        target.ReportPath = source.ReportPath?.Trim() ?? "";
-        target.YearParameter = source.YearParameter?.Trim() ?? "YearMonth";
-        target.PersonnelParameter = source.PersonnelParameter?.Trim() ?? "PersonnelNo";
-        target.ReportFormat = source.ReportFormat?.Trim() ?? "HTML4.0";
-        target.UseIntegratedSecurity = source.UseIntegratedSecurity;
+        entity.Enabled = model.SmsEnabled;
+        entity.Endpoint = model.SmsEndpoint?.Trim() ?? "";
+        entity.Method = model.SmsMethod?.Trim() ?? "";
+        entity.Format = model.SmsFormat?.Trim() ?? "";
+        entity.AuthMode = model.SmsAuthMode?.Trim() ?? "";
+        entity.ApiKeyName = model.SmsApiKeyName?.Trim() ?? "";
+        entity.SenderField = model.SmsSenderField?.Trim() ?? "";
+        entity.Sender = model.SmsSender?.Trim() ?? "";
+        entity.RecipientField = model.SmsRecipientField?.Trim() ?? "";
+        entity.RecipientMode = model.SmsRecipientMode?.Trim() ?? "";
+        entity.MessageField = model.SmsMessageField?.Trim() ?? "";
+        entity.NumberFormatField = model.SmsNumberFormatField?.Trim() ?? "";
+        entity.NumberFormat = model.SmsNumberFormat?.Trim() ?? "";
+        entity.StaticParams = model.SmsStaticParams ?? "";
+        entity.SuccessCodes = model.SmsSuccessCodes?.Trim() ?? "";
+        entity.Template = model.SmsTemplate?.Trim() ?? "";
+        entity.TestRecipient = model.SmsTestRecipient?.Trim() ?? "";
+
+        // A blank password/API key means "keep the existing secret".
+        if (!string.IsNullOrWhiteSpace(model.SmsApiKey))
+            entity.ApiKey = model.SmsApiKey;
+    }
+
+    private static void ApplyPayroll(PayrollReportSettings entity, SystemSettingsEditModel model)
+    {
+        entity.Enabled = model.PayrollEnabled;
+        entity.ReportUrl = model.PayrollReportUrl?.Trim() ?? "";
+        entity.ReportServerUrl = model.PayrollReportServerUrl?.Trim() ?? "";
+        entity.ReportPath = model.PayrollReportPath?.Trim() ?? "";
+        entity.YearParameter = model.PayrollYearParameter?.Trim() ?? "";
+        entity.PersonnelParameter = model.PayrollPersonnelParameter?.Trim() ?? "";
+        entity.ReportFormat = model.PayrollReportFormat?.Trim() ?? "";
+        entity.UseIntegratedSecurity = model.PayrollUseIntegratedSecurity;
     }
 }

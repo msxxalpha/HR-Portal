@@ -475,6 +475,7 @@ END;
         // with "Invalid column name" and prevent the ALTER TABLE from running.
         await db.Database.ExecuteSqlRawAsync(sql);
         await MigrateLegacySmsAsync(db);
+        await MigrateIppanelSmsDefaultsAsync(db);
         await EnsureIndexesAsync(db);
     }
 
@@ -503,6 +504,43 @@ BEGIN
     EXEC sys.sp_executesql N'UPDATE [dbo].[SmsSettings]
         SET [Template]=[OtpTemplate]
         WHERE ISNULL([Template],N'''')=N'''' AND ISNULL([OtpTemplate],N'''')<>N'''';';
+END;";
+        await db.Database.ExecuteSqlRawAsync(sql);
+    }
+    
+    private static async Task MigrateIppanelSmsDefaultsAsync(HRPortalDbContext db)
+    {
+        const string sql = @"
+IF EXISTS(
+    SELECT 1
+    FROM [dbo].[SmsSettings]
+    WHERE LOWER(ISNULL([Endpoint],N'')) LIKE N'%ippanel%'
+      AND LOWER(REPLACE(ISNULL([StaticParams],N''),N' ',N'')) LIKE N'%""sending_type"":""pattern""%'
+)
+BEGIN
+    UPDATE [dbo].[SmsSettings]
+    SET [RecipientField]=N'recipients'
+    WHERE ISNULL([RecipientField],N'') IN (N'',N'recipient');
+
+    UPDATE [dbo].[SmsSettings]
+    SET [RecipientMode]=N'array'
+    WHERE ISNULL([RecipientMode],N'') IN (N'',N'scalar');
+
+    UPDATE [dbo].[SmsSettings]
+    SET [SenderField]=N'from_number'
+    WHERE ISNULL([SenderField],N'') IN (N'',N'sender');
+
+    UPDATE [dbo].[SmsSettings]
+    SET [ApiKeyName]=N'Authorization'
+    WHERE ISNULL([ApiKeyName],N'') IN (N'',N'Api-Key');
+
+    UPDATE [dbo].[SmsSettings]
+    SET [CodeField]=N'code'
+    WHERE ISNULL([CodeField],N'')=N'';
+
+    UPDATE [dbo].[SmsSettings]
+    SET [OtpParameterField]=N'code'
+    WHERE ISNULL([OtpParameterField],N'')=N'';
 END;";
         await db.Database.ExecuteSqlRawAsync(sql);
     }

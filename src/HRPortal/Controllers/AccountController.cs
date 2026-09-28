@@ -54,19 +54,13 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
         HttpContext.Session.SetString("PendingPersonnel", employee.PersonnelNumber);
         HttpContext.Session.SetString("PendingReturnUrl", model.ReturnUrl ?? "");
 
-        if (result.DebugCode is not null)
-            TempData["DebugOtp"] = result.DebugCode;
-
-        if (!result.Success && result.DebugCode is null)
+        if (!result.Success)
         {
             HttpContext.Session.Remove("PendingPersonnel");
             HttpContext.Session.Remove("PendingReturnUrl");
             ModelState.AddModelError("", result.Message);
             return View("Login", model);
         }
-
-        if (!result.Success)
-            TempData["OtpError"] = result.Message;
 
         return RedirectToAction(nameof(Verify));
     }
@@ -116,13 +110,30 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
     }
 
     [HttpGet, AllowAnonymous]
-    public IActionResult Verify()
+    public async Task<IActionResult> Verify()
     {
         var personnel = HttpContext.Session.GetString("PendingPersonnel");
         if (string.IsNullOrWhiteSpace(personnel))
             return RedirectToAction(nameof(Login));
 
+        var challenge = await db.OtpChallenges.AsNoTracking()
+            .Where(x => x.PersonnelNumber == personnel && !x.IsConsumed)
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        var remaining = GetRemainingSeconds(challenge?.ExpiresAt);
+        if (remaining <= 0)
+        {
+            HttpContext.Session.Remove("PendingPersonnel");
+            HttpContext.Session.Remove("PendingReturnUrl");
+            TempData["Error"] = "زمان اعتبار کد یکبارمصرف به پایان رسیده است. دوباره درخواست کد کنید.";
+            return RedirectToAction(nameof(Login));
+        }
+
+        var otpSettings = await db.OtpSettings.AsNoTracking().FirstOrDefaultAsync() ?? new OtpSettings();
         ViewBag.PersonnelNumber = personnel;
+        ViewBag.OtpRemainingSeconds = remaining;
+        ViewBag.OtpLength = Math.Clamp(otpSettings.Length, 4, 9);
         return View();
     }
 
@@ -135,10 +146,26 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
         if (string.IsNullOrWhiteSpace(personnelNumber))
             return RedirectToAction(nameof(Login));
 
+        var challenge = await db.OtpChallenges.AsNoTracking()
+            .Where(x => x.PersonnelNumber == personnelNumber && !x.IsConsumed)
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        if (challenge is null || challenge.ExpiresAt <= DateTime.UtcNow)
+        {
+            HttpContext.Session.Remove("PendingPersonnel");
+            HttpContext.Session.Remove("PendingReturnUrl");
+            TempData["Error"] = "زمان اعتبار کد یکبارمصرف به پایان رسیده است. دوباره درخواست کد کنید.";
+            return RedirectToAction(nameof(Login));
+        }
+
         if (!await otp.VerifyAsync(personnelNumber, code))
         {
-            ModelState.AddModelError("", "کد واردشده نادرست، منقضی یا بیش از حد مجاز تلاش شده است.");
+            ModelState.AddModelError("", "کد واردشده نادرست یا بیش از حد مجاز تلاش شده است.");
+            var otpSettings = await db.OtpSettings.AsNoTracking().FirstOrDefaultAsync() ?? new OtpSettings();
             ViewBag.PersonnelNumber = personnelNumber;
+            ViewBag.OtpRemainingSeconds = GetRemainingSeconds(challenge.ExpiresAt);
+            ViewBag.OtpLength = Math.Clamp(otpSettings.Length, 4, 9);
             return View();
         }
 

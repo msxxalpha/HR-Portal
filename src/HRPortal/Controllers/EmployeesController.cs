@@ -47,8 +47,9 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         View("Form", await BuildFormVmAsync(new Employee()));
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create([Bind(Prefix = "Employee")] Employee employee)
+    public async Task<IActionResult> Create(FormVm model)
     {
+        var employee = model.Employee ?? new Employee();
         NormalizeEmployee(employee);
         ValidateEmployee(employee);
         await ValidateOrganizationAssignmentsAsync(employee);
@@ -85,8 +86,9 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
     }
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit([Bind(Prefix = "Employee")] Employee employee)
+    public async Task<IActionResult> Edit(FormVm model)
     {
+        var employee = model.Employee ?? new Employee();
         NormalizeEmployee(employee);
         ValidateEmployee(employee);
         await ValidateOrganizationAssignmentsAsync(employee);

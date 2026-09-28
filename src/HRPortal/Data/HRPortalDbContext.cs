@@ -72,26 +72,52 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
         modelBuilder.Entity<Role>(e =>
         {
             e.HasKey(x => x.Id);
+            e.Property(x => x.Code).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Title).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(1000);
             e.HasIndex(x => x.Code).IsUnique();
+            e.HasMany(x => x.RolePermissions)
+                .WithOne(x => x.Role)
+                .HasForeignKey(x => x.RoleId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<Permission>(e =>
         {
             e.HasKey(x => x.Id);
+            e.Property(x => x.Code).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Title).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Module).HasMaxLength(100).IsRequired();
             e.HasIndex(x => x.Code).IsUnique();
         });
         modelBuilder.Entity<RolePermission>(e =>
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.RoleId, x.PermissionId }).IsUnique();
-            e.HasOne(x => x.Role).WithMany(x => x.RolePermissions).HasForeignKey(x => x.RoleId).OnDelete(DeleteBehavior.Cascade);
-            e.HasOne(x => x.Permission).WithMany().HasForeignKey(x => x.PermissionId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Role)
+                .WithMany(x => x.RolePermissions)
+                .HasForeignKey(x => x.RoleId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Permission)
+                .WithMany()
+                .HasForeignKey(x => x.PermissionId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<EmployeeRole>(e =>
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.EmployeeId, x.RoleId }).IsUnique();
-            e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade);
-            e.HasOne(x => x.Role).WithMany().HasForeignKey(x => x.RoleId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Employee)
+                .WithMany()
+                .HasForeignKey(x => x.EmployeeId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Role)
+                .WithMany()
+                .HasForeignKey(x => x.RoleId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

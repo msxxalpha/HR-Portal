@@ -284,6 +284,8 @@ BEGIN
         [RecipientMode] nvarchar(30) NOT NULL CONSTRAINT [DF_SmsSettings_RecipientMode] DEFAULT N'scalar',
         [MessageField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_MessageField] DEFAULT N'message',
         [CodeField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_CodeField] DEFAULT N'code',
+        [OtpParameterField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_OtpParameterField] DEFAULT N'code',
+        [PatternCode] nvarchar(500) NOT NULL CONSTRAINT [DF_SmsSettings_PatternCode] DEFAULT N'',
         [NumberFormatField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_NumberFormatField] DEFAULT N'',
         [NumberFormat] nvarchar(200) NOT NULL CONSTRAINT [DF_SmsSettings_NumberFormat] DEFAULT N'',
         [StaticParams] nvarchar(max) NOT NULL CONSTRAINT [DF_SmsSettings_StaticParams] DEFAULT N'',
@@ -351,6 +353,8 @@ IF COL_LENGTH(N'dbo.SmsSettings', N'RecipientField') IS NULL ALTER TABLE [dbo].[
 IF COL_LENGTH(N'dbo.SmsSettings', N'RecipientMode') IS NULL ALTER TABLE [dbo].[SmsSettings] ADD [RecipientMode] nvarchar(30) NOT NULL CONSTRAINT [DF_SmsSettings_RecipientMode] DEFAULT N'scalar';
 IF COL_LENGTH(N'dbo.SmsSettings', N'MessageField') IS NULL ALTER TABLE [dbo].[SmsSettings] ADD [MessageField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_MessageField] DEFAULT N'message';
 IF COL_LENGTH(N'dbo.SmsSettings', N'CodeField') IS NULL ALTER TABLE [dbo].[SmsSettings] ADD [CodeField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_CodeField] DEFAULT N'code';
+IF COL_LENGTH(N'dbo.SmsSettings', N'OtpParameterField') IS NULL ALTER TABLE [dbo].[SmsSettings] ADD [OtpParameterField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_OtpParameterField] DEFAULT N'code';
+IF COL_LENGTH(N'dbo.SmsSettings', N'PatternCode') IS NULL ALTER TABLE [dbo].[SmsSettings] ADD [PatternCode] nvarchar(500) NOT NULL CONSTRAINT [DF_SmsSettings_PatternCode] DEFAULT N'';
 IF COL_LENGTH(N'dbo.SmsSettings', N'NumberFormatField') IS NULL ALTER TABLE [dbo].[SmsSettings] ADD [NumberFormatField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_NumberFormatField] DEFAULT N'';
 IF COL_LENGTH(N'dbo.SmsSettings', N'NumberFormat') IS NULL ALTER TABLE [dbo].[SmsSettings] ADD [NumberFormat] nvarchar(200) NOT NULL CONSTRAINT [DF_SmsSettings_NumberFormat] DEFAULT N'';
 IF COL_LENGTH(N'dbo.SmsSettings', N'StaticParams') IS NULL ALTER TABLE [dbo].[SmsSettings] ADD [StaticParams] nvarchar(max) NOT NULL CONSTRAINT [DF_SmsSettings_StaticParams] DEFAULT N'';

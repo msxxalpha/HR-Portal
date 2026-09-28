@@ -57,6 +57,14 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
         if (result.DebugCode is not null)
             TempData["DebugOtp"] = result.DebugCode;
 
+        if (!result.Success && result.DebugCode is null)
+        {
+            HttpContext.Session.Remove("PendingPersonnel");
+            HttpContext.Session.Remove("PendingReturnUrl");
+            ModelState.AddModelError("", result.Message);
+            return View("Login", model);
+        }
+
         if (!result.Success)
             TempData["OtpError"] = result.Message;
 

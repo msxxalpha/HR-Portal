@@ -27,6 +27,7 @@ builder.Services.AddScoped<OrganizationService>();
 builder.Services.AddScoped<ReportService>();
 builder.Services.AddScoped<EmployeeExcelService>();
 builder.Services.AddScoped<AdminService>();
+builder.Services.AddScoped<RoleService>();
 builder.Services.AddScoped<ISmsService, ConfigurableSmsService>();
 
 builder.Services
@@ -41,8 +42,10 @@ builder.Services
 
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy("AdminOnly", policy =>
-        policy.RequireClaim("IsAdmin", "1"));
+    options.AddPolicy("AdminOnly", policy => policy.RequireClaim("IsAdmin", "1"));
+
+    foreach (var permission in RoleService.DefaultPermissions)
+        options.AddPolicy(permission.Code, policy => policy.RequireClaim("Permission", permission.Code));
 });
 
 var app = builder.Build();

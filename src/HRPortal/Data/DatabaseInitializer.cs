@@ -283,6 +283,7 @@ BEGIN
         [RecipientField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_RecipientField] DEFAULT N'recipient',
         [RecipientMode] nvarchar(30) NOT NULL CONSTRAINT [DF_SmsSettings_RecipientMode] DEFAULT N'scalar',
         [MessageField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_MessageField] DEFAULT N'message',
+        [CodeField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_CodeField] DEFAULT N'code',
         [NumberFormatField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_NumberFormatField] DEFAULT N'',
         [NumberFormat] nvarchar(200) NOT NULL CONSTRAINT [DF_SmsSettings_NumberFormat] DEFAULT N'',
         [StaticParams] nvarchar(max) NOT NULL CONSTRAINT [DF_SmsSettings_StaticParams] DEFAULT N'',
@@ -349,6 +350,7 @@ IF COL_LENGTH(N'dbo.SmsSettings', N'Sender') IS NULL ALTER TABLE [dbo].[SmsSetti
 IF COL_LENGTH(N'dbo.SmsSettings', N'RecipientField') IS NULL ALTER TABLE [dbo].[SmsSettings] ADD [RecipientField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_RecipientField] DEFAULT N'recipient';
 IF COL_LENGTH(N'dbo.SmsSettings', N'RecipientMode') IS NULL ALTER TABLE [dbo].[SmsSettings] ADD [RecipientMode] nvarchar(30) NOT NULL CONSTRAINT [DF_SmsSettings_RecipientMode] DEFAULT N'scalar';
 IF COL_LENGTH(N'dbo.SmsSettings', N'MessageField') IS NULL ALTER TABLE [dbo].[SmsSettings] ADD [MessageField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_MessageField] DEFAULT N'message';
+IF COL_LENGTH(N'dbo.SmsSettings', N'CodeField') IS NULL ALTER TABLE [dbo].[SmsSettings] ADD [CodeField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_CodeField] DEFAULT N'code';
 IF COL_LENGTH(N'dbo.SmsSettings', N'NumberFormatField') IS NULL ALTER TABLE [dbo].[SmsSettings] ADD [NumberFormatField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_NumberFormatField] DEFAULT N'';
 IF COL_LENGTH(N'dbo.SmsSettings', N'NumberFormat') IS NULL ALTER TABLE [dbo].[SmsSettings] ADD [NumberFormat] nvarchar(200) NOT NULL CONSTRAINT [DF_SmsSettings_NumberFormat] DEFAULT N'';
 IF COL_LENGTH(N'dbo.SmsSettings', N'StaticParams') IS NULL ALTER TABLE [dbo].[SmsSettings] ADD [StaticParams] nvarchar(max) NOT NULL CONSTRAINT [DF_SmsSettings_StaticParams] DEFAULT N'';

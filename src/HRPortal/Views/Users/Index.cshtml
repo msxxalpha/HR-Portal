@@ -16,8 +16,8 @@
 @if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
 
 <div class="tabs settings-tabs">
-    <button type="button" class="tab active" data-tab="users">کاربران</button>
-    <button type="button" class="tab" data-tab="roles">نقش‌ها و سطح دسترسی</button>
+    @if (canUsers) { <button type="button" class="tab @(canUsers ? "active" : "")" data-tab="users">کاربران</button> }
+    @if (canRoles) { <button type="button" class="tab @(!canUsers ? "active" : "")" data-tab="roles">نقش‌ها و سطح دسترسی</button> }
 </div>
 
 @if (canUsers)

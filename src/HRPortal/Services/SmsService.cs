@@ -55,6 +55,17 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
         var sendingType = GetStringValue(data, "sending_type");
 
         var isIppanelEdge = IsIppanelEdgeEndpoint(endpoint);
+        var isPattern = string.Equals(sendingType, "pattern", StringComparison.OrdinalIgnoreCase);
+
+        // For the OTP use case, a configured IPPanel pattern code is enough to
+        // select the pattern sending contract even when sending_type was omitted
+        // from legacy static parameters.
+        if (isIppanelEdge && !isPattern && !string.IsNullOrWhiteSpace(settings.PatternCode))
+        {
+            sendingType = "pattern";
+            isPattern = true;
+            data["sending_type"] = "pattern";
+        }
 
         var recipientField = settings.RecipientField?.Trim() ?? "";
         if (recipientField.Length > 0)
@@ -129,7 +140,6 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
 
         // Pattern-based SMS APIs use the top-level "code" as the registered
         // pattern identifier, while the actual OTP belongs inside "params".
-        var isPattern = string.Equals(sendingType, "pattern", StringComparison.OrdinalIgnoreCase);
         if (isPattern)
         {
             var patternCode = settings.PatternCode?.Trim() ?? "";

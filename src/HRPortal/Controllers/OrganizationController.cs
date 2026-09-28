@@ -25,10 +25,30 @@ public class OrganizationController(
             User.HasClaim("Permission", "Organization.Move") ||
             User.HasClaim("Permission", "Organization.Finalize");
 
-        var revision = revisionId.HasValue
+        var current = await service.CurrentAsync();
+        var selected = revisionId.HasValue
             ? revisions.FirstOrDefault(x => x.Id == revisionId.Value)
-            : revisions.FirstOrDefault(x => !x.IsFinalized) ??
-              (canEditStructure ? await service.GetOrCreateDraftAsync() : await service.CurrentAsync());
+            : null;
+
+        OrganizationStructureRevision? revision;
+        if (selected is null)
+        {
+            revision = revisions.FirstOrDefault(x => !x.IsFinalized);
+            if (revision is null)
+                revision = canEditStructure ? await service.GetOrCreateDraftAsync() : current;
+        }
+        else if (selected.IsFinalized && canEditStructure && current?.Id == selected.Id)
+        {
+            // Selecting the current finalized version opens its editable working copy for an authorized user.
+            revision = revisions.FirstOrDefault(x => !x.IsFinalized) ?? await service.GetOrCreateDraftAsync();
+        }
+        else
+        {
+            revision = selected;
+        }
+
+        if (revision is not null && !revisions.Any(x => x.Id == revision.Id))
+            revisions = await service.RevisionsAsync();
 
         ViewBag.CompanyName = (await settings.GetAsync()).System.OrganizationName;
         ViewBag.Revisions = revisions;

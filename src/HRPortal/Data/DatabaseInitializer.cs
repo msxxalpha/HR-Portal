@@ -128,7 +128,7 @@ BEGIN
         [NumberFormat] nvarchar(200) NOT NULL CONSTRAINT [DF_SmsSettings_NumberFormat] DEFAULT N'',
         [StaticParams] nvarchar(max) NOT NULL CONSTRAINT [DF_SmsSettings_StaticParams] DEFAULT N'',
         [SuccessCodes] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_SuccessCodes] DEFAULT N'200-299',
-        [Template] nvarchar(2000) NOT NULL CONSTRAINT [DF_SmsSettings_Template] DEFAULT N'کاربر محترم، کد ورود شما: {{code}}',
+        [Template] nvarchar(2000) NOT NULL CONSTRAINT [DF_SmsSettings_Template] DEFAULT (N'کاربر محترم، کد ورود شما: ' + NCHAR(123) + N'code' + NCHAR(125)),
         [TestRecipient] nvarchar(30) NOT NULL CONSTRAINT [DF_SmsSettings_TestRecipient] DEFAULT N''
     );
 END;
@@ -194,7 +194,7 @@ IF COL_LENGTH(N'SmsSettings', N'NumberFormatField') IS NULL ALTER TABLE [SmsSett
 IF COL_LENGTH(N'SmsSettings', N'NumberFormat') IS NULL ALTER TABLE [SmsSettings] ADD [NumberFormat] nvarchar(200) NOT NULL CONSTRAINT [DF_SmsSettings_NumberFormat] DEFAULT N'';
 IF COL_LENGTH(N'SmsSettings', N'StaticParams') IS NULL ALTER TABLE [SmsSettings] ADD [StaticParams] nvarchar(max) NOT NULL CONSTRAINT [DF_SmsSettings_StaticParams] DEFAULT N'';
 IF COL_LENGTH(N'SmsSettings', N'SuccessCodes') IS NULL ALTER TABLE [SmsSettings] ADD [SuccessCodes] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_SuccessCodes] DEFAULT N'200-299';
-IF COL_LENGTH(N'SmsSettings', N'Template') IS NULL ALTER TABLE [SmsSettings] ADD [Template] nvarchar(2000) NOT NULL CONSTRAINT [DF_SmsSettings_Template] DEFAULT N'کاربر محترم، کد ورود شما: {{code}}';
+IF COL_LENGTH(N'SmsSettings', N'Template') IS NULL ALTER TABLE [SmsSettings] ADD [Template] nvarchar(2000) NOT NULL CONSTRAINT [DF_SmsSettings_Template] DEFAULT (N'کاربر محترم، کد ورود شما: ' + NCHAR(123) + N'code' + NCHAR(125));
 IF COL_LENGTH(N'SmsSettings', N'TestRecipient') IS NULL ALTER TABLE [SmsSettings] ADD [TestRecipient] nvarchar(30) NOT NULL CONSTRAINT [DF_SmsSettings_TestRecipient] DEFAULT N'';
 
 IF COL_LENGTH(N'PayrollReportSettings', N'Enabled') IS NULL ALTER TABLE [PayrollReportSettings] ADD [Enabled] bit NOT NULL CONSTRAINT [DF_PayrollReportSettings_Enabled] DEFAULT 1;
@@ -328,7 +328,7 @@ IF COL_LENGTH(N'SmsSettings', N'NumberFormatField') IS NULL ALTER TABLE [SmsSett
 IF COL_LENGTH(N'SmsSettings', N'NumberFormat') IS NULL ALTER TABLE [SmsSettings] ADD [NumberFormat] nvarchar(200) NOT NULL CONSTRAINT [DF_SmsSettings_NumberFormat] DEFAULT N'';
 IF COL_LENGTH(N'SmsSettings', N'StaticParams') IS NULL ALTER TABLE [SmsSettings] ADD [StaticParams] nvarchar(max) NOT NULL CONSTRAINT [DF_SmsSettings_StaticParams] DEFAULT N'';
 IF COL_LENGTH(N'SmsSettings', N'SuccessCodes') IS NULL ALTER TABLE [SmsSettings] ADD [SuccessCodes] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_SuccessCodes] DEFAULT N'200-299';
-IF COL_LENGTH(N'SmsSettings', N'Template') IS NULL ALTER TABLE [SmsSettings] ADD [Template] nvarchar(2000) NOT NULL CONSTRAINT [DF_SmsSettings_Template] DEFAULT N'کاربر محترم، کد ورود شما: {{code}}';
+IF COL_LENGTH(N'SmsSettings', N'Template') IS NULL ALTER TABLE [SmsSettings] ADD [Template] nvarchar(2000) NOT NULL CONSTRAINT [DF_SmsSettings_Template] DEFAULT (N'کاربر محترم، کد ورود شما: ' + NCHAR(123) + N'code' + NCHAR(125));
 IF COL_LENGTH(N'SmsSettings', N'TestRecipient') IS NULL ALTER TABLE [SmsSettings] ADD [TestRecipient] nvarchar(30) NOT NULL CONSTRAINT [DF_SmsSettings_TestRecipient] DEFAULT N'';
 
 IF COL_LENGTH(N'SmsSettings', N'ServiceUrl') IS NOT NULL

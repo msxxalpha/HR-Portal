@@ -55,7 +55,16 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
         var sendingType = GetStringValue(data, "sending_type");
 
         var isIppanelEdge = IsIppanelEdgeEndpoint(endpoint);
+        var isFarazPattern = IsFarazPatternEndpoint(endpoint);
         var isPattern = string.Equals(sendingType, "pattern", StringComparison.OrdinalIgnoreCase);
+
+        // Faraz SMS has a dedicated pattern endpoint and does not need
+        // sending_type in the request body.
+        if (isFarazPattern)
+        {
+            sendingType = "pattern";
+            isPattern = true;
+        }
 
         // For the OTP use case, a configured IPPanel pattern code is enough to
         // select the pattern sending contract even when sending_type was omitted
@@ -73,7 +82,12 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
             var asArray = string.Equals(settings.RecipientMode, "array", StringComparison.OrdinalIgnoreCase)
                           || string.Equals(recipientField, "recipients", StringComparison.OrdinalIgnoreCase);
 
-            if (isIppanelEdge && string.Equals(sendingType, "pattern", StringComparison.OrdinalIgnoreCase))
+            if (isFarazPattern)
+            {
+                data["recipient"] = NormalizeIranMobile(recipient);
+                data.Remove("recipients");
+            }
+            else if (isIppanelEdge && string.Equals(sendingType, "pattern", StringComparison.OrdinalIgnoreCase))
             {
                 // IPPanel Edge Pattern API requires top-level recipients[] in E.164.
                 data.Remove("recipient");
@@ -84,13 +98,24 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
                 data[recipientField] = asArray ? new[] { recipient } : recipient;
             }
         }
+        else if (isFarazPattern)
+        {
+            data["recipient"] = NormalizeIranMobile(recipient);
+        }
         else if (isIppanelEdge && string.Equals(sendingType, "pattern", StringComparison.OrdinalIgnoreCase))
         {
             data["recipients"] = new[] { NormalizeIranMobileE164(recipient) };
         }
 
         var senderField = settings.SenderField?.Trim() ?? "";
-        if (isIppanelEdge && string.Equals(sendingType, "pattern", StringComparison.OrdinalIgnoreCase))
+        if (isFarazPattern)
+        {
+            if (!string.IsNullOrWhiteSpace(settings.Sender))
+                data["line_number"] = settings.Sender.Trim();
+            data.Remove("from_number");
+            data.Remove("sender");
+        }
+        else if (isIppanelEdge && string.Equals(sendingType, "pattern", StringComparison.OrdinalIgnoreCase))
         {
             data.Remove("sender");
             if (!string.IsNullOrWhiteSpace(settings.Sender))
@@ -102,8 +127,17 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
         }
 
         var numberFormatField = settings.NumberFormatField?.Trim() ?? "";
-        if (numberFormatField.Length > 0 && !string.IsNullOrWhiteSpace(settings.NumberFormat))
+        if (isFarazPattern)
+        {
+            data["number_format"] = string.IsNullOrWhiteSpace(settings.NumberFormat)
+                ? "english"
+                : settings.NumberFormat.Trim().ToLowerInvariant();
+            data.Remove("numberFormat");
+        }
+        else if (numberFormatField.Length > 0 && !string.IsNullOrWhiteSpace(settings.NumberFormat))
+        {
             data[numberFormatField] = settings.NumberFormat;
+        }
 
         var headers = new Dictionary<string, string>
         {
@@ -144,20 +178,21 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
         {
             var patternCode = settings.PatternCode?.Trim() ?? "";
 
-            // Do not treat a generic static "code" parameter as the pattern identifier.
-            // In an OTP request that value can otherwise be the actual one-time code.
-            if (patternCode.Length == 0 &&
-                data.TryGetValue("pattern_code", out var staticPatternCode))
-            {
+            // Faraz's "code" is the pattern UID. A legacy static "code" is
+            // also accepted here only when an explicit PatternCode was not set.
+            if (patternCode.Length == 0 && isFarazPattern && data.TryGetValue("code", out var farazStaticCode))
+                patternCode = ConvertToQueryValue(farazStaticCode);
+
+            if (patternCode.Length == 0 && data.TryGetValue("pattern_code", out var staticPatternCode))
                 patternCode = ConvertToQueryValue(staticPatternCode);
-            }
 
             if (patternCode.Length == 0)
-                throw new InvalidOperationException("کد الگوی پیامک تنظیم نشده است. شناسه واقعی الگو را در فیلد «کد الگوی پیامک» وارد کنید.");
+                throw new InvalidOperationException("کد الگوی پیامک تنظیم نشده است. شناسه واقعی الگو (Pattern UID) را در فیلد «کد الگوی پیامک» وارد کنید.");
 
-            var patternCodeField = isIppanelEdge
-                ? "code"
-                : (string.IsNullOrWhiteSpace(settings.CodeField) ? "code" : settings.CodeField.Trim());
+            if (string.Equals(patternCode, "code", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("مقدار «کد الگوی پیامک» نباید code باشد؛ باید UID واقعی الگوی تأییدشده در فراز اس ام اس وارد شود.");
+
+            var patternCodeField = "code";
             data[patternCodeField] = patternCode;
 
             var otpParameterField = string.IsNullOrWhiteSpace(settings.OtpParameterField)
@@ -178,13 +213,43 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
             parameters[otpParameterField] = code;
             data["params"] = parameters;
 
-            // IPPanel pattern requests do not use a free-form message field.
+            // Pattern requests do not use the generic free-form message field.
             var patternMessageField = settings.MessageField?.Trim() ?? "";
             if (patternMessageField.Length > 0 &&
-                !string.Equals(patternMessageField, "params", StringComparison.OrdinalIgnoreCase))
+                !string.Equals(patternMessageField, "params", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(patternMessageField, "attributes", StringComparison.OrdinalIgnoreCase))
                 data.Remove(patternMessageField);
 
-            if (isIppanelEdge)
+            if (isFarazPattern)
+            {
+                // Faraz SMS Pattern contract:
+                // code (pattern UID), attributes, recipient, line_number, number_format.
+                data.Remove("sending_type");
+                data.Remove("params");
+                data.Remove("recipients");
+                data.Remove("from_number");
+                data.Remove("sender");
+                data["recipient"] = NormalizeIranMobile(recipient);
+                data["line_number"] = settings.Sender?.Trim() ?? "";
+
+                Dictionary<string, object?> attributes;
+                if (data.TryGetValue("attributes", out var existingAttributes) &&
+                    existingAttributes is Dictionary<string, object?> existingDictionary)
+                {
+                    attributes = new Dictionary<string, object?>(existingDictionary, StringComparer.OrdinalIgnoreCase);
+                }
+                else
+                {
+                    attributes = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+                }
+
+                attributes[otpParameterField] = code;
+                data["attributes"] = attributes;
+                data["number_format"] = string.IsNullOrWhiteSpace(settings.NumberFormat)
+                    ? "english"
+                    : settings.NumberFormat.Trim().ToLowerInvariant();
+            }
+            else if (isIppanelEdge)
             {
                 // IPPanel Edge requires exactly the pattern request contract:
                 // POST /api/send, JSON, code, recipients[], params, from_number.
@@ -207,10 +272,10 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
                 data[codeField] = code;
         }
 
-        var method = (isIppanelEdge && isPattern)
+        var method = ((isIppanelEdge || isFarazPattern) && isPattern)
             ? "POST"
             : (settings.Method ?? "POST").Trim().ToUpperInvariant();
-        var format = (isIppanelEdge && isPattern)
+        var format = ((isIppanelEdge || isFarazPattern) && isPattern)
             ? "json"
             : (settings.Format ?? "json").Trim().ToLowerInvariant();
         var request = new HttpRequestMessage(new HttpMethod(method), endpoint);
@@ -374,6 +439,15 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
 
         return uri.Host.Contains("ippanel", StringComparison.OrdinalIgnoreCase)
                || uri.Host.Contains("ip-panel", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsFarazPatternEndpoint(string endpoint)
+    {
+        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri))
+            return false;
+
+        return uri.Host.Equals("api.iranpayamak.com", StringComparison.OrdinalIgnoreCase)
+               && uri.AbsolutePath.Contains("/ws/v1/sms/pattern", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string NormalizeIranMobileE164(string value)

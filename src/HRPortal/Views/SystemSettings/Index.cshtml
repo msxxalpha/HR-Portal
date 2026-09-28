@@ -256,7 +256,7 @@
                 <input name="SmsCodeField" value="@S(Model.SmsCodeField)" placeholder="code" />
             </label>
             <label>کد الگوی پیامک
-                <input name="SmsPatternCode" value="@S(Model.SmsPatternCode)" placeholder="کد الگو را وارد کنید" />
+                <input name="SmsPatternCode" value="@S(Model.SmsPatternCode)" placeholder="شناسه واقعی الگوی ثبت‌شده" />
             </label>
             <label>نام پارامتر OTP در الگو
                 <input name="SmsOtpParameterField" value="@S(Model.SmsOtpParameterField)" placeholder="code" />
@@ -279,6 +279,13 @@
             <label class="wide">متن پیامک
                 <textarea name="SmsTemplate" rows="4">@S(Model.SmsTemplate)</textarea>
             </label>
+        </div>
+
+        <div class="settings-help">
+            <strong>راهنمای IPPanel Edge:</strong>
+            برای حالت <code>pattern</code>، فیلد گیرنده باید به صورت <code>recipients</code> و آرایه ارسال شود؛
+            شماره‌ها با قالب بین‌المللی ارسال می‌شوند، <code>code</code> شناسه الگوی ثبت‌شده است و مقدار OTP داخل <code>params</code> قرار می‌گیرد.
+            مقدار «کد الگوی پیامک» باید شناسه واقعی الگو باشد، نه کلمه <code>code</code> و نه خود OTP.
         </div>
 
         <div class="settings-actions">

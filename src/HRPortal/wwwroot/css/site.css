@@ -123,3 +123,13 @@
 .org-tree-root>.org-tree-row .org-tree-title{font-size:13px}
 .org-tree-empty{list-style:none;padding:12px 20px;color:var(--muted);font-size:10px}
 @media(max-width:900px){.switch-grid{grid-template-columns:1fr}.settings-actions{align-items:stretch;flex-direction:column}.compact-toggle{width:100%;min-width:0}.settings-actions>.btn{width:100%}}
+
+.permission-chips{display:flex;flex-wrap:wrap;gap:6px;max-width:520px}
+.check-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border:1px solid #d7dde4;border-radius:999px;background:#f8fafc;cursor:pointer;font-size:12px}
+.check-chip input{margin:0}
+.permission-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px;margin:16px 0}
+.permission-item{display:flex;align-items:flex-start;gap:9px;padding:10px;border:1px solid #e1e6eb;border-radius:10px;background:#fff}
+.permission-item input{margin-top:3px}
+.permission-item span{display:flex;flex-direction:column;gap:3px}
+.permission-item small{color:#6b7280;font-size:11px}
+.btn-sm{padding:6px 12px;font-size:12px}

@@ -1,22 +1,30 @@
-@model HRPortal.Models.SystemSettingsViewModel
+@model HRPortal.Models.SystemSettingsEditModel
 @{
     Layout = "~/Views/Shared/_Layout.cshtml";
     ViewData["Title"] = "تنظیمات سامانه";
+
+    string S(string? value) => value ?? "";
+    string C(string? value, string fallback) => string.IsNullOrWhiteSpace(value) ? fallback : value!;
 }
 <div class="page-head">
     <div>
         <h1>تنظیمات سامانه</h1>
-        <p>تنظیمات عمومی، ظاهر، امنیت، پیامک و گزارش فیش حقوقی</p>
+        <p>تنظیمات عمومی، ظاهر، امنیت، پیامک، فیش حقوقی و نگهداری</p>
     </div>
 </div>
-@if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
-@if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
-@if (!ViewData.ModelState.IsValid)
+
+@if (TempData["Success"] != null)
 {
-    <div class="alert error">@foreach (var e in ViewData.ModelState.Values.SelectMany(v=>v.Errors)){<div>@e.ErrorMessage</div>}</div>
+    <div class="alert success">@TempData["Success"]</div>
 }
-<form method="post" action="/SystemSettings/Save" id="systemSettingsForm">
+@if (TempData["Error"] != null)
+{
+    <div class="alert error">@TempData["Error"]</div>
+}
+
+<form method="post" action="/SystemSettings/Save" id="systemSettingsForm" autocomplete="off">
     @Html.AntiForgeryToken()
+
     <div class="tabs settings-tabs">
         <button type="button" class="tab active" data-tab="general">عمومی</button>
         <button type="button" class="tab" data-tab="appearance">ظاهر و برند</button>
@@ -29,95 +37,149 @@
     <section id="general" class="tab-panel active">
         <div class="settings-section-intro">
             <strong>تنظیمات عمومی سامانه</strong>
-            <span>مقادیر زبانی و منطقه زمانی از گزینه‌های استاندارد انتخاب می‌شوند.</span>
+            <span>در نسخه اول، هیچ‌یک از فیلدهای این بخش اجباری نیست.</span>
         </div>
         <div class="grid-3">
-            <label>نام سامانه<input asp-for="System.ApplicationName" /></label>
-            <label>نام سازمان<input asp-for="System.OrganizationName" /></label>
-            <label>نام کوتاه<input asp-for="System.ShortName" /></label>
-            <label>شعار<input asp-for="System.Slogan" /></label>
-            <label>تلفن<input asp-for="System.Phone" /></label>
-            <label>ایمیل<input asp-for="System.Email" type="email" /></label>
-            <label>وب‌سایت<input asp-for="System.Website" /></label>
-            <label>شناسه ملی<input asp-for="System.NationalId" /></label>
-            <label>کد اقتصادی<input asp-for="System.EconomicCode" /></label>
+            <label>نام سامانه
+                <input name="ApplicationName" value="@S(Model.ApplicationName)" />
+            </label>
+            <label>نام سازمان
+                <input name="OrganizationName" value="@S(Model.OrganizationName)" />
+            </label>
+            <label>نام کوتاه
+                <input name="ShortName" value="@S(Model.ShortName)" />
+            </label>
+            <label>شعار
+                <input name="Slogan" value="@S(Model.Slogan)" />
+            </label>
+            <label>تلفن
+                <input name="Phone" value="@S(Model.Phone)" />
+            </label>
+            <label>ایمیل
+                <input name="Email" value="@S(Model.Email)" />
+            </label>
+            <label>وب‌سایت
+                <input name="Website" value="@S(Model.Website)" />
+            </label>
+            <label>شناسه ملی
+                <input name="NationalId" value="@S(Model.NationalId)" />
+            </label>
+            <label>کد اقتصادی
+                <input name="EconomicCode" value="@S(Model.EconomicCode)" />
+            </label>
 
             <label>زبان
-                <select asp-for="System.DefaultLanguage">
-                    <option value="fa-IR">فارسی (fa-IR)</option>
-                    <option value="en-US">English (en-US)</option>
-                    <option value="ar-SA">العربية (ar-SA)</option>
+                <select name="DefaultLanguage">
+                    <option value="">انتخاب نشده</option>
+                    <option value="fa-IR" selected="@(Model.DefaultLanguage == "fa-IR" ? "selected" : null)">فارسی</option>
+                    <option value="en-US" selected="@(Model.DefaultLanguage == "en-US" ? "selected" : null)">English</option>
+                    <option value="ar-SA" selected="@(Model.DefaultLanguage == "ar-SA" ? "selected" : null)">العربية</option>
                 </select>
             </label>
 
             <label>تقویم
-                <select asp-for="System.Calendar">
-                    <option value="Persian">شمسی</option>
-                    <option value="Gregorian">میلادی</option>
+                <select name="Calendar">
+                    <option value="">انتخاب نشده</option>
+                    <option value="Persian" selected="@(Model.Calendar == "Persian" ? "selected" : null)">شمسی</option>
+                    <option value="Gregorian" selected="@(Model.Calendar == "Gregorian" ? "selected" : null)">میلادی</option>
                 </select>
             </label>
 
             <label>منطقه زمانی
-                <select asp-for="System.TimeZone">
-                    <option value="Asia/Tehran">ایران ـ تهران (Asia/Tehran)</option>
-                    <option value="Asia/Baku">آذربایجان ـ باکو (Asia/Baku)</option>
-                    <option value="Europe/Istanbul">ترکیه ـ استانبول (Europe/Istanbul)</option>
-                    <option value="Asia/Dubai">امارات ـ دبی (Asia/Dubai)</option>
-                    <option value="UTC">UTC</option>
+                <select name="TimeZone">
+                    <option value="">انتخاب نشده</option>
+                    <option value="Asia/Tehran" selected="@(Model.TimeZone == "Asia/Tehran" ? "selected" : null)">ایران - تهران</option>
+                    <option value="Asia/Baku" selected="@(Model.TimeZone == "Asia/Baku" ? "selected" : null)">آذربایجان - باکو</option>
+                    <option value="Europe/Istanbul" selected="@(Model.TimeZone == "Europe/Istanbul" ? "selected" : null)">ترکیه - استانبول</option>
+                    <option value="Asia/Dubai" selected="@(Model.TimeZone == "Asia/Dubai" ? "selected" : null)">امارات - دبی</option>
+                    <option value="UTC" selected="@(Model.TimeZone == "UTC" ? "selected" : null)">UTC</option>
                 </select>
             </label>
 
-            <label>تعداد رکورد در صفحه<input asp-for="System.ItemsPerPage" type="number" min="5" max="200" /></label>
+            <label>تعداد رکورد در صفحه
+                <input name="ItemsPerPage" type="number" value="@Model.ItemsPerPage" />
+            </label>
         </div>
     </section>
 
     <section id="appearance" class="tab-panel">
         <div class="settings-section-intro">
             <strong>ظاهر و برند</strong>
-            <span>رنگ‌ها و شناسه بصری سامانه در همین بخش کنترل می‌شوند.</span>
+            <span>تمامی مقادیر این بخش نیز اختیاری هستند.</span>
         </div>
         <div class="grid-3">
-            <label>تم<input asp-for="System.Theme" /></label>
-            <label>رنگ اصلی<input asp-for="System.PrimaryColor" type="color" /></label>
-            <label>رنگ ثانویه<input asp-for="System.SecondaryColor" type="color" /></label>
-            <label>مسیر لوگو<input asp-for="System.LogoUrl" /></label>
-            <label>مسیر Favicon<input asp-for="System.FaviconUrl" /></label>
-            <label class="wide">متن پایین صفحه<textarea asp-for="System.FooterText"></textarea></label>
+            <label>تم
+                <input name="Theme" value="@S(Model.Theme)" />
+            </label>
+            <label>رنگ اصلی
+                <input name="PrimaryColor" type="color" value="@C(Model.PrimaryColor, "#17324D")" />
+            </label>
+            <label>رنگ ثانویه
+                <input name="SecondaryColor" type="color" value="@C(Model.SecondaryColor, "#6C757D")" />
+            </label>
+            <label>مسیر لوگو
+                <input name="LogoUrl" value="@S(Model.LogoUrl)" />
+            </label>
+            <label>مسیر Favicon
+                <input name="FaviconUrl" value="@S(Model.FaviconUrl)" />
+            </label>
+            <label class="wide">متن پایین صفحه
+                <textarea name="FooterText">@S(Model.FooterText)</textarea>
+            </label>
         </div>
     </section>
 
     <section id="security" class="tab-panel">
         <div class="settings-section-intro">
             <strong>امنیت و OTP</strong>
-            <span>وضعیت سرویس‌ها با کلید روشن/خاموش مدیریت می‌شود.</span>
+            <span>Switch سبز یعنی فعال و خاکستری یعنی غیرفعال.</span>
         </div>
+
         <div class="grid-3">
-            <label>طول OTP<input asp-for="Otp.Length" type="number" min="4" max="8" /></label>
-            <label>اعتبار OTP (ثانیه)<input asp-for="Otp.ValiditySeconds" type="number" min="30" max="900" /></label>
-            <label>حداکثر تلاش<input asp-for="Otp.MaxAttempts" type="number" min="1" max="20" /></label>
+            <label>طول OTP
+                <input name="OtpLength" type="number" value="@Model.OtpLength" />
+            </label>
+            <label>اعتبار OTP (ثانیه)
+                <input name="OtpValiditySeconds" type="number" value="@Model.OtpValiditySeconds" />
+            </label>
+            <label>حداکثر تلاش
+                <input name="OtpMaxAttempts" type="number" value="@Model.OtpMaxAttempts" />
+            </label>
         </div>
 
         <div class="switch-grid">
             <label class="toggle-card">
-                <span class="toggle-text"><strong>ورود با OTP</strong><small>ورود کارکنان با کد یکبارمصرف</small></span>
+                <span class="toggle-text">
+                    <strong>ورود با OTP</strong>
+                    <small>ورود کارکنان با کد یکبارمصرف</small>
+                </span>
                 <span class="switch-control">
-                    <input type="hidden" name="Otp.Enabled" value="false" /><input type="checkbox" name="Otp.Enabled" value="true" @(Model.Otp.Enabled ? "checked" : "") aria-label="ورود با OTP" />
+                    <input type="hidden" name="OtpEnabled" value="false" />
+                    <input type="checkbox" name="OtpEnabled" value="true" @(Model.OtpEnabled ? "checked" : "") aria-label="ورود با OTP" />
                     <span class="switch-slider"></span>
                 </span>
             </label>
 
             <label class="toggle-card">
-                <span class="toggle-text"><strong>خدمات کاربری</strong><small>فعال بودن خدمات کاربری سامانه</small></span>
+                <span class="toggle-text">
+                    <strong>خدمات کاربری</strong>
+                    <small>دسترسی کاربران به خدمات پرسنلی</small>
+                </span>
                 <span class="switch-control">
-                    <input type="hidden" name="System.AllowUserSelfService" value="false" /><input type="checkbox" name="System.AllowUserSelfService" value="true" @(Model.System.AllowUserSelfService ? "checked" : "") aria-label="خدمات کاربری" />
+                    <input type="hidden" name="AllowUserSelfService" value="false" />
+                    <input type="checkbox" name="AllowUserSelfService" value="true" @(Model.AllowUserSelfService ? "checked" : "") aria-label="خدمات کاربری" />
                     <span class="switch-slider"></span>
                 </span>
             </label>
 
             <label class="toggle-card">
-                <span class="toggle-text"><strong>ثبت رویدادهای سامانه</strong><small>ثبت رخدادهای مدیریتی و عملیاتی</small></span>
+                <span class="toggle-text">
+                    <strong>ثبت رویدادهای سامانه</strong>
+                    <small>ثبت رخدادهای مدیریتی و امنیتی</small>
+                </span>
                 <span class="switch-control">
-                    <input type="hidden" name="System.EnableAuditLog" value="false" /><input type="checkbox" name="System.EnableAuditLog" value="true" @(Model.System.EnableAuditLog ? "checked" : "") aria-label="ثبت رویدادهای سامانه" />
+                    <input type="hidden" name="EnableAuditLog" value="false" />
+                    <input type="checkbox" name="EnableAuditLog" value="true" @(Model.EnableAuditLog ? "checked" : "") aria-label="ثبت رویدادها" />
                     <span class="switch-slider"></span>
                 </span>
             </label>
@@ -127,166 +189,161 @@
     <section id="sms" class="tab-panel">
         <div class="settings-section-intro">
             <strong>پارامترهای اتصال سرویس پیامک</strong>
-            <span>پارامترهای اتصال را مطابق مستندات سرویس‌دهنده پیامک وارد کنید.</span>
+            <span>مقادیر اختیاری هستند و مطابق مستندات سرویس‌دهنده تکمیل می‌شوند.</span>
         </div>
 
         <div class="grid-2">
             <label>نشانی API
-                <input asp-for="Sms.Endpoint" type="url" placeholder="https://..." />
-                <small class="field-help">Endpoint واقعی سرویس‌دهنده را وارد کنید.</small>
+                <input name="SmsEndpoint" value="@S(Model.SmsEndpoint)" />
             </label>
-
             <label>روش HTTP
-                <select asp-for="Sms.Method">
-                    <option value="POST">POST</option>
-                    <option value="GET">GET</option>
-                    <option value="PUT">PUT</option>
+                <select name="SmsMethod">
+                    <option value="">انتخاب نشده</option>
+                    <option value="POST" selected="@(Model.SmsMethod == "POST" ? "selected" : null)">POST</option>
+                    <option value="GET" selected="@(Model.SmsMethod == "GET" ? "selected" : null)">GET</option>
+                    <option value="PUT" selected="@(Model.SmsMethod == "PUT" ? "selected" : null)">PUT</option>
                 </select>
             </label>
 
             <label>نوع بدنه درخواست
-                <select asp-for="Sms.Format">
-                    <option value="json">JSON</option>
-                    <option value="form">Form URL Encoded</option>
-                    <option value="query">Query String</option>
+                <select name="SmsFormat">
+                    <option value="">انتخاب نشده</option>
+                    <option value="json" selected="@(Model.SmsFormat == "json" ? "selected" : null)">JSON</option>
+                    <option value="form" selected="@(Model.SmsFormat == "form" ? "selected" : null)">Form URL Encoded</option>
+                    <option value="query" selected="@(Model.SmsFormat == "query" ? "selected" : null)">Query String</option>
                 </select>
             </label>
 
             <label>محل احراز هویت
-                <select asp-for="Sms.AuthMode">
-                    <option value="none">بدون کلید</option>
-                    <option value="header">هدر API-Key</option>
-                    <option value="bearer">هدر Authorization: Bearer</option>
-                    <option value="query">پارامتر Query</option>
-                    <option value="body">پارامتر Body</option>
+                <select name="SmsAuthMode">
+                    <option value="">انتخاب نشده</option>
+                    <option value="none" selected="@(Model.SmsAuthMode == "none" ? "selected" : null)">بدون کلید</option>
+                    <option value="header" selected="@(Model.SmsAuthMode == "header" ? "selected" : null)">هدر API-Key</option>
+                    <option value="bearer" selected="@(Model.SmsAuthMode == "bearer" ? "selected" : null)">Bearer</option>
+                    <option value="query" selected="@(Model.SmsAuthMode == "query" ? "selected" : null)">Query</option>
+                    <option value="body" selected="@(Model.SmsAuthMode == "body" ? "selected" : null)">Body</option>
                 </select>
             </label>
 
             <label>نام هدر/پارامتر کلید
-                <input asp-for="Sms.ApiKeyName" placeholder="Api-Key" />
+                <input name="SmsApiKeyName" value="@S(Model.SmsApiKeyName)" />
             </label>
 
             <label>کلید API
-                <input name="Sms.ApiKey" id="Sms_ApiKey" type="password" autocomplete="new-password" placeholder="برای حفظ کلید فعلی، خالی بگذارید" />
+                <input name="SmsApiKey" type="password" value="" placeholder="برای حفظ کلید فعلی خالی بگذارید" />
             </label>
 
             <label>نام فیلد فرستنده
-                <input asp-for="Sms.SenderField" placeholder="sender" />
+                <input name="SmsSenderField" value="@S(Model.SmsSenderField)" />
             </label>
-
             <label>شماره/شناسه فرستنده
-                <input asp-for="Sms.Sender" placeholder="شماره اختصاصی سرویس‌دهنده" />
+                <input name="SmsSender" value="@S(Model.SmsSender)" />
             </label>
-
             <label>نام فیلد گیرنده
-                <input asp-for="Sms.RecipientField" placeholder="recipient یا recipients" />
+                <input name="SmsRecipientField" value="@S(Model.SmsRecipientField)" />
             </label>
-
             <label>نوع مقدار گیرنده
-                <select asp-for="Sms.RecipientMode">
-                    <option value="scalar">متن تکی</option>
-                    <option value="array">آرایه (Array)</option>
+                <select name="SmsRecipientMode">
+                    <option value="">انتخاب نشده</option>
+                    <option value="scalar" selected="@(Model.SmsRecipientMode == "scalar" ? "selected" : null)">متن تکی</option>
+                    <option value="array" selected="@(Model.SmsRecipientMode == "array" ? "selected" : null)">آرایه</option>
                 </select>
-                <small class="field-help">اگر سرویس‌دهنده فیلد recipients را آرایه‌ای می‌خواهد، «آرایه» را انتخاب کنید.</small>
             </label>
-
             <label>نام فیلد متن پیام
-                <input asp-for="Sms.MessageField" placeholder="message" />
+                <input name="SmsMessageField" value="@S(Model.SmsMessageField)" />
             </label>
-
             <label>نام فیلد فرمت شماره
-                <input asp-for="Sms.NumberFormatField" placeholder="number_format" />
+                <input name="SmsNumberFormatField" value="@S(Model.SmsNumberFormatField)" />
             </label>
-
             <label>مقدار فرمت شماره
-                <input asp-for="Sms.NumberFormat" />
+                <input name="SmsNumberFormat" value="@S(Model.SmsNumberFormat)" />
             </label>
-
             <label>کدهای HTTP موفق
-                <input asp-for="Sms.SuccessCodes" placeholder="200-299" />
+                <input name="SmsSuccessCodes" value="@S(Model.SmsSuccessCodes)" />
             </label>
-
             <label>شماره مقصد آزمایشی
-                <input asp-for="Sms.TestRecipient" placeholder="09xxxxxxxxx" inputmode="tel" />
+                <input name="SmsTestRecipient" value="@S(Model.SmsTestRecipient)" />
             </label>
-
             <label class="wide">پارامترهای ثابت JSON
-                <textarea asp-for="Sms.StaticParams" rows="5" placeholder="{&quot;service&quot;:&quot;HR&quot;}"></textarea>
-                <small class="field-help">در صورت نیاز، JSON ثابت سرویس‌دهنده را دقیقاً مانند مستندات وارد کنید.</small>
+                <textarea name="SmsStaticParams" rows="5">@S(Model.SmsStaticParams)</textarea>
             </label>
-
             <label class="wide">متن پیامک
-                <textarea asp-for="Sms.Template" rows="5"></textarea>
-                <small class="field-help">متغیرهای قابل استفاده: {code} ، {mobile} و برای سازگاری: {car_no} ، {supplier_name} ، {portal_url} ، {title}</small>
+                <textarea name="SmsTemplate" rows="4">@S(Model.SmsTemplate)</textarea>
             </label>
         </div>
 
         <div class="settings-actions">
             <label class="toggle-card compact-toggle">
-                <span class="toggle-text"><strong>سرویس پیامک</strong><small>ارسال OTP و پیامک‌های سامانه</small></span>
+                <span class="toggle-text"><strong>سرویس پیامک</strong><small>ارسال OTP و پیام‌های سامانه</small></span>
                 <span class="switch-control">
-                    <input type="hidden" name="Sms.Enabled" value="false" /><input type="checkbox" name="Sms.Enabled" value="true" @(Model.Sms.Enabled ? "checked" : "") aria-label="سرویس پیامک" />
+                    <input type="hidden" name="SmsEnabled" value="false" />
+                    <input type="checkbox" name="SmsEnabled" value="true" @(Model.SmsEnabled ? "checked" : "") aria-label="سرویس پیامک" />
                     <span class="switch-slider"></span>
                 </span>
             </label>
             <button class="btn btn-main" type="submit" name="command" value="save-test-sms">ذخیره و ارسال پیامک آزمایشی</button>
-        </div>
-
-        <div class="note">
-            ساختار فوق عمداً شامل Endpoint، Method، Format، Auth Mode، API-Key، Sender/Recipient fields، number_format، پارامترهای ثابت، کدهای موفق و شماره آزمایشی است تا تنظیمات API بدون فرض درباره سرویس‌دهنده انجام شود.
         </div>
     </section>
 
     <section id="payroll" class="tab-panel">
         <div class="settings-section-intro">
             <strong>فیش حقوقی / SSRS</strong>
-            <span>شماره پرسنلی از حساب کاربر واردشده خوانده می‌شود و در فرم قابل تغییر نیست.</span>
+            <span>شماره پرسنلی از حساب کاربر گرفته می‌شود و در تنظیمات یا فرم کاربر قابل ورود نیست.</span>
         </div>
 
         <div class="grid-2">
             <label class="wide">آدرس کامل گزارش SSRS / Report URL
-                <input asp-for="Payroll.ReportUrl" placeholder="https://SERVER/ReportServer?/Folder/PayrollSlip" />
+                <input name="PayrollReportUrl" value="@S(Model.PayrollReportUrl)" />
             </label>
-            <label>آدرس Report Server<input asp-for="Payroll.ReportServerUrl" placeholder="https://SERVER/ReportServer" /></label>
-            <label>مسیر گزارش RDL<input asp-for="Payroll.ReportPath" placeholder="/Folder/PayrollSlip" /></label>
-            <label>نام پارامتر سال/ماه<input asp-for="Payroll.YearParameter" /></label>
-            <label>نام پارامتر شماره پرسنلی<input asp-for="Payroll.PersonnelParameter" /></label>
-            <label>فرمت گزارش<input asp-for="Payroll.ReportFormat" placeholder="HTML4.0" /></label>
+            <label>آدرس Report Server
+                <input name="PayrollReportServerUrl" value="@S(Model.PayrollReportServerUrl)" />
+            </label>
+            <label>مسیر گزارش RDL
+                <input name="PayrollReportPath" value="@S(Model.PayrollReportPath)" />
+            </label>
+            <label>نام پارامتر سال/ماه
+                <input name="PayrollYearParameter" value="@S(Model.PayrollYearParameter)" />
+            </label>
+            <label>نام پارامتر شماره پرسنلی
+                <input name="PayrollPersonnelParameter" value="@S(Model.PayrollPersonnelParameter)" />
+            </label>
+            <label>فرمت گزارش
+                <input name="PayrollReportFormat" value="@S(Model.PayrollReportFormat)" />
+            </label>
         </div>
 
         <div class="settings-actions">
             <label class="toggle-card compact-toggle">
-                <span class="toggle-text"><strong>فیش حقوقی</strong><small>فعال بودن دسترسی نمایش فیش حقوقی</small></span>
+                <span class="toggle-text"><strong>فیش حقوقی</strong><small>فعال بودن دسترسی فیش حقوقی</small></span>
                 <span class="switch-control">
-                    <input type="hidden" name="Payroll.Enabled" value="false" /><input type="checkbox" name="Payroll.Enabled" value="true" @(Model.Payroll.Enabled ? "checked" : "") aria-label="فیش حقوقی" />
+                    <input type="hidden" name="PayrollEnabled" value="false" />
+                    <input type="checkbox" name="PayrollEnabled" value="true" @(Model.PayrollEnabled ? "checked" : "") aria-label="فیش حقوقی" />
                     <span class="switch-slider"></span>
                 </span>
             </label>
-        </div>
-
-        <div class="note">
-            اگر «آدرس کامل گزارش» وارد شود، همان URL مبنا قرار می‌گیرد. سامانه فقط پارامترهای سال/ماه و شماره پرسنلی کاربر لاگین‌شده را به آن اضافه می‌کند.
         </div>
     </section>
 
     <section id="maintenance" class="tab-panel">
         <div class="settings-section-intro">
             <strong>نگهداری</strong>
-            <span>برای خارج کردن سامانه از دسترس عمومی، حالت تعمیر و نگهداری را فعال کنید.</span>
+            <span>وضعیت فعال سبز و وضعیت غیرفعال خاکستری نمایش داده می‌شود.</span>
         </div>
 
         <div class="settings-actions">
             <label class="toggle-card compact-toggle">
-                <span class="toggle-text"><strong>حالت تعمیر و نگهداری</strong><small>جلوگیری از دسترسی کاربران در زمان نگهداری</small></span>
+                <span class="toggle-text"><strong>حالت تعمیر و نگهداری</strong><small>جلوگیری از ورود کاربران هنگام تعمیرات</small></span>
                 <span class="switch-control">
-                    <input type="hidden" name="System.MaintenanceMode" value="false" /><input type="checkbox" name="System.MaintenanceMode" value="true" @(Model.System.MaintenanceMode ? "checked" : "") aria-label="حالت تعمیر و نگهداری" />
+                    <input type="hidden" name="MaintenanceMode" value="false" />
+                    <input type="checkbox" name="MaintenanceMode" value="true" @(Model.MaintenanceMode ? "checked" : "") aria-label="حالت تعمیر و نگهداری" />
                     <span class="switch-slider"></span>
                 </span>
             </label>
         </div>
 
-        <label>پیام نگهداری<textarea asp-for="System.MaintenanceMessage"></textarea></label>
-        <div class="note">اطلاعات حساس سرویس پیامک را در GitHub قرار ندهید.</div>
+        <label>پیام نگهداری
+            <textarea name="MaintenanceMessage">@S(Model.MaintenanceMessage)</textarea>
+        </label>
     </section>
 
     <div class="form-actions">
@@ -296,13 +353,15 @@
 
 @section Scripts {
 <script>
-document.querySelectorAll('.tab').forEach(function (button) {
-    button.addEventListener('click', function () {
-        document.querySelectorAll('.tab').forEach(function (b) { b.classList.remove('active'); });
-        document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
-        button.classList.add('active');
-        document.getElementById(button.dataset.tab).classList.add('active');
+(function () {
+    document.querySelectorAll('.tab').forEach(function (button) {
+        button.addEventListener('click', function () {
+            document.querySelectorAll('.tab').forEach(function (b) { b.classList.remove('active'); });
+            document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
+            button.classList.add('active');
+            document.getElementById(button.dataset.tab).classList.add('active');
+        });
     });
-});
+})();
 </script>
 }

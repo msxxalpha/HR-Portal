@@ -14,7 +14,7 @@ public class OtpService(HRPortalDbContext db, ISmsService sms)
         if (!settings.Enabled)
             return (false, "ورود با OTP در تنظیمات سامانه غیرفعال است.");
 
-        var length = Math.Clamp(settings.Length, 4, 10);
+        var length = Math.Clamp(settings.Length, 4, 9);
         var min = (int)Math.Pow(10, length - 1);
         var max = (int)Math.Pow(10, length);
         var code = RandomNumberGenerator.GetInt32(min, max).ToString($"D{length}");

@@ -155,3 +155,7 @@
 .switch-control input[type="checkbox"]:not(:checked) + .switch-slider{background:#c8d1d7}
 .toggle-card:has(input[type="checkbox"]:checked){border-color:#b9dfc7;background:#f4fbf6}
 .toggle-card:has(input[type="checkbox"]:not(:checked)){border-color:#d9e0e5;background:#f8fafb}
+.alert.info{background:#eef5fa;color:#2f5269}
+.otp-countdown{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 16px;padding:12px 14px;background:#f7f9fa;border:1px solid var(--line);border-radius:10px;color:var(--muted);font-size:10px}
+.otp-countdown strong{font-family:Tahoma,Arial,sans-serif;color:var(--navy);font-size:18px;letter-spacing:1px;direction:ltr}
+

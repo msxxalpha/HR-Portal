@@ -44,10 +44,14 @@
                 <div class="nav-caption">ساختار سازمانی</div>
                 <a href="/Organization">ساختار سازمانی</a>
             }
-            @if (isAdmin)
+            @if (Can("Users.Manage") || Can("Roles.Manage"))
             {
                 <div class="nav-caption">مدیریت سامانه</div>
                 <a href="/Users">مدیریت کاربران و نقش‌ها</a>
+            }
+            @if (isAdmin)
+            {
+                <div class="nav-caption">حساب مدیر</div>
                 <a href="/Account/ChangePassword">تغییر رمز مدیر</a>
             }
             @if (Can("Settings.View"))

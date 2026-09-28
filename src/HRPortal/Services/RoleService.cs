@@ -44,8 +44,16 @@ public class RoleService(HRPortalDbContext db)
             ["Settings.View", "Settings.Edit"]);
         await EnsureRoleAsync("PAYROLL_USER", "گزارش فیش حقوقی", "دسترسی به فیش حقوقی",
             ["Payroll.View"]);
-        var defaultEmployeeRole = await EnsureRoleAsync("EMPLOYEE", "کاربر کارکنان", "نقش پیش‌فرض کارکنان برای استفاده از خدمات پرسنلی",
+        await EnsureRoleAsync("EMPLOYEE", "کاربر کارکنان", "نقش پیش‌فرض کارکنان برای استفاده از خدمات پرسنلی",
             ["Payroll.View"]);
+        var defaultRoleId = await db.Roles.Where(x => x.Code == "EMPLOYEE").Select(x => x.Id).SingleAsync();
+        var assignedEmployees = await db.EmployeeRoles.Select(x => x.EmployeeId).Distinct().ToListAsync();
+        var employeesWithoutRole = await db.Employees.Where(x => x.IsSystemUser && !assignedEmployees.Contains(x.Id)).Select(x => x.Id).ToListAsync();
+        foreach (var employeeId in employeesWithoutRole)
+            db.EmployeeRoles.Add(new EmployeeRole { EmployeeId = employeeId, RoleId = defaultRoleId });
+        if (employeesWithoutRole.Count > 0)
+            await db.SaveChangesAsync();
+
         await EnsureRoleAsync("USER_MANAGER", "مدیریت کاربران", "مدیریت وضعیت کاربر و تخصیص نقش به کارکنان",
             ["Users.Manage"]);
         await EnsureRoleAsync("ROLE_MANAGER", "مدیریت نقش‌ها", "ایجاد و ویرایش نقش‌ها و سطح دسترسی",

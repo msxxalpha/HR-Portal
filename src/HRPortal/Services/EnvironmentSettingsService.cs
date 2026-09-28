@@ -76,6 +76,7 @@ public class EnvironmentSettingsService(HRPortalDbContext db)
 
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
+        db.ChangeTracker.Clear();
     }
 
     private static void CopySystem(SystemSettings target, SystemSettings source)

@@ -3,6 +3,7 @@
     var cfg = await SettingsService.GetAsync();
     var company = cfg.System;
     var isAdmin = User.HasClaim("IsAdmin", "1");
+    bool Can(string permission) => isAdmin || User.HasClaim("Permission", permission);
 }
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
@@ -33,19 +34,33 @@
             <div class="nav-caption">داشبورد</div>
             <a href="/">داشبورد</a>
 
-            @if (isAdmin)
+            @if (Can("Employees.View"))
             {
                 <div class="nav-caption">اطلاعات پایه</div>
                 <a href="/Employees">مدیریت کارکنان</a>
+            }
+            @if (Can("Organization.View"))
+            {
+                <div class="nav-caption">ساختار سازمانی</div>
                 <a href="/Organization">ساختار سازمانی</a>
-
+            }
+            @if (isAdmin)
+            {
                 <div class="nav-caption">مدیریت سامانه</div>
-                <a href="/SystemSettings">تنظیمات سامانه</a>
+                <a href="/Users">مدیریت کاربران و نقش‌ها</a>
                 <a href="/Account/ChangePassword">تغییر رمز مدیر</a>
             }
+            @if (Can("Settings.View"))
+            {
+                <div class="nav-caption">تنظیمات سامانه</div>
+                <a href="/SystemSettings">تنظیمات سامانه</a>
+            }
 
-            <div class="nav-caption">خدمات کارکنان</div>
-            <a href="/Payroll/Payslip">فیش حقوقی</a>
+            @if (Can("Payroll.View"))
+            {
+                <div class="nav-caption">خدمات کارکنان</div>
+                <a href="/Payroll/Payslip">فیش حقوقی</a>
+            }
         </nav>
 
         <div class="sidebar-foot">

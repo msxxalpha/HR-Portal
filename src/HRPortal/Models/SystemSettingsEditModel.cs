@@ -45,6 +45,8 @@ public class SystemSettingsEditModel
     public string? SmsRecipientMode { get; set; }
     public string? SmsMessageField { get; set; }
     public string? SmsCodeField { get; set; }
+    public string? SmsOtpParameterField { get; set; }
+    public string? SmsPatternCode { get; set; }
     public string? SmsNumberFormatField { get; set; }
     public string? SmsNumberFormat { get; set; }
     public string? SmsStaticParams { get; set; }

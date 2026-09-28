@@ -115,8 +115,11 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
                 break;
         }
 
+        if (isIppanelEdge && apiKey.Length > 0)
+            headers["Authorization"] = apiKey;
+
         var authMode = (settings.AuthMode ?? "").Trim().ToLowerInvariant();
-        if ((authMode is "query" or "body") && apiKey.Length > 0)
+        if (!isIppanelEdge && (authMode is "query" or "body") && apiKey.Length > 0)
         {
             if (authMode == "query")
                 endpoint = AddQuery(endpoint, keyName, apiKey);
@@ -130,22 +133,21 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
         if (isPattern)
         {
             var patternCode = settings.PatternCode?.Trim() ?? "";
-            if (patternCode.Length == 0)
-            {
-                var configuredCodeField = string.IsNullOrWhiteSpace(settings.CodeField)
-                    ? "code"
-                    : settings.CodeField.Trim();
 
-                if (data.TryGetValue(configuredCodeField, out var configuredValue))
-                    patternCode = ConvertToQueryValue(configuredValue);
+            // Do not treat a generic static "code" parameter as the pattern identifier.
+            // In an OTP request that value can otherwise be the actual one-time code.
+            if (patternCode.Length == 0 &&
+                data.TryGetValue("pattern_code", out var staticPatternCode))
+            {
+                patternCode = ConvertToQueryValue(staticPatternCode);
             }
 
             if (patternCode.Length == 0)
-                throw new InvalidOperationException("کد الگوی پیامک تنظیم نشده است.");
+                throw new InvalidOperationException("کد الگوی پیامک تنظیم نشده است. شناسه واقعی الگو را در فیلد «کد الگوی پیامک» وارد کنید.");
 
-            var patternCodeField = string.IsNullOrWhiteSpace(settings.CodeField)
+            var patternCodeField = isIppanelEdge
                 ? "code"
-                : settings.CodeField.Trim();
+                : (string.IsNullOrWhiteSpace(settings.CodeField) ? "code" : settings.CodeField.Trim());
             data[patternCodeField] = patternCode;
 
             var otpParameterField = string.IsNullOrWhiteSpace(settings.OtpParameterField)
@@ -195,8 +197,12 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
                 data[codeField] = code;
         }
 
-        var method = (settings.Method ?? "POST").Trim().ToUpperInvariant();
-        var format = (settings.Format ?? "json").Trim().ToLowerInvariant();
+        var method = (isIppanelEdge && isPattern)
+            ? "POST"
+            : (settings.Method ?? "POST").Trim().ToUpperInvariant();
+        var format = (isIppanelEdge && isPattern)
+            ? "json"
+            : (settings.Format ?? "json").Trim().ToLowerInvariant();
         var request = new HttpRequestMessage(new HttpMethod(method), endpoint);
 
         foreach (var h in headers)

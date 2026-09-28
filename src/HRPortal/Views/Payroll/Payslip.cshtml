@@ -20,7 +20,8 @@
 
 @if (ViewBag.Message != null)
 {
-    <div class="alert @(ViewBag.ReportUrl == null ? "error" : "success")">@ViewBag.Message</div>
+    var messageClass = ViewBag.MessageType as string ?? (ViewBag.ReportUrl == null ? "error" : "success");
+    <div class="alert @messageClass">@ViewBag.Message</div>
 }
 
 <div class="card">

@@ -31,8 +31,8 @@
             <label>جنسیت *
                 <select name="Gender" required>
                     <option value="">انتخاب کنید</option>
-                    <option value="مرد" selected="@(Model.Employee.Gender == "مرد")">مرد</option>
-                    <option value="زن" selected="@(Model.Employee.Gender == "زن")">زن</option>
+                    <option value="مرد" @(Model.Employee.Gender == "مرد" ? "selected" : "")>مرد</option>
+                    <option value="زن" @(Model.Employee.Gender == "زن" ? "selected" : "")>زن</option>
                 </select>
             </label>
             <label>نام پدر<input name="FatherName" value="@Model.Employee.FatherName" /></label>
@@ -41,8 +41,8 @@
             <label>نوع استخدام<input name="EmploymentType" value="@Model.Employee.EmploymentType" /></label>
             <label>وضعیت
                 <select name="Status">
-                    <option value="فعال" selected="@(Model.Employee.Status != "غیرفعال")">فعال</option>
-                    <option value="غیرفعال" selected="@(Model.Employee.Status == "غیرفعال")">غیرفعال</option>
+                    <option value="فعال" @(Model.Employee.Status != "غیرفعال" ? "selected" : "")>فعال</option>
+                    <option value="غیرفعال" @(Model.Employee.Status == "غیرفعال" ? "selected" : "")>غیرفعال</option>
                 </select>
             </label>
         </div>
@@ -56,7 +56,7 @@
                     <option value="">انتخاب واحد</option>
                     @foreach (var n in Model.Units)
                     {
-                        <option value="@n.Id" selected="@(Model.Employee.OrganizationUnitId == n.Id)">@n.Title (@n.Code)</option>
+                        <option value="@n.Id" @(Model.Employee.OrganizationUnitId == n.Id ? "selected" : "")>@n.Title (@n.Code)</option>
                     }
                 </select>
             </label>
@@ -65,7 +65,7 @@
                     <option value="">انتخاب اداره</option>
                     @foreach (var n in Model.Departments)
                     {
-                        <option value="@n.Id" data-parent-id="@n.ParentId" selected="@(Model.Employee.OrganizationDepartmentId == n.Id)">@n.Title (@n.Code)</option>
+                        <option value="@n.Id" data-parent-id="@n.ParentId" @(Model.Employee.OrganizationDepartmentId == n.Id ? "selected" : "")>@n.Title (@n.Code)</option>
                     }
                 </select>
             </label>
@@ -74,7 +74,7 @@
                     <option value="">انتخاب بخش</option>
                     @foreach (var n in Model.Sections)
                     {
-                        <option value="@n.Id" data-parent-id="@n.ParentId" selected="@(Model.Employee.OrganizationSectionId == n.Id)">@n.Title (@n.Code)</option>
+                        <option value="@n.Id" data-parent-id="@n.ParentId" @(Model.Employee.OrganizationSectionId == n.Id ? "selected" : "")>@n.Title (@n.Code)</option>
                     }
                 </select>
             </label>

@@ -209,9 +209,10 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
             ["{title}"] = "ورود به سامانه منابع انسانی"
         };
 
-        return (template ?? "").Trim().Length == 0
+        var normalizedTemplate = template?.Trim() ?? "";
+        return normalizedTemplate.Length == 0
             ? $"کد ورود شما: {code}"
-            : values.Aggregate(template, (current, pair) => current.Replace(pair.Key, pair.Value, StringComparison.Ordinal));
+            : values.Aggregate(normalizedTemplate, (current, pair) => current.Replace(pair.Key, pair.Value, StringComparison.Ordinal));
     }
 
     private static bool IsSuccessCode(string raw, int code)

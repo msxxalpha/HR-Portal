@@ -16,6 +16,10 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
     public DbSet<OtpChallenge> OtpChallenges => Set<OtpChallenge>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<AdminUser> AdminUsers => Set<AdminUser>();
+    public DbSet<Role> Roles => Set<Role>();
+    public DbSet<Permission> Permissions => Set<Permission>();
+    public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+    public DbSet<EmployeeRole> EmployeeRoles => Set<EmployeeRole>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -64,6 +68,30 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.Username).IsUnique();
+        });
+        modelBuilder.Entity<Role>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.Code).IsUnique();
+        });
+        modelBuilder.Entity<Permission>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.Code).IsUnique();
+        });
+        modelBuilder.Entity<RolePermission>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.RoleId, x.PermissionId }).IsUnique();
+            e.HasOne(x => x.Role).WithMany().HasForeignKey(x => x.RoleId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Permission).WithMany().HasForeignKey(x => x.PermissionId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<EmployeeRole>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.EmployeeId, x.RoleId }).IsUnique();
+            e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Role).WithMany().HasForeignKey(x => x.RoleId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

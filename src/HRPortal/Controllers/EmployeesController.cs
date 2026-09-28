@@ -47,9 +47,8 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         View("Form", await BuildFormVmAsync(new Employee()));
 
     [HttpPost, Authorize(Policy = "Employees.Create"), ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(FormVm model)
+    public async Task<IActionResult> Create(Employee employee)
     {
-        var employee = model.Employee ?? new Employee();
         NormalizeEmployee(employee);
         ValidateEmployee(employee);
         await ValidateOrganizationAssignmentsAsync(employee);
@@ -63,9 +62,9 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         employee.UpdatedAt = DateTime.UtcNow;
 
         if (await db.Employees.AnyAsync(x => x.PersonnelNumber == employee.PersonnelNumber))
-            ModelState.AddModelError("Employee.PersonnelNumber", "این شماره پرسنلی قبلاً ثبت شده است.");
+            ModelState.AddModelError("PersonnelNumber", "این شماره پرسنلی قبلاً ثبت شده است.");
         if (await db.Employees.AnyAsync(x => x.NationalId == employee.NationalId))
-            ModelState.AddModelError("Employee.NationalId", "این کد ملی قبلاً ثبت شده است.");
+            ModelState.AddModelError("NationalId", "این کد ملی قبلاً ثبت شده است.");
 
         if (!ModelState.IsValid)
             return View("Form", await BuildFormVmAsync(employee));
@@ -86,9 +85,8 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
     }
 
     [HttpPost, Authorize(Policy = "Employees.Edit"), ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(FormVm model)
+    public async Task<IActionResult> Edit(Employee employee)
     {
-        var employee = model.Employee ?? new Employee();
         NormalizeEmployee(employee);
         ValidateEmployee(employee);
         await ValidateOrganizationAssignmentsAsync(employee);
@@ -101,9 +99,9 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
             return NotFound();
 
         if (await db.Employees.AnyAsync(x => x.Id != employee.Id && x.PersonnelNumber == employee.PersonnelNumber))
-            ModelState.AddModelError("Employee.PersonnelNumber", "این شماره پرسنلی قبلاً برای کارمند دیگری ثبت شده است.");
+            ModelState.AddModelError("PersonnelNumber", "این شماره پرسنلی قبلاً برای کارمند دیگری ثبت شده است.");
         if (await db.Employees.AnyAsync(x => x.Id != employee.Id && x.NationalId == employee.NationalId))
-            ModelState.AddModelError("Employee.NationalId", "این کد ملی قبلاً برای کارمند دیگری ثبت شده است.");
+            ModelState.AddModelError("NationalId", "این کد ملی قبلاً برای کارمند دیگری ثبت شده است.");
 
         if (!ModelState.IsValid)
             return View("Form", await BuildFormVmAsync(employee));
@@ -231,46 +229,46 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         {
             var unit = await db.OrganizationNodes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == employee.OrganizationUnitId.Value);
             if (unit is null || unit.RankType != "مدیریت")
-                ModelState.AddModelError("Employee.OrganizationUnitId", "واحد سازمانی باید از رده مدیریت انتخاب شود.");
+                ModelState.AddModelError("OrganizationUnitId", "واحد سازمانی باید از رده مدیریت انتخاب شود.");
         }
 
         if (employee.OrganizationDepartmentId.HasValue)
         {
             var department = await db.OrganizationNodes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == employee.OrganizationDepartmentId.Value);
             if (department is null || department.RankType != "ریاست")
-                ModelState.AddModelError("Employee.OrganizationDepartmentId", "اداره سازمانی باید از رده ریاست انتخاب شود.");
+                ModelState.AddModelError("OrganizationDepartmentId", "اداره سازمانی باید از رده ریاست انتخاب شود.");
 
             if (employee.OrganizationUnitId.HasValue &&
                 (department is null || department.ParentId != employee.OrganizationUnitId.Value))
-                ModelState.AddModelError("Employee.OrganizationDepartmentId", "اداره انتخاب‌شده زیرمجموعه واحد انتخاب‌شده نیست.");
+                ModelState.AddModelError("OrganizationDepartmentId", "اداره انتخاب‌شده زیرمجموعه واحد انتخاب‌شده نیست.");
         }
 
         if (employee.OrganizationSectionId.HasValue)
         {
             var section = await db.OrganizationNodes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == employee.OrganizationSectionId.Value);
             if (section is null || section.RankType != "سرپرستی")
-                ModelState.AddModelError("Employee.OrganizationSectionId", "بخش سازمانی باید از رده سرپرستی انتخاب شود.");
+                ModelState.AddModelError("OrganizationSectionId", "بخش سازمانی باید از رده سرپرستی انتخاب شود.");
 
             if (employee.OrganizationDepartmentId.HasValue &&
                 (section is null || section.ParentId != employee.OrganizationDepartmentId.Value))
-                ModelState.AddModelError("Employee.OrganizationSectionId", "بخش انتخاب‌شده زیرمجموعه اداره انتخاب‌شده نیست.");
+                ModelState.AddModelError("OrganizationSectionId", "بخش انتخاب‌شده زیرمجموعه اداره انتخاب‌شده نیست.");
         }
     }
 
     private void ValidateEmployee(Employee employee)
     {
         if (string.IsNullOrWhiteSpace(employee.PersonnelNumber))
-            ModelState.AddModelError("Employee.PersonnelNumber", "شماره پرسنلی الزامی است.");
+            ModelState.AddModelError("PersonnelNumber", "شماره پرسنلی الزامی است.");
         if (string.IsNullOrWhiteSpace(employee.NationalId))
-            ModelState.AddModelError("Employee.NationalId", "کد ملی الزامی است.");
+            ModelState.AddModelError("NationalId", "کد ملی الزامی است.");
         if (string.IsNullOrWhiteSpace(employee.FirstName))
-            ModelState.AddModelError("Employee.FirstName", "نام الزامی است.");
+            ModelState.AddModelError("FirstName", "نام الزامی است.");
         if (string.IsNullOrWhiteSpace(employee.LastName))
-            ModelState.AddModelError("Employee.LastName", "نام خانوادگی الزامی است.");
+            ModelState.AddModelError("LastName", "نام خانوادگی الزامی است.");
         if (string.IsNullOrWhiteSpace(employee.Mobile))
-            ModelState.AddModelError("Employee.Mobile", "شماره موبایل الزامی است.");
+            ModelState.AddModelError("Mobile", "شماره موبایل الزامی است.");
         if (employee.Gender is not ("مرد" or "زن"))
-            ModelState.AddModelError("Employee.Gender", "جنسیت را انتخاب کنید.");
+            ModelState.AddModelError("Gender", "جنسیت را انتخاب کنید.");
     }
 
     private async Task<FormVm> BuildFormVmAsync(Employee employee)

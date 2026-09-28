@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HRPortal.Controllers;
 
-[Authorize]
+[Authorize(Policy = "Payroll.View")]
 public class PayrollController(ReportService reports) : Controller
 {
     [HttpGet]

@@ -43,6 +43,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         return View(await query.ToListAsync());
     }
 
+    [Authorize(Policy = "Employees.Create")]
     public async Task<IActionResult> Create() =>
         View("Form", await BuildFormVmAsync(new Employee()));
 
@@ -80,6 +81,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         return RedirectToAction(nameof(Index));
     }
 
+    [Authorize(Policy = "Employees.Edit")]
     public async Task<IActionResult> Edit(int id)
     {
         var employee = await db.Employees.FindAsync(id);

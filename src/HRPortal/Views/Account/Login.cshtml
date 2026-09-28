@@ -20,6 +20,10 @@
                 @foreach (var e in ViewData.ModelState.Values.SelectMany(v => v.Errors)) { <div>@e.ErrorMessage</div> }
             </div>
         }
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert error">@TempData["Error"]</div>
+        }
         <div id="employeePanel" class="login-panel @(adminMode ? "hidden" : "")">
             <div class="auth-intro"><h1>ورود کارکنان</h1><p>شماره پرسنلی را وارد کنید تا کد پنج رقمی یکبارمصرف برای موبایل ثبت‌شده ارسال شود.</p></div>
             <form method="post" action="/Account/EmployeeLogin" class="login-form">

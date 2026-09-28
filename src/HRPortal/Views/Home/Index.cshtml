@@ -1,6 +1,13 @@
 @{
     Layout = "~/Views/Shared/_Layout.cshtml";
     ViewData["Title"] = "داشبورد";
+    var isAdmin = User.HasClaim("IsAdmin", "1");
+    var canCreateEmployee = isAdmin || User.HasClaim("Permission", "Employees.Create");
+    var canViewEmployees = isAdmin || User.HasClaim("Permission", "Employees.View");
+    var canViewOrg = isAdmin || User.HasClaim("Permission", "Organization.View");
+    var canViewPayroll = isAdmin || User.HasClaim("Permission", "Payroll.View");
+    var canViewSettings = isAdmin || User.HasClaim("Permission", "Settings.View");
+
 }
 <div class="hero">
     <div>
@@ -8,7 +15,7 @@
         <h1>پورتال جامع منابع انسانی</h1>
         <p>مدیریت اطلاعات کارکنان، ساختار سازمانی و خدمات پرسنلی در یک محیط یکپارچه.</p>
     </div>
-    <a class="btn btn-main btn-hero" href="/Employees/Create">ثبت کارمند جدید</a>
+    @if (canCreateEmployee) { <a class="btn btn-main btn-hero" href="/Employees/Create">ثبت کارمند جدید</a> }
 </div>
 
 <div class="stats">
@@ -18,8 +25,8 @@
 </div>
 
 <div class="module-grid">
-    <a class="module" href="/Employees"><b>01</b><h3>مدیریت کارکنان</h3><p>ثبت، ویرایش، غیرفعال‌سازی، جستجو، فیلتر و تبادل Excel.</p></a>
-    <a class="module" href="/Organization"><b>02</b><h3>ساختار سازمانی</h3><p>ساختار درختی، بازنگری، نسخه‌بندی و تاریخچه تغییرات.</p></a>
-    <a class="module" href="/Payroll/Payslip"><b>03</b><h3>فیش حقوقی</h3><p>نمایش فیش حقوقی بر اساس ماه و شماره پرسنلی حساب کاربر.</p></a>
-    <a class="module" href="/SystemSettings"><b>04</b><h3>تنظیمات محیط سامانه</h3><p>تنظیمات عمومی، ظاهر، OTP، پیامک و SSRS.</p></a>
+    @if (canViewEmployees) { <a class="module" href="/Employees"><b>01</b><h3>مدیریت کارکنان</h3><p>ثبت، ویرایش، غیرفعال‌سازی، جستجو، فیلتر و تبادل Excel.</p></a> }
+    @if (canViewOrg) { <a class="module" href="/Organization"><b>02</b><h3>ساختار سازمانی</h3><p>ساختار درختی، بازنگری، نسخه‌بندی و تاریخچه تغییرات.</p></a> }
+    @if (canViewPayroll) { <a class="module" href="/Payroll/Payslip"><b>03</b><h3>فیش حقوقی</h3><p>نمایش فیش حقوقی بر اساس ماه و شماره پرسنلی حساب کاربر.</p></a> }
+    @if (canViewSettings) { <a class="module" href="/SystemSettings"><b>04</b><h3>تنظیمات محیط سامانه</h3><p>تنظیمات عمومی، ظاهر، OTP، پیامک و SSRS.</p></a> }
 </div>

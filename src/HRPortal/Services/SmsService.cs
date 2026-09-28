@@ -234,9 +234,9 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
 
                 Dictionary<string, object?> attributes;
                 if (data.TryGetValue("attributes", out var existingAttributes) &&
-                    existingAttributes is Dictionary<string, object?> existingDictionary)
+                    existingAttributes is Dictionary<string, object?> farazAttributesDictionary)
                 {
-                    attributes = new Dictionary<string, object?>(existingDictionary, StringComparer.OrdinalIgnoreCase);
+                    attributes = new Dictionary<string, object?>(farazAttributesDictionary, StringComparer.OrdinalIgnoreCase);
                 }
                 else
                 {

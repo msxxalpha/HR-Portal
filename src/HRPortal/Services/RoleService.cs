@@ -83,8 +83,9 @@ public class RoleService(HRPortalDbContext db)
     }
 
     public async Task<List<Role>> GetRolesAsync() =>
-        await db.Roles.Include(r => r.RolePermissions)
-            .OrderBy(r => r.Title).ToListAsync();
+        await db.Roles
+            .OrderBy(r => r.Title)
+            .ToListAsync();
 
     public async Task<List<Permission>> GetPermissionsAsync() =>
         await db.Permissions.OrderBy(x => x.Module).ThenBy(x => x.Title).ToListAsync();

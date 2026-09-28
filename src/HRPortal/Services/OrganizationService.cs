@@ -20,6 +20,22 @@ public class OrganizationService(HRPortalDbContext db, AuditService audit)
             .ThenByDescending(x => x.CreatedAt)
             .ToListAsync();
 
+    public async Task<OrganizationStructureRevision> GetOrCreateDraftAsync()
+    {
+        var existing = await db.OrganizationStructureRevisions
+            .Where(x => !x.IsFinalized)
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefaultAsync();
+        if (existing is not null)
+            return existing;
+
+        var current = await CurrentAsync();
+        return await CreateRevisionAsync(
+            DateTime.Today,
+            current is null ? "نسخه در حال ایجاد ساختار سازمانی" : "بازنگری ساختار سازمانی",
+            "نسخه کاری مدیر سامانه برای ایجاد یا اصلاح ساختار سازمانی");
+    }
+
     public async Task<OrganizationStructureRevision> CreateRevisionAsync(
         DateTime effectiveDate, string title, string? notes)
     {

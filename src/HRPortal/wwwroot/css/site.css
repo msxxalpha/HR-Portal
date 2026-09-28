@@ -134,7 +134,7 @@
 .permission-item small{color:#6b7280;font-size:11px}
 .btn-sm{padding:6px 12px;font-size:12px}
 
-/* Reliable boolean switches: hidden fallback first, checkbox adjacent to slider. */
+/* Reliable boolean switches: checkbox is first for correct form binding; :has() styles the slider. */
 .switch-control{position:relative;width:52px;height:30px;flex:0 0 52px;display:inline-block}
 .switch-control input[type="hidden"]{display:none!important}
 .switch-control input[type="checkbox"]{

@@ -7,12 +7,10 @@
     var treeJson = (string?)ViewBag.TreeJson ?? "[]";
     var companyName = (string?)ViewBag.CompanyName ?? "شرکت";
 }
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jstree@3.3.17/dist/themes/default/style.min.css" />
-
 <div class="page-head">
     <div>
         <h1>ساختار سازمانی</h1>
-        <p>مدیریت ساختار سازمانی با Tree، بازنگری، راست‌کلیک و Drag &amp; Drop</p>
+        <p>مدیریت ساختار به‌صورت درختی، بازنگری، افزودن، ویرایش، حذف و جابجایی نودها</p>
     </div>
     <div class="actions">
         @if (editable)
@@ -90,12 +88,13 @@
         @if (revisionId > 0)
         {
             <div class="tree-help">
-                <span>راست‌کلیک روی گره: افزودن، ویرایش و حذف</span>
-                <span>نگه‌داشتن کلیک چپ: جابجایی با Drag &amp; Drop</span>
-                <span>روی ریشه کلیک راست: افزودن گره اصلی</span>
+                <span>کلیک روی فلش: باز/بسته کردن</span>
+                <span>کلیک راست: افزودن، ویرایش و حذف</span>
+                <span>نگه‌داشتن کلیک چپ: کشیدن و رها کردن نود</span>
+                <span>برای جابجایی، نود را روی نود مقصد یا ریشه رها کنید</span>
             </div>
 
-            <div id="organizationTree" class="organization-tree"></div>
+            <div id="organizationTree" class="organization-tree" data-editable="@editable.ToString().ToLowerInvariant()"></div>
         }
         else
         {
@@ -146,6 +145,7 @@
                 @Html.AntiForgeryToken()
                 <input type="hidden" id="nodeId" />
                 <input type="hidden" id="nodeParentId" />
+
                 <div class="grid-2">
                     <label>عنوان گره *
                         <input id="nodeTitle" required />
@@ -166,6 +166,7 @@
                         <textarea id="nodeNotes"></textarea>
                     </label>
                 </div>
+
                 <div id="nodeModalError" class="alert error hidden"></div>
                 <div class="form-actions">
                     <button class="btn btn-outline" type="button" id="cancelNode">انصراف</button>
@@ -174,204 +175,423 @@
             </form>
         </div>
     </div>
+
+    <div id="treeContextMenu" class="tree-context-menu hidden" role="menu">
+        <button type="button" data-menu-action="create">افزودن زیرگره</button>
+        <button type="button" data-menu-action="edit">ویرایش گره</button>
+        <button type="button" data-menu-action="delete" class="danger">حذف گره</button>
+    </div>
 }
 
 @section Scripts {
-<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jstree@3.3.17/dist/jstree.min.js"></script>
 <script>
 (function () {
-    const editable = @(editable.ToString().ToLowerInvariant());
+    const editable = @editable.ToString().ToLowerInvariant();
     const revisionId = @revisionId;
-    const treeData = [
-        {
-            id: "root",
-            parent: "#",
-            text: "ساختار سازمانی - @Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(companyName))",
-            state: { opened: true },
-            icon: "jstree-folder",
-            data: { virtualRoot: true, title: "ساختار سازمانی - @Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(companyName))" }
-        }
-    ].concat(@Html.Raw(treeJson));
+    const companyName = @Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(companyName));
+    const nodes = @Html.Raw(treeJson);
+    const treeHost = document.getElementById("organizationTree");
 
-    if (!revisionId || !document.getElementById("organizationTree")) return;
+    if (!revisionId || !treeHost) return;
 
-    const token = document.querySelector('#nodeModal input[name="__RequestVerificationToken"]')?.value;
+    const token = document.querySelector('#nodeModal input[name="__RequestVerificationToken"]')?.value || "";
+    const menu = document.getElementById("treeContextMenu");
+    const state = { menuNodeId: null };
 
-    function api(url, values) {
-        const body = new URLSearchParams();
-        body.append("__RequestVerificationToken", token || "");
-        Object.keys(values || {}).forEach(function (key) {
-            body.append(key, values[key] == null ? "" : values[key]);
+    const dataById = new Map();
+    const childrenByParent = new Map();
+
+    nodes.forEach(function (node) {
+        const id = String(node.data.id);
+        dataById.set(id, node.data);
+        const parent = node.parent === "root" ? null : String(node.data.parentId || "");
+        if (!childrenByParent.has(parent)) childrenByParent.set(parent, []);
+        childrenByParent.get(parent).push(node.data);
+    });
+
+    function sortChildren(list) {
+        return (list || []).slice().sort(function (a, b) {
+            const ao = Number(a.sortOrder || 0);
+            const bo = Number(b.sortOrder || 0);
+            return ao - bo || String(a.title).localeCompare(String(b.title), "fa");
         });
-        return fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
-            body: body.toString()
-        }).then(function (r) { return r.json(); });
     }
 
-    function setRankOptions(parentRank, currentRank) {
+    function createElement(tag, className, text) {
+        const el = document.createElement(tag);
+        if (className) el.className = className;
+        if (text != null) el.textContent = text;
+        return el;
+    }
+
+    function getRankChildren(parentRank) {
+        if (!parentRank) return ["معاونت", "مدیریت"];
+        if (parentRank === "معاونت") return ["مدیریت"];
+        if (parentRank === "مدیریت") return ["ریاست"];
+        if (parentRank === "ریاست") return ["سرپرستی"];
+        return [];
+    }
+
+    function buildTree() {
+        treeHost.innerHTML = "";
+
+        const rootLi = createElement("li", "org-tree-item org-tree-root");
+        rootLi.dataset.nodeId = "root";
+
+        const rootRow = createElement("div", "org-tree-row");
+        rootRow.dataset.nodeId = "root";
+        rootRow.setAttribute("role", "treeitem");
+
+        const rootCaret = createElement("button", "org-tree-caret", "⌄");
+        rootCaret.type = "button";
+        rootCaret.title = "باز/بسته کردن";
+        rootRow.appendChild(rootCaret);
+        rootRow.appendChild(createElement("span", "org-tree-icon", "▦"));
+        rootRow.appendChild(createElement("span", "org-tree-title", "ساختار سازمانی - " + companyName));
+        rootRow.appendChild(createElement("span", "org-tree-rank root-rank", "ریشه"));
+        rootLi.appendChild(rootRow);
+
+        const rootChildren = createElement("ul", "org-tree-children");
+        rootChildren.setAttribute("role", "group");
+        appendChildren(rootChildren, null);
+        rootLi.appendChild(rootChildren);
+        treeHost.appendChild(rootLi);
+
+        rootCaret.addEventListener("click", function (event) {
+            event.stopPropagation();
+            toggleChildren(rootLi, rootCaret);
+        });
+
+        attachTreeEvents(rootRow, "root");
+    }
+
+    function appendChildren(parentUl, parentId) {
+        const children = sortChildren(childrenByParent.get(parentId) || []);
+        if (!children.length) {
+            const empty = createElement("li", "org-tree-empty");
+            empty.textContent = parentId === null ? "هنوز هیچ نود سازمانی ایجاد نشده است. روی ریشه کلیک راست کنید." : "زیرگره‌ای ثبت نشده است.";
+            if (!editable && parentId === null) empty.textContent = "در این نسخه نود سازمانی ثبت نشده است.";
+            parentUl.appendChild(empty);
+            return;
+        }
+
+        children.forEach(function (node) {
+            const li = createElement("li", "org-tree-item");
+            li.dataset.nodeId = String(node.id);
+            li.setAttribute("role", "treeitem");
+
+            const row = createElement("div", "org-tree-row" + (node.isActive ? "" : " is-disabled"));
+            row.dataset.nodeId = String(node.id);
+            row.draggable = !!editable;
+
+            const childList = childrenByParent.get(String(node.id)) || [];
+            const caret = createElement("button", "org-tree-caret", childList.length ? "⌄" : "•");
+            caret.type = "button";
+            caret.disabled = !childList.length;
+            caret.title = childList.length ? "باز/بسته کردن" : "";
+
+            row.appendChild(caret);
+            row.appendChild(createElement("span", "org-tree-icon", "▸"));
+            row.appendChild(createElement("span", "org-tree-title", node.title));
+            row.appendChild(createElement("span", "org-tree-code", node.code));
+            row.appendChild(createElement("span", "org-tree-rank", node.rankType));
+            if (!node.isActive) row.appendChild(createElement("span", "org-tree-status", "غیرفعال"));
+
+            li.appendChild(row);
+
+            if (childList.length) {
+                const childUl = createElement("ul", "org-tree-children");
+                childUl.setAttribute("role", "group");
+                appendChildren(childUl, String(node.id));
+                li.appendChild(childUl);
+
+                caret.addEventListener("click", function (event) {
+                    event.stopPropagation();
+                    toggleChildren(li, caret);
+                });
+            }
+
+            parentUl.appendChild(li);
+            attachTreeEvents(row, String(node.id));
+        });
+    }
+
+    function toggleChildren(li, caret) {
+        const list = li.querySelector(":scope > .org-tree-children");
+        if (!list) return;
+        const collapsed = list.classList.toggle("collapsed");
+        caret.textContent = collapsed ? "‹" : "⌄";
+    }
+
+    function attachTreeEvents(row, nodeId) {
+        row.addEventListener("contextmenu", function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (!editable) return;
+            showContextMenu(nodeId, event.clientX, event.clientY);
+        });
+
+        if (!editable) return;
+
+        row.addEventListener("dragstart", function (event) {
+            if (nodeId === "root") {
+                event.preventDefault();
+                return;
+            }
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", nodeId);
+            row.classList.add("is-dragging");
+        });
+
+        row.addEventListener("dragend", function () {
+            row.classList.remove("is-dragging");
+            document.querySelectorAll(".is-drop-target").forEach(function (x) {
+                x.classList.remove("is-drop-target");
+            });
+        });
+
+        row.addEventListener("dragover", function (event) {
+            if (nodeId === "root" || nodeId) {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+                row.classList.add("is-drop-target");
+            }
+        });
+
+        row.addEventListener("dragleave", function () {
+            row.classList.remove("is-drop-target");
+        });
+
+        row.addEventListener("drop", function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            row.classList.remove("is-drop-target");
+
+            const draggedId = event.dataTransfer.getData("text/plain");
+            if (!draggedId || draggedId === "root" || draggedId === nodeId) return;
+
+            const targetChildren = nodeId === "root"
+                ? (childrenByParent.get(null) || [])
+                : (childrenByParent.get(String(nodeId)) || []);
+
+            const parentId = nodeId === "root" ? "" : nodeId;
+            const position = targetChildren.length * 10;
+
+            api("/Organization/MoveNode", {
+                id: draggedId,
+                parentId: parentId,
+                position: position
+            }).then(function (result) {
+                if (!result.success) {
+                    alert(result.message || "جابجایی نود انجام نشد.");
+                    return;
+                }
+                window.location.reload();
+            }).catch(function () {
+                alert("خطا در ارتباط با سرور هنگام جابجایی نود.");
+            });
+        });
+    }
+
+    function showContextMenu(nodeId, x, y) {
+        state.menuNodeId = nodeId;
+        menu.classList.remove("hidden");
+
+        const edit = menu.querySelector('[data-menu-action="edit"]');
+        const remove = menu.querySelector('[data-menu-action="delete"]');
+        const create = menu.querySelector('[data-menu-action="create"]');
+
+        const isRoot = nodeId === "root";
+        edit.classList.toggle("hidden", isRoot);
+        remove.classList.toggle("hidden", isRoot);
+        create.textContent = isRoot ? "افزودن گره اصلی" : "افزودن زیرگره";
+
+        const width = 190;
+        const height = isRoot ? 50 : 125;
+        menu.style.left = Math.min(x, window.innerWidth - width - 10) + "px";
+        menu.style.top = Math.min(y, window.innerHeight - height - 10) + "px";
+    }
+
+    function hideContextMenu() {
+        state.menuNodeId = null;
+        menu.classList.add("hidden");
+    }
+
+    function openNodeModal(mode, nodeId) {
+        hideContextMenu();
+        showNodeError("");
+
+        const isEdit = mode === "edit";
+        const node = isEdit ? dataById.get(String(nodeId)) : null;
+        const parentNode = !isEdit && nodeId && nodeId !== "root" ? dataById.get(String(nodeId)) : null;
+        const actualParentId = isEdit ? (node?.parentId == null ? "" : String(node.parentId)) : (parentNode ? String(parentNode.id) : "");
+
+        document.getElementById("nodeModalTitle").textContent = isEdit ? "ویرایش گره" : "افزودن گره";
+        document.getElementById("nodeModalSubtitle").textContent = isEdit ? "اطلاعات گره انتخاب‌شده" : "اطلاعات گره جدید";
+        document.getElementById("nodeId").value = isEdit ? String(node.id) : "";
+        document.getElementById("nodeParentId").value = actualParentId;
+
+        document.getElementById("nodeTitle").value = isEdit ? node.title : "";
+        document.getElementById("nodeCode").value = isEdit ? node.code : "";
+        document.getElementById("nodeSortOrder").value = isEdit ? Number(node.sortOrder || 0) : 0;
+        document.getElementById("nodeActive").checked = isEdit ? !!node.isActive : true;
+        document.getElementById("nodeNotes").value = isEdit ? (node.notes || "") : "";
+
+        const parentRank = actualParentId ? dataById.get(actualParentId)?.rankType : null;
+        const ranks = getRankChildren(parentRank);
         const select = document.getElementById("nodeRank");
         select.innerHTML = "";
-        let ranks = parentRank == null ? ["معاونت", "مدیریت"] :
-            parentRank === "معاونت" ? ["مدیریت"] :
-            parentRank === "مدیریت" ? ["ریاست"] :
-            parentRank === "ریاست" ? ["سرپرستی"] : [];
 
-        ranks.forEach(function (r) {
-            const opt = document.createElement("option");
-            opt.value = r; opt.textContent = r; if (r === currentRank) opt.selected = true;
-            select.appendChild(opt);
+        ranks.forEach(function (rank) {
+            const option = document.createElement("option");
+            option.value = rank;
+            option.textContent = rank;
+            if (isEdit && node.rankType === rank) option.selected = true;
+            select.appendChild(option);
         });
+
+        if (isEdit && node && !ranks.includes(node.rankType)) {
+            const option = document.createElement("option");
+            option.value = node.rankType;
+            option.textContent = node.rankType;
+            option.selected = true;
+            select.insertBefore(option, select.firstChild);
+        }
+
+        if (!select.options.length) {
+            showNodeError("برای این والد، رده مجاز دیگری وجود ندارد.");
+            return;
+        }
+
+        document.getElementById("nodeModal").classList.remove("hidden");
+        document.getElementById("nodeTitle").focus();
+        document.getElementById("nodeForm").dataset.mode = mode;
     }
 
-    function showError(message) {
+    function closeNodeModal() {
+        document.getElementById("nodeModal").classList.add("hidden");
+        showNodeError("");
+    }
+
+    function showNodeError(message) {
         const box = document.getElementById("nodeModalError");
         box.textContent = message || "";
         box.classList.toggle("hidden", !message);
     }
 
-    function openModal(mode, node, parentNode) {
-        showError("");
-        document.getElementById("nodeModalTitle").textContent = mode === "edit" ? "ویرایش گره" : "افزودن گره";
-        document.getElementById("nodeModalSubtitle").textContent =
-            mode === "edit" ? "اطلاعات گره انتخاب‌شده" : "اطلاعات گره جدید";
+    function api(url, values) {
+        const body = new URLSearchParams();
+        body.append("__RequestVerificationToken", token);
+        Object.keys(values || {}).forEach(function (key) {
+            body.append(key, values[key] == null ? "" : String(values[key]));
+        });
 
-        const id = document.getElementById("nodeId");
-        const parentId = document.getElementById("nodeParentId");
-        id.value = mode === "edit" ? node.data.id : "";
-        parentId.value = parentNode && parentNode.id !== "root" ? parentNode.data.id : "";
+        return fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                "X-Requested-With": "XMLHttpRequest"
+            },
+            body: body.toString()
+        }).then(function (response) {
+            if (!response.ok) throw new Error("HTTP " + response.status);
+            return response.json();
+        });
+    }
 
-        document.getElementById("nodeTitle").value = mode === "edit" ? node.data.title : "";
-        document.getElementById("nodeCode").value = mode === "edit" ? node.data.code : "";
-        document.getElementById("nodeSortOrder").value = mode === "edit" ? node.data.sortOrder : 0;
-        document.getElementById("nodeActive").checked = mode === "edit" ? !!node.data.isActive : true;
-        document.getElementById("nodeNotes").value = mode === "edit" ? (node.data.notes || "") : "";
+    document.getElementById("nodeForm")?.addEventListener("submit", function (event) {
+        event.preventDefault();
+        showNodeError("");
 
-        let parentRank = parentNode && parentNode.id !== "root" ? parentNode.data.rankType : null;
-        setRankOptions(parentRank, mode === "edit" ? node.data.rankType : null);
+        const mode = this.dataset.mode;
+        const values = {
+            revisionId: revisionId,
+            code: document.getElementById("nodeCode").value.trim(),
+            title: document.getElementById("nodeTitle").value.trim(),
+            rankType: document.getElementById("nodeRank").value,
+            sortOrder: Number(document.getElementById("nodeSortOrder").value || 0),
+            isActive: document.getElementById("nodeActive").checked ? "true" : "false",
+            notes: document.getElementById("nodeNotes").value
+        };
 
-        const rank = document.getElementById("nodeRank");
-        if (!rank.options.length) {
-            showError("برای این گره هیچ رده مجازی وجود ندارد.");
+        if (mode === "edit") {
+            values.id = document.getElementById("nodeId").value;
+        } else {
+            values.parentId = document.getElementById("nodeParentId").value;
+        }
+
+        if (!values.code || !values.title || !values.rankType) {
+            showNodeError("کد، عنوان و رده الزامی است.");
             return;
         }
 
-        const modal = document.getElementById("nodeModal");
-        modal.classList.remove("hidden");
-        document.getElementById("nodeTitle").focus();
-        document.getElementById("nodeForm").dataset.mode = mode;
-    }
-
-    function closeModal() {
-        document.getElementById("nodeModal").classList.add("hidden");
-        showError("");
-    }
-
-    $(function () {
-        const tree = $('#organizationTree').jstree({
-            core: {
-                data: treeData,
-                multiple: false,
-                check_callback: editable
-            },
-            plugins: editable ? ["contextmenu", "dnd", "wholerow"] : ["wholerow"],
-            contextmenu: {
-                items: function (node) {
-                    if (!editable) return {};
-                    if (node.id === "root") {
-                        return {
-                            create: {
-                                label: "افزودن گره",
-                                action: function () { openModal("create", null, node); }
-                            }
-                        };
-                    }
-                    return {
-                        create: {
-                            label: "افزودن زیرگره",
-                            action: function () { openModal("create", null, node); }
-                        },
-                        edit: {
-                            label: "ویرایش گره",
-                            action: function () { openModal("edit", node, tree.jstree(true).get_node(node.parent)); }
-                        },
-                        remove: {
-                            label: "حذف گره",
-                            action: function () {
-                                if (!confirm("آیا از حذف این گره اطمینان دارید؟")) return;
-                                api("/Organization/DeleteNode", { id: node.data.id })
-                                    .then(function (result) {
-                                        if (!result.success) { alert(result.message); return; }
-                                        tree.jstree(true).delete_node(node);
-                                    })
-                                    .catch(function () { alert("خطا در حذف گره."); });
-                            }
-                        }
-                    };
-                }
+        const url = mode === "edit" ? "/Organization/UpdateNode" : "/Organization/CreateNode";
+        api(url, values).then(function (result) {
+            if (!result.success) {
+                showNodeError(result.message || "ذخیره نود انجام نشد.");
+                return;
             }
-        });
-
-        tree.on("move_node.jstree", function (e, data) {
-            if (!editable || data.node.id === "root") return;
-            const parentId = data.parent === "root" ? "" : tree.jstree(true).get_node(data.parent).data.id;
-            api("/Organization/MoveNode", {
-                id: data.node.data.id,
-                parentId: parentId,
-                position: data.position
-            }).then(function (result) {
-                if (!result.success) {
-                    alert(result.message);
-                    window.location.reload();
-                    return;
-                }
-            }).catch(function () {
-                alert("خطا در ذخیره جابجایی گره.");
-                window.location.reload();
-            });
-        });
-
-        document.getElementById("nodeForm")?.addEventListener("submit", function (event) {
-            event.preventDefault();
-            showError("");
-
-            const mode = this.dataset.mode;
-            const nodeId = document.getElementById("nodeId").value;
-            const parentId = document.getElementById("nodeParentId").value;
-            const values = {
-                revisionId: revisionId,
-                code: document.getElementById("nodeCode").value.trim(),
-                title: document.getElementById("nodeTitle").value.trim(),
-                rankType: document.getElementById("nodeRank").value,
-                sortOrder: document.getElementById("nodeSortOrder").value || 0,
-                isActive: document.getElementById("nodeActive").checked ? "true" : "false",
-                notes: document.getElementById("nodeNotes").value
-            };
-
-            const url = mode === "edit" ? "/Organization/UpdateNode" : "/Organization/CreateNode";
-            if (mode === "edit") values.id = nodeId;
-            else values.parentId = parentId;
-
-            api(url, values).then(function (result) {
-                if (!result.success) {
-                    showError(result.message);
-                    return;
-                }
-                closeModal();
-                window.location.reload();
-            }).catch(function () {
-                showError("خطا در ارتباط با سرور.");
-            });
-        });
-
-        document.getElementById("closeNodeModal")?.addEventListener("click", closeModal);
-        document.getElementById("cancelNode")?.addEventListener("click", closeModal);
-        document.getElementById("nodeModal")?.addEventListener("click", function (e) {
-            if (e.target === this) closeModal();
+            closeNodeModal();
+            window.location.reload();
+        }).catch(function (error) {
+            console.error(error);
+            showNodeError("خطا در ارتباط با سرور.");
         });
     });
+
+    menu?.addEventListener("click", function (event) {
+        const button = event.target.closest("[data-menu-action]");
+        if (!button || !state.menuNodeId) return;
+
+        const action = button.dataset.menuAction;
+        const nodeId = state.menuNodeId;
+
+        if (action === "create") {
+            openNodeModal("create", nodeId);
+        } else if (action === "edit") {
+            openNodeModal("edit", nodeId);
+        } else if (action === "delete") {
+            hideContextMenu();
+            const node = dataById.get(String(nodeId));
+            if (!node) return;
+            if (!confirm("آیا از حذف گره «" + node.title + "» اطمینان دارید؟")) return;
+
+            api("/Organization/DeleteNode", { id: nodeId }).then(function (result) {
+                if (!result.success) {
+                    alert(result.message || "حذف نود انجام نشد.");
+                    return;
+                }
+                window.location.reload();
+            }).catch(function () {
+                alert("خطا در ارتباط با سرور هنگام حذف نود.");
+            });
+        }
+    });
+
+    treeHost.addEventListener("contextmenu", function (event) {
+        event.preventDefault();
+    }, true);
+
+    document.addEventListener("click", function (event) {
+        if (menu && !menu.contains(event.target)) hideContextMenu();
+    });
+
+    document.addEventListener("scroll", hideContextMenu, true);
+    window.addEventListener("resize", hideContextMenu);
+    document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape") {
+            hideContextMenu();
+            closeNodeModal();
+        }
+    });
+
+    document.getElementById("closeNodeModal")?.addEventListener("click", closeNodeModal);
+    document.getElementById("cancelNode")?.addEventListener("click", closeNodeModal);
+    document.getElementById("nodeModal")?.addEventListener("click", function (event) {
+        if (event.target === this) closeNodeModal();
+    });
+
+    buildTree();
 })();
 </script>
 }

@@ -76,10 +76,8 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.Property(x => x.Title).HasMaxLength(200).IsRequired();
             e.Property(x => x.Description).HasMaxLength(1000);
             e.HasIndex(x => x.Code).IsUnique();
-            e.HasMany(x => x.RolePermissions)
-                .WithOne(x => x.Role)
-                .HasForeignKey(x => x.RoleId)
-                .OnDelete(DeleteBehavior.Cascade);
+            // RolePermission -> Role is configured from RolePermission below.
+
         });
         modelBuilder.Entity<Permission>(e =>
         {
@@ -94,7 +92,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.RoleId, x.PermissionId }).IsUnique();
             e.HasOne(x => x.Role)
-                .WithMany(x => x.RolePermissions)
+                .WithMany()
                 .HasForeignKey(x => x.RoleId)
                 .IsRequired()
                 .OnDelete(DeleteBehavior.Cascade);

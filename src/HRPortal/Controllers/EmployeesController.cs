@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HRPortal.Controllers;
 
-[Authorize(Policy = "AdminOnly")]
+[Authorize(Policy = "Employees.View")]
 public class EmployeesController(HRPortalDbContext db, EmployeeExcelService excel, AuditService audit) : Controller
 {
     public async Task<IActionResult> Index(string? q, string? status, string sort = "PersonnelNumber", string dir = "asc")
@@ -46,7 +46,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
     public async Task<IActionResult> Create() =>
         View("Form", await BuildFormVmAsync(new Employee()));
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "Employees.Create"), ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(FormVm model)
     {
         var employee = model.Employee ?? new Employee();
@@ -85,7 +85,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
             : View("Form", await BuildFormVmAsync(employee));
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "Employees.Edit"), ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(FormVm model)
     {
         var employee = model.Employee ?? new Employee();
@@ -117,7 +117,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         return RedirectToAction(nameof(Index));
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "Employees.Deactivate"), ValidateAntiForgeryToken]
     public async Task<IActionResult> Deactivate(int id)
     {
         var employee = await db.Employees.FindAsync(id);
@@ -132,7 +132,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         return RedirectToAction(nameof(Index));
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "Employees.Delete"), ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(int id)
     {
         var employee = await db.Employees.FindAsync(id);
@@ -153,7 +153,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         return RedirectToAction(nameof(Index));
     }
 
-    [HttpGet]
+    [HttpGet, Authorize(Policy = "Employees.ImportExport")]
     public async Task<IActionResult> Export(string? q, string? status)
     {
         var query = db.Employees.AsQueryable();
@@ -174,10 +174,10 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
             $"Employees-{DateTime.Now:yyyyMMdd-HHmm}.xlsx");
     }
 
-    [HttpGet]
+    [HttpGet, Authorize(Policy = "Employees.ImportExport")]
     public IActionResult Import() => View();
 
-    [HttpGet]
+    [HttpGet, Authorize(Policy = "Employees.ImportExport")]
     public async Task<IActionResult> Template()
     {
         var bytes = await excel.ExportAsync(db.Employees.Where(x => false));
@@ -186,7 +186,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
             "Employees-Template.xlsx");
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "Employees.ImportExport"), ValidateAntiForgeryToken]
     public async Task<IActionResult> Import(IFormFile file)
     {
         if (file is null || file.Length == 0)

@@ -45,7 +45,10 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("AdminOnly", policy => policy.RequireClaim("IsAdmin", "1"));
 
     foreach (var permission in RoleService.DefaultPermissions)
-        options.AddPolicy(permission.Code, policy => policy.RequireClaim("Permission", permission.Code));
+        options.AddPolicy(permission.Code, policy =>
+            policy.RequireAssertion(context =>
+                context.User.HasClaim("IsAdmin", "1") ||
+                context.User.HasClaim("Permission", permission.Code)));
 
     options.AddPolicy("UsersRoles.Manage", policy =>
         policy.RequireAssertion(context =>

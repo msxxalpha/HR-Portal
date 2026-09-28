@@ -144,6 +144,62 @@ IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_RolePermissions_RoleId_P
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_EmployeeRoles_EmployeeId_RoleId' AND object_id=OBJECT_ID(N'dbo.EmployeeRoles'))
     CREATE UNIQUE INDEX [IX_EmployeeRoles_EmployeeId_RoleId] ON [dbo].[EmployeeRoles]([EmployeeId],[RoleId]);";
         await db.Database.ExecuteSqlRawAsync(indexes);
+
+        const string relationships = @"
+IF OBJECT_ID(N'dbo.Roles', N'U') IS NOT NULL
+AND OBJECT_ID(N'dbo.Permissions', N'U') IS NOT NULL
+AND OBJECT_ID(N'dbo.RolePermissions', N'U') IS NOT NULL
+BEGIN
+    DELETE rp
+    FROM [dbo].[RolePermissions] rp
+    LEFT JOIN [dbo].[Roles] r ON r.[Id] = rp.[RoleId]
+    LEFT JOIN [dbo].[Permissions] p ON p.[Id] = rp.[PermissionId]
+    WHERE r.[Id] IS NULL OR p.[Id] IS NULL;
+
+    IF NOT EXISTS(
+        SELECT 1 FROM sys.foreign_keys
+        WHERE name=N'FK_RolePermissions_Roles_RoleId'
+          AND parent_object_id=OBJECT_ID(N'dbo.RolePermissions'))
+        ALTER TABLE [dbo].[RolePermissions]
+        ADD CONSTRAINT [FK_RolePermissions_Roles_RoleId]
+        FOREIGN KEY ([RoleId]) REFERENCES [dbo].[Roles]([Id]) ON DELETE CASCADE;
+
+    IF NOT EXISTS(
+        SELECT 1 FROM sys.foreign_keys
+        WHERE name=N'FK_RolePermissions_Permissions_PermissionId'
+          AND parent_object_id=OBJECT_ID(N'dbo.RolePermissions'))
+        ALTER TABLE [dbo].[RolePermissions]
+        ADD CONSTRAINT [FK_RolePermissions_Permissions_PermissionId]
+        FOREIGN KEY ([PermissionId]) REFERENCES [dbo].[Permissions]([Id]) ON DELETE CASCADE;
+END;
+
+IF OBJECT_ID(N'dbo.EmployeeRoles', N'U') IS NOT NULL
+AND OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL
+AND OBJECT_ID(N'dbo.Roles', N'U') IS NOT NULL
+BEGIN
+    DELETE er
+    FROM [dbo].[EmployeeRoles] er
+    LEFT JOIN [dbo].[Employees] e ON e.[Id] = er.[EmployeeId]
+    LEFT JOIN [dbo].[Roles] r ON r.[Id] = er.[RoleId]
+    WHERE e.[Id] IS NULL OR r.[Id] IS NULL;
+
+    IF NOT EXISTS(
+        SELECT 1 FROM sys.foreign_keys
+        WHERE name=N'FK_EmployeeRoles_Employees_EmployeeId'
+          AND parent_object_id=OBJECT_ID(N'dbo.EmployeeRoles'))
+        ALTER TABLE [dbo].[EmployeeRoles]
+        ADD CONSTRAINT [FK_EmployeeRoles_Employees_EmployeeId]
+        FOREIGN KEY ([EmployeeId]) REFERENCES [dbo].[Employees]([Id]) ON DELETE CASCADE;
+
+    IF NOT EXISTS(
+        SELECT 1 FROM sys.foreign_keys
+        WHERE name=N'FK_EmployeeRoles_Roles_RoleId'
+          AND parent_object_id=OBJECT_ID(N'dbo.EmployeeRoles'))
+        ALTER TABLE [dbo].[EmployeeRoles]
+        ADD CONSTRAINT [FK_EmployeeRoles_Roles_RoleId]
+        FOREIGN KEY ([RoleId]) REFERENCES [dbo].[Roles]([Id]) ON DELETE CASCADE;
+END;";
+        await db.Database.ExecuteSqlRawAsync(relationships);
     }
 
     private static async Task EnsureSchemaAsync(HRPortalDbContext db)

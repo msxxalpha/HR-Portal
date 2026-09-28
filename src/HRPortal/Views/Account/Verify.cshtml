@@ -1,32 +1,98 @@
 @{
     Layout = "~/Views/Shared/_AuthLayout.cshtml";
     ViewData["Title"] = "تأیید کد ورود";
+    var remainingSeconds = Math.Max(0, (int)(ViewBag.OtpRemainingSeconds ?? 0));
 }
 <div class="auth-shell">
     <div class="auth-card">
-        <div class="auth-brand"><div class="auth-logo">HR</div><div><strong>پورتال جامع منابع انسانی</strong><span>تأیید ورود کارکنان</span></div></div>
+        <div class="auth-brand">
+            <div class="auth-logo">HR</div>
+            <div><strong>پورتال جامع منابع انسانی</strong><span>تأیید ورود کارکنان</span></div>
+        </div>
+
         <div class="otp-icon">۵</div>
         <h1 class="auth-title">کد ورود را وارد کنید</h1>
-        <p class="auth-description">کد پنج رقمی برای شماره همراه ثبت‌شده کارمند ارسال شده است.</p>
+        <p class="auth-description">کد یکبارمصرف برای شماره همراه ثبت‌شده کارمند ارسال شده است.</p>
         <div class="otp-meta">شماره پرسنلی: <strong>@ViewBag.PersonnelNumber</strong></div>
-        @if (TempData["DebugOtp"] != null) {
-            <div class="alert success">کد آزمایشی محیط توسعه: <strong>@TempData["DebugOtp"]</strong></div>
-        }
-        @if (TempData["OtpError"] != null) {
-            <div class="alert error">@TempData["OtpError"]</div>
-        }
-        @if (!ViewData.ModelState.IsValid) {
+
+        <div class="otp-countdown" id="otpCountdown" data-seconds="@remainingSeconds">
+            <span>زمان باقی‌مانده برای ورود کد</span>
+            <strong id="otpCountdownValue">--:--</strong>
+        </div>
+
+        @if (!ViewData.ModelState.IsValid)
+        {
             <div class="alert error">
-            @foreach (var e in ViewData.ModelState.Values.SelectMany(v => v.Errors)) {
+            @foreach (var e in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+            {
                 <div>@e.ErrorMessage</div>
             }
             </div>
         }
-        <form method="post" action="/Account/Verify" class="login-form">
+
+        <form method="post" action="/Account/Verify" class="login-form" id="otpVerifyForm">
             @Html.AntiForgeryToken()
-            <label>کد یکبارمصرف<input name="code" class="otp-input" maxlength="5" inputmode="numeric" autocomplete="one-time-code" autofocus required /></label>
+            <label>کد یکبارمصرف
+                <input name="code"
+                       class="otp-input"
+                       maxlength="5"
+                       inputmode="numeric"
+                       autocomplete="one-time-code"
+                       autofocus
+                       required />
+            </label>
             <button type="submit" class="btn btn-main btn-block">تأیید و ورود به سامانه</button>
         </form>
+
         <a class="back-link" href="/Account/Login">بازگشت به صفحه ورود</a>
     </div>
 </div>
+
+@section Scripts {
+<script>
+(function () {
+    const box = document.getElementById('otpCountdown');
+    const value = document.getElementById('otpCountdownValue');
+    if (!box || !value) return;
+
+    let remaining = Number.parseInt(box.dataset.seconds || '0', 10);
+
+    function toPersianDigits(input) {
+        return String(input).replace(/\d/g, function (d) {
+            return '۰۱۲۳۴۵۶۷۸۹'[Number(d)];
+        });
+    }
+
+    function render() {
+        const safe = Math.max(0, remaining);
+        const minutes = Math.floor(safe / 60);
+        const seconds = safe % 60;
+        value.textContent = toPersianDigits(
+            String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0')
+        );
+    }
+
+    function expire() {
+        value.textContent = '۰۰:۰۰';
+        window.location.replace('/Account/Login');
+    }
+
+    render();
+
+    if (remaining <= 0) {
+        expire();
+        return;
+    }
+
+    const timer = window.setInterval(function () {
+        remaining -= 1;
+        render();
+
+        if (remaining <= 0) {
+            window.clearInterval(timer);
+            expire();
+        }
+    }, 1000);
+})();
+</script>
+}

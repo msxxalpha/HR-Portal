@@ -15,7 +15,7 @@
 {
     <div class="alert error">@foreach (var e in ViewData.ModelState.Values.SelectMany(v=>v.Errors)){<div>@e.ErrorMessage</div>}</div>
 }
-<form method="post" asp-action="Save">
+<form method="post" action="/SystemSettings/Save" id="systemSettingsForm">
     @Html.AntiForgeryToken()
     <div class="tabs settings-tabs">
         <button type="button" class="tab active" data-tab="general">عمومی</button>
@@ -101,7 +101,7 @@
             <label class="toggle-card">
                 <span class="toggle-text"><strong>ورود با OTP</strong><small>ورود کارکنان با کد یکبارمصرف</small></span>
                 <span class="switch-control">
-                    <input asp-for="Otp.Enabled" />
+                    <input type="hidden" name="Otp.Enabled" value="false" /><input type="checkbox" name="Otp.Enabled" value="true" @(Model.Otp.Enabled ? "checked" : "") aria-label="ورود با OTP" />
                     <span class="switch-slider"></span>
                 </span>
             </label>
@@ -109,7 +109,7 @@
             <label class="toggle-card">
                 <span class="toggle-text"><strong>خدمات کاربری</strong><small>فعال بودن خدمات کاربری سامانه</small></span>
                 <span class="switch-control">
-                    <input asp-for="System.AllowUserSelfService" />
+                    <input type="hidden" name="System.AllowUserSelfService" value="false" /><input type="checkbox" name="System.AllowUserSelfService" value="true" @(Model.System.AllowUserSelfService ? "checked" : "") aria-label="خدمات کاربری" />
                     <span class="switch-slider"></span>
                 </span>
             </label>
@@ -117,7 +117,7 @@
             <label class="toggle-card">
                 <span class="toggle-text"><strong>ثبت رویدادهای سامانه</strong><small>ثبت رخدادهای مدیریتی و عملیاتی</small></span>
                 <span class="switch-control">
-                    <input asp-for="System.EnableAuditLog" />
+                    <input type="hidden" name="System.EnableAuditLog" value="false" /><input type="checkbox" name="System.EnableAuditLog" value="true" @(Model.System.EnableAuditLog ? "checked" : "") aria-label="ثبت رویدادهای سامانه" />
                     <span class="switch-slider"></span>
                 </span>
             </label>
@@ -225,7 +225,7 @@
             <label class="toggle-card compact-toggle">
                 <span class="toggle-text"><strong>سرویس پیامک</strong><small>ارسال OTP و پیامک‌های سامانه</small></span>
                 <span class="switch-control">
-                    <input asp-for="Sms.Enabled" />
+                    <input type="hidden" name="Sms.Enabled" value="false" /><input type="checkbox" name="Sms.Enabled" value="true" @(Model.Sms.Enabled ? "checked" : "") aria-label="سرویس پیامک" />
                     <span class="switch-slider"></span>
                 </span>
             </label>
@@ -258,7 +258,7 @@
             <label class="toggle-card compact-toggle">
                 <span class="toggle-text"><strong>فیش حقوقی</strong><small>فعال بودن دسترسی نمایش فیش حقوقی</small></span>
                 <span class="switch-control">
-                    <input asp-for="Payroll.Enabled" />
+                    <input type="hidden" name="Payroll.Enabled" value="false" /><input type="checkbox" name="Payroll.Enabled" value="true" @(Model.Payroll.Enabled ? "checked" : "") aria-label="فیش حقوقی" />
                     <span class="switch-slider"></span>
                 </span>
             </label>
@@ -279,7 +279,7 @@
             <label class="toggle-card compact-toggle">
                 <span class="toggle-text"><strong>حالت تعمیر و نگهداری</strong><small>جلوگیری از دسترسی کاربران در زمان نگهداری</small></span>
                 <span class="switch-control">
-                    <input asp-for="System.MaintenanceMode" />
+                    <input type="hidden" name="System.MaintenanceMode" value="false" /><input type="checkbox" name="System.MaintenanceMode" value="true" @(Model.System.MaintenanceMode ? "checked" : "") aria-label="حالت تعمیر و نگهداری" />
                     <span class="switch-slider"></span>
                 </span>
             </label>

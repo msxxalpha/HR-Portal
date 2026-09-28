@@ -66,6 +66,146 @@ IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_AdminUsers_Username')
     private static async Task EnsureSchemaAsync(HRPortalDbContext db)
     {
         const string sql = @"
+IF OBJECT_ID(N'[SystemSettings]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [SystemSettings](
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_SystemSettings] PRIMARY KEY,
+        [ApplicationName] nvarchar(200) NOT NULL CONSTRAINT [DF_SystemSettings_ApplicationName] DEFAULT N'پورتال جامع منابع انسانی',
+        [OrganizationName] nvarchar(300) NOT NULL CONSTRAINT [DF_SystemSettings_OrganizationName] DEFAULT N'',
+        [ShortName] nvarchar(100) NOT NULL CONSTRAINT [DF_SystemSettings_ShortName] DEFAULT N'HR',
+        [Slogan] nvarchar(500) NOT NULL CONSTRAINT [DF_SystemSettings_Slogan] DEFAULT N'',
+        [FooterText] nvarchar(500) NOT NULL CONSTRAINT [DF_SystemSettings_FooterText] DEFAULT N'',
+        [Website] nvarchar(500) NOT NULL CONSTRAINT [DF_SystemSettings_Website] DEFAULT N'',
+        [Phone] nvarchar(100) NOT NULL CONSTRAINT [DF_SystemSettings_Phone] DEFAULT N'',
+        [Email] nvarchar(200) NOT NULL CONSTRAINT [DF_SystemSettings_Email] DEFAULT N'',
+        [EconomicCode] nvarchar(100) NOT NULL CONSTRAINT [DF_SystemSettings_EconomicCode] DEFAULT N'',
+        [NationalId] nvarchar(100) NOT NULL CONSTRAINT [DF_SystemSettings_NationalId] DEFAULT N'',
+        [DefaultLanguage] nvarchar(50) NOT NULL CONSTRAINT [DF_SystemSettings_DefaultLanguage] DEFAULT N'fa-IR',
+        [Calendar] nvarchar(50) NOT NULL CONSTRAINT [DF_SystemSettings_Calendar] DEFAULT N'Persian',
+        [TimeZone] nvarchar(100) NOT NULL CONSTRAINT [DF_SystemSettings_TimeZone] DEFAULT N'Asia/Tehran',
+        [Theme] nvarchar(100) NOT NULL CONSTRAINT [DF_SystemSettings_Theme] DEFAULT N'Indamin',
+        [PrimaryColor] nvarchar(20) NOT NULL CONSTRAINT [DF_SystemSettings_PrimaryColor] DEFAULT N'#17324D',
+        [SecondaryColor] nvarchar(20) NOT NULL CONSTRAINT [DF_SystemSettings_SecondaryColor] DEFAULT N'#6C757D',
+        [LogoUrl] nvarchar(500) NOT NULL CONSTRAINT [DF_SystemSettings_LogoUrl] DEFAULT N'/images/logo.png',
+        [FaviconUrl] nvarchar(500) NOT NULL CONSTRAINT [DF_SystemSettings_FaviconUrl] DEFAULT N'',
+        [ItemsPerPage] int NOT NULL CONSTRAINT [DF_SystemSettings_ItemsPerPage] DEFAULT 20,
+        [EnableAuditLog] bit NOT NULL CONSTRAINT [DF_SystemSettings_EnableAuditLog] DEFAULT 1,
+        [MaintenanceMode] bit NOT NULL CONSTRAINT [DF_SystemSettings_MaintenanceMode] DEFAULT 0,
+        [MaintenanceMessage] nvarchar(1000) NOT NULL CONSTRAINT [DF_SystemSettings_MaintenanceMessage] DEFAULT N'سامانه در حال بروزرسانی است.',
+        [AllowUserSelfService] bit NOT NULL CONSTRAINT [DF_SystemSettings_AllowUserSelfService] DEFAULT 1,
+        [UpdatedAt] datetime2 NOT NULL
+    );
+END;
+
+IF OBJECT_ID(N'[OtpSettings]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [OtpSettings](
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_OtpSettings] PRIMARY KEY,
+        [Length] int NOT NULL CONSTRAINT [DF_OtpSettings_Length] DEFAULT 5,
+        [ValiditySeconds] int NOT NULL CONSTRAINT [DF_OtpSettings_ValiditySeconds] DEFAULT 120,
+        [MaxAttempts] int NOT NULL CONSTRAINT [DF_OtpSettings_MaxAttempts] DEFAULT 5,
+        [Enabled] bit NOT NULL CONSTRAINT [DF_OtpSettings_Enabled] DEFAULT 1
+    );
+END;
+
+IF OBJECT_ID(N'[SmsSettings]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [SmsSettings](
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_SmsSettings] PRIMARY KEY,
+        [Enabled] bit NOT NULL CONSTRAINT [DF_SmsSettings_Enabled] DEFAULT 0,
+        [Endpoint] nvarchar(2000) NOT NULL CONSTRAINT [DF_SmsSettings_Endpoint] DEFAULT N'',
+        [Method] nvarchar(20) NOT NULL CONSTRAINT [DF_SmsSettings_Method] DEFAULT N'POST',
+        [Format] nvarchar(30) NOT NULL CONSTRAINT [DF_SmsSettings_Format] DEFAULT N'json',
+        [AuthMode] nvarchar(30) NOT NULL CONSTRAINT [DF_SmsSettings_AuthMode] DEFAULT N'header',
+        [ApiKeyName] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_ApiKeyName] DEFAULT N'Api-Key',
+        [ApiKey] nvarchar(1000) NOT NULL CONSTRAINT [DF_SmsSettings_ApiKey] DEFAULT N'',
+        [SenderField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_SenderField] DEFAULT N'sender',
+        [Sender] nvarchar(200) NOT NULL CONSTRAINT [DF_SmsSettings_Sender] DEFAULT N'',
+        [RecipientField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_RecipientField] DEFAULT N'recipient',
+        [RecipientMode] nvarchar(30) NOT NULL CONSTRAINT [DF_SmsSettings_RecipientMode] DEFAULT N'scalar',
+        [MessageField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_MessageField] DEFAULT N'message',
+        [NumberFormatField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_NumberFormatField] DEFAULT N'',
+        [NumberFormat] nvarchar(200) NOT NULL CONSTRAINT [DF_SmsSettings_NumberFormat] DEFAULT N'',
+        [StaticParams] nvarchar(max) NOT NULL CONSTRAINT [DF_SmsSettings_StaticParams] DEFAULT N'',
+        [SuccessCodes] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_SuccessCodes] DEFAULT N'200-299',
+        [Template] nvarchar(2000) NOT NULL CONSTRAINT [DF_SmsSettings_Template] DEFAULT N'کاربر محترم، کد ورود شما: {{code}}',
+        [TestRecipient] nvarchar(30) NOT NULL CONSTRAINT [DF_SmsSettings_TestRecipient] DEFAULT N''
+    );
+END;
+
+IF OBJECT_ID(N'[PayrollReportSettings]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [PayrollReportSettings](
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_PayrollReportSettings] PRIMARY KEY,
+        [Enabled] bit NOT NULL CONSTRAINT [DF_PayrollReportSettings_Enabled] DEFAULT 1,
+        [ReportUrl] nvarchar(2000) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportUrl] DEFAULT N'',
+        [ReportServerUrl] nvarchar(1000) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportServerUrl] DEFAULT N'',
+        [ReportPath] nvarchar(1000) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportPath] DEFAULT N'',
+        [YearParameter] nvarchar(100) NOT NULL CONSTRAINT [DF_PayrollReportSettings_YearParameter] DEFAULT N'YearMonth',
+        [PersonnelParameter] nvarchar(100) NOT NULL CONSTRAINT [DF_PayrollReportSettings_PersonnelParameter] DEFAULT N'PersonnelNo',
+        [ReportFormat] nvarchar(50) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportFormat] DEFAULT N'HTML4.0',
+        [UseIntegratedSecurity] bit NOT NULL CONSTRAINT [DF_PayrollReportSettings_UseIntegratedSecurity] DEFAULT 0
+    );
+END;
+
+IF COL_LENGTH(N'SystemSettings', N'ApplicationName') IS NULL ALTER TABLE [SystemSettings] ADD [ApplicationName] nvarchar(200) NOT NULL CONSTRAINT [DF_SystemSettings_ApplicationName] DEFAULT N'پورتال جامع منابع انسانی';
+IF COL_LENGTH(N'SystemSettings', N'OrganizationName') IS NULL ALTER TABLE [SystemSettings] ADD [OrganizationName] nvarchar(300) NOT NULL CONSTRAINT [DF_SystemSettings_OrganizationName] DEFAULT N'';
+IF COL_LENGTH(N'SystemSettings', N'ShortName') IS NULL ALTER TABLE [SystemSettings] ADD [ShortName] nvarchar(100) NOT NULL CONSTRAINT [DF_SystemSettings_ShortName] DEFAULT N'HR';
+IF COL_LENGTH(N'SystemSettings', N'Slogan') IS NULL ALTER TABLE [SystemSettings] ADD [Slogan] nvarchar(500) NOT NULL CONSTRAINT [DF_SystemSettings_Slogan] DEFAULT N'';
+IF COL_LENGTH(N'SystemSettings', N'FooterText') IS NULL ALTER TABLE [SystemSettings] ADD [FooterText] nvarchar(500) NOT NULL CONSTRAINT [DF_SystemSettings_FooterText] DEFAULT N'';
+IF COL_LENGTH(N'SystemSettings', N'Website') IS NULL ALTER TABLE [SystemSettings] ADD [Website] nvarchar(500) NOT NULL CONSTRAINT [DF_SystemSettings_Website] DEFAULT N'';
+IF COL_LENGTH(N'SystemSettings', N'Phone') IS NULL ALTER TABLE [SystemSettings] ADD [Phone] nvarchar(100) NOT NULL CONSTRAINT [DF_SystemSettings_Phone] DEFAULT N'';
+IF COL_LENGTH(N'SystemSettings', N'Email') IS NULL ALTER TABLE [SystemSettings] ADD [Email] nvarchar(200) NOT NULL CONSTRAINT [DF_SystemSettings_Email] DEFAULT N'';
+IF COL_LENGTH(N'SystemSettings', N'EconomicCode') IS NULL ALTER TABLE [SystemSettings] ADD [EconomicCode] nvarchar(100) NOT NULL CONSTRAINT [DF_SystemSettings_EconomicCode] DEFAULT N'';
+IF COL_LENGTH(N'SystemSettings', N'NationalId') IS NULL ALTER TABLE [SystemSettings] ADD [NationalId] nvarchar(100) NOT NULL CONSTRAINT [DF_SystemSettings_NationalId] DEFAULT N'';
+IF COL_LENGTH(N'SystemSettings', N'DefaultLanguage') IS NULL ALTER TABLE [SystemSettings] ADD [DefaultLanguage] nvarchar(50) NOT NULL CONSTRAINT [DF_SystemSettings_DefaultLanguage] DEFAULT N'fa-IR';
+IF COL_LENGTH(N'SystemSettings', N'Calendar') IS NULL ALTER TABLE [SystemSettings] ADD [Calendar] nvarchar(50) NOT NULL CONSTRAINT [DF_SystemSettings_Calendar] DEFAULT N'Persian';
+IF COL_LENGTH(N'SystemSettings', N'TimeZone') IS NULL ALTER TABLE [SystemSettings] ADD [TimeZone] nvarchar(100) NOT NULL CONSTRAINT [DF_SystemSettings_TimeZone] DEFAULT N'Asia/Tehran';
+IF COL_LENGTH(N'SystemSettings', N'Theme') IS NULL ALTER TABLE [SystemSettings] ADD [Theme] nvarchar(100) NOT NULL CONSTRAINT [DF_SystemSettings_Theme] DEFAULT N'Indamin';
+IF COL_LENGTH(N'SystemSettings', N'PrimaryColor') IS NULL ALTER TABLE [SystemSettings] ADD [PrimaryColor] nvarchar(20) NOT NULL CONSTRAINT [DF_SystemSettings_PrimaryColor] DEFAULT N'#17324D';
+IF COL_LENGTH(N'SystemSettings', N'SecondaryColor') IS NULL ALTER TABLE [SystemSettings] ADD [SecondaryColor] nvarchar(20) NOT NULL CONSTRAINT [DF_SystemSettings_SecondaryColor] DEFAULT N'#6C757D';
+IF COL_LENGTH(N'SystemSettings', N'LogoUrl') IS NULL ALTER TABLE [SystemSettings] ADD [LogoUrl] nvarchar(500) NOT NULL CONSTRAINT [DF_SystemSettings_LogoUrl] DEFAULT N'/images/logo.png';
+IF COL_LENGTH(N'SystemSettings', N'FaviconUrl') IS NULL ALTER TABLE [SystemSettings] ADD [FaviconUrl] nvarchar(500) NOT NULL CONSTRAINT [DF_SystemSettings_FaviconUrl] DEFAULT N'';
+IF COL_LENGTH(N'SystemSettings', N'ItemsPerPage') IS NULL ALTER TABLE [SystemSettings] ADD [ItemsPerPage] int NOT NULL CONSTRAINT [DF_SystemSettings_ItemsPerPage] DEFAULT 20;
+IF COL_LENGTH(N'SystemSettings', N'EnableAuditLog') IS NULL ALTER TABLE [SystemSettings] ADD [EnableAuditLog] bit NOT NULL CONSTRAINT [DF_SystemSettings_EnableAuditLog] DEFAULT 1;
+IF COL_LENGTH(N'SystemSettings', N'MaintenanceMode') IS NULL ALTER TABLE [SystemSettings] ADD [MaintenanceMode] bit NOT NULL CONSTRAINT [DF_SystemSettings_MaintenanceMode] DEFAULT 0;
+IF COL_LENGTH(N'SystemSettings', N'MaintenanceMessage') IS NULL ALTER TABLE [SystemSettings] ADD [MaintenanceMessage] nvarchar(1000) NOT NULL CONSTRAINT [DF_SystemSettings_MaintenanceMessage] DEFAULT N'سامانه در حال بروزرسانی است.';
+IF COL_LENGTH(N'SystemSettings', N'AllowUserSelfService') IS NULL ALTER TABLE [SystemSettings] ADD [AllowUserSelfService] bit NOT NULL CONSTRAINT [DF_SystemSettings_AllowUserSelfService] DEFAULT 1;
+IF COL_LENGTH(N'SystemSettings', N'UpdatedAt') IS NULL ALTER TABLE [SystemSettings] ADD [UpdatedAt] datetime2 NOT NULL CONSTRAINT [DF_SystemSettings_UpdatedAt] DEFAULT SYSUTCDATETIME();
+
+IF COL_LENGTH(N'OtpSettings', N'Length') IS NULL ALTER TABLE [OtpSettings] ADD [Length] int NOT NULL CONSTRAINT [DF_OtpSettings_Length] DEFAULT 5;
+IF COL_LENGTH(N'OtpSettings', N'ValiditySeconds') IS NULL ALTER TABLE [OtpSettings] ADD [ValiditySeconds] int NOT NULL CONSTRAINT [DF_OtpSettings_ValiditySeconds] DEFAULT 120;
+IF COL_LENGTH(N'OtpSettings', N'MaxAttempts') IS NULL ALTER TABLE [OtpSettings] ADD [MaxAttempts] int NOT NULL CONSTRAINT [DF_OtpSettings_MaxAttempts] DEFAULT 5;
+IF COL_LENGTH(N'OtpSettings', N'Enabled') IS NULL ALTER TABLE [OtpSettings] ADD [Enabled] bit NOT NULL CONSTRAINT [DF_OtpSettings_Enabled] DEFAULT 1;
+
+IF COL_LENGTH(N'SmsSettings', N'Enabled') IS NULL ALTER TABLE [SmsSettings] ADD [Enabled] bit NOT NULL CONSTRAINT [DF_SmsSettings_Enabled] DEFAULT 0;
+IF COL_LENGTH(N'SmsSettings', N'Endpoint') IS NULL ALTER TABLE [SmsSettings] ADD [Endpoint] nvarchar(2000) NOT NULL CONSTRAINT [DF_SmsSettings_Endpoint] DEFAULT N'';
+IF COL_LENGTH(N'SmsSettings', N'Method') IS NULL ALTER TABLE [SmsSettings] ADD [Method] nvarchar(20) NOT NULL CONSTRAINT [DF_SmsSettings_Method] DEFAULT N'POST';
+IF COL_LENGTH(N'SmsSettings', N'Format') IS NULL ALTER TABLE [SmsSettings] ADD [Format] nvarchar(30) NOT NULL CONSTRAINT [DF_SmsSettings_Format] DEFAULT N'json';
+IF COL_LENGTH(N'SmsSettings', N'AuthMode') IS NULL ALTER TABLE [SmsSettings] ADD [AuthMode] nvarchar(30) NOT NULL CONSTRAINT [DF_SmsSettings_AuthMode] DEFAULT N'header';
+IF COL_LENGTH(N'SmsSettings', N'ApiKeyName') IS NULL ALTER TABLE [SmsSettings] ADD [ApiKeyName] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_ApiKeyName] DEFAULT N'Api-Key';
+IF COL_LENGTH(N'SmsSettings', N'ApiKey') IS NULL ALTER TABLE [SmsSettings] ADD [ApiKey] nvarchar(1000) NOT NULL CONSTRAINT [DF_SmsSettings_ApiKey] DEFAULT N'';
+IF COL_LENGTH(N'SmsSettings', N'SenderField') IS NULL ALTER TABLE [SmsSettings] ADD [SenderField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_SenderField] DEFAULT N'sender';
+IF COL_LENGTH(N'SmsSettings', N'Sender') IS NULL ALTER TABLE [SmsSettings] ADD [Sender] nvarchar(200) NOT NULL CONSTRAINT [DF_SmsSettings_Sender] DEFAULT N'';
+IF COL_LENGTH(N'SmsSettings', N'RecipientField') IS NULL ALTER TABLE [SmsSettings] ADD [RecipientField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_RecipientField] DEFAULT N'recipient';
+IF COL_LENGTH(N'SmsSettings', N'RecipientMode') IS NULL ALTER TABLE [SmsSettings] ADD [RecipientMode] nvarchar(30) NOT NULL CONSTRAINT [DF_SmsSettings_RecipientMode] DEFAULT N'scalar';
+IF COL_LENGTH(N'SmsSettings', N'MessageField') IS NULL ALTER TABLE [SmsSettings] ADD [MessageField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_MessageField] DEFAULT N'message';
+IF COL_LENGTH(N'SmsSettings', N'NumberFormatField') IS NULL ALTER TABLE [SmsSettings] ADD [NumberFormatField] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_NumberFormatField] DEFAULT N'';
+IF COL_LENGTH(N'SmsSettings', N'NumberFormat') IS NULL ALTER TABLE [SmsSettings] ADD [NumberFormat] nvarchar(200) NOT NULL CONSTRAINT [DF_SmsSettings_NumberFormat] DEFAULT N'';
+IF COL_LENGTH(N'SmsSettings', N'StaticParams') IS NULL ALTER TABLE [SmsSettings] ADD [StaticParams] nvarchar(max) NOT NULL CONSTRAINT [DF_SmsSettings_StaticParams] DEFAULT N'';
+IF COL_LENGTH(N'SmsSettings', N'SuccessCodes') IS NULL ALTER TABLE [SmsSettings] ADD [SuccessCodes] nvarchar(100) NOT NULL CONSTRAINT [DF_SmsSettings_SuccessCodes] DEFAULT N'200-299';
+IF COL_LENGTH(N'SmsSettings', N'Template') IS NULL ALTER TABLE [SmsSettings] ADD [Template] nvarchar(2000) NOT NULL CONSTRAINT [DF_SmsSettings_Template] DEFAULT N'کاربر محترم، کد ورود شما: {{code}}';
+IF COL_LENGTH(N'SmsSettings', N'TestRecipient') IS NULL ALTER TABLE [SmsSettings] ADD [TestRecipient] nvarchar(30) NOT NULL CONSTRAINT [DF_SmsSettings_TestRecipient] DEFAULT N'';
+
+IF COL_LENGTH(N'PayrollReportSettings', N'Enabled') IS NULL ALTER TABLE [PayrollReportSettings] ADD [Enabled] bit NOT NULL CONSTRAINT [DF_PayrollReportSettings_Enabled] DEFAULT 1;
+IF COL_LENGTH(N'PayrollReportSettings', N'ReportUrl') IS NULL ALTER TABLE [PayrollReportSettings] ADD [ReportUrl] nvarchar(2000) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportUrl] DEFAULT N'';
+IF COL_LENGTH(N'PayrollReportSettings', N'ReportServerUrl') IS NULL ALTER TABLE [PayrollReportSettings] ADD [ReportServerUrl] nvarchar(1000) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportServerUrl] DEFAULT N'';
+IF COL_LENGTH(N'PayrollReportSettings', N'ReportPath') IS NULL ALTER TABLE [PayrollReportSettings] ADD [ReportPath] nvarchar(1000) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportPath] DEFAULT N'';
+IF COL_LENGTH(N'PayrollReportSettings', N'YearParameter') IS NULL ALTER TABLE [PayrollReportSettings] ADD [YearParameter] nvarchar(100) NOT NULL CONSTRAINT [DF_PayrollReportSettings_YearParameter] DEFAULT N'YearMonth';
+IF COL_LENGTH(N'PayrollReportSettings', N'PersonnelParameter') IS NULL ALTER TABLE [PayrollReportSettings] ADD [PersonnelParameter] nvarchar(100) NOT NULL CONSTRAINT [DF_PayrollReportSettings_PersonnelParameter] DEFAULT N'PersonnelNo';
+IF COL_LENGTH(N'PayrollReportSettings', N'ReportFormat') IS NULL ALTER TABLE [PayrollReportSettings] ADD [ReportFormat] nvarchar(50) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportFormat] DEFAULT N'HTML4.0';
+IF COL_LENGTH(N'PayrollReportSettings', N'UseIntegratedSecurity') IS NULL ALTER TABLE [PayrollReportSettings] ADD [UseIntegratedSecurity] bit NOT NULL CONSTRAINT [DF_PayrollReportSettings_UseIntegratedSecurity] DEFAULT 0;
+
 IF OBJECT_ID(N'[Employees]', N'U') IS NULL
 BEGIN
     CREATE TABLE [Employees](

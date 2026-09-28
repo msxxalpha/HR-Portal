@@ -18,7 +18,10 @@ public class SmsSettings
     public string RecipientField { get; set; } = "recipient";
     public string RecipientMode { get; set; } = "scalar";
     public string MessageField { get; set; } = "message";
+    // For pattern-based providers (such as IPPanel Edge): top-level pattern code.
     public string CodeField { get; set; } = "code";
+    public string OtpParameterField { get; set; } = "code";
+    public string PatternCode { get; set; } = "";
     public string NumberFormatField { get; set; } = "";
     public string NumberFormat { get; set; } = "";
     public string StaticParams { get; set; } = "";

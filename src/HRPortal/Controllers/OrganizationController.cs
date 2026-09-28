@@ -8,7 +8,7 @@ using System.Text.Json;
 
 namespace HRPortal.Controllers;
 
-[Authorize(Policy = "AdminOnly")]
+[Authorize(Policy = "Organization.View")]
 public class OrganizationController(
     HRPortalDbContext db,
     OrganizationService service,
@@ -75,7 +75,7 @@ public class OrganizationController(
         return View();
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "Organization.Create"), ValidateAntiForgeryToken]
     public async Task<IActionResult> NewRevision(string effectiveDate, string title, string? notes)
     {
         if (!PersianDateService.TryParse(effectiveDate, out var date))
@@ -94,7 +94,7 @@ public class OrganizationController(
         return RedirectToAction(nameof(Index), new { revisionId = revision.Id });
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "Organization.Create"), ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateNode(
         int revisionId,
         int? parentId,
@@ -166,7 +166,7 @@ public class OrganizationController(
         });
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "Organization.Edit"), ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateNode(
         int id,
         string code,
@@ -219,7 +219,7 @@ public class OrganizationController(
         return Json(new { success = true });
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "Organization.Move"), ValidateAntiForgeryToken]
     public async Task<IActionResult> MoveNode(int id, int? parentId, int position)
     {
         var node = await db.OrganizationNodes
@@ -265,7 +265,7 @@ public class OrganizationController(
         return Json(new { success = true });
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "Organization.Delete"), ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteNode(int id)
     {
         var node = await db.OrganizationNodes
@@ -298,7 +298,7 @@ public class OrganizationController(
         return Json(new { success = true });
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "Organization.Finalize"), ValidateAntiForgeryToken]
     public async Task<IActionResult> Finalize(int revisionId)
     {
         try

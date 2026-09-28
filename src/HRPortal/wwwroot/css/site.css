@@ -149,9 +149,9 @@
  content:"";position:absolute;width:22px;height:22px;top:4px;right:4px;border-radius:50%;
  background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.16);transition:.2s
 }
-.switch-control input[type="checkbox"]:checked + .switch-slider{background:#22a060}
-.switch-control input[type="checkbox"]:checked + .switch-slider:before{transform:translateX(-22px)}
-.switch-control input[type="checkbox"]:focus-visible + .switch-slider{box-shadow:0 0 0 3px rgba(34,160,96,.18)}
+.switch-control:has(input[type="checkbox"]:checked) .switch-slider{background:#22a060}
+.switch-control:has(input[type="checkbox"]:checked) .switch-slider:before{transform:translateX(-22px)}
+.switch-control:has(input[type="checkbox"]:focus-visible) .switch-slider{box-shadow:0 0 0 3px rgba(34,160,96,.18)}
 .switch-control input[type="checkbox"]:not(:checked) + .switch-slider{background:#c8d1d7}
 .toggle-card:has(input[type="checkbox"]:checked){border-color:#b9dfc7;background:#f4fbf6}
 .toggle-card:has(input[type="checkbox"]:not(:checked)){border-color:#d9e0e5;background:#f8fafb}

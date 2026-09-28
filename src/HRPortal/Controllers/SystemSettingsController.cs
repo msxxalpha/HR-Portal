@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HRPortal.Controllers;
 
-[Authorize(Policy = "AdminOnly")]
+[Authorize(Policy = "Settings.View")]
 public class SystemSettingsController(EnvironmentSettingsService service, ISmsService sms) : Controller
 {
     [HttpGet]
@@ -13,6 +13,7 @@ public class SystemSettingsController(EnvironmentSettingsService service, ISmsSe
         View(await service.GetAsync());
 
     [HttpPost]
+    [Authorize(Policy = "Settings.Edit")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Save(SystemSettingsViewModel model, string? command)
     {

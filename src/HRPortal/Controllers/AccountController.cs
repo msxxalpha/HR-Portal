@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 
 namespace HRPortal.Controllers;
 
@@ -221,6 +222,15 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
 
     [HttpGet, AllowAnonymous]
     public IActionResult Denied() => View();
+
+    private static int GetRemainingSeconds(DateTime? expiresAt)
+    {
+        if (expiresAt is null)
+            return 0;
+
+        var seconds = (expiresAt.Value - DateTime.UtcNow).TotalSeconds;
+        return seconds <= 0 ? 0 : (int)Math.Ceiling(seconds);
+    }
 
     public sealed class LoginVm
     {

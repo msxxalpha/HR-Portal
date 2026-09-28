@@ -1,4 +1,3 @@
-using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
@@ -103,7 +102,7 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
 
         var method = (settings.Method ?? "POST").Trim().ToUpperInvariant();
         var format = (settings.Format ?? "json").Trim().ToLowerInvariant();
-        using var request = new HttpRequestMessage(new HttpMethod(method), endpoint);
+        var request = new HttpRequestMessage(new HttpMethod(method), endpoint);
 
         foreach (var h in headers)
             request.Headers.TryAddWithoutValidation(h.Key, h.Value);

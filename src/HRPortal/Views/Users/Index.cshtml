@@ -1,0 +1,142 @@
+@model HRPortal.Models.UserRoleManagementViewModel
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "مدیریت کاربران و نقش‌ها";
+}
+<div class="page-head">
+    <div>
+        <h1>مدیریت کاربران و نقش‌ها</h1>
+        <p>کاربران از کارکنان سامانه انتخاب می‌شوند و سطح دسترسی هر کاربر از طریق نقش‌ها تعیین می‌گردد.</p>
+    </div>
+</div>
+
+@if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
+@if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
+
+<div class="tabs settings-tabs">
+    <button type="button" class="tab active" data-tab="users">کاربران</button>
+    <button type="button" class="tab" data-tab="roles">نقش‌ها و سطح دسترسی</button>
+</div>
+
+<section id="users" class="tab-panel active">
+    <div class="card">
+        <div class="section-head">
+            <div>
+                <h3>کاربران کارکنان</h3>
+                <span class="muted">نام کاربری کارکنان همان شماره پرسنلی است و ورود با OTP انجام می‌شود.</span>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr><th>شماره پرسنلی</th><th>کارمند</th><th>واحد</th><th>نقش‌ها</th><th>فعال</th><th>عملیات</th></tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model.Users)
+                {
+                    <tr>
+                        <form method="post" action="/Users/SaveUser">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="employeeId" value="@row.Employee.Id" />
+                            <td>@row.Employee.PersonnelNumber</td>
+                            <td>@row.Employee.FirstName @row.Employee.LastName</td>
+                            <td>@(row.Employee.OrganizationUnit?.Title ?? "—")</td>
+                            <td>
+                                <div class="permission-chips">
+                                    @foreach (var role in Model.Roles)
+                                    {
+                                        <label class="check-chip">
+                                            <input type="checkbox" name="roleIds" value="@role.Id" @(row.RoleIds.Contains(role.Id) ? "checked" : "") />
+                                            <span>@role.Title</span>
+                                        </label>
+                                    }
+                                </div>
+                            </td>
+                            <td>
+                                <label class="switch-control">
+                                    <input type="checkbox" name="isSystemUser" value="true" @(row.Employee.IsSystemUser ? "checked" : "") />
+                                    <span class="switch-slider"></span>
+                                </label>
+                            </td>
+                            <td><button class="btn btn-outline btn-sm" type="submit">ذخیره</button></td>
+                        </form>
+                    </tr>
+                }
+                @if (!Model.Users.Any())
+                {
+                    <tr><td colspan="6" class="empty">هنوز کارمندی ثبت نشده است.</td></tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<section id="roles" class="tab-panel">
+    <div class="card">
+        <div class="section-head">
+            <div><h3>ایجاد نقش جدید</h3><span class="muted">یک نقش بسازید و عملکردهای مجاز آن را انتخاب کنید.</span></div>
+        </div>
+        <form method="post" action="/Users/SaveRole">
+            @Html.AntiForgeryToken()
+            <div class="grid-3">
+                <label>کد نقش *<input name="Code" required placeholder="ROLE_CODE" /></label>
+                <label>عنوان نقش *<input name="Title" required placeholder="عنوان نقش" /></label>
+                <label>شرح<input name="Description" placeholder="توضیحات" /></label>
+            </div>
+            <div class="permission-grid">
+                @foreach (var permission in Model.Permissions)
+                {
+                    <label class="permission-item">
+                        <input type="checkbox" name="PermissionIds" value="@permission.Id" />
+                        <span><strong>@permission.Title</strong><small>@permission.Module — @permission.Code</small></span>
+                    </label>
+                }
+            </div>
+            <label class="inline-check"><input type="checkbox" name="IsActive" value="true" checked /> نقش فعال باشد</label>
+            <div class="form-actions"><button class="btn btn-main" type="submit">ایجاد نقش</button></div>
+        </form>
+    </div>
+
+    @foreach (var role in Model.Roles)
+    {
+        <div class="card">
+            <form method="post" action="/Users/SaveRole">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="Id" value="@role.Id" />
+                <div class="section-head">
+                    <div><h3>@role.Title</h3><span class="muted">@role.Code</span></div>
+                    <label class="inline-check"><input type="checkbox" name="IsActive" value="true" @(role.IsActive ? "checked" : "") /> فعال</label>
+                </div>
+                <div class="grid-2">
+                    <label>کد نقش<input name="Code" value="@role.Code" required /></label>
+                    <label>عنوان نقش<input name="Title" value="@role.Title" required /></label>
+                    <label class="wide">شرح<textarea name="Description">@role.Description</textarea></label>
+                </div>
+                <div class="permission-grid">
+                    @foreach (var permission in Model.Permissions)
+                    {
+                        <label class="permission-item">
+                            <input type="checkbox" name="PermissionIds" value="@permission.Id" @(role.PermissionIds.Contains(permission.Id) ? "checked" : "") />
+                            <span><strong>@permission.Title</strong><small>@permission.Module — @permission.Code</small></span>
+                        </label>
+                    }
+                </div>
+                <div class="form-actions"><button class="btn btn-outline" type="submit">ذخیره نقش</button></div>
+            </form>
+        </div>
+    }
+</section>
+
+@section Scripts {
+<script>
+document.querySelectorAll('.tab').forEach(function (button) {
+    button.addEventListener('click', function () {
+        document.querySelectorAll('.tab').forEach(function (b) { b.classList.remove('active'); });
+        document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
+        button.classList.add('active');
+        document.getElementById(button.dataset.tab).classList.add('active');
+    });
+});
+</script>
+}

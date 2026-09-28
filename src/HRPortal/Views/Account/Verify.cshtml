@@ -2,6 +2,7 @@
     Layout = "~/Views/Shared/_AuthLayout.cshtml";
     ViewData["Title"] = "تأیید کد ورود";
     var remainingSeconds = Math.Max(0, (int)(ViewBag.OtpRemainingSeconds ?? 0));
+    var otpLength = Math.Clamp((int)(ViewBag.OtpLength ?? 5), 4, 9);
 }
 <div class="auth-shell">
     <div class="auth-card">

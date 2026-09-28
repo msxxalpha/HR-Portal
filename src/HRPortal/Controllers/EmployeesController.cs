@@ -50,6 +50,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
     [HttpPost, Authorize(Policy = "Employees.Create"), ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(Employee employee)
     {
+        ClearGeneratedRequiredErrors();
         NormalizeEmployee(employee);
         ValidateEmployee(employee);
         await ValidateOrganizationAssignmentsAsync(employee);
@@ -93,6 +94,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
     [HttpPost, Authorize(Policy = "Employees.Edit"), ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(Employee employee)
     {
+        ClearGeneratedRequiredErrors();
         NormalizeEmployee(employee);
         ValidateEmployee(employee);
         await ValidateOrganizationAssignmentsAsync(employee);
@@ -213,6 +215,15 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         }
 
         return View();
+    }
+
+    private void ClearGeneratedRequiredErrors()
+    {
+        foreach (var key in new[] { "PersonnelNumber", "NationalId", "FirstName", "LastName", "Mobile", "Gender" })
+        {
+            if (ModelState.TryGetValue(key, out var state))
+                state.Errors.Clear();
+        }
     }
 
     private static void NormalizeEmployee(Employee employee)

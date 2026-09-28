@@ -2,6 +2,8 @@
 @{
     Layout = "~/Views/Shared/_Layout.cshtml";
     ViewData["Title"] = "مدیریت کاربران و نقش‌ها";
+    var canUsers = (bool?)ViewBag.CanUsers ?? false;
+    var canRoles = (bool?)ViewBag.CanRoles ?? false;
 }
 <div class="page-head">
     <div>
@@ -18,6 +20,8 @@
     <button type="button" class="tab" data-tab="roles">نقش‌ها و سطح دسترسی</button>
 </div>
 
+@if (canUsers)
+{
 <section id="users" class="tab-panel active">
     <div class="card">
         <div class="section-head">
@@ -74,8 +78,11 @@
         </div>
     </div>
 </section>
+}
 
-<section id="roles" class="tab-panel">
+@if (canRoles)
+{
+<section id="roles" class="tab-panel @(canUsers ? "" : "active")">
     <div class="card">
         <div class="section-head">
             <div><h3>ایجاد نقش جدید</h3><span class="muted">یک نقش بسازید و عملکردهای مجاز آن را انتخاب کنید.</span></div>
@@ -130,6 +137,7 @@
         </div>
     }
 </section>
+}
 
 @section Scripts {
 <script>

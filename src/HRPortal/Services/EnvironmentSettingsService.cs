@@ -6,6 +6,30 @@ namespace HRPortal.Services;
 
 public class EnvironmentSettingsService(HRPortalDbContext db)
 {
+    // Backward-compatible entity view used by the shared layout and older controllers.
+    public async Task<SystemSettingsViewModel> GetAsync()
+    {
+        var system = await db.SystemSettings.AsNoTracking().FirstOrDefaultAsync()
+                      ?? new SystemSettings();
+
+        var otp = await db.OtpSettings.AsNoTracking().FirstOrDefaultAsync()
+                  ?? new OtpSettings();
+
+        var sms = await db.SmsSettings.AsNoTracking().FirstOrDefaultAsync()
+                   ?? new SmsSettings();
+
+        var payroll = await db.PayrollReportSettings.AsNoTracking().FirstOrDefaultAsync()
+                      ?? new PayrollReportSettings();
+
+        return new SystemSettingsViewModel
+        {
+            System = system,
+            Otp = otp,
+            Sms = sms,
+            Payroll = payroll
+        };
+    }
+
     public async Task<SystemSettingsEditModel> GetEditAsync()
     {
         var system = await db.SystemSettings.AsNoTracking().FirstOrDefaultAsync()

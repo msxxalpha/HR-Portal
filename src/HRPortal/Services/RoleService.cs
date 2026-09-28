@@ -44,13 +44,15 @@ public class RoleService(HRPortalDbContext db)
             ["Settings.View", "Settings.Edit"]);
         await EnsureRoleAsync("PAYROLL_USER", "گزارش فیش حقوقی", "دسترسی به فیش حقوقی",
             ["Payroll.View"]);
+        var defaultEmployeeRole = await EnsureRoleAsync("EMPLOYEE", "کاربر کارکنان", "نقش پیش‌فرض کارکنان برای استفاده از خدمات پرسنلی",
+            ["Payroll.View"]);
         await EnsureRoleAsync("USER_MANAGER", "مدیریت کاربران", "مدیریت وضعیت کاربر و تخصیص نقش به کارکنان",
             ["Users.Manage"]);
         await EnsureRoleAsync("ROLE_MANAGER", "مدیریت نقش‌ها", "ایجاد و ویرایش نقش‌ها و سطح دسترسی",
             ["Roles.Manage"]);
     }
 
-    private async Task EnsureRoleAsync(string code, string title, string description, IEnumerable<string> permissionCodes)
+    private async Task<Role> EnsureRoleAsync(string code, string title, string description, IEnumerable<string> permissionCodes)
     {
         var role = await db.Roles.FirstOrDefaultAsync(x => x.Code == code);
         if (role is null)
@@ -69,6 +71,7 @@ public class RoleService(HRPortalDbContext db)
         foreach (var id in permissionIds.Except(existing))
             db.RolePermissions.Add(new RolePermission { RoleId = role.Id, PermissionId = id });
         await db.SaveChangesAsync();
+        return role;
     }
 
     public async Task<List<Role>> GetRolesAsync() =>

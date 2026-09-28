@@ -90,6 +90,8 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
         modelBuilder.Entity<RolePermission>(e =>
         {
             e.HasKey(x => x.Id);
+            e.Ignore("RoleId1");
+            e.Ignore("PermissionId1");
             e.HasIndex(x => new { x.RoleId, x.PermissionId }).IsUnique();
             e.HasOne(x => x.Role)
                 .WithMany()
@@ -105,6 +107,8 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
         modelBuilder.Entity<EmployeeRole>(e =>
         {
             e.HasKey(x => x.Id);
+            e.Ignore("RoleId1");
+            e.Ignore("EmployeeId1");
             e.HasIndex(x => new { x.EmployeeId, x.RoleId }).IsUnique();
             e.HasOne(x => x.Employee)
                 .WithMany()

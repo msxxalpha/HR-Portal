@@ -139,6 +139,8 @@ public class EnvironmentSettingsService(HRPortalDbContext db)
             SmsRecipientMode = sms.RecipientMode ?? "",
             SmsMessageField = sms.MessageField ?? "",
             SmsCodeField = sms.CodeField ?? "code",
+            SmsOtpParameterField = sms.OtpParameterField ?? "code",
+            SmsPatternCode = sms.PatternCode ?? "",
             SmsNumberFormatField = sms.NumberFormatField ?? "",
             SmsNumberFormat = sms.NumberFormat ?? "",
             SmsStaticParams = sms.StaticParams ?? "",
@@ -209,6 +211,8 @@ public class EnvironmentSettingsService(HRPortalDbContext db)
         entity.RecipientMode = model.SmsRecipientMode?.Trim() ?? "";
         entity.MessageField = model.SmsMessageField?.Trim() ?? "";
         entity.CodeField = model.SmsCodeField?.Trim() ?? "code";
+        entity.OtpParameterField = model.SmsOtpParameterField?.Trim() ?? "code";
+        entity.PatternCode = model.SmsPatternCode?.Trim() ?? "";
         entity.NumberFormatField = model.SmsNumberFormatField?.Trim() ?? "";
         entity.NumberFormat = model.SmsNumberFormat?.Trim() ?? "";
         entity.StaticParams = model.SmsStaticParams ?? "";

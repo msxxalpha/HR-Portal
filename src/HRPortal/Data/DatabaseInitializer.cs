@@ -12,6 +12,7 @@ public static class DatabaseInitializer
 
         await EnsureAdminTableAsync(db);
         await EnsureAdminColumnsAsync(db);
+        await EnsureRoleTablesAsync(db);
 
         if (!await db.SystemSettings.AnyAsync())
             db.SystemSettings.Add(new SystemSettings { OrganizationName = "شرکت کمک فنرسازی ایندامین سایپا", ApplicationName = "پورتال جامع منابع انسانی" });
@@ -38,6 +39,9 @@ public static class DatabaseInitializer
         await db.SaveChangesAsync();
         var adminService = new global::HRPortal.Services.AdminService(db);
         await adminService.SeedAsync();
+
+        var roleService = new global::HRPortal.Services.RoleService(db);
+        await roleService.SeedAsync();
     }
 
     private static async Task EnsureAdminTableAsync(HRPortalDbContext db)
@@ -84,6 +88,62 @@ IF COL_LENGTH(N'dbo.AdminUsers', N'UpdatedAt') IS NULL
 IF COL_LENGTH(N'dbo.AdminUsers', N'LastLoginAt') IS NULL
     ALTER TABLE [dbo].[AdminUsers] ADD [LastLoginAt] datetime2 NULL;";
         await db.Database.ExecuteSqlRawAsync(sql);
+    }
+
+    private static async Task EnsureRoleTablesAsync(HRPortalDbContext db)
+    {
+        const string sql = @"
+IF OBJECT_ID(N'dbo.Roles', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[Roles](
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_Roles] PRIMARY KEY,
+        [Code] nvarchar(100) NOT NULL,
+        [Title] nvarchar(200) NOT NULL,
+        [Description] nvarchar(1000) NULL,
+        [IsActive] bit NOT NULL CONSTRAINT [DF_Roles_IsActive] DEFAULT 1,
+        [CreatedAt] datetime2 NOT NULL CONSTRAINT [DF_Roles_CreatedAt] DEFAULT SYSUTCDATETIME()
+    );
+END;
+
+IF OBJECT_ID(N'dbo.Permissions', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[Permissions](
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_Permissions] PRIMARY KEY,
+        [Code] nvarchar(100) NOT NULL,
+        [Title] nvarchar(200) NOT NULL,
+        [Module] nvarchar(100) NOT NULL
+    );
+END;
+
+IF OBJECT_ID(N'dbo.RolePermissions', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[RolePermissions](
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_RolePermissions] PRIMARY KEY,
+        [RoleId] int NOT NULL,
+        [PermissionId] int NOT NULL
+    );
+END;
+
+IF OBJECT_ID(N'dbo.EmployeeRoles', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[EmployeeRoles](
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_EmployeeRoles] PRIMARY KEY,
+        [EmployeeId] int NOT NULL,
+        [RoleId] int NOT NULL
+    );
+END;";
+        await db.Database.ExecuteSqlRawAsync(sql);
+
+        const string indexes = @"
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_Roles_Code' AND object_id=OBJECT_ID(N'dbo.Roles'))
+    CREATE UNIQUE INDEX [IX_Roles_Code] ON [dbo].[Roles]([Code]);
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_Permissions_Code' AND object_id=OBJECT_ID(N'dbo.Permissions'))
+    CREATE UNIQUE INDEX [IX_Permissions_Code] ON [dbo].[Permissions]([Code]);
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_RolePermissions_RoleId_PermissionId' AND object_id=OBJECT_ID(N'dbo.RolePermissions'))
+    CREATE UNIQUE INDEX [IX_RolePermissions_RoleId_PermissionId] ON [dbo].[RolePermissions]([RoleId],[PermissionId]);
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_EmployeeRoles_EmployeeId_RoleId' AND object_id=OBJECT_ID(N'dbo.EmployeeRoles'))
+    CREATE UNIQUE INDEX [IX_EmployeeRoles_EmployeeId_RoleId] ON [dbo].[EmployeeRoles]([EmployeeId],[RoleId]);";
+        await db.Database.ExecuteSqlRawAsync(indexes);
     }
 
     private static async Task EnsureSchemaAsync(HRPortalDbContext db)

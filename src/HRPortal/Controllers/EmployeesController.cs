@@ -47,20 +47,32 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         View("Form", await BuildFormVmAsync(new Employee()));
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(FormVm model)
+    public async Task<IActionResult> Create([Bind(Prefix = "Employee")] Employee employee)
     {
-        ValidateEmployee(model.Employee);
-        await ValidateOrganizationAssignmentsAsync(model.Employee);
+        NormalizeEmployee(employee);
+        ValidateEmployee(employee);
+        await ValidateOrganizationAssignmentsAsync(employee);
 
         if (!ModelState.IsValid)
-            return View("Form", await BuildFormVmAsync(model.Employee));
+            return View("Form", await BuildFormVmAsync(employee));
 
-        model.Employee.IsSystemUser = true;
-        model.Employee.Status = "فعال";
-        db.Employees.Add(model.Employee);
+        employee.IsSystemUser = true;
+        employee.Status = "فعال";
+        employee.CreatedAt = DateTime.UtcNow;
+        employee.UpdatedAt = DateTime.UtcNow;
+
+        if (await db.Employees.AnyAsync(x => x.PersonnelNumber == employee.PersonnelNumber))
+            ModelState.AddModelError("Employee.PersonnelNumber", "این شماره پرسنلی قبلاً ثبت شده است.");
+        if (await db.Employees.AnyAsync(x => x.NationalId == employee.NationalId))
+            ModelState.AddModelError("Employee.NationalId", "این کد ملی قبلاً ثبت شده است.");
+
+        if (!ModelState.IsValid)
+            return View("Form", await BuildFormVmAsync(employee));
+
+        db.Employees.Add(employee);
         await db.SaveChangesAsync();
 
-        await audit.WriteAsync("ایجاد کارمند", "Employee", model.Employee.Id.ToString(), model.Employee.PersonnelNumber);
+        await audit.WriteAsync("ایجاد کارمند", "Employee", employee.Id.ToString(), employee.PersonnelNumber);
         return RedirectToAction(nameof(Index));
     }
 
@@ -73,24 +85,33 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
     }
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(FormVm model)
+    public async Task<IActionResult> Edit([Bind(Prefix = "Employee")] Employee employee)
     {
-        ValidateEmployee(model.Employee);
-        await ValidateOrganizationAssignmentsAsync(model.Employee);
+        NormalizeEmployee(employee);
+        ValidateEmployee(employee);
+        await ValidateOrganizationAssignmentsAsync(employee);
 
         if (!ModelState.IsValid)
-            return View("Form", await BuildFormVmAsync(model.Employee));
+            return View("Form", await BuildFormVmAsync(employee));
 
-        var employee = await db.Employees.FindAsync(model.Employee.Id);
-        if (employee is null)
+        var existing = await db.Employees.FindAsync(employee.Id);
+        if (existing is null)
             return NotFound();
 
-        db.Entry(employee).CurrentValues.SetValues(model.Employee);
-        employee.IsSystemUser = employee.Status == "فعال";
-        employee.UpdatedAt = DateTime.UtcNow;
+        if (await db.Employees.AnyAsync(x => x.Id != employee.Id && x.PersonnelNumber == employee.PersonnelNumber))
+            ModelState.AddModelError("Employee.PersonnelNumber", "این شماره پرسنلی قبلاً برای کارمند دیگری ثبت شده است.");
+        if (await db.Employees.AnyAsync(x => x.Id != employee.Id && x.NationalId == employee.NationalId))
+            ModelState.AddModelError("Employee.NationalId", "این کد ملی قبلاً برای کارمند دیگری ثبت شده است.");
+
+        if (!ModelState.IsValid)
+            return View("Form", await BuildFormVmAsync(employee));
+
+        db.Entry(existing).CurrentValues.SetValues(employee);
+        existing.IsSystemUser = existing.Status == "فعال";
+        existing.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
 
-        await audit.WriteAsync("ویرایش کارمند", "Employee", employee.Id.ToString(), employee.PersonnelNumber);
+        await audit.WriteAsync("ویرایش کارمند", "Employee", existing.Id.ToString(), existing.PersonnelNumber);
         return RedirectToAction(nameof(Index));
     }
 
@@ -186,6 +207,20 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         }
 
         return View();
+    }
+
+    private static void NormalizeEmployee(Employee employee)
+    {
+        employee.PersonnelNumber = employee.PersonnelNumber?.Trim() ?? "";
+        employee.NationalId = employee.NationalId?.Trim() ?? "";
+        employee.FirstName = employee.FirstName?.Trim() ?? "";
+        employee.LastName = employee.LastName?.Trim() ?? "";
+        employee.Mobile = employee.Mobile?.Trim() ?? "";
+        employee.Gender = employee.Gender?.Trim() ?? "";
+        employee.FatherName = employee.FatherName?.Trim();
+        employee.PositionTitle = employee.PositionTitle?.Trim();
+        employee.EmploymentType = employee.EmploymentType?.Trim();
+        employee.Email = employee.Email?.Trim();
     }
 
     private async Task ValidateOrganizationAssignmentsAsync(Employee employee)

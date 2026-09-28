@@ -475,7 +475,7 @@ END;
         // with "Invalid column name" and prevent the ALTER TABLE from running.
         await db.Database.ExecuteSqlRawAsync(sql);
         await MigrateLegacySmsAsync(db);
-        await MigrateIppanelSmsDefaultsAsync(db);
+        await MigrateSmsProviderDefaultsAsync(db);
         await EnsureIndexesAsync(db);
     }
 
@@ -508,12 +508,12 @@ END;";
         await db.Database.ExecuteSqlRawAsync(sql);
     }
     
-    private static async Task MigrateIppanelSmsDefaultsAsync(HRPortalDbContext db)
+    private static async Task MigrateSmsProviderDefaultsAsync(HRPortalDbContext db)
     {
         const string sql = @"
+-- IPPanel Edge pattern defaults
 IF EXISTS(
-    SELECT 1
-    FROM [dbo].[SmsSettings]
+    SELECT 1 FROM [dbo].[SmsSettings]
     WHERE LOWER(ISNULL([Endpoint],N'')) LIKE N'%ippanel%'
       AND LOWER(REPLACE(ISNULL([StaticParams],N''),N' ',N'')) LIKE N'%""sending_type"":""pattern""%'
 )
@@ -533,6 +533,38 @@ BEGIN
     UPDATE [dbo].[SmsSettings]
     SET [ApiKeyName]=N'Authorization'
     WHERE ISNULL([ApiKeyName],N'') IN (N'',N'Api-Key');
+END;
+
+-- Faraz SMS pattern defaults
+IF EXISTS(
+    SELECT 1 FROM [dbo].[SmsSettings]
+    WHERE LOWER(ISNULL([Endpoint],N'')) LIKE N'%api.iranpayamak.com%'
+      AND LOWER(ISNULL([Endpoint],N'')) LIKE N'%/ws/v1/sms/pattern%'
+)
+BEGIN
+    UPDATE [dbo].[SmsSettings]
+    SET [RecipientField]=N'recipient'
+    WHERE ISNULL([RecipientField],N'') IN (N'',N'recipients');
+
+    UPDATE [dbo].[SmsSettings]
+    SET [RecipientMode]=N'scalar'
+    WHERE ISNULL([RecipientMode],N'') IN (N'',N'array');
+
+    UPDATE [dbo].[SmsSettings]
+    SET [SenderField]=N'line_number'
+    WHERE ISNULL([SenderField],N'') IN (N'',N'sender',N'from_number');
+
+    UPDATE [dbo].[SmsSettings]
+    SET [ApiKeyName]=N'Api-Key'
+    WHERE ISNULL([ApiKeyName],N'') IN (N'',N'Authorization');
+
+    UPDATE [dbo].[SmsSettings]
+    SET [NumberFormatField]=N'number_format'
+    WHERE ISNULL([NumberFormatField],N'')=N'';
+
+    UPDATE [dbo].[SmsSettings]
+    SET [NumberFormat]=N'english'
+    WHERE ISNULL([NumberFormat],N'') IN (N'',N'en');
 
     UPDATE [dbo].[SmsSettings]
     SET [CodeField]=N'code'

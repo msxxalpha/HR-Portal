@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HRPortal.Controllers;
 
-public class AccountController(HRPortalDbContext db, OtpService otp, AuditService audit, AdminService admins) : Controller
+public class AccountController(HRPortalDbContext db, OtpService otp, AuditService audit, AdminService admins, RoleService roleService) : Controller
 {
     [HttpGet, AllowAnonymous]
     public IActionResult Login(string? returnUrl = null, string? mode = null)
@@ -144,6 +144,10 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
             new("IsAdmin", "0"),
             new("UserType", "Employee")
         };
+
+        var permissions = await roleService.GetEmployeePermissionsAsync(employee.Id);
+        foreach (var permission in permissions)
+            claims.Add(new System.Security.Claims.Claim("Permission", permission));
 
         var identity = new System.Security.Claims.ClaimsIdentity(
             claims,

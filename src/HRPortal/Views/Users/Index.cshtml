@@ -34,32 +34,35 @@
                 <tbody>
                 @foreach (var row in Model.Users)
                 {
+                    var formId = "user-form-" + row.Employee.Id;
                     <tr>
-                        <form method="post" action="/Users/SaveUser">
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="employeeId" value="@row.Employee.Id" />
-                            <td>@row.Employee.PersonnelNumber</td>
-                            <td>@row.Employee.FirstName @row.Employee.LastName</td>
-                            <td>@(row.Employee.OrganizationUnit?.Title ?? "—")</td>
-                            <td>
-                                <div class="permission-chips">
-                                    @foreach (var role in Model.Roles)
-                                    {
-                                        <label class="check-chip">
-                                            <input type="checkbox" name="roleIds" value="@role.Id" @(row.RoleIds.Contains(role.Id) ? "checked" : "") />
-                                            <span>@role.Title</span>
-                                        </label>
-                                    }
-                                </div>
-                            </td>
-                            <td>
-                                <label class="switch-control">
-                                    <input type="checkbox" name="isSystemUser" value="true" @(row.Employee.IsSystemUser ? "checked" : "") />
-                                    <span class="switch-slider"></span>
-                                </label>
-                            </td>
-                            <td><button class="btn btn-outline btn-sm" type="submit">ذخیره</button></td>
-                        </form>
+                        <td>
+                            <form id="@formId" method="post" action="/Users/SaveUser">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="employeeId" value="@row.Employee.Id" />
+                            </form>
+                            @row.Employee.PersonnelNumber
+                        </td>
+                        <td>@row.Employee.FirstName @row.Employee.LastName</td>
+                        <td>@(row.Employee.OrganizationUnit?.Title ?? "—")</td>
+                        <td>
+                            <div class="permission-chips">
+                                @foreach (var role in Model.Roles)
+                                {
+                                    <label class="check-chip">
+                                        <input type="checkbox" name="roleIds" value="@role.Id" form="@formId" @(row.RoleIds.Contains(role.Id) ? "checked" : "") />
+                                        <span>@role.Title</span>
+                                    </label>
+                                }
+                            </div>
+                        </td>
+                        <td>
+                            <label class="switch-control">
+                                <input type="checkbox" name="isSystemUser" value="true" form="@formId" @(row.Employee.IsSystemUser ? "checked" : "") />
+                                <span class="switch-slider"></span>
+                            </label>
+                        </td>
+                        <td><button class="btn btn-outline btn-sm" type="submit" form="@formId">ذخیره</button></td>
                     </tr>
                 }
                 @if (!Model.Users.Any())

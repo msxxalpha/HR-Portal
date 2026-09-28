@@ -46,6 +46,12 @@ builder.Services.AddAuthorization(options =>
 
     foreach (var permission in RoleService.DefaultPermissions)
         options.AddPolicy(permission.Code, policy => policy.RequireClaim("Permission", permission.Code));
+
+    options.AddPolicy("UsersRoles.Manage", policy =>
+        policy.RequireAssertion(context =>
+            context.User.HasClaim("IsAdmin", "1") ||
+            context.User.HasClaim("Permission", "Users.Manage") ||
+            context.User.HasClaim("Permission", "Roles.Manage")));
 });
 
 var app = builder.Build();

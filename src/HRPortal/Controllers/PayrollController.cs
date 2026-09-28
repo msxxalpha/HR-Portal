@@ -13,7 +13,11 @@ public class PayrollController(HRPortalDbContext db, ReportService reports) : Co
     public IActionResult Payslip(string? yearMonth = null)
     {
         if (User.HasClaim("IsAdmin", "1"))
-            return Forbid();
+        {
+            ViewBag.Message = "این کاربر فیش حقوقی ندارد.";
+            ViewBag.MessageType = "info";
+            return View();
+        }
 
         var personnelNumber = GetAuthenticatedPersonnelNumber();
         ViewBag.PersonnelNumber = personnelNumber;
@@ -30,7 +34,11 @@ public class PayrollController(HRPortalDbContext db, ReportService reports) : Co
     public async Task<IActionResult> GeneratePayslip(string yearMonth)
     {
         if (User.HasClaim("IsAdmin", "1"))
-            return Forbid();
+        {
+            ViewBag.Message = "این کاربر فیش حقوقی ندارد.";
+            ViewBag.MessageType = "info";
+            return View("Payslip");
+        }
 
         var personnelNumber = GetAuthenticatedPersonnelNumber();
         ViewBag.PersonnelNumber = personnelNumber;

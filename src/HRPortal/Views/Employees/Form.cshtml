@@ -16,33 +16,33 @@
     </div>
 }
 
-<form method="post" asp-action="@(edit ? "Edit" : "Create")" class="employee-form">
+<form method="post" action="/Employees/@(edit ? "Edit" : "Create")" class="employee-form">
     @Html.AntiForgeryToken()
-    <input type="hidden" asp-for="Employee.Id" />
+    <input type="hidden" name="Id" value="@Model.Employee.Id" />
 
     <div class="card">
         <div class="section-head"><div><h3>اطلاعات اصلی</h3><span class="muted">موارد دارای * اجباری هستند.</span></div></div>
         <div class="grid-3">
-            <label>شماره پرسنلی *<input asp-for="Employee.PersonnelNumber" required /></label>
-            <label>کد ملی *<input asp-for="Employee.NationalId" required /></label>
-            <label>نام *<input asp-for="Employee.FirstName" required /></label>
-            <label>نام خانوادگی *<input asp-for="Employee.LastName" required /></label>
-            <label>شماره موبایل *<input asp-for="Employee.Mobile" required inputmode="tel" /></label>
+            <label>شماره پرسنلی *<input name="PersonnelNumber" value="@Model.Employee.PersonnelNumber" required autocomplete="off" /></label>
+            <label>کد ملی *<input name="NationalId" value="@Model.Employee.NationalId" required inputmode="numeric" autocomplete="off" /></label>
+            <label>نام *<input name="FirstName" value="@Model.Employee.FirstName" required /></label>
+            <label>نام خانوادگی *<input name="LastName" value="@Model.Employee.LastName" required /></label>
+            <label>شماره موبایل *<input name="Mobile" value="@Model.Employee.Mobile" required inputmode="tel" autocomplete="tel" /></label>
             <label>جنسیت *
-                <select asp-for="Employee.Gender" required>
+                <select name="Gender" required>
                     <option value="">انتخاب کنید</option>
-                    <option value="مرد">مرد</option>
-                    <option value="زن">زن</option>
+                    <option value="مرد" selected="@(Model.Employee.Gender == "مرد")">مرد</option>
+                    <option value="زن" selected="@(Model.Employee.Gender == "زن")">زن</option>
                 </select>
             </label>
-            <label>نام پدر<input asp-for="Employee.FatherName" /></label>
-            <label>ایمیل<input asp-for="Employee.Email" type="email" /></label>
-            <label>سمت<input asp-for="Employee.PositionTitle" /></label>
-            <label>نوع استخدام<input asp-for="Employee.EmploymentType" /></label>
+            <label>نام پدر<input name="FatherName" value="@Model.Employee.FatherName" /></label>
+            <label>ایمیل<input name="Email" value="@Model.Employee.Email" type="email" /></label>
+            <label>سمت<input name="PositionTitle" value="@Model.Employee.PositionTitle" /></label>
+            <label>نوع استخدام<input name="EmploymentType" value="@Model.Employee.EmploymentType" /></label>
             <label>وضعیت
-                <select asp-for="Employee.Status">
-                    <option value="فعال">فعال</option>
-                    <option value="غیرفعال">غیرفعال</option>
+                <select name="Status">
+                    <option value="فعال" selected="@(Model.Employee.Status != "غیرفعال")">فعال</option>
+                    <option value="غیرفعال" selected="@(Model.Employee.Status == "غیرفعال")">غیرفعال</option>
                 </select>
             </label>
         </div>
@@ -52,29 +52,29 @@
         <div class="section-head"><div><h3>ساختار سازمانی</h3><span class="muted">اداره و بخش متناسب با انتخاب والد فیلتر می‌شوند.</span></div></div>
         <div class="grid-3">
             <label>واحد سازمانی
-                <select asp-for="Employee.OrganizationUnitId" id="unitSelect">
+                <select name="OrganizationUnitId" id="unitSelect">
                     <option value="">انتخاب واحد</option>
                     @foreach (var n in Model.Units)
                     {
-                        <option value="@n.Id">@n.Title (@n.Code)</option>
+                        <option value="@n.Id" selected="@(Model.Employee.OrganizationUnitId == n.Id)">@n.Title (@n.Code)</option>
                     }
                 </select>
             </label>
             <label>اداره سازمانی
-                <select asp-for="Employee.OrganizationDepartmentId" id="departmentSelect">
+                <select name="OrganizationDepartmentId" id="departmentSelect">
                     <option value="">انتخاب اداره</option>
                     @foreach (var n in Model.Departments)
                     {
-                        <option value="@n.Id" data-parent-id="@n.ParentId">@n.Title (@n.Code)</option>
+                        <option value="@n.Id" data-parent-id="@n.ParentId" selected="@(Model.Employee.OrganizationDepartmentId == n.Id)">@n.Title (@n.Code)</option>
                     }
                 </select>
             </label>
             <label>بخش سازمانی
-                <select asp-for="Employee.OrganizationSectionId" id="sectionSelect">
+                <select name="OrganizationSectionId" id="sectionSelect">
                     <option value="">انتخاب بخش</option>
                     @foreach (var n in Model.Sections)
                     {
-                        <option value="@n.Id" data-parent-id="@n.ParentId">@n.Title (@n.Code)</option>
+                        <option value="@n.Id" data-parent-id="@n.ParentId" selected="@(Model.Employee.OrganizationSectionId == n.Id)">@n.Title (@n.Code)</option>
                     }
                 </select>
             </label>

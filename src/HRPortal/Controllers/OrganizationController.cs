@@ -17,14 +17,27 @@ public class OrganizationController(
     public async Task<IActionResult> Index(int? revisionId)
     {
         var revisions = await service.RevisionsAsync();
+        var canEditStructure =
+            User.HasClaim("IsAdmin", "1") ||
+            User.HasClaim("Permission", "Organization.Create") ||
+            User.HasClaim("Permission", "Organization.Edit") ||
+            User.HasClaim("Permission", "Organization.Delete") ||
+            User.HasClaim("Permission", "Organization.Move") ||
+            User.HasClaim("Permission", "Organization.Finalize");
 
         var revision = revisionId.HasValue
             ? revisions.FirstOrDefault(x => x.Id == revisionId.Value)
-            : revisions.FirstOrDefault(x => !x.IsFinalized) ?? await service.GetOrCreateDraftAsync();
+            : revisions.FirstOrDefault(x => !x.IsFinalized) ??
+              (canEditStructure ? await service.GetOrCreateDraftAsync() : await service.CurrentAsync());
 
         ViewBag.CompanyName = (await settings.GetAsync()).System.OrganizationName;
         ViewBag.Revisions = revisions;
-        ViewBag.IsEditable = revision is not null && !revision.IsFinalized;
+        ViewBag.IsEditable = revision is not null && !revision.IsFinalized && canEditStructure;
+        ViewBag.CanCreate = User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Organization.Create");
+        ViewBag.CanEdit = User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Organization.Edit");
+        ViewBag.CanDelete = User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Organization.Delete");
+        ViewBag.CanMove = User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Organization.Move");
+        ViewBag.CanFinalize = User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Organization.Finalize");
 
         if (revision is not null)
         {

@@ -6,6 +6,7 @@
     var canCreate = isAdmin || User.HasClaim("Permission", "Employees.Create");
     var canEdit = isAdmin || User.HasClaim("Permission", "Employees.Edit");
     var canDeactivate = isAdmin || User.HasClaim("Permission", "Employees.Deactivate");
+    var canDelete = isAdmin || User.HasClaim("Permission", "Employees.Delete");
     var canImportExport = isAdmin || User.HasClaim("Permission", "Employees.ImportExport");
 }
 <div class="page-head"><div><h1>مدیریت کارکنان</h1><p>ثبت، ویرایش، غیرفعال‌سازی، فیلتر، مرتب‌سازی و تبادل اکسل</p></div><div class="actions">
@@ -17,4 +18,5 @@
 <div class="table-wrap"><table><thead><tr><th><a href="/Employees?sort=PersonnelNumber&dir=@(ViewBag.Dir=="asc"?"desc":"asc")">شماره پرسنلی ↕</a></th><th><a href="/Employees?sort=LastName&dir=@(ViewBag.Dir=="asc"?"desc":"asc")">نام و نام خانوادگی ↕</a></th><th>کد ملی</th><th>موبایل</th><th>جنسیت</th><th>واحد</th><th>اداره</th><th>بخش</th><th><a href="/Employees?sort=Status&dir=@(ViewBag.Dir=="asc"?"desc":"asc")">وضعیت ↕</a></th><th>عملیات</th></tr></thead><tbody>@foreach(var e in Model){<tr><td>@e.PersonnelNumber</td><td>@e.FirstName @e.LastName</td><td>@e.NationalId</td><td>@e.Mobile</td><td>@e.Gender</td><td>@e.OrganizationUnit?.Title</td><td>@e.OrganizationDepartment?.Title</td><td>@e.OrganizationSection?.Title</td><td><span class="badge">@e.Status</span></td><td>
 @if (canEdit) { <a href="/Employees/Edit/@e.Id">ویرایش</a> }
 @if (canDeactivate && e.Status=="فعال"){<form class="inline" method="post" action="/Employees/Deactivate/@e.Id">@Html.AntiForgeryToken()<button class="link danger">غیرفعال</button></form>}
+@if (canDelete){<form class="inline" method="post" action="/Employees/Delete/@e.Id" onsubmit="return confirm('حذف مستقیم این کارمند انجام شود؟');">@Html.AntiForgeryToken()<button class="link danger">حذف</button></form>}
 </td></tr>}</tbody></table></div>

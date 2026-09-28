@@ -52,6 +52,7 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
             throw new InvalidOperationException("نشانی API پیامک تنظیم نشده است.");
 
         var data = ParseStaticParams(settings.StaticParams);
+        var sendingType = GetStringValue(data, "sending_type");
 
         var recipientField = settings.RecipientField?.Trim() ?? "";
         if (recipientField.Length > 0)
@@ -60,16 +61,6 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
                           || string.Equals(recipientField, "recipients", StringComparison.OrdinalIgnoreCase);
             data[recipientField] = asArray ? new[] { recipient } : recipient;
         }
-
-        var messageField = settings.MessageField?.Trim() ?? "";
-        if (messageField.Length > 0)
-            data[messageField] = message;
-
-        // Some SMS providers require the OTP value as a dedicated request field
-        // in addition to the rendered message text (for example: { "code": "12345" }).
-        var codeField = settings.CodeField?.Trim() ?? "";
-        if (codeField.Length > 0)
-            data[codeField] = code;
 
         var senderField = settings.SenderField?.Trim() ?? "";
         if (senderField.Length > 0 && !string.IsNullOrWhiteSpace(settings.Sender))
@@ -104,6 +95,65 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
                 endpoint = AddQuery(endpoint, keyName, apiKey);
             else
                 data[keyName] = apiKey;
+        }
+
+        // Pattern-based SMS APIs use the top-level "code" as the registered
+        // pattern identifier, while the actual OTP belongs inside "params".
+        var isPattern = string.Equals(sendingType, "pattern", StringComparison.OrdinalIgnoreCase);
+        if (isPattern)
+        {
+            var patternCode = settings.PatternCode?.Trim() ?? "";
+            if (patternCode.Length == 0)
+            {
+                var configuredCodeField = string.IsNullOrWhiteSpace(settings.CodeField)
+                    ? "code"
+                    : settings.CodeField.Trim();
+
+                if (data.TryGetValue(configuredCodeField, out var configuredValue))
+                    patternCode = ConvertToQueryValue(configuredValue);
+            }
+
+            if (patternCode.Length == 0)
+                throw new InvalidOperationException("کد الگوی پیامک تنظیم نشده است.");
+
+            var patternCodeField = string.IsNullOrWhiteSpace(settings.CodeField)
+                ? "code"
+                : settings.CodeField.Trim();
+            data[patternCodeField] = patternCode;
+
+            var otpParameterField = string.IsNullOrWhiteSpace(settings.OtpParameterField)
+                ? "code"
+                : settings.OtpParameterField.Trim();
+
+            Dictionary<string, object?> parameters;
+            if (data.TryGetValue("params", out var existingParams) &&
+                existingParams is Dictionary<string, object?> existingDictionary)
+            {
+                parameters = new Dictionary<string, object?>(existingDictionary, StringComparer.OrdinalIgnoreCase);
+            }
+            else
+            {
+                parameters = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            parameters[otpParameterField] = code;
+            data["params"] = parameters;
+
+            // IPPanel pattern requests do not use a free-form message field.
+            var patternMessageField = settings.MessageField?.Trim() ?? "";
+            if (patternMessageField.Length > 0 &&
+                !string.Equals(patternMessageField, "params", StringComparison.OrdinalIgnoreCase))
+                data.Remove(patternMessageField);
+        }
+        else
+        {
+            var messageField = settings.MessageField?.Trim() ?? "";
+            if (messageField.Length > 0)
+                data[messageField] = message;
+
+            var codeField = settings.CodeField?.Trim() ?? "";
+            if (codeField.Length > 0)
+                data[codeField] = code;
         }
 
         var method = (settings.Method ?? "POST").Trim().ToUpperInvariant();
@@ -143,6 +193,20 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
         }
 
         return request;
+    }
+
+    private static string? GetStringValue(Dictionary<string, object?> data, string key)
+    {
+        if (!data.TryGetValue(key, out var value))
+            return null;
+
+        return value switch
+        {
+            null => null,
+            string s => s,
+            JsonElement element when element.ValueKind == JsonValueKind.String => element.GetString(),
+            _ => Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture)
+        };
     }
 
     private static Dictionary<string, object?> ParseStaticParams(string raw)

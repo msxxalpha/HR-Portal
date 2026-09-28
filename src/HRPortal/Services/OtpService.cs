@@ -8,6 +8,9 @@ public class OtpService(HRPortalDbContext db,ISmsService sms,IWebHostEnvironment
  public async Task<(bool Success,string Message,string? DebugCode)> IssueAsync(Employee employee)
  {
   var s=await db.OtpSettings.AsNoTracking().FirstOrDefaultAsync() ?? new OtpSettings();
+  if (!s.Enabled)
+      return (false, "ورود با OTP در تنظیمات سامانه غیرفعال است.", null);
+
   var code=RandomNumberGenerator.GetInt32((int)Math.Pow(10,s.Length-1),(int)Math.Pow(10,s.Length));var text=code.ToString($"D{s.Length}");
   var c=new OtpChallenge{EmployeeId=employee.Id,PersonnelNumber=employee.PersonnelNumber,Mobile=employee.Mobile,CodeHash=PasswordHasher.Hash(text),ExpiresAt=DateTime.UtcNow.AddSeconds(s.ValiditySeconds)};
   db.OtpChallenges.Add(c);await db.SaveChangesAsync();
@@ -18,6 +21,9 @@ public class OtpService(HRPortalDbContext db,ISmsService sms,IWebHostEnvironment
  public async Task<bool> VerifyAsync(string personnelNumber,string code)
  {
   var s=await db.OtpSettings.AsNoTracking().FirstOrDefaultAsync() ?? new OtpSettings();
+  if (!s.Enabled)
+      return false;
+
   var c=await db.OtpChallenges.Where(x=>x.PersonnelNumber==personnelNumber&&!x.IsConsumed).OrderByDescending(x=>x.CreatedAt).FirstOrDefaultAsync();
   if(c is null||c.ExpiresAt<DateTime.UtcNow||c.AttemptCount>=s.MaxAttempts)return false;c.AttemptCount++;var ok=PasswordHasher.Verify(code,c.CodeHash);if(ok)c.IsConsumed=true;await db.SaveChangesAsync();return ok;
  }

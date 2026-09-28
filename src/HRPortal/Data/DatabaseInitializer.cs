@@ -139,8 +139,28 @@ IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_Roles_Code' AND object_i
     CREATE UNIQUE INDEX [IX_Roles_Code] ON [dbo].[Roles]([Code]);
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_Permissions_Code' AND object_id=OBJECT_ID(N'dbo.Permissions'))
     CREATE UNIQUE INDEX [IX_Permissions_Code] ON [dbo].[Permissions]([Code]);
+
+IF OBJECT_ID(N'dbo.RolePermissions', N'U') IS NOT NULL
+BEGIN
+    ;WITH duplicates AS
+    (
+        SELECT [Id], ROW_NUMBER() OVER(PARTITION BY [RoleId],[PermissionId] ORDER BY [Id]) AS rn
+        FROM [dbo].[RolePermissions]
+    )
+    DELETE FROM duplicates WHERE rn > 1;
+END;
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_RolePermissions_RoleId_PermissionId' AND object_id=OBJECT_ID(N'dbo.RolePermissions'))
     CREATE UNIQUE INDEX [IX_RolePermissions_RoleId_PermissionId] ON [dbo].[RolePermissions]([RoleId],[PermissionId]);
+
+IF OBJECT_ID(N'dbo.EmployeeRoles', N'U') IS NOT NULL
+BEGIN
+    ;WITH duplicates AS
+    (
+        SELECT [Id], ROW_NUMBER() OVER(PARTITION BY [EmployeeId],[RoleId] ORDER BY [Id]) AS rn
+        FROM [dbo].[EmployeeRoles]
+    )
+    DELETE FROM duplicates WHERE rn > 1;
+END;
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_EmployeeRoles_EmployeeId_RoleId' AND object_id=OBJECT_ID(N'dbo.EmployeeRoles'))
     CREATE UNIQUE INDEX [IX_EmployeeRoles_EmployeeId_RoleId] ON [dbo].[EmployeeRoles]([EmployeeId],[RoleId]);";
         await db.Database.ExecuteSqlRawAsync(indexes);

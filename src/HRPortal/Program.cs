@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection;
 using HRPortal.Data;
 using HRPortal.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;

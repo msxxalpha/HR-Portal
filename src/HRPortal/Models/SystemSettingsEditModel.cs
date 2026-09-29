@@ -65,6 +65,9 @@ public class SystemSettingsEditModel
     public string? PayrollReportAuthentication { get; set; }
     public string? PayrollReportUsername { get; set; }
     public string? PayrollReportDomain { get; set; }
+    public string? PayrollReportLoginUrl { get; set; }
+    public string? PayrollReportUsernameField { get; set; }
+    public string? PayrollReportPasswordField { get; set; }
     public string? PayrollReportPassword { get; set; }
     public bool PayrollUseIntegratedSecurity { get; set; }
 

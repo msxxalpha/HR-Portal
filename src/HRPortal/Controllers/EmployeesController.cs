@@ -172,6 +172,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         if (!string.IsNullOrWhiteSpace(q))
             query = query.Where(x =>
                 x.PersonnelNumber.Contains(q) ||
+                x.Identifier.Contains(q) ||
                 x.NationalId.Contains(q) ||
                 x.FirstName.Contains(q) ||
                 x.LastName.Contains(q) ||

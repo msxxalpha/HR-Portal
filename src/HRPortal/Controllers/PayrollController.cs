@@ -21,10 +21,22 @@ public class PayrollController(HRPortalDbContext db, ReportService reports) : Co
 
         var personnelNumber = GetAuthenticatedPersonnelNumber();
         ViewBag.PersonnelNumber = personnelNumber;
-        ViewBag.YearMonth = string.IsNullOrWhiteSpace(yearMonth) ? PersianMonth() : NormalizeDigits(yearMonth);
+
+        var requestedYearMonth = string.IsNullOrWhiteSpace(yearMonth)
+            ? PersianMonth()
+            : NormalizeDigits(yearMonth).Trim();
+
+        ViewBag.YearMonth = requestedYearMonth;
 
         if (personnelNumber is null)
+        {
             ViewBag.Message = "شماره پرسنلی کاربر احراز‌شده یافت نشد.";
+        }
+        else if (!string.IsNullOrWhiteSpace(yearMonth) &&
+                 ReportService.TryNormalizeYearMonth(yearMonth, out var normalizedYearMonth))
+        {
+            ViewBag.ReportEndpoint = Url.Action(nameof(Report), "Payroll", new { yearMonth = normalizedYearMonth });
+        }
 
         return View();
     }
@@ -42,11 +54,17 @@ public class PayrollController(HRPortalDbContext db, ReportService reports) : Co
 
         var personnelNumber = GetAuthenticatedPersonnelNumber();
         ViewBag.PersonnelNumber = personnelNumber;
-        ViewBag.YearMonth = NormalizeDigits(yearMonth);
+        ViewBag.YearMonth = NormalizeDigits(yearMonth).Trim();
 
         if (personnelNumber is null)
         {
             ViewBag.Message = "شماره پرسنلی کاربر احراز‌شده یافت نشد.";
+            return View("Payslip");
+        }
+
+        if (!ReportService.TryNormalizeYearMonth(yearMonth, out var normalizedYearMonth))
+        {
+            ModelState.AddModelError("", "سال و ماه را به صورت ۱۴۰۵۰۶ وارد کنید؛ دقیقاً ۶ رقم و بدون اسلش.");
             return View("Payslip");
         }
 
@@ -57,18 +75,52 @@ public class PayrollController(HRPortalDbContext db, ReportService reports) : Co
             return View("Payslip");
         }
 
-        if (string.IsNullOrWhiteSpace(yearMonth) ||
-            !System.Text.RegularExpressions.Regex.IsMatch(NormalizeDigits(yearMonth).Trim(), @"^[0-9]{4}/(0[1-9]|1[0-2])$"))
-        {
-            ModelState.AddModelError("", "سال و ماه را به صورت ۱۴۰۵/۰۶ وارد کنید.");
-            return View("Payslip");
-        }
-
-        ViewBag.ReportUrl = await reports.BuildUrlAsync(NormalizeDigits(yearMonth).Trim(), personnelNumber);
-        if (ViewBag.ReportUrl is null)
-            ViewBag.Message = "آدرس گزارش فیش حقوقی در تنظیمات سامانه ثبت نشده است.";
-
+        ViewBag.YearMonth = normalizedYearMonth;
+        ViewBag.ReportEndpoint = Url.Action(nameof(Report), "Payroll", new { yearMonth = normalizedYearMonth });
         return View("Payslip");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Report(string yearMonth)
+    {
+        if (User.HasClaim("IsAdmin", "1"))
+            return StyledReportError("این کاربر فیش حقوقی ندارد.", StatusCodes.Status403Forbidden);
+
+        var personnelNumber = GetAuthenticatedPersonnelNumber();
+        if (personnelNumber is null)
+            return StyledReportError("شماره پرسنلی کاربر احراز‌شده یافت نشد.", StatusCodes.Status403Forbidden);
+
+        if (!ReportService.TryNormalizeYearMonth(yearMonth, out var normalizedYearMonth))
+            return StyledReportError("پارامتر سال و ماه باید دقیقاً با فرمت ۱۴۰۵۰۶ (شش رقم، بدون اسلش) باشد.", StatusCodes.Status400BadRequest);
+
+        var result = await reports.FetchAsync(normalizedYearMonth, personnelNumber);
+        if (!result.Success || result.Content is null)
+            return StyledReportError(result.ErrorMessage, StatusCodes.Status502BadGateway);
+
+        Response.Headers.ContentDisposition = "inline";
+        return File(result.Content, result.ContentType);
+    }
+
+    private ContentResult StyledReportError(string message, int statusCode)
+    {
+        Response.StatusCode = statusCode;
+        var safe = System.Net.WebUtility.HtmlEncode(message);
+        return Content($"""
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>خطا در گزارش فیش حقوقی</title>
+<style>
+body{{margin:0;background:#f5f7fa;font-family:Vazir,Arial,sans-serif;color:#263746}}
+.box{{max-width:760px;margin:70px auto;padding:28px;background:#fff;border:1px solid #e1e6eb;border-radius:14px;box-shadow:0 8px 30px rgba(20,40,60,.08)}}
+h3{{margin-top:0}}.msg{{padding:16px;background:#fff4f4;border:1px solid #f0cccc;border-radius:10px;line-height:2}}
+</style>
+</head>
+<body><div class="box"><h3>گزارش فیش حقوقی قابل دریافت نیست</h3><div class="msg">{safe}</div></div></body>
+</html>
+""", "text/html; charset=utf-8");
     }
 
     private string? GetAuthenticatedPersonnelNumber()
@@ -87,7 +139,7 @@ public class PayrollController(HRPortalDbContext db, ReportService reports) : Co
     {
         var pc = new System.Globalization.PersianCalendar();
         var now = DateTime.Now;
-        return $@"{pc.GetYear(now):0000}/{pc.GetMonth(now):00}";
+        return $"{pc.GetYear(now):0000}{pc.GetMonth(now):00}";
     }
 
     private static string NormalizeDigits(string? value)

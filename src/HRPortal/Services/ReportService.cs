@@ -297,6 +297,24 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
             {
                 fields[name] = value;
             }
+            else if (type.Equals("image", StringComparison.OrdinalIgnoreCase))
+            {
+                // ASP.NET WebForms ImageButton postback fields.
+                fields[name + ".x"] = "1";
+                fields[name + ".y"] = "1";
+            }
+        }
+
+        // Some WebForms login pages use a <button> rather than an <input>.
+        foreach (Match button in Regex.Matches(
+                     body,
+                     @"<button\\b(?<attrs>[^>]*)>.*?</button>",
+                     RegexOptions.IgnoreCase | RegexOptions.Singleline))
+        {
+            var buttonAttrs = button.Groups["attrs"].Value;
+            var buttonName = GetHtmlAttribute(buttonAttrs, "name");
+            if (!string.IsNullOrWhiteSpace(buttonName))
+                fields[buttonName] = GetHtmlAttribute(buttonAttrs, "value") ?? "";
         }
 
         var passwordField = !string.IsNullOrWhiteSpace(configuredPasswordField)

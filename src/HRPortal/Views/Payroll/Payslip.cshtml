@@ -41,8 +41,7 @@
 
         @if (ViewBag.PersonnelNumber != null)
         {
-            <form method="post" asp-controller="Payroll" asp-action="GeneratePayslip" class="report-filter report-filter-inline">
-                @Html.AntiForgeryToken()
+            <form method="get" asp-controller="Payroll" asp-action="Payslip" class="report-filter report-filter-inline">
                 <label class="report-period">
                     سال / ماه
                     <input name="yearMonth"

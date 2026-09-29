@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HRPortal.Services;
 
-public class EnvironmentSettingsService(HRPortalDbContext db)
+public class EnvironmentSettingsService(HRPortalDbContext db, ReportCredentialProtector credentialProtector)
 {
     // Backward-compatible entity view used by the shared layout and older controllers.
     public async Task<SystemSettingsViewModel> GetAsync()
@@ -155,6 +155,12 @@ public class EnvironmentSettingsService(HRPortalDbContext db)
             PayrollYearParameter = payroll.YearParameter ?? "",
             PayrollPersonnelParameter = payroll.PersonnelParameter ?? "",
             PayrollReportFormat = payroll.ReportFormat ?? "",
+            PayrollReportAuthentication = string.IsNullOrWhiteSpace(payroll.ReportAuthentication)
+                ? (payroll.UseIntegratedSecurity ? "windows" : "none")
+                : payroll.ReportAuthentication,
+            PayrollReportUsername = payroll.ReportUsername ?? "",
+            PayrollReportDomain = payroll.ReportDomain ?? "",
+            PayrollReportPassword = "",
             PayrollUseIntegratedSecurity = payroll.UseIntegratedSecurity,
 
             MaintenanceMode = system.MaintenanceMode,
@@ -234,6 +240,16 @@ public class EnvironmentSettingsService(HRPortalDbContext db)
         entity.YearParameter = model.PayrollYearParameter?.Trim() ?? "";
         entity.PersonnelParameter = model.PayrollPersonnelParameter?.Trim() ?? "";
         entity.ReportFormat = model.PayrollReportFormat?.Trim() ?? "";
-        entity.UseIntegratedSecurity = model.PayrollUseIntegratedSecurity;
+        entity.ReportAuthentication = string.IsNullOrWhiteSpace(model.PayrollReportAuthentication)
+            ? (model.PayrollUseIntegratedSecurity ? "windows" : "none")
+            : model.PayrollReportAuthentication.Trim().ToLowerInvariant();
+        entity.ReportUsername = model.PayrollReportUsername?.Trim() ?? "";
+        entity.ReportDomain = model.PayrollReportDomain?.Trim() ?? "";
+        entity.UseIntegratedSecurity = string.Equals(entity.ReportAuthentication, "windows", StringComparison.OrdinalIgnoreCase);
+
+        // Password is never returned to the browser. A blank form value means
+        // keep the encrypted credential already stored in SQL Server.
+        if (!string.IsNullOrWhiteSpace(model.PayrollReportPassword))
+            entity.ReportPasswordProtected = credentialProtector.Protect(model.PayrollReportPassword);
     }
 }

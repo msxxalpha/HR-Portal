@@ -21,6 +21,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         if (!string.IsNullOrWhiteSpace(q))
             query = query.Where(x =>
                 x.PersonnelNumber.Contains(q) ||
+                x.Identifier.Contains(q) ||
                 x.NationalId.Contains(q) ||
                 x.FirstName.Contains(q) ||
                 x.LastName.Contains(q) ||
@@ -65,6 +66,8 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
 
         if (await db.Employees.AnyAsync(x => x.PersonnelNumber == employee.PersonnelNumber))
             ModelState.AddModelError("PersonnelNumber", "این شماره پرسنلی قبلاً ثبت شده است.");
+        if (await db.Employees.AnyAsync(x => x.Identifier == employee.Identifier))
+            ModelState.AddModelError("Identifier", "این شناسه قبلاً ثبت شده است.");
         if (await db.Employees.AnyAsync(x => x.NationalId == employee.NationalId))
             ModelState.AddModelError("NationalId", "این کد ملی قبلاً ثبت شده است.");
 
@@ -108,6 +111,8 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
 
         if (await db.Employees.AnyAsync(x => x.Id != employee.Id && x.PersonnelNumber == employee.PersonnelNumber))
             ModelState.AddModelError("PersonnelNumber", "این شماره پرسنلی قبلاً برای کارمند دیگری ثبت شده است.");
+        if (await db.Employees.AnyAsync(x => x.Id != employee.Id && x.Identifier == employee.Identifier))
+            ModelState.AddModelError("Identifier", "این شناسه قبلاً برای کارمند دیگری ثبت شده است.");
         if (await db.Employees.AnyAsync(x => x.Id != employee.Id && x.NationalId == employee.NationalId))
             ModelState.AddModelError("NationalId", "این کد ملی قبلاً برای کارمند دیگری ثبت شده است.");
 
@@ -219,7 +224,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
 
     private void ClearGeneratedRequiredErrors()
     {
-        foreach (var key in new[] { "PersonnelNumber", "NationalId", "FirstName", "LastName", "Mobile", "Gender" })
+        foreach (var key in new[] { "PersonnelNumber", "Identifier", "NationalId", "FirstName", "LastName", "Mobile", "Gender" })
         {
             if (ModelState.TryGetValue(key, out var state))
                 state.Errors.Clear();
@@ -229,6 +234,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
     private static void NormalizeEmployee(Employee employee)
     {
         employee.PersonnelNumber = employee.PersonnelNumber?.Trim() ?? "";
+        employee.Identifier = employee.Identifier?.Trim() ?? "";
         employee.NationalId = employee.NationalId?.Trim() ?? "";
         employee.FirstName = employee.FirstName?.Trim() ?? "";
         employee.LastName = employee.LastName?.Trim() ?? "";
@@ -276,6 +282,8 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
     {
         if (string.IsNullOrWhiteSpace(employee.PersonnelNumber))
             ModelState.AddModelError("PersonnelNumber", "شماره پرسنلی الزامی است.");
+        if (string.IsNullOrWhiteSpace(employee.Identifier))
+            ModelState.AddModelError("Identifier", "شناسه الزامی است.");
         if (string.IsNullOrWhiteSpace(employee.NationalId))
             ModelState.AddModelError("NationalId", "کد ملی الزامی است.");
         if (string.IsNullOrWhiteSpace(employee.FirstName))

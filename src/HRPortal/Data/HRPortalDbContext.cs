@@ -31,7 +31,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.HasIndex(x => x.NationalId).IsUnique();
             e.HasIndex(x => x.Identifier)
                 .IsUnique()
-                .HasFilter("[Identifier] IS NOT NULL AND [Identifier] <> N'');
+                .HasFilter("[Identifier] IS NOT NULL AND [Identifier] <> N''");
             e.HasOne(x => x.OrganizationUnit).WithMany().HasForeignKey(x => x.OrganizationUnitId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.OrganizationDepartment).WithMany().HasForeignKey(x => x.OrganizationDepartmentId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.OrganizationSection).WithMany().HasForeignKey(x => x.OrganizationSectionId).OnDelete(DeleteBehavior.Restrict);

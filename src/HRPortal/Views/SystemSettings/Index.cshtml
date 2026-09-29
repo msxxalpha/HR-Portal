@@ -304,53 +304,72 @@
     <section id="payroll" class="tab-panel">
         <div class="settings-section-intro">
             <strong>فیش حقوقی / SSRS</strong>
-            <span>شماره پرسنلی از حساب کاربر گرفته می‌شود و در تنظیمات یا فرم کاربر قابل ورود نیست.</span>
+            <span>شماره پرسنلی فقط برای ورود به پورتال استفاده می‌شود؛ مقدار پارامتر پرسنلی گزارش از «شناسه» متناظر همان کارمند خوانده می‌شود.</span>
         </div>
 
         <div class="grid-2">
             <label class="wide">آدرس کامل گزارش SSRS / Report URL
-                <input name="PayrollReportUrl" value="@S(Model.PayrollReportUrl)" placeholder="https://server/reportserver?/Folder/ReportName" />
+                <input name="PayrollReportUrl" value="@S(Model.PayrollReportUrl)" placeholder="برای گزارش مستقیم؛ در صورت استفاده از Report Server/Path خالی بگذارید" />
             </label>
             <label>آدرس Report Server
-                <input name="PayrollReportServerUrl" value="@S(Model.PayrollReportServerUrl)" placeholder="https://server/reportserver" />
+                <input name="PayrollReportServerUrl" value="@S(Model.PayrollReportServerUrl)" placeholder="مثلاً http://srv.../Indamin_ReportServer" />
             </label>
-            <label>مسیر گزارش RDL
-                <input name="PayrollReportPath" value="@S(Model.PayrollReportPath)" placeholder="/Folder/ReportName" />
-            </label>
-            <label>نام پارامتر سال/ماه
-                <input name="PayrollYearParameter" value="@S(Model.PayrollYearParameter)" placeholder="YearMonth" />
-            </label>
-            <label>نام پارامتر شماره پرسنلی
-                <input name="PayrollPersonnelParameter" value="@S(Model.PayrollPersonnelParameter)" placeholder="PersonnelNo" />
-            </label>
-            <label>فرمت گزارش
-                <input name="PayrollReportFormat" value="@S(Model.PayrollReportFormat)" placeholder="HTML4.0 یا PDF" />
+            <label>مسیر مستقیم گزارش
+                <input name="PayrollReportPath" value="@S(Model.PayrollReportPath)" placeholder="مثلاً /پوشه/نام گزارش" />
             </label>
 
-            <label>نوع احراز هویت گزارش
+            <label>نام پارامتر سال و ماه گزارش
+                <input name="PayrollYearParameter" value="@S(Model.PayrollYearParameter)" placeholder="مثلاً YearMonth" />
+            </label>
+            <label>نام پارامتر کد پرسنلی گزارش
+                <input name="PayrollPersonnelParameter" value="@S(Model.PayrollPersonnelParameter)" placeholder="مثلاً PersonnelNo" />
+            </label>
+            <label>فرمت گزارش
+                <select name="PayrollReportFormat">
+                    <option value="PDF" selected="@(string.Equals(Model.PayrollReportFormat, "PDF", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">PDF</option>
+                    <option value="HTML5" selected="@(string.Equals(Model.PayrollReportFormat, "HTML5", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">HTML5</option>
+                    <option value="HTML4.0" selected="@(string.Equals(Model.PayrollReportFormat, "HTML4.0", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">HTML4.0</option>
+                    <option value="MHTML" selected="@(string.Equals(Model.PayrollReportFormat, "MHTML", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">MHTML</option>
+                </select>
+            </label>
+
+            <label>نوع احراز هویت SSRS
                 <select name="PayrollReportAuthentication">
+                    <option value="forms" selected="@(string.Equals(Model.PayrollReportAuthentication, "forms", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Forms / Custom Login</option>
                     <option value="windows" selected="@(string.Equals(Model.PayrollReportAuthentication, "windows", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Windows / NTLM / Negotiate</option>
                     <option value="basic" selected="@(string.Equals(Model.PayrollReportAuthentication, "basic", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Basic</option>
                     <option value="none" selected="@(string.Equals(Model.PayrollReportAuthentication, "none", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">بدون احراز هویت</option>
                 </select>
             </label>
-            <label>نام کاربری گزارش
-                <input name="PayrollReportUsername" value="@S(Model.PayrollReportUsername)" autocomplete="off" placeholder="مثلاً DOMAIN\username" />
+
+            <label>نام کاربری دسترسی SSRS
+                <input name="PayrollReportUsername" value="@S(Model.PayrollReportUsername)" autocomplete="off" />
             </label>
             <label>دامین / Domain
-                <input name="PayrollReportDomain" value="@S(Model.PayrollReportDomain)" autocomplete="off" placeholder="در صورت نیاز، مثلاً DOMAIN" />
+                <input name="PayrollReportDomain" value="@S(Model.PayrollReportDomain)" autocomplete="off" />
             </label>
-            <label>گذرواژه گزارش
-                <input name="PayrollReportPassword" type="password" value="" autocomplete="new-password" placeholder="برای حفظ گذرواژه فعلی خالی بگذارید" />
+
+            <label class="wide">آدرس صفحه ورود SSRS
+                <input name="PayrollReportLoginUrl" value="@S(Model.PayrollReportLoginUrl)" placeholder="مثلاً http://srv.../Indamin_ReportServer/Pages/Login.aspx?AspxAutoDetectCookieSupport=1" />
+            </label>
+            <label>نام فیلد کاربری در Login
+                <input name="PayrollReportUsernameField" value="@S(Model.PayrollReportUsernameField)" placeholder="خالی = تشخیص خودکار" />
+            </label>
+            <label>نام فیلد رمز در Login
+                <input name="PayrollReportPasswordField" value="@S(Model.PayrollReportPasswordField)" placeholder="خالی = تشخیص خودکار" />
+            </label>
+            <label>گذرواژه دسترسی SSRS
+                <input name="PayrollReportPassword" type="password" value="" autocomplete="new-password" placeholder="برای حفظ رمز فعلی خالی بگذارید" />
             </label>
         </div>
 
         <div class="settings-help">
-            <strong>نحوه اتصال به SSRS:</strong>
-            نام کاربری و گذرواژه فقط در سرور پورتال نگهداری می‌شوند و در مرورگر کاربر ارسال یا نمایش داده نمی‌شوند.
-            پورتال گزارش را از طرف کاربر از SSRS دریافت کرده و نتیجه را داخل فیش حقوقی نمایش می‌دهد.
-            برای SSRS با Windows Authentication گزینه Windows/NTLM/Negotiate را انتخاب کنید؛ برای Basic گزینه Basic را انتخاب کنید.
-            پارامتر سال و ماه با قالب شش‌رقمی مانند <code>140506</code> ارسال می‌شود.
+            <strong>تنظیم اتصال:</strong>
+            تصویر ارسالی شما نشان می‌دهد سرور گزارش صفحه <code>Login.aspx</code> با فرم نام کاربری/کلمه عبور دارد؛ بنابراین گزینه <strong>Forms / Custom Login</strong> را انتخاب کنید.
+            اگر «آدرس صفحه ورود» خالی باشد، پورتال به‌صورت خودکار مسیر <code>/Pages/Login.aspx?AspxAutoDetectCookieSupport=1</code> را از روی Report Server می‌سازد.
+            نام فیلدهای Login نیز در حالت عادی به‌صورت خودکار از صفحه ورود تشخیص داده می‌شوند.
+            بعد از ورود، همان نشست احراز هویت برای درخواست گزارش مستقیم استفاده می‌شود و کاربر پورتال صفحه Login یا نام کاربری/رمز SSRS را نمی‌بیند.
+            مقدار پارامتر کد پرسنلی از «شناسه» کارمند لاگین‌شده و مقدار پارامتر دوم از دوره شش‌رقمی مانند <code>140506</code> گرفته می‌شود.
         </div>
 
         <div class="settings-actions">

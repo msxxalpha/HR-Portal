@@ -6,7 +6,7 @@
 <div class="page-head">
     <div>
         <h1>فیش حقوقی</h1>
-        <p>شماره پرسنلی از حساب کاربر لاگین‌شده دریافت می‌شود و در فرم قابل تغییر نیست.</p>
+        <p>شماره پرسنلی از حساب کاربر لاگین‌شده دریافت می‌شود و در فرم قابل تغییر نیست. دوره گزارش را به صورت شش‌رقمی مانند ۱۴۰۵۰۶ وارد کنید.</p>
     </div>
 </div>
 
@@ -47,8 +47,8 @@
                     سال / ماه
                     <input name="yearMonth"
                            value="@ViewBag.YearMonth"
-                           placeholder="۱۴۰۵/۰۶"
-                           maxlength="7"
+                           placeholder="۱۴۰۵۰۶"
+                           maxlength="6"
                            inputmode="numeric"
                            autocomplete="off"
                            required />
@@ -59,9 +59,9 @@
     </div>
 </div>
 
-@if (ViewBag.ReportUrl != null)
+@if (ViewBag.ReportEndpoint != null)
 {
     <div class="report-frame">
-        <iframe src="@ViewBag.ReportUrl" title="گزارش فیش حقوقی"></iframe>
+        <iframe src="@ViewBag.ReportEndpoint" title="گزارش فیش حقوقی"></iframe>
     </div>
 }

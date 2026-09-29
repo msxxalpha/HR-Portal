@@ -4,6 +4,7 @@ public class Employee
 {
  public int Id{get;set;}
  [Required,MaxLength(50)]public string PersonnelNumber{get;set;}="";
+ [MaxLength(100)]public string Identifier{get;set;}="";
  [Required,MaxLength(20)]public string NationalId{get;set;}="";
  [Required,MaxLength(100)]public string FirstName{get;set;}="";
  [Required,MaxLength(150)]public string LastName{get;set;}="";

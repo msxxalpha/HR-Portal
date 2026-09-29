@@ -306,6 +306,10 @@ BEGIN
         [YearParameter] nvarchar(100) NOT NULL CONSTRAINT [DF_PayrollReportSettings_YearParameter] DEFAULT N'YearMonth',
         [PersonnelParameter] nvarchar(100) NOT NULL CONSTRAINT [DF_PayrollReportSettings_PersonnelParameter] DEFAULT N'PersonnelNo',
         [ReportFormat] nvarchar(50) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportFormat] DEFAULT N'HTML4.0',
+        [ReportAuthentication] nvarchar(30) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportAuthentication] DEFAULT N'windows',
+        [ReportUsername] nvarchar(300) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportUsername] DEFAULT N'',
+        [ReportDomain] nvarchar(200) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportDomain] DEFAULT N'',
+        [ReportPasswordProtected] nvarchar(4000) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportPasswordProtected] DEFAULT N'',
         [UseIntegratedSecurity] bit NOT NULL CONSTRAINT [DF_PayrollReportSettings_UseIntegratedSecurity] DEFAULT 0
     );
 END;
@@ -369,6 +373,10 @@ IF COL_LENGTH(N'PayrollReportSettings', N'ReportPath') IS NULL ALTER TABLE [Payr
 IF COL_LENGTH(N'PayrollReportSettings', N'YearParameter') IS NULL ALTER TABLE [PayrollReportSettings] ADD [YearParameter] nvarchar(100) NOT NULL CONSTRAINT [DF_PayrollReportSettings_YearParameter] DEFAULT N'YearMonth';
 IF COL_LENGTH(N'PayrollReportSettings', N'PersonnelParameter') IS NULL ALTER TABLE [PayrollReportSettings] ADD [PersonnelParameter] nvarchar(100) NOT NULL CONSTRAINT [DF_PayrollReportSettings_PersonnelParameter] DEFAULT N'PersonnelNo';
 IF COL_LENGTH(N'PayrollReportSettings', N'ReportFormat') IS NULL ALTER TABLE [PayrollReportSettings] ADD [ReportFormat] nvarchar(50) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportFormat] DEFAULT N'HTML4.0';
+IF COL_LENGTH(N'PayrollReportSettings', N'ReportAuthentication') IS NULL ALTER TABLE [PayrollReportSettings] ADD [ReportAuthentication] nvarchar(30) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportAuthentication] DEFAULT N'windows';
+IF COL_LENGTH(N'PayrollReportSettings', N'ReportUsername') IS NULL ALTER TABLE [PayrollReportSettings] ADD [ReportUsername] nvarchar(300) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportUsername] DEFAULT N'';
+IF COL_LENGTH(N'PayrollReportSettings', N'ReportDomain') IS NULL ALTER TABLE [PayrollReportSettings] ADD [ReportDomain] nvarchar(200) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportDomain] DEFAULT N'';
+IF COL_LENGTH(N'PayrollReportSettings', N'ReportPasswordProtected') IS NULL ALTER TABLE [PayrollReportSettings] ADD [ReportPasswordProtected] nvarchar(4000) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportPasswordProtected] DEFAULT N'';
 IF COL_LENGTH(N'PayrollReportSettings', N'UseIntegratedSecurity') IS NULL ALTER TABLE [PayrollReportSettings] ADD [UseIntegratedSecurity] bit NOT NULL CONSTRAINT [DF_PayrollReportSettings_UseIntegratedSecurity] DEFAULT 0;
 
 IF OBJECT_ID(N'[Employees]', N'U') IS NULL

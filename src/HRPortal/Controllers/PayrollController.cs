@@ -136,7 +136,7 @@ public class PayrollController(HRPortalDbContext db, ReportService reports) : Co
         return Content(html, "text/html; charset=utf-8");
     }
 
-    private Models.Employee? GetAuthenticatedEmployee()
+    private HRPortal.Models.Employee? GetAuthenticatedEmployee()
     {
         var employeeIdValue = User.FindFirst("EmployeeId")?.Value;
         if (!int.TryParse(employeeIdValue, out var employeeId))
@@ -144,7 +144,7 @@ public class PayrollController(HRPortalDbContext db, ReportService reports) : Co
 
         return db.Employees.AsNoTracking()
             .Where(x => x.Id == employeeId && x.IsSystemUser && x.Status == "فعال")
-            .Select(x => new Models.Employee
+            .Select(x => new HRPortal.Models.Employee
             {
                 Id = x.Id,
                 PersonnelNumber = x.PersonnelNumber,

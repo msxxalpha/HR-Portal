@@ -134,7 +134,12 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
         string yearMonth,
         string personnelNo)
     {
-        var target = settings.ReportUrl?.Trim();
+        // When Report Server + Report Path are configured, always build the
+        // native direct report URL. This avoids stale ReportViewer.aspx/catalog URLs.
+        var target = string.IsNullOrWhiteSpace(settings.ReportServerUrl) ||
+                     string.IsNullOrWhiteSpace(settings.ReportPath)
+            ? settings.ReportUrl?.Trim()
+            : null;
 
         if (string.IsNullOrWhiteSpace(target))
         {
@@ -260,7 +265,7 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
     {
         var formMatch = Regex.Match(
             html,
-            @"<form\\b(?<attrs>[^>]*)>(?<body>.*?)</form>",
+            @"<form\b(?<attrs>[^>]*)>(?<body>.*?)</form>",
             RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
         if (!formMatch.Success)
@@ -280,7 +285,7 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
 
         foreach (Match input in Regex.Matches(
                      body,
-                     @"<input\\b(?<attrs>[^>]*)>",
+                     @"<input\b(?<attrs>[^>]*)>",
                      RegexOptions.IgnoreCase | RegexOptions.Singleline))
         {
             var inputAttrs = input.Groups["attrs"].Value;
@@ -308,7 +313,7 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
         // Some WebForms login pages use a <button> rather than an <input>.
         foreach (Match button in Regex.Matches(
                      body,
-                     @"<button\\b(?<attrs>[^>]*)>.*?</button>",
+                     @"<button\b(?<attrs>[^>]*)>.*?</button>",
                      RegexOptions.IgnoreCase | RegexOptions.Singleline))
         {
             var buttonAttrs = button.Groups["attrs"].Value;
@@ -317,21 +322,56 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
                 fields[buttonName] = GetHtmlAttribute(buttonAttrs, "value") ?? "";
         }
 
-        var passwordField = !string.IsNullOrWhiteSpace(configuredPasswordField)
+        var detectedPasswordField = FindInputName(body, "password");
+        var passwordField = !string.IsNullOrWhiteSpace(configuredPasswordField) &&
+                            fields.ContainsKey(configuredPasswordField.Trim())
             ? configuredPasswordField.Trim()
-            : FindInputName(body, "password");
+            : detectedPasswordField;
 
         if (string.IsNullOrWhiteSpace(passwordField))
             return null;
 
-        var usernameField = !string.IsNullOrWhiteSpace(configuredUsernameField)
+        var detectedUsernameField = FindUsernameField(body);
+        var usernameField = !string.IsNullOrWhiteSpace(configuredUsernameField) &&
+                            fields.ContainsKey(configuredUsernameField.Trim())
             ? configuredUsernameField.Trim()
-            : FindInputName(body, "text", true);
+            : detectedUsernameField;
 
         if (string.IsNullOrWhiteSpace(usernameField))
             return null;
 
         return (actionUri.ToString(), fields, usernameField, passwordField);
+    }
+
+    private static string? FindUsernameField(string body)
+    {
+        foreach (Match input in Regex.Matches(
+                     body,
+                     @"<input\b(?<attrs>[^>]*)>",
+                     RegexOptions.IgnoreCase | RegexOptions.Singleline))
+        {
+            var attrs = input.Groups["attrs"].Value;
+            var inputType = GetHtmlAttribute(attrs, "type") ?? "text";
+            if (!inputType.Equals("text", StringComparison.OrdinalIgnoreCase) &&
+                !inputType.Equals("email", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var name = GetHtmlAttribute(attrs, "name");
+            if (string.IsNullOrWhiteSpace(name))
+                continue;
+
+            var hint = (name + " " +
+                        (GetHtmlAttribute(attrs, "id") ?? "") + " " +
+                        (GetHtmlAttribute(attrs, "autocomplete") ?? "") + " " +
+                        (GetHtmlAttribute(attrs, "placeholder") ?? ""))
+                        .ToLowerInvariant();
+
+            if (hint.Contains("user") || hint.Contains("login") || hint.Contains("account") ||
+                hint.Contains("username") || hint.Contains("کاربر") || hint.Contains("نام"))
+                return name;
+        }
+
+        return FindInputName(body, "text", true);
     }
 
     private static string? FindInputName(string body, string type, bool usernameMode = false)

@@ -5,6 +5,14 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var dataProtectionKeyPath = Path.Combine(builder.Environment.ContentRootPath, "App_Data", "Keys");
+Directory.CreateDirectory(dataProtectionKeyPath);
+
+builder.Services
+    .AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeyPath))
+    .SetApplicationName("HRPortal");
+
 builder.Services.AddControllersWithViews(options =>
 {
     // Settings are intentionally optional for the first release.
@@ -29,6 +37,7 @@ builder.Services.AddScoped<EnvironmentSettingsService>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<OtpService>();
 builder.Services.AddScoped<OrganizationService>();
+builder.Services.AddScoped<ReportCredentialProtector>();
 builder.Services.AddScoped<ReportService>();
 builder.Services.AddScoped<EmployeeExcelService>();
 builder.Services.AddScoped<AdminService>();

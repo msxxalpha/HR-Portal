@@ -8,8 +8,8 @@ public class PayrollReportSettings
     public string ReportPath { get; set; } = "";
     public string YearParameter { get; set; } = "YearMonth";
     public string PersonnelParameter { get; set; } = "PersonnelNo";
-    public string ReportFormat { get; set; } = "HTML4.0";
-    public string ReportAuthentication { get; set; } = "forms";
+    public string ReportFormat { get; set; } = "PDF";
+    public string ReportAuthentication { get; set; } = "none";
     public string ReportUsername { get; set; } = "";
     public string ReportDomain { get; set; } = "";
     public string ReportLoginUrl { get; set; } = "";

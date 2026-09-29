@@ -309,23 +309,48 @@
 
         <div class="grid-2">
             <label class="wide">آدرس کامل گزارش SSRS / Report URL
-                <input name="PayrollReportUrl" value="@S(Model.PayrollReportUrl)" />
+                <input name="PayrollReportUrl" value="@S(Model.PayrollReportUrl)" placeholder="https://server/reportserver?/Folder/ReportName" />
             </label>
             <label>آدرس Report Server
-                <input name="PayrollReportServerUrl" value="@S(Model.PayrollReportServerUrl)" />
+                <input name="PayrollReportServerUrl" value="@S(Model.PayrollReportServerUrl)" placeholder="https://server/reportserver" />
             </label>
             <label>مسیر گزارش RDL
-                <input name="PayrollReportPath" value="@S(Model.PayrollReportPath)" />
+                <input name="PayrollReportPath" value="@S(Model.PayrollReportPath)" placeholder="/Folder/ReportName" />
             </label>
             <label>نام پارامتر سال/ماه
-                <input name="PayrollYearParameter" value="@S(Model.PayrollYearParameter)" />
+                <input name="PayrollYearParameter" value="@S(Model.PayrollYearParameter)" placeholder="YearMonth" />
             </label>
             <label>نام پارامتر شماره پرسنلی
-                <input name="PayrollPersonnelParameter" value="@S(Model.PayrollPersonnelParameter)" />
+                <input name="PayrollPersonnelParameter" value="@S(Model.PayrollPersonnelParameter)" placeholder="PersonnelNo" />
             </label>
             <label>فرمت گزارش
-                <input name="PayrollReportFormat" value="@S(Model.PayrollReportFormat)" />
+                <input name="PayrollReportFormat" value="@S(Model.PayrollReportFormat)" placeholder="HTML4.0 یا PDF" />
             </label>
+
+            <label>نوع احراز هویت گزارش
+                <select name="PayrollReportAuthentication">
+                    <option value="windows" selected="@(string.Equals(Model.PayrollReportAuthentication, "windows", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Windows / NTLM / Negotiate</option>
+                    <option value="basic" selected="@(string.Equals(Model.PayrollReportAuthentication, "basic", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Basic</option>
+                    <option value="none" selected="@(string.Equals(Model.PayrollReportAuthentication, "none", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">بدون احراز هویت</option>
+                </select>
+            </label>
+            <label>نام کاربری گزارش
+                <input name="PayrollReportUsername" value="@S(Model.PayrollReportUsername)" autocomplete="off" placeholder="مثلاً DOMAIN\username" />
+            </label>
+            <label>دامین / Domain
+                <input name="PayrollReportDomain" value="@S(Model.PayrollReportDomain)" autocomplete="off" placeholder="در صورت نیاز، مثلاً DOMAIN" />
+            </label>
+            <label>گذرواژه گزارش
+                <input name="PayrollReportPassword" type="password" value="" autocomplete="new-password" placeholder="برای حفظ گذرواژه فعلی خالی بگذارید" />
+            </label>
+        </div>
+
+        <div class="settings-help">
+            <strong>نحوه اتصال به SSRS:</strong>
+            نام کاربری و گذرواژه فقط در سرور پورتال نگهداری می‌شوند و در مرورگر کاربر ارسال یا نمایش داده نمی‌شوند.
+            پورتال گزارش را از طرف کاربر از SSRS دریافت کرده و نتیجه را داخل فیش حقوقی نمایش می‌دهد.
+            برای SSRS با Windows Authentication گزینه Windows/NTLM/Negotiate را انتخاب کنید؛ برای Basic گزینه Basic را انتخاب کنید.
+            پارامتر سال و ماه با قالب شش‌رقمی مانند <code>140506</code> ارسال می‌شود.
         </div>
 
         <div class="settings-actions">

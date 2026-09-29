@@ -304,26 +304,26 @@
     <section id="payroll" class="tab-panel">
         <div class="settings-section-intro">
             <strong>فیش حقوقی / SSRS</strong>
-            <span>شماره پرسنلی فقط برای ورود به پورتال استفاده می‌شود؛ مقدار پارامتر پرسنلی گزارش از «شناسه» متناظر همان کارمند خوانده می‌شود.</span>
+            <span>گزارش‌ها روی SSRS جدید و بدون نام کاربری/رمز اجرا می‌شوند. پورتال پارامترهای گزارش را در سمت سرور دریافت و نتیجه را برای کاربر نمایش می‌دهد.</span>
         </div>
 
         <div class="grid-2">
-            <label class="wide">آدرس کامل گزارش SSRS / Report URL
-                <input name="PayrollReportUrl" value="@S(Model.PayrollReportUrl)" placeholder="برای گزارش مستقیم؛ در صورت استفاده از Report Server/Path خالی بگذارید" />
+            <label class="wide">آدرس Report Server
+                <input name="PayrollReportServerUrl" value="@S(Model.PayrollReportServerUrl)" placeholder="مثلاً http://NewServer/ReportServer" />
             </label>
-            <label>آدرس Report Server
-                <input name="PayrollReportServerUrl" value="@S(Model.PayrollReportServerUrl)" placeholder="مثلاً http://srv.../Indamin_ReportServer" />
-            </label>
-            <label>مسیر مستقیم گزارش
-                <input name="PayrollReportPath" value="@S(Model.PayrollReportPath)" placeholder="مثلاً /پوشه/نام گزارش" />
+
+            <label class="wide">مسیر مستقیم گزارش
+                <input name="PayrollReportPath" value="@S(Model.PayrollReportPath)" placeholder="مثلاً /حقوق و دستمزد/SalaryReceiptItems" />
             </label>
 
             <label>نام پارامتر سال و ماه گزارش
-                <input name="PayrollYearParameter" value="@S(Model.PayrollYearParameter)" placeholder="مثلاً YearMonth" />
+                <input name="PayrollYearParameter" value="@S(Model.PayrollYearParameter)" placeholder="مثلاً IssueYearMonth" />
             </label>
+
             <label>نام پارامتر کد پرسنلی گزارش
-                <input name="PayrollPersonnelParameter" value="@S(Model.PayrollPersonnelParameter)" placeholder="مثلاً PersonnelNo" />
+                <input name="PayrollPersonnelParameter" value="@S(Model.PayrollPersonnelParameter)" placeholder="مثلاً EmployeeID" />
             </label>
+
             <label>فرمت گزارش
                 <select name="PayrollReportFormat">
                     <option value="PDF" selected="@(string.Equals(Model.PayrollReportFormat, "PDF", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">PDF</option>
@@ -335,41 +335,28 @@
 
             <label>نوع احراز هویت SSRS
                 <select name="PayrollReportAuthentication">
-                    <option value="forms" selected="@(string.Equals(Model.PayrollReportAuthentication, "forms", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Forms / Custom Login</option>
-                    <option value="windows" selected="@(string.Equals(Model.PayrollReportAuthentication, "windows", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Windows / NTLM / Negotiate</option>
-                    <option value="basic" selected="@(string.Equals(Model.PayrollReportAuthentication, "basic", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Basic</option>
                     <option value="none" selected="@(string.Equals(Model.PayrollReportAuthentication, "none", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">بدون احراز هویت</option>
+                    <option value="windows" selected="@(string.Equals(Model.PayrollReportAuthentication, "windows", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Windows / NTLM / Negotiate</option>
+                    <option value="forms" selected="@(string.Equals(Model.PayrollReportAuthentication, "forms", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Forms / Custom Login</option>
+                    <option value="basic" selected="@(string.Equals(Model.PayrollReportAuthentication, "basic", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Basic</option>
                 </select>
             </label>
 
-            <label>نام کاربری دسترسی SSRS
-                <input name="PayrollReportUsername" value="@S(Model.PayrollReportUsername)" autocomplete="off" />
-            </label>
-            <label>دامین / Domain
-                <input name="PayrollReportDomain" value="@S(Model.PayrollReportDomain)" autocomplete="off" />
-            </label>
-
-            <label class="wide">آدرس صفحه ورود SSRS
-                <input name="PayrollReportLoginUrl" value="@S(Model.PayrollReportLoginUrl)" placeholder="مثلاً http://srv.../Indamin_ReportServer/Pages/Login.aspx?AspxAutoDetectCookieSupport=1" />
-            </label>
-            <label>نام فیلد کاربری در Login
-                <input name="PayrollReportUsernameField" value="@S(Model.PayrollReportUsernameField)" placeholder="خالی = تشخیص خودکار" />
-            </label>
-            <label>نام فیلد رمز در Login
-                <input name="PayrollReportPasswordField" value="@S(Model.PayrollReportPasswordField)" placeholder="خالی = تشخیص خودکار" />
-            </label>
-            <label>گذرواژه دسترسی SSRS
-                <input name="PayrollReportPassword" type="password" value="" autocomplete="new-password" placeholder="برای حفظ رمز فعلی خالی بگذارید" />
+            <label class="wide">آدرس کامل گزارش SSRS / Report URL
+                <input name="PayrollReportUrl" value="@S(Model.PayrollReportUrl)" placeholder="اختیاری؛ در صورت تکمیل Report Server و مسیر گزارش، این دو مبنا قرار می‌گیرند" />
             </label>
         </div>
 
         <div class="settings-help">
-            <strong>تنظیم اتصال:</strong>
-            تصویر ارسالی شما نشان می‌دهد سرور گزارش صفحه <code>Login.aspx</code> با فرم نام کاربری/کلمه عبور دارد؛ بنابراین گزینه <strong>Forms / Custom Login</strong> را انتخاب کنید.
-            اگر «آدرس صفحه ورود» خالی باشد، پورتال به‌صورت خودکار مسیر <code>/Pages/Login.aspx?AspxAutoDetectCookieSupport=1</code> را از روی Report Server می‌سازد.
-            نام فیلدهای Login نیز در حالت عادی به‌صورت خودکار از صفحه ورود تشخیص داده می‌شوند.
-            بعد از ورود، همان نشست احراز هویت برای درخواست گزارش مستقیم استفاده می‌شود و کاربر پورتال صفحه Login یا نام کاربری/رمز SSRS را نمی‌بیند.
-            مقدار پارامتر کد پرسنلی از «شناسه» کارمند لاگین‌شده و مقدار پارامتر دوم از دوره شش‌رقمی مانند <code>140506</code> گرفته می‌شود.
+            <strong>تنظیم سرور جدید:</strong>
+            احراز هویت را روی <strong>بدون احراز هویت</strong> قرار دهید. «آدرس Report Server» باید آدرس سرویس
+            <code>ReportServer</code> سرور جدید باشد، نه آدرس صفحه مدیریت یا <code>ReportViewer.aspx</code>.
+            «مسیر مستقیم گزارش» مسیر Catalog همان فایل RDL منتشرشده است؛ برای مثال
+            <code>/گزارش مالی/SalaryReceiptItems</code>.
+            پارامتر <strong>@S(Model.PayrollPersonnelParameter)</strong> مقدار فیلد «شناسه» کارمند لاگین‌شده را می‌گیرد،
+            نه شماره پرسنلی ورود، و پارامتر <strong>@S(Model.PayrollYearParameter)</strong> مقدار دوره شش‌رقمی مانند
+            <code>140506</code> را دریافت می‌کند.
+            نام کاربری، رمز، Domain و Login.aspx برای این سرور استفاده نمی‌شوند.
         </div>
 
         <div class="settings-actions">

@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text;
 
 using HRPortal.Data;
+using HRPortal.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace HRPortal.Services;

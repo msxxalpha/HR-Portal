@@ -322,18 +322,18 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
                 fields[buttonName] = GetHtmlAttribute(buttonAttrs, "value") ?? "";
         }
 
-        var detectedPasswordField = FindInputName(body, "password");
+        var detectedPasswordField = FindInputName(html, "password");
         var passwordField = !string.IsNullOrWhiteSpace(configuredPasswordField) &&
-                            fields.ContainsKey(configuredPasswordField.Trim())
+                            HasNamedInput(html, configuredPasswordField.Trim(), "password")
             ? configuredPasswordField.Trim()
             : detectedPasswordField;
 
         if (string.IsNullOrWhiteSpace(passwordField))
             return null;
 
-        var detectedUsernameField = FindUsernameField(body);
+        var detectedUsernameField = FindUsernameField(html);
         var usernameField = !string.IsNullOrWhiteSpace(configuredUsernameField) &&
-                            fields.ContainsKey(configuredUsernameField.Trim())
+                            HasNamedInput(html, configuredUsernameField.Trim(), "text")
             ? configuredUsernameField.Trim()
             : detectedUsernameField;
 
@@ -341,6 +341,26 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
             return null;
 
         return (actionUri.ToString(), fields, usernameField, passwordField);
+    }
+
+    private static bool HasNamedInput(string html, string name, string expectedType)
+    {
+        foreach (Match input in Regex.Matches(
+                     html,
+                     @"<input\b(?<attrs>[^>]*)>",
+                     RegexOptions.IgnoreCase | RegexOptions.Singleline))
+        {
+            var attrs = input.Groups["attrs"].Value;
+            var inputName = GetHtmlAttribute(attrs, "name");
+            var inputType = GetHtmlAttribute(attrs, "type") ?? "text";
+
+            if (string.Equals(inputName, name, StringComparison.OrdinalIgnoreCase) &&
+                (expectedType == "text" ||
+                 string.Equals(inputType, expectedType, StringComparison.OrdinalIgnoreCase)))
+                return true;
+        }
+
+        return false;
     }
 
     private static string? FindUsernameField(string body)
@@ -409,7 +429,7 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
         {
             foreach (Match input in Regex.Matches(
                          body,
-                         @"<input\\b(?<attrs>[^>]*)>",
+                         @"<input\b(?<attrs>[^>]*)>",
                          RegexOptions.IgnoreCase | RegexOptions.Singleline))
             {
                 var attrs = input.Groups["attrs"].Value;

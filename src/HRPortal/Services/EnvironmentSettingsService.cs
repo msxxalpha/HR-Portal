@@ -231,7 +231,7 @@ public class EnvironmentSettingsService(HRPortalDbContext db, ReportCredentialPr
             entity.ApiKey = model.SmsApiKey;
     }
 
-    private static void ApplyPayroll(PayrollReportSettings entity, SystemSettingsEditModel model)
+    private void ApplyPayroll(PayrollReportSettings entity, SystemSettingsEditModel model)
     {
         entity.Enabled = model.PayrollEnabled;
         entity.ReportUrl = model.PayrollReportUrl?.Trim() ?? "";

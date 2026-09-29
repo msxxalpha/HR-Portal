@@ -62,6 +62,10 @@ public class SystemSettingsEditModel
     public string? PayrollYearParameter { get; set; }
     public string? PayrollPersonnelParameter { get; set; }
     public string? PayrollReportFormat { get; set; }
+    public string? PayrollReportAuthentication { get; set; }
+    public string? PayrollReportUsername { get; set; }
+    public string? PayrollReportDomain { get; set; }
+    public string? PayrollReportPassword { get; set; }
     public bool PayrollUseIntegratedSecurity { get; set; }
 
     // Maintenance

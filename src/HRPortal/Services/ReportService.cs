@@ -378,7 +378,7 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
     {
         foreach (Match input in Regex.Matches(
                      body,
-                     @"<input\\b(?<attrs>[^>]*)>",
+                     @"<input\b(?<attrs>[^>]*)>",
                      RegexOptions.IgnoreCase | RegexOptions.Singleline))
         {
             var attrs = input.Groups["attrs"].Value;
@@ -431,7 +431,7 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
     {
         var match = Regex.Match(
             attrs,
-            $@"\\b{Regex.Escape(name)}\\s*=\\s*[""''](?<value>.*?)[""'']",
+            $@"\b{Regex.Escape(name)}\s*=\s*[""''](?<value>.*?)[""'']",
             RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
         if (match.Success)

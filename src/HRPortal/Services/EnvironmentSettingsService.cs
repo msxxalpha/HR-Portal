@@ -156,10 +156,13 @@ public class EnvironmentSettingsService(HRPortalDbContext db, ReportCredentialPr
             PayrollPersonnelParameter = payroll.PersonnelParameter ?? "",
             PayrollReportFormat = payroll.ReportFormat ?? "",
             PayrollReportAuthentication = string.IsNullOrWhiteSpace(payroll.ReportAuthentication)
-                ? (payroll.UseIntegratedSecurity ? "windows" : "none")
+                ? (payroll.UseIntegratedSecurity ? "windows" : "forms")
                 : payroll.ReportAuthentication,
             PayrollReportUsername = payroll.ReportUsername ?? "",
             PayrollReportDomain = payroll.ReportDomain ?? "",
+            PayrollReportLoginUrl = payroll.ReportLoginUrl ?? "",
+            PayrollReportUsernameField = payroll.ReportUsernameField ?? "",
+            PayrollReportPasswordField = payroll.ReportPasswordField ?? "",
             PayrollReportPassword = "",
             PayrollUseIntegratedSecurity = payroll.UseIntegratedSecurity,
 
@@ -245,6 +248,9 @@ public class EnvironmentSettingsService(HRPortalDbContext db, ReportCredentialPr
             : model.PayrollReportAuthentication.Trim().ToLowerInvariant();
         entity.ReportUsername = model.PayrollReportUsername?.Trim() ?? "";
         entity.ReportDomain = model.PayrollReportDomain?.Trim() ?? "";
+        entity.ReportLoginUrl = model.PayrollReportLoginUrl?.Trim() ?? "";
+        entity.ReportUsernameField = model.PayrollReportUsernameField?.Trim() ?? "";
+        entity.ReportPasswordField = model.PayrollReportPasswordField?.Trim() ?? "";
         entity.UseIntegratedSecurity = string.Equals(entity.ReportAuthentication, "windows", StringComparison.OrdinalIgnoreCase);
 
         // Password is never returned to the browser. A blank form value means

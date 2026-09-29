@@ -263,20 +263,44 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
             string? configuredUsernameField,
             string? configuredPasswordField)
     {
-        var formMatch = Regex.Match(
+        // Prefer the HTML form containing the password input. Some custom
+        // reporting portals render login controls without a traditional <form>
+        // wrapper; in that case use the whole page and POST back to Login.aspx.
+        var formMatches = Regex.Matches(
             html,
             @"<form\b(?<attrs>[^>]*)>(?<body>.*?)</form>",
             RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
-        if (!formMatch.Success)
-            return null;
+        string body;
+        string attrs;
+        string action;
 
-        var body = formMatch.Groups["body"].Value;
-        var attrs = formMatch.Groups["attrs"].Value;
+        var selected = formMatches.Cast<Match>()
+            .FirstOrDefault(x =>
+                Regex.IsMatch(
+                    x.Groups["body"].Value,
+                    @"<input\b[^>]*type\s*=\s*[""'']?password",
+                    RegexOptions.IgnoreCase | RegexOptions.Singleline));
 
-        var action = GetHtmlAttribute(attrs, "action");
-        if (string.IsNullOrWhiteSpace(action))
+        if (selected is not null)
+        {
+            body = selected.Groups["body"].Value;
+            attrs = selected.Groups["attrs"].Value;
+            action = GetHtmlAttribute(attrs, "action") ?? loginUrl;
+        }
+        else if (formMatches.Count > 0)
+        {
+            var first = formMatches[0];
+            body = first.Groups["body"].Value;
+            attrs = first.Groups["attrs"].Value;
+            action = GetHtmlAttribute(attrs, "action") ?? loginUrl;
+        }
+        else
+        {
+            body = html;
+            attrs = "";
             action = loginUrl;
+        }
 
         if (!Uri.TryCreate(new Uri(loginUrl), action, out var actionUri))
             actionUri = new Uri(loginUrl);
@@ -547,9 +571,9 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
 
         var text = Encoding.UTF8.GetString(bytes);
 
-        return text.Contains("Login.aspx", StringComparison.OrdinalIgnoreCase) ||
-               text.Contains("کلمه عبور", StringComparison.OrdinalIgnoreCase) &&
-               text.Contains("نام کاربری", StringComparison.OrdinalIgnoreCase);
+        return (text.Contains("کلمه عبور", StringComparison.OrdinalIgnoreCase) &&
+                text.Contains("نام کاربری", StringComparison.OrdinalIgnoreCase)) ||
+               text.Contains("نام کاربری :", StringComparison.OrdinalIgnoreCase);
     }
 
     private static ReportFetchResult Fail(string message) =>

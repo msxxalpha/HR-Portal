@@ -244,7 +244,7 @@ public class EnvironmentSettingsService(HRPortalDbContext db, ReportCredentialPr
         entity.PersonnelParameter = model.PayrollPersonnelParameter?.Trim() ?? "";
         entity.ReportFormat = model.PayrollReportFormat?.Trim() ?? "";
         entity.ReportAuthentication = string.IsNullOrWhiteSpace(model.PayrollReportAuthentication)
-            ? (model.PayrollUseIntegratedSecurity ? "windows" : "none")
+            ? (model.PayrollUseIntegratedSecurity ? "windows" : "forms")
             : model.PayrollReportAuthentication.Trim().ToLowerInvariant();
         entity.ReportUsername = model.PayrollReportUsername?.Trim() ?? "";
         entity.ReportDomain = model.PayrollReportDomain?.Trim() ?? "";

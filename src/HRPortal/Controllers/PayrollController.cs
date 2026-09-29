@@ -19,8 +19,8 @@ public class PayrollController(HRPortalDbContext db, ReportService reports) : Co
             return View();
         }
 
-        var personnelNumber = GetAuthenticatedPersonnelNumber();
-        ViewBag.PersonnelNumber = personnelNumber;
+        var employee = GetAuthenticatedEmployee();
+        ViewBag.PersonnelNumber = employee?.PersonnelNumber;
 
         var requestedYearMonth = string.IsNullOrWhiteSpace(yearMonth)
             ? PersianMonth()
@@ -28,9 +28,13 @@ public class PayrollController(HRPortalDbContext db, ReportService reports) : Co
 
         ViewBag.YearMonth = requestedYearMonth;
 
-        if (personnelNumber is null)
+        if (employee is null)
         {
-            ViewBag.Message = "شماره پرسنلی کاربر احراز‌شده یافت نشد.";
+            ViewBag.Message = "کارمند فعال و احراز‌شده یافت نشد.";
+        }
+        else if (string.IsNullOrWhiteSpace(employee.Identifier))
+        {
+            ViewBag.Message = "شناسه گزارش این کارمند در اطلاعات کارکنان ثبت نشده است.";
         }
         else if (!string.IsNullOrWhiteSpace(yearMonth) &&
                  ReportService.TryNormalizeYearMonth(yearMonth, out var normalizedYearMonth))
@@ -52,13 +56,19 @@ public class PayrollController(HRPortalDbContext db, ReportService reports) : Co
             return View("Payslip");
         }
 
-        var personnelNumber = GetAuthenticatedPersonnelNumber();
-        ViewBag.PersonnelNumber = personnelNumber;
+        var employee = GetAuthenticatedEmployee();
+        ViewBag.PersonnelNumber = employee?.PersonnelNumber;
         ViewBag.YearMonth = NormalizeDigits(yearMonth).Trim();
 
-        if (personnelNumber is null)
+        if (employee is null)
         {
-            ViewBag.Message = "شماره پرسنلی کاربر احراز‌شده یافت نشد.";
+            ViewBag.Message = "کارمند فعال و احراز‌شده یافت نشد.";
+            return View("Payslip");
+        }
+
+        if (string.IsNullOrWhiteSpace(employee.Identifier))
+        {
+            ViewBag.Message = "شناسه گزارش این کارمند در اطلاعات کارکنان ثبت نشده است.";
             return View("Payslip");
         }
 
@@ -86,14 +96,19 @@ public class PayrollController(HRPortalDbContext db, ReportService reports) : Co
         if (User.HasClaim("IsAdmin", "1"))
             return StyledReportError("این کاربر فیش حقوقی ندارد.", StatusCodes.Status403Forbidden);
 
-        var personnelNumber = GetAuthenticatedPersonnelNumber();
-        if (personnelNumber is null)
-            return StyledReportError("شماره پرسنلی کاربر احراز‌شده یافت نشد.", StatusCodes.Status403Forbidden);
+        var employee = GetAuthenticatedEmployee();
+        if (employee is null)
+            return StyledReportError("کارمند فعال و احراز‌شده یافت نشد.", StatusCodes.Status403Forbidden);
+
+        if (string.IsNullOrWhiteSpace(employee.Identifier))
+            return StyledReportError("شناسه گزارش این کارمند در اطلاعات کارکنان ثبت نشده است.", StatusCodes.Status422UnprocessableEntity);
 
         if (!ReportService.TryNormalizeYearMonth(yearMonth, out var normalizedYearMonth))
             return StyledReportError("پارامتر سال و ماه باید دقیقاً با فرمت ۱۴۰۵۰۶ (شش رقم، بدون اسلش) باشد.", StatusCodes.Status400BadRequest);
 
-        var result = await reports.FetchAsync(normalizedYearMonth, personnelNumber);
+        // The report receives the employee's internal report identifier,
+        // not the login personnel number.
+        var result = await reports.FetchAsync(normalizedYearMonth, employee.Identifier);
         if (!result.Success || result.Content is null)
             return StyledReportError(result.ErrorMessage, StatusCodes.Status502BadGateway);
 
@@ -121,7 +136,7 @@ public class PayrollController(HRPortalDbContext db, ReportService reports) : Co
         return Content(html, "text/html; charset=utf-8");
     }
 
-    private string? GetAuthenticatedPersonnelNumber()
+    private Models.Employee? GetAuthenticatedEmployee()
     {
         var employeeIdValue = User.FindFirst("EmployeeId")?.Value;
         if (!int.TryParse(employeeIdValue, out var employeeId))
@@ -129,7 +144,14 @@ public class PayrollController(HRPortalDbContext db, ReportService reports) : Co
 
         return db.Employees.AsNoTracking()
             .Where(x => x.Id == employeeId && x.IsSystemUser && x.Status == "فعال")
-            .Select(x => x.PersonnelNumber)
+            .Select(x => new Models.Employee
+            {
+                Id = x.Id,
+                PersonnelNumber = x.PersonnelNumber,
+                Identifier = x.Identifier,
+                FirstName = x.FirstName,
+                LastName = x.LastName
+            })
             .FirstOrDefault();
     }
 

@@ -94,12 +94,15 @@
             @RenderBody()
         </main>
 
-        <footer>
-            @(string.IsNullOrWhiteSpace(company.FooterText) ? company.ApplicationName : company.FooterText)
-            @if (!string.IsNullOrWhiteSpace(company.OrganizationName))
-            {
-                <span> | @company.OrganizationName</span>
-            }
+        <footer class="app-footer">
+            <span>
+                @(string.IsNullOrWhiteSpace(company.FooterText) ? company.ApplicationName : company.FooterText)
+                @if (!string.IsNullOrWhiteSpace(company.OrganizationName))
+                {
+                    <span> | @company.OrganizationName</span>
+                }
+            </span>
+            <span class="build-version">Build @HRPortal.BuildInfo.Number</span>
         </footer>
     </div>
 </div>

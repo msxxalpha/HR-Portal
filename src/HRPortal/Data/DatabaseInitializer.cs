@@ -306,14 +306,14 @@ BEGIN
         [YearParameter] nvarchar(100) NOT NULL CONSTRAINT [DF_PayrollReportSettings_YearParameter] DEFAULT N'YearMonth',
         [PersonnelParameter] nvarchar(100) NOT NULL CONSTRAINT [DF_PayrollReportSettings_PersonnelParameter] DEFAULT N'PersonnelNo',
         [ReportFormat] nvarchar(50) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportFormat] DEFAULT N'PDF',
-        [ReportAuthentication] nvarchar(30) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportAuthentication] DEFAULT N'none',
+        [ReportAuthentication] nvarchar(30) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportAuthentication] DEFAULT N'windows',
         [ReportUsername] nvarchar(300) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportUsername] DEFAULT N'',
         [ReportDomain] nvarchar(200) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportDomain] DEFAULT N'',
         [ReportLoginUrl] nvarchar(2000) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportLoginUrl] DEFAULT N'',
         [ReportUsernameField] nvarchar(300) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportUsernameField] DEFAULT N'',
         [ReportPasswordField] nvarchar(300) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportPasswordField] DEFAULT N'',
         [ReportPasswordProtected] nvarchar(4000) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportPasswordProtected] DEFAULT N'',
-        [UseIntegratedSecurity] bit NOT NULL CONSTRAINT [DF_PayrollReportSettings_UseIntegratedSecurity] DEFAULT 0
+        [UseIntegratedSecurity] bit NOT NULL CONSTRAINT [DF_PayrollReportSettings_UseIntegratedSecurity] DEFAULT 1
     );
 END;
 

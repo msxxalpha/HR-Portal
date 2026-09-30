@@ -25,7 +25,12 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
                 x.NationalId.Contains(q) ||
                 x.FirstName.Contains(q) ||
                 x.LastName.Contains(q) ||
-                x.Mobile.Contains(q));
+                x.Mobile.Contains(q) ||
+                x.Gender.Contains(q) ||
+                x.Status.Contains(q) ||
+                (x.OrganizationUnit != null && x.OrganizationUnit.Title.Contains(q)) ||
+                (x.OrganizationDepartment != null && x.OrganizationDepartment.Title.Contains(q)) ||
+                (x.OrganizationSection != null && x.OrganizationSection.Title.Contains(q)));
 
         if (!string.IsNullOrWhiteSpace(status))
             query = query.Where(x => x.Status == status);
@@ -276,7 +281,12 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
                 x.NationalId.Contains(q) ||
                 x.FirstName.Contains(q) ||
                 x.LastName.Contains(q) ||
-                x.Mobile.Contains(q));
+                x.Mobile.Contains(q) ||
+                x.Gender.Contains(q) ||
+                x.Status.Contains(q) ||
+                (x.OrganizationUnit != null && x.OrganizationUnit.Title.Contains(q)) ||
+                (x.OrganizationDepartment != null && x.OrganizationDepartment.Title.Contains(q)) ||
+                (x.OrganizationSection != null && x.OrganizationSection.Title.Contains(q)));
 
         if (!string.IsNullOrWhiteSpace(status))
             query = query.Where(x => x.Status == status);

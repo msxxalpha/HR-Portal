@@ -50,6 +50,13 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
 
             var mode = NormalizeAuthenticationMode(settings.ReportAuthentication);
 
+            // A browser may open the SSRS portal without prompting because it
+            // silently supplies Windows Integrated credentials. In that case
+            // an anonymous server-side HttpClient gets 401. Let HttpClient
+            // answer a Windows challenge with the portal process identity.
+            if (mode is "" or "none" or "windows")
+                handler.UseDefaultCredentials = true;
+
             if (mode == "forms")
             {
                 var authenticated = await LoginFormsAsync(
@@ -129,6 +136,60 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
         return true;
     }
 
+    private static string NormalizeReportTarget(string target)
+    {
+        if (!Uri.TryCreate(target, UriKind.Absolute, out var uri))
+            return target;
+
+        var path = uri.AbsolutePath;
+        var markerIndex = path.IndexOf("/Reports/report/", StringComparison.OrdinalIgnoreCase);
+        if (markerIndex >= 0)
+        {
+            var reportPath = path[(markerIndex + "/Reports/report/".Length)..];
+            reportPath = Uri.UnescapeDataString(reportPath).Trim('/');
+
+            if (reportPath.Length > 0)
+            {
+                var builder = new UriBuilder(uri.Scheme, uri.Host, uri.Port);
+                builder.Path = "/ReportServer";
+                builder.Query = "/" + reportPath;
+                return builder.Uri.ToString().TrimEnd('?');
+            }
+        }
+
+        if (path.Equals("/Reports", StringComparison.OrdinalIgnoreCase) ||
+            path.Equals("/Reports/", StringComparison.OrdinalIgnoreCase))
+        {
+            var builder = new UriBuilder(uri.Scheme, uri.Host, uri.Port);
+            builder.Path = "/ReportServer";
+            return builder.Uri.ToString().TrimEnd('/');
+        }
+
+        return target;
+    }
+
+    private static string NormalizeReportServerUrl(string value)
+    {
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri))
+            return value.TrimEnd('/');
+
+        var path = uri.AbsolutePath.TrimEnd('/');
+        if (path.Equals("/Reports", StringComparison.OrdinalIgnoreCase))
+            path = "/ReportServer";
+
+        if (!path.EndsWith("/ReportServer", StringComparison.OrdinalIgnoreCase) &&
+            !path.Contains("/ReportServer_", StringComparison.OrdinalIgnoreCase))
+        {
+            // Leave custom virtual directories untouched.
+        }
+
+        var builder = new UriBuilder(uri)
+        {
+            Path = path
+        };
+        return builder.Uri.ToString().TrimEnd('/');
+    }
+
     private static string? BuildReportUrl(
         PayrollReportSettings settings,
         string yearMonth,
@@ -147,15 +208,21 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
                 string.IsNullOrWhiteSpace(settings.ReportPath))
                 return null;
 
-            var baseUrl = settings.ReportServerUrl.TrimEnd('/');
+            var baseUrl = NormalizeReportServerUrl(settings.ReportServerUrl.TrimEnd('/'));
             var reportPath = settings.ReportPath.Trim();
 
             if (!reportPath.StartsWith('/'))
                 reportPath = "/" + reportPath;
 
-            // Native SSRS URL access to a report uses:
-            // https://server/ReportServer?/Folder/Report&rs:Command=Render
             target = baseUrl + "?" + reportPath;
+        }
+        else
+        {
+            // Users commonly copy the browser portal URL:
+            // /Reports/report/SalaryReceiptItems
+            // That is the web portal, not the native ReportServer URL.
+            // Convert it automatically to the URL-access endpoint.
+            target = NormalizeReportTarget(target);
         }
 
         var separator = target.Contains('?') ? '&' : '?';

@@ -6,6 +6,5 @@ namespace HRPortal;
 /// </summary>
 public static class BuildInfo
 {
-    public const string Number = "255";
-    public const string Commit = "pending";
+    public const string Number = "259";
 }

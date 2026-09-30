@@ -164,6 +164,106 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         return RedirectToAction(nameof(Index));
     }
 
+    [HttpPost, Authorize(Policy = "Employees.Edit"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> BulkAction(int[] selectedIds, string action, string? gender)
+    {
+        if (selectedIds is null || selectedIds.Length == 0)
+        {
+            TempData["Error"] = "حداقل یک کارمند را انتخاب کنید.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var isAdmin = User.HasClaim("IsAdmin", "1");
+        bool Allowed(string permission) => isAdmin || User.HasClaim("Permission", permission);
+
+        if (action == "deactivate" && !Allowed("Employees.Deactivate"))
+        {
+            TempData["Error"] = "شما مجوز غیرفعال‌سازی کارکنان را ندارید.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        if (action == "delete" && !Allowed("Employees.Delete"))
+        {
+            TempData["Error"] = "شما مجوز حذف کارکنان را ندارید.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        if (action == "gender" && !Allowed("Employees.Edit"))
+        {
+            TempData["Error"] = "شما مجوز ویرایش کارکنان را ندارید.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        if (action is not ("deactivate" or "delete" or "gender"))
+        {
+            TempData["Error"] = "عملیات گروهی نامعتبر است.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        if (action == "gender" && gender is not ("مرد" or "زن"))
+        {
+            TempData["Error"] = "جنسیت جدید را انتخاب کنید.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var employees = await db.Employees
+            .Where(x => selectedIds.Contains(x.Id))
+            .ToListAsync();
+
+        var success = 0;
+        var blockedDelete = 0;
+
+        foreach (var employee in employees)
+        {
+            if (action == "deactivate")
+            {
+                if (employee.Status != "غیرفعال")
+                {
+                    employee.Status = "غیرفعال";
+                    employee.IsSystemUser = false;
+                    employee.UpdatedAt = DateTime.UtcNow;
+                    success++;
+                    await audit.WriteAsync("غیرفعال‌سازی گروهی کارمند", "Employee", employee.Id.ToString(), employee.PersonnelNumber);
+                }
+            }
+            else if (action == "gender")
+            {
+                employee.Gender = gender!;
+                employee.UpdatedAt = DateTime.UtcNow;
+                success++;
+                await audit.WriteAsync("تغییر گروهی جنسیت کارمند", "Employee", employee.Id.ToString(), employee.PersonnelNumber);
+            }
+            else
+            {
+                var hasHistory = await db.OtpChallenges.AnyAsync(x => x.EmployeeId == employee.Id) ||
+                                 await db.AuditLogs.AnyAsync(x => x.EmployeeId == employee.Id);
+
+                if (hasHistory)
+                {
+                    blockedDelete++;
+                    continue;
+                }
+
+                db.Employees.Remove(employee);
+                success++;
+                await audit.WriteAsync("حذف گروهی کارمند", "Employee", employee.Id.ToString(), employee.PersonnelNumber);
+            }
+        }
+
+        await db.SaveChangesAsync();
+
+        TempData["Success"] = action switch
+        {
+            "deactivate" => $"عملیات غیرفعال‌سازی انجام شد. {success} نفر به‌روزرسانی شدند.",
+            "gender" => $"جنسیت {success} نفر به «{gender}» تغییر کرد.",
+            _ => blockedDelete == 0
+                ? $"حذف {success} نفر انجام شد."
+                : $"حذف {success} نفر انجام شد؛ {blockedDelete} نفر به دلیل داشتن سوابق سامانه حذف نشدند و باید غیرفعال شوند."
+        };
+
+        return RedirectToAction(nameof(Index));
+    }
+
     [HttpGet, Authorize(Policy = "Employees.ImportExport")]
     public async Task<IActionResult> Export(string? q, string? status)
     {

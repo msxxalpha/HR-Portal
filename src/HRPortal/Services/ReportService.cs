@@ -55,7 +55,13 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
             // an anonymous server-side HttpClient gets 401. Let HttpClient
             // answer a Windows challenge with the portal process identity.
             if (mode is "" or "none" or "windows")
+            {
+                // SSRS normally uses Windows Integrated Authentication. A browser
+                // can authenticate silently, but the server-side HttpClient must
+                // explicitly opt in to the current Windows credentials.
                 handler.UseDefaultCredentials = true;
+                handler.Credentials = CredentialCache.DefaultNetworkCredentials;
+            }
 
             if (mode == "forms")
             {
@@ -91,6 +97,15 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
             if (!response.IsSuccessStatusCode)
             {
                 var body = SafeErrorBody(bytes, response.Content.Headers.ContentType?.MediaType);
+                if (response.StatusCode == HttpStatusCode.Unauthorized)
+                {
+                    return Fail(
+                        "سرور SSRS درخواست سامانه را با خطای 401 رد کرد. " +
+                        "SSRS این گزارش را با Windows Integrated Authentication محافظت می‌کند و حساب Windows اجرای پورتال " +
+                        "باید روی گزارش SalaryReceiptItems مجوز مشاهده (Browser/Read) داشته باشد." +
+                        (string.IsNullOrWhiteSpace(body) ? "" : $" جزئیات سرور: {body}"));
+                }
+
                 return Fail($"سرور SSRS کد HTTP موفق برنگرداند: {(int)response.StatusCode} {body}");
             }
 

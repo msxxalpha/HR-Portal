@@ -54,11 +54,11 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
             // silently supplies Windows Integrated credentials. In that case
             // an anonymous server-side HttpClient gets 401. Let HttpClient
             // answer a Windows challenge with the portal process identity.
-            if (mode is "" or "none" or "windows")
+            if (mode is "" or "windows")
             {
-                // SSRS normally uses Windows Integrated Authentication. A browser
-                // can authenticate silently, but the server-side HttpClient must
-                // explicitly opt in to the current Windows credentials.
+                // The browser can authenticate to SSRS silently with Windows
+                // Integrated Authentication. The server-side HttpClient must
+                // explicitly use the Windows identity of the portal process.
                 handler.UseDefaultCredentials = true;
                 handler.Credentials = CredentialCache.DefaultNetworkCredentials;
             }
@@ -580,11 +580,15 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
         if (mode is "" or "none")
             return;
 
-        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
-            throw new InvalidOperationException("نام کاربری و گذرواژه دسترسی به گزارش SSRS تنظیم نشده است.");
-
         if (mode is "windows" or "ntlm" or "negotiate")
         {
+            // No explicit username/password is required for automatic Windows
+            // authentication. The handler has already been configured with the
+            // current process identity above. Explicit credentials remain
+            // supported when the administrator supplies them.
+            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
+                return;
+
             if (username.Contains('\\') && string.IsNullOrWhiteSpace(domain))
             {
                 var parts = username.Split('\\', 2, StringSplitOptions.RemoveEmptyEntries);

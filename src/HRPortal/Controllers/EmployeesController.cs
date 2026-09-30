@@ -164,7 +164,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         return RedirectToAction(nameof(Index));
     }
 
-    [HttpPost, Authorize(Policy = "Employees.Edit"), ValidateAntiForgeryToken]
+    [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> BulkAction(int[] selectedIds, string action, string? gender)
     {
         if (selectedIds is null || selectedIds.Length == 0)

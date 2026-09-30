@@ -159,3 +159,9 @@
 .otp-countdown{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 16px;padding:12px 14px;background:#f7f9fa;border:1px solid var(--line);border-radius:10px;color:var(--muted);font-size:10px}
 .otp-countdown strong{font-family:Tahoma,Arial,sans-serif;color:var(--navy);font-size:18px;letter-spacing:1px;direction:ltr}
 
+
+
+/* Visible build identifier for local verification against the latest CI build. */
+.app-footer{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.build-version,.login-build-version{font-family:Tahoma,Arial,sans-serif;font-size:10px;color:#71808a;direction:ltr;white-space:nowrap}
+.login-build-version{text-align:right;margin-top:10px}

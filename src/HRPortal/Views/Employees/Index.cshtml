@@ -30,8 +30,8 @@
 </div>
 <div class="table-wrap"><table><thead><tr><th><input type="checkbox" id="selectAll" title="انتخاب همه"></th><th><a href="/Employees?sort=PersonnelNumber&dir=@(ViewBag.Dir=="asc"?"desc":"asc")">شماره پرسنلی ↕</a></th><th>شناسه</th><th><a href="/Employees?sort=LastName&dir=@(ViewBag.Dir=="asc"?"desc":"asc")">نام و نام خانوادگی ↕</a></th><th>کد ملی</th><th>موبایل</th><th>جنسیت</th><th>واحد</th><th>اداره</th><th>بخش</th><th><a href="/Employees?sort=Status&dir=@(ViewBag.Dir=="asc"?"desc":"asc")">وضعیت ↕</a></th><th>عملیات</th></tr></thead><tbody>@foreach(var e in Model){<tr><td><input type="checkbox" class="employee-check" value="@e.Id"></td><td>@e.PersonnelNumber</td><td>@e.Identifier</td><td>@e.FirstName @e.LastName</td><td>@e.NationalId</td><td>@e.Mobile</td><td>@e.Gender</td><td>@e.OrganizationUnit?.Title</td><td>@e.OrganizationDepartment?.Title</td><td>@e.OrganizationSection?.Title</td><td><span class="badge">@e.Status</span></td><td>
 @if (canEdit) { <a href="/Employees/Edit/@e.Id">ویرایش</a> }
-@if (canDeactivate && e.Status=="فعال"){<form class="inline" method="post" action="/Employees/Deactivate/@e.Id">@Html.AntiForgeryToken()<button class="link danger">غیرفعال</button></form>}
-@if (canDelete){<form class="inline" method="post" action="/Employees/Delete/@e.Id" onsubmit="return confirm('حذف مستقیم این کارمند انجام شود؟');">@Html.AntiForgeryToken()<button class="link danger">حذف</button></form>}
+@if (canDeactivate && e.Status=="فعال"){<button type="submit" class="link danger" formmethod="post" formaction="/Employees/Deactivate/@e.Id">غیرفعال</button>}
+@if (canDelete){<button type="submit" class="link danger" formmethod="post" formaction="/Employees/Delete/@e.Id" onclick="return confirm('حذف مستقیم این کارمند انجام شود؟');">حذف</button>}
 </td></tr>}</tbody></table></div>
 <input type="hidden" name="action" id="bulkAction"><input type="hidden" name="gender" id="bulkGenderValue">
 </form>

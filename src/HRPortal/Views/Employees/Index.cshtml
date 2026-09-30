@@ -15,8 +15,50 @@
 </div></div>
 <form class="filterbar" method="get"><input name="q" value="@ViewBag.Q" placeholder="جستجو: پرسنلی، شناسه، کد ملی، نام، موبایل"><select name="status"><option value="">همه وضعیت‌ها</option><option selected="@(ViewBag.Status=="فعال")">فعال</option><option selected="@(ViewBag.Status=="غیرفعال")">غیرفعال</option></select><button class="btn btn-main">اعمال فیلتر</button></form>
 @if(TempData["Error"]!=null){<div class="alert error">@TempData["Error"]</div>}
-<div class="table-wrap"><table><thead><tr><th><a href="/Employees?sort=PersonnelNumber&dir=@(ViewBag.Dir=="asc"?"desc":"asc")">شماره پرسنلی ↕</a></th><th>شناسه</th><th><a href="/Employees?sort=LastName&dir=@(ViewBag.Dir=="asc"?"desc":"asc")">نام و نام خانوادگی ↕</a></th><th>کد ملی</th><th>موبایل</th><th>جنسیت</th><th>واحد</th><th>اداره</th><th>بخش</th><th><a href="/Employees?sort=Status&dir=@(ViewBag.Dir=="asc"?"desc":"asc")">وضعیت ↕</a></th><th>عملیات</th></tr></thead><tbody>@foreach(var e in Model){<tr><td>@e.PersonnelNumber</td><td>@e.Identifier</td><td>@e.FirstName @e.LastName</td><td>@e.NationalId</td><td>@e.Mobile</td><td>@e.Gender</td><td>@e.OrganizationUnit?.Title</td><td>@e.OrganizationDepartment?.Title</td><td>@e.OrganizationSection?.Title</td><td><span class="badge">@e.Status</span></td><td>
+@if(TempData["Success"]!=null){<div class="alert success">@TempData["Success"]</div>}
+<form id="bulkForm" method="post" action="/Employees/BulkAction" onsubmit="return submitBulkAction();">
+@Html.AntiForgeryToken()
+<div class="bulkbar">
+    <strong><span id="selectedCount">0</span> نفر انتخاب شده</strong>
+    @if (canDeactivate) { <button type="button" class="btn btn-outline" onclick="setBulkAction('deactivate')">غیرفعال‌سازی</button> }
+    @if (canEdit) { <button type="button" class="btn btn-outline" onclick="openGenderBulk()">تغییر جنسیت</button> }
+    @if (canDelete) { <button type="button" class="btn btn-outline danger" onclick="setBulkAction('delete')">حذف</button> }
+    <span id="genderBulk" style="display:none">
+        <select id="bulkGender"><option value="">جنسیت جدید</option><option value="مرد">مرد</option><option value="زن">زن</option></select>
+        <button type="button" class="btn btn-main" onclick="setBulkAction('gender')">اعمال جنسیت</button>
+    </span>
+</div>
+<div class="table-wrap"><table><thead><tr><th><input type="checkbox" id="selectAll" title="انتخاب همه"></th><th><a href="/Employees?sort=PersonnelNumber&dir=@(ViewBag.Dir=="asc"?"desc":"asc")">شماره پرسنلی ↕</a></th><th>شناسه</th><th><a href="/Employees?sort=LastName&dir=@(ViewBag.Dir=="asc"?"desc":"asc")">نام و نام خانوادگی ↕</a></th><th>کد ملی</th><th>موبایل</th><th>جنسیت</th><th>واحد</th><th>اداره</th><th>بخش</th><th><a href="/Employees?sort=Status&dir=@(ViewBag.Dir=="asc"?"desc":"asc")">وضعیت ↕</a></th><th>عملیات</th></tr></thead><tbody>@foreach(var e in Model){<tr><td><input type="checkbox" class="employee-check" value="@e.Id"></td><td>@e.PersonnelNumber</td><td>@e.Identifier</td><td>@e.FirstName @e.LastName</td><td>@e.NationalId</td><td>@e.Mobile</td><td>@e.Gender</td><td>@e.OrganizationUnit?.Title</td><td>@e.OrganizationDepartment?.Title</td><td>@e.OrganizationSection?.Title</td><td><span class="badge">@e.Status</span></td><td>
 @if (canEdit) { <a href="/Employees/Edit/@e.Id">ویرایش</a> }
 @if (canDeactivate && e.Status=="فعال"){<form class="inline" method="post" action="/Employees/Deactivate/@e.Id">@Html.AntiForgeryToken()<button class="link danger">غیرفعال</button></form>}
 @if (canDelete){<form class="inline" method="post" action="/Employees/Delete/@e.Id" onsubmit="return confirm('حذف مستقیم این کارمند انجام شود؟');">@Html.AntiForgeryToken()<button class="link danger">حذف</button></form>}
 </td></tr>}</tbody></table></div>
+<input type="hidden" name="action" id="bulkAction"><input type="hidden" name="gender" id="bulkGenderValue">
+</form>
+<script>
+(function(){
+ const checks=()=>Array.from(document.querySelectorAll('.employee-check'));
+ const count=()=>document.getElementById('selectedCount').textContent=checks().filter(x=>x.checked).length;
+ document.getElementById('selectAll')?.addEventListener('change',function(){checks().forEach(x=>x.checked=this.checked);count();});
+ checks().forEach(x=>x.addEventListener('change',count));
+ window.openGenderBulk=function(){document.getElementById('genderBulk').style.display='inline-flex';};
+ window.setBulkAction=function(action){
+   if(!checks().some(x=>x.checked)){alert('حداقل یک کارمند را انتخاب کنید.');return;}
+   if(action==='delete' && !confirm('آیا از حذف کارکنان انتخاب‌شده اطمینان دارید؟ کارکنان دارای سوابق سامانه حذف نخواهند شد.'))return;
+   document.getElementById('bulkAction').value=action;
+   document.getElementById('bulkForm').requestSubmit();
+ };
+ window.submitBulkAction=function(){
+   const form=document.getElementById('bulkForm');
+   form.querySelectorAll('input[name="selectedIds"]').forEach(x=>x.remove());
+   checks().filter(x=>x.checked).forEach(x=>{const h=document.createElement('input');h.type='hidden';h.name='selectedIds';h.value=x.value;form.appendChild(h);});
+   if(!document.getElementById('bulkAction').value)return false;
+   if(document.getElementById('bulkAction').value==='gender'){
+     const g=document.getElementById('bulkGender').value;
+     if(!g){alert('جنسیت جدید را انتخاب کنید.');return false;}
+     document.getElementById('bulkGenderValue').value=g;
+   }
+   return true;
+ };
+})();
+</script>

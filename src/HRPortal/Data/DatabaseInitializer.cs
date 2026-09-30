@@ -493,6 +493,7 @@ END;
         await db.Database.ExecuteSqlRawAsync(sql);
         await MigrateLegacySmsAsync(db);
         await MigrateSmsProviderDefaultsAsync(db);
+        await MigratePayrollReportDefaultsAsync(db);
         await EnsureIndexesAsync(db);
     }
 

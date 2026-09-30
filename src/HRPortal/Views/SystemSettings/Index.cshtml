@@ -335,7 +335,6 @@
             <label>نوع احراز هویت SSRS
                 <select name="PayrollReportAuthentication">
                     <option value="windows" selected="@(string.Equals(Model.PayrollReportAuthentication, "windows", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Windows / NTLM / Negotiate (حساب اجرای سامانه)</option>
-                    <option value="windows" selected="@(string.Equals(Model.PayrollReportAuthentication, "windows", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Windows / NTLM / Negotiate</option>
                     <option value="forms" selected="@(string.Equals(Model.PayrollReportAuthentication, "forms", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Forms / Custom Login</option>
                     <option value="basic" selected="@(string.Equals(Model.PayrollReportAuthentication, "basic", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Basic</option>
                 </select>

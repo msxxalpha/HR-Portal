@@ -9,7 +9,7 @@ public class PayrollReportSettings
     public string YearParameter { get; set; } = "YearMonth";
     public string PersonnelParameter { get; set; } = "PersonnelNo";
     public string ReportFormat { get; set; } = "PDF";
-    public string ReportAuthentication { get; set; } = "none";
+    public string ReportAuthentication { get; set; } = "windows";
     public string ReportUsername { get; set; } = "";
     public string ReportDomain { get; set; } = "";
     public string ReportLoginUrl { get; set; } = "";

@@ -1,7 +1,7 @@
-using System.Security.Cryptography;
 using HRPortal.Data;
 using HRPortal.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
 
 namespace HRPortal.Services;
 

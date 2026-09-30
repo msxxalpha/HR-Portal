@@ -166,9 +166,11 @@ public class EnvironmentSettingsService(HRPortalDbContext db, ReportCredentialPr
             PayrollYearParameter = payroll.YearParameter ?? "",
             PayrollPersonnelParameter = payroll.PersonnelParameter ?? "",
             PayrollReportFormat = string.IsNullOrWhiteSpace(payroll.ReportFormat) ? "PDF" : payroll.ReportFormat,
-            PayrollReportAuthentication = string.IsNullOrWhiteSpace(payroll.ReportAuthentication)
+            PayrollReportAuthentication = string.Equals(payroll.ReportAuthentication, "none", StringComparison.OrdinalIgnoreCase)
                 ? "windows"
-                : payroll.ReportAuthentication,
+                : (string.IsNullOrWhiteSpace(payroll.ReportAuthentication)
+                    ? "windows"
+                    : payroll.ReportAuthentication),
             PayrollReportUsername = payroll.ReportUsername ?? "",
             PayrollReportDomain = payroll.ReportDomain ?? "",
             PayrollReportLoginUrl = payroll.ReportLoginUrl ?? "",
@@ -291,7 +293,7 @@ public class EnvironmentSettingsService(HRPortalDbContext db, ReportCredentialPr
         entity.PersonnelParameter = model.PayrollPersonnelParameter?.Trim() ?? "";
         entity.ReportFormat = model.PayrollReportFormat?.Trim() ?? "";
         entity.ReportAuthentication = string.IsNullOrWhiteSpace(model.PayrollReportAuthentication)
-            ? "windows"
+            ? (model.PayrollUseIntegratedSecurity ? "windows" : "forms")
             : model.PayrollReportAuthentication.Trim().ToLowerInvariant();
         entity.ReportUsername = model.PayrollReportUsername?.Trim() ?? "";
         entity.ReportDomain = model.PayrollReportDomain?.Trim() ?? "";

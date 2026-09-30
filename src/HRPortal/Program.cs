@@ -1,7 +1,7 @@
-using Microsoft.AspNetCore.DataProtection;
 using HRPortal.Data;
 using HRPortal.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);

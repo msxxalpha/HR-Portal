@@ -1,10 +1,10 @@
+using HRPortal.Data;
+using HRPortal.Models;
+using Microsoft.EntityFrameworkCore;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.RegularExpressions;
-using HRPortal.Data;
-using HRPortal.Models;
-using Microsoft.EntityFrameworkCore;
 
 namespace HRPortal.Services;
 
@@ -19,6 +19,7 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
     public async Task<ReportFetchResult> FetchAsync(string yearMonth, string personnelNo)
     {
         var settings = await db.PayrollReportSettings.AsNoTracking().FirstOrDefaultAsync();
+
         if (settings is null || !settings.Enabled)
             return Fail("نمایش فیش حقوقی در تنظیمات سامانه غیرفعال است.");
 
@@ -26,25 +27,11 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
             return Fail("سال و ماه باید دقیقاً با فرمت ۱۴۰۵۰۶ (شش رقم، بدون اسلش) وارد شود.");
 
         if (string.IsNullOrWhiteSpace(personnelNo))
-            return Fail("شناسه گزارش کاربر احراز‌شده یافت نشد.");
+            return Fail("شماره پرسنلی کاربر احراز‌شده یافت نشد.");
 
-        return await FetchConfiguredAsync(settings, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            [string.IsNullOrWhiteSpace(settings.YearParameter) ? "YearMonth" : settings.YearParameter.Trim()] = normalizedYearMonth,
-            [string.IsNullOrWhiteSpace(settings.PersonnelParameter) ? "PersonnelNo" : settings.PersonnelParameter.Trim()] = personnelNo
-        });
-    }
-
-    public async Task<ReportFetchResult> FetchConfiguredAsync(
-        PayrollReportSettings settings,
-        IReadOnlyDictionary<string, string> parameters)
-    {
-        if (settings is null || !settings.Enabled)
-            return Fail("نمایش گزارش در تنظیمات سامانه غیرفعال است.");
-
-        var target = BuildReportUrl(settings, parameters);
+        var target = BuildReportUrl(settings, normalizedYearMonth, personnelNo);
         if (target is null)
-            return Fail("آدرس مستقیم گزارش SSRS در تنظیمات سامانه ثبت نشده است.");
+            return Fail("آدرس مستقیم گزارش فیش حقوقی در تنظیمات سامانه ثبت نشده است.");
 
         try
         {
@@ -56,11 +43,22 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
                 PreAuthenticate = false
             };
 
-            using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(60) };
+            using var client = new HttpClient(handler)
+            {
+                Timeout = TimeSpan.FromSeconds(60)
+            };
+
             var mode = NormalizeAuthenticationMode(settings.ReportAuthentication);
 
+            // A browser may open the SSRS portal without prompting because it
+            // silently supplies Windows Integrated credentials. In that case
+            // an anonymous server-side HttpClient gets 401. Let HttpClient
+            // answer a Windows challenge with the portal process identity.
             if (mode is "" or "none" or "windows")
             {
+                // SSRS normally uses Windows Integrated Authentication. A browser
+                // can authenticate silently, but the server-side HttpClient must
+                // explicitly opt in to the current Windows credentials.
                 handler.UseDefaultCredentials = true;
                 handler.Credentials = CredentialCache.DefaultNetworkCredentials;
             }
@@ -68,29 +66,37 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
             if (mode == "forms")
             {
                 var authenticated = await LoginFormsAsync(
-                    client, target, settings,
+                    client,
+                    target,
+                    settings,
                     credentialProtector.Unprotect(settings.ReportPasswordProtected));
+
                 if (!authenticated.Success)
                     return Fail(authenticated.ErrorMessage);
             }
             else
             {
                 ConfigureHttpAuthentication(
-                    handler, client, mode, settings.ReportUsername, settings.ReportDomain,
+                    handler,
+                    client,
+                    mode,
+                    settings.ReportUsername,
+                    settings.ReportDomain,
                     credentialProtector.Unprotect(settings.ReportPasswordProtected));
             }
 
             using var request = new HttpRequestMessage(HttpMethod.Get, target);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*"));
-            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+
+            using var response = await client.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead);
+
             var bytes = await response.Content.ReadAsByteArrayAsync();
 
             if (!response.IsSuccessStatusCode)
             {
                 var body = SafeErrorBody(bytes, response.Content.Headers.ContentType?.MediaType);
-                if (response.StatusCode == HttpStatusCode.Unauthorized)
-                    return Fail("سرور SSRS درخواست سامانه را با خطای 401 رد کرد. حساب Windows اجرای پورتال باید روی گزارش مجوز مشاهده (Browser/Read) داشته باشد." +
-                        (string.IsNullOrWhiteSpace(body) ? "" : $" جزئیات سرور: {body}"));
                 return Fail($"سرور SSRS کد HTTP موفق برنگرداند: {(int)response.StatusCode} {body}");
             }
 
@@ -98,9 +104,14 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
             if (string.IsNullOrWhiteSpace(mediaType))
                 mediaType = GuessContentType(settings.ReportFormat);
 
+            // A Forms-authentication server can redirect an unauthenticated
+            // request back to Login.aspx with HTTP 200 after the final redirect.
+            // Treat that as authentication failure instead of displaying the login page.
             if (IsLoginPage(response.RequestMessage?.RequestUri, settings.ReportLoginUrl) ||
                 LooksLikeLoginPage(bytes, mediaType))
+            {
                 return Fail("احراز هویت SSRS انجام نشد یا نشست ورود SSRS ایجاد نشد.");
+            }
 
             return new ReportFetchResult(true, bytes, mediaType, "");
         }
@@ -114,7 +125,7 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
         }
         catch (Exception ex)
         {
-            return Fail("خطا در دریافت گزارش SSRS: " + ex.Message);
+            return Fail("خطا در دریافت گزارش فیش حقوقی: " + ex.Message);
         }
     }
 
@@ -131,7 +142,6 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
         return true;
     }
 
-    // Normalize SSRS browser portal URLs to the native ReportServer endpoint.
     private static string NormalizeReportTarget(string target)
     {
         if (!Uri.TryCreate(target, UriKind.Absolute, out var uri))
@@ -188,12 +198,10 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
 
     private static string? BuildReportUrl(
         PayrollReportSettings settings,
-        IReadOnlyDictionary<string, string> parameters)
+        string yearMonth,
+        string personnelNo)
     {
-        var target = string.IsNullOrWhiteSpace(settings.ReportServerUrl) ||
-                     string.IsNullOrWhiteSpace(settings.ReportPath)
-            ? settings.ReportUrl?.Trim()
-            : null;
+        var target = settings.ReportUrl?.Trim();
 
         if (string.IsNullOrWhiteSpace(target))
         {
@@ -201,31 +209,40 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
                 string.IsNullOrWhiteSpace(settings.ReportPath))
                 return null;
 
-            var baseUrl = NormalizeReportServerUrl(settings.ReportServerUrl.TrimEnd('/'));
+            var baseUrl = settings.ReportServerUrl.TrimEnd('/');
             var reportPath = settings.ReportPath.Trim();
+
             if (!reportPath.StartsWith('/'))
                 reportPath = "/" + reportPath;
+
+            // Native SSRS URL access to a report uses:
+            // https://server/ReportServer?/Folder/Report&rs:Command=Render
             target = baseUrl + "?" + reportPath;
-        }
-        else
-        {
-            target = NormalizeReportTarget(target);
         }
 
         var separator = target.Contains('?') ? '&' : '?';
-        var query = string.Join("&", parameters
-            .Where(x => !string.IsNullOrWhiteSpace(x.Key))
-            .Select(x => Uri.EscapeDataString(x.Key.Trim()) + "=" + Uri.EscapeDataString(x.Value ?? "")));
+        var yearParameter = string.IsNullOrWhiteSpace(settings.YearParameter)
+            ? "YearMonth"
+            : settings.YearParameter.Trim();
+        var personnelParameter = string.IsNullOrWhiteSpace(settings.PersonnelParameter)
+            ? "PersonnelNo"
+            : settings.PersonnelParameter.Trim();
+        var reportFormat = string.IsNullOrWhiteSpace(settings.ReportFormat)
+            ? "PDF"
+            : settings.ReportFormat.Trim();
 
-        if (!string.IsNullOrWhiteSpace(query))
-            target += separator + query + "&";
-        else
-            target += separator;
-
-        target += "rs:Command=Render&rs:Format=" +
-                  Uri.EscapeDataString(string.IsNullOrWhiteSpace(settings.ReportFormat) ? "PDF" : settings.ReportFormat.Trim());
-
-        return target;
+        return target
+            + separator
+            + Uri.EscapeDataString(yearParameter)
+            + "="
+            + Uri.EscapeDataString(yearMonth)
+            + "&"
+            + Uri.EscapeDataString(personnelParameter)
+            + "="
+            + Uri.EscapeDataString(personnelNo)
+            + "&rs:Command=Render"
+            + "&rs:Format="
+            + Uri.EscapeDataString(reportFormat);
     }
 
     private async Task<(bool Success, string ErrorMessage)> LoginFormsAsync(
@@ -308,44 +325,20 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
             string? configuredUsernameField,
             string? configuredPasswordField)
     {
-        // Prefer the HTML form containing the password input. Some custom
-        // reporting portals render login controls without a traditional <form>
-        // wrapper; in that case use the whole page and POST back to Login.aspx.
-        var formMatches = Regex.Matches(
+        var formMatch = Regex.Match(
             html,
-            @"<form\b(?<attrs>[^>]*)>(?<body>.*?)</form>",
+            @"<form\\b(?<attrs>[^>]*)>(?<body>.*?)</form>",
             RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
-        string body;
-        string attrs;
-        string action;
+        if (!formMatch.Success)
+            return null;
 
-        var selected = formMatches.Cast<Match>()
-            .FirstOrDefault(x =>
-                Regex.IsMatch(
-                    x.Groups["body"].Value,
-                    @"<input\b[^>]*type\s*=\s*[""'']?password",
-                    RegexOptions.IgnoreCase | RegexOptions.Singleline));
+        var body = formMatch.Groups["body"].Value;
+        var attrs = formMatch.Groups["attrs"].Value;
 
-        if (selected is not null)
-        {
-            body = selected.Groups["body"].Value;
-            attrs = selected.Groups["attrs"].Value;
-            action = GetHtmlAttribute(attrs, "action") ?? loginUrl;
-        }
-        else if (formMatches.Count > 0)
-        {
-            var first = formMatches[0];
-            body = first.Groups["body"].Value;
-            attrs = first.Groups["attrs"].Value;
-            action = GetHtmlAttribute(attrs, "action") ?? loginUrl;
-        }
-        else
-        {
-            body = html;
-            attrs = "";
+        var action = GetHtmlAttribute(attrs, "action");
+        if (string.IsNullOrWhiteSpace(action))
             action = loginUrl;
-        }
 
         if (!Uri.TryCreate(new Uri(loginUrl), action, out var actionUri))
             actionUri = new Uri(loginUrl);
@@ -354,7 +347,7 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
 
         foreach (Match input in Regex.Matches(
                      body,
-                     @"<input\b(?<attrs>[^>]*)>",
+                     @"<input\\b(?<attrs>[^>]*)>",
                      RegexOptions.IgnoreCase | RegexOptions.Singleline))
         {
             var inputAttrs = input.Groups["attrs"].Value;
@@ -382,7 +375,7 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
         // Some WebForms login pages use a <button> rather than an <input>.
         foreach (Match button in Regex.Matches(
                      body,
-                     @"<button\b(?<attrs>[^>]*)>.*?</button>",
+                     @"<button\\b(?<attrs>[^>]*)>.*?</button>",
                      RegexOptions.IgnoreCase | RegexOptions.Singleline))
         {
             var buttonAttrs = button.Groups["attrs"].Value;
@@ -391,20 +384,16 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
                 fields[buttonName] = GetHtmlAttribute(buttonAttrs, "value") ?? "";
         }
 
-        var detectedPasswordField = FindInputName(html, "password");
-        var passwordField = !string.IsNullOrWhiteSpace(configuredPasswordField) &&
-                            HasNamedInput(html, configuredPasswordField.Trim(), "password")
+        var passwordField = !string.IsNullOrWhiteSpace(configuredPasswordField)
             ? configuredPasswordField.Trim()
-            : detectedPasswordField;
+            : FindInputName(body, "password");
 
         if (string.IsNullOrWhiteSpace(passwordField))
             return null;
 
-        var detectedUsernameField = FindUsernameField(html);
-        var usernameField = !string.IsNullOrWhiteSpace(configuredUsernameField) &&
-                            HasNamedInput(html, configuredUsernameField.Trim(), "text")
+        var usernameField = !string.IsNullOrWhiteSpace(configuredUsernameField)
             ? configuredUsernameField.Trim()
-            : detectedUsernameField;
+            : FindInputName(body, "text", true);
 
         if (string.IsNullOrWhiteSpace(usernameField))
             return null;
@@ -412,62 +401,11 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
         return (actionUri.ToString(), fields, usernameField, passwordField);
     }
 
-    private static bool HasNamedInput(string html, string name, string expectedType)
-    {
-        foreach (Match input in Regex.Matches(
-                     html,
-                     @"<input\b(?<attrs>[^>]*)>",
-                     RegexOptions.IgnoreCase | RegexOptions.Singleline))
-        {
-            var attrs = input.Groups["attrs"].Value;
-            var inputName = GetHtmlAttribute(attrs, "name");
-            var inputType = GetHtmlAttribute(attrs, "type") ?? "text";
-
-            if (string.Equals(inputName, name, StringComparison.OrdinalIgnoreCase) &&
-                (expectedType == "text" ||
-                 string.Equals(inputType, expectedType, StringComparison.OrdinalIgnoreCase)))
-                return true;
-        }
-
-        return false;
-    }
-
-    private static string? FindUsernameField(string body)
-    {
-        foreach (Match input in Regex.Matches(
-                     body,
-                     @"<input\b(?<attrs>[^>]*)>",
-                     RegexOptions.IgnoreCase | RegexOptions.Singleline))
-        {
-            var attrs = input.Groups["attrs"].Value;
-            var inputType = GetHtmlAttribute(attrs, "type") ?? "text";
-            if (!inputType.Equals("text", StringComparison.OrdinalIgnoreCase) &&
-                !inputType.Equals("email", StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            var name = GetHtmlAttribute(attrs, "name");
-            if (string.IsNullOrWhiteSpace(name))
-                continue;
-
-            var hint = (name + " " +
-                        (GetHtmlAttribute(attrs, "id") ?? "") + " " +
-                        (GetHtmlAttribute(attrs, "autocomplete") ?? "") + " " +
-                        (GetHtmlAttribute(attrs, "placeholder") ?? ""))
-                        .ToLowerInvariant();
-
-            if (hint.Contains("user") || hint.Contains("login") || hint.Contains("account") ||
-                hint.Contains("username") || hint.Contains("کاربر") || hint.Contains("نام"))
-                return name;
-        }
-
-        return FindInputName(body, "text", true);
-    }
-
     private static string? FindInputName(string body, string type, bool usernameMode = false)
     {
         foreach (Match input in Regex.Matches(
                      body,
-                     @"<input\b(?<attrs>[^>]*)>",
+                     @"<input\\b(?<attrs>[^>]*)>",
                      RegexOptions.IgnoreCase | RegexOptions.Singleline))
         {
             var attrs = input.Groups["attrs"].Value;
@@ -498,7 +436,7 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
         {
             foreach (Match input in Regex.Matches(
                          body,
-                         @"<input\b(?<attrs>[^>]*)>",
+                         @"<input\\b(?<attrs>[^>]*)>",
                          RegexOptions.IgnoreCase | RegexOptions.Singleline))
             {
                 var attrs = input.Groups["attrs"].Value;
@@ -520,7 +458,7 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
     {
         var match = Regex.Match(
             attrs,
-            $@"\b{Regex.Escape(name)}\s*=\s*[""''](?<value>.*?)[""'']",
+            $@"\\b{Regex.Escape(name)}\\s*=\\s*[""''](?<value>.*?)[""'']",
             RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
         if (match.Success)
@@ -620,9 +558,9 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
 
         var text = Encoding.UTF8.GetString(bytes);
 
-        return (text.Contains("کلمه عبور", StringComparison.OrdinalIgnoreCase) &&
-                text.Contains("نام کاربری", StringComparison.OrdinalIgnoreCase)) ||
-               text.Contains("نام کاربری :", StringComparison.OrdinalIgnoreCase);
+        return text.Contains("Login.aspx", StringComparison.OrdinalIgnoreCase) ||
+               text.Contains("کلمه عبور", StringComparison.OrdinalIgnoreCase) &&
+               text.Contains("نام کاربری", StringComparison.OrdinalIgnoreCase);
     }
 
     private static ReportFetchResult Fail(string message) =>

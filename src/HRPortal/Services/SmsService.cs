@@ -1,9 +1,7 @@
-using System.Net.Http.Json;
-using System.Text;
-using System.Text.Json;
 using HRPortal.Data;
 using HRPortal.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace HRPortal.Services;
 

@@ -54,7 +54,7 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
             // silently supplies Windows Integrated credentials. In that case
             // an anonymous server-side HttpClient gets 401. Let HttpClient
             // answer a Windows challenge with the portal process identity.
-            if (mode is "" or "windows")
+            if (mode is "" or "none" or "windows")
             {
                 // The browser can authenticate to SSRS silently with Windows
                 // Integrated Authentication. The server-side HttpClient must

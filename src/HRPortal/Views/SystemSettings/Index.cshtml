@@ -304,7 +304,6 @@
     <section id="payroll" class="tab-panel">
         <div class="settings-section-intro">
             <strong>فیش حقوقی / SSRS</strong>
-            <span>گزارش‌ها روی SSRS جدید و بدون نام کاربری/رمز اجرا می‌شوند. پورتال پارامترهای گزارش را در سمت سرور دریافت و نتیجه را برای کاربر نمایش می‌دهد.</span>
         </div>
 
         <div class="grid-2">
@@ -335,7 +334,7 @@
 
             <label>نوع احراز هویت SSRS
                 <select name="PayrollReportAuthentication">
-                    <option value="none" selected="@(string.Equals(Model.PayrollReportAuthentication, "none", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">بدون احراز هویت</option>
+                    <option value="windows" selected="@(string.Equals(Model.PayrollReportAuthentication, "windows", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Windows / NTLM / Negotiate (حساب اجرای سامانه)</option>
                     <option value="windows" selected="@(string.Equals(Model.PayrollReportAuthentication, "windows", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Windows / NTLM / Negotiate</option>
                     <option value="forms" selected="@(string.Equals(Model.PayrollReportAuthentication, "forms", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Forms / Custom Login</option>
                     <option value="basic" selected="@(string.Equals(Model.PayrollReportAuthentication, "basic", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Basic</option>

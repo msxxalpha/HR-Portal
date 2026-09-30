@@ -595,6 +595,35 @@ END;";
         await db.Database.ExecuteSqlRawAsync(sql);
     }
 
+    private static async Task MigratePayrollReportDefaultsAsync(HRPortalDbContext db)
+    {
+        // Migrate only legacy/default values. Never overwrite credentials or
+        // explicit administrator configuration already stored in the database.
+        const string sql = @"
+IF OBJECT_ID(N'dbo.PayrollReportSettings', N'U') IS NOT NULL
+BEGIN
+    UPDATE [dbo].[PayrollReportSettings]
+    SET [ReportFormat] = N'PDF'
+    WHERE ISNULL([ReportFormat],N'') = N'';
+
+    UPDATE [dbo].[PayrollReportSettings]
+    SET [ReportAuthentication] = N'none'
+    WHERE LOWER(ISNULL([ReportAuthentication],N'')) IN (N'',N'forms')
+      AND ISNULL([ReportLoginUrl],N'') = N''
+      AND ISNULL([ReportUsername],N'') = N''
+      AND ISNULL([ReportPasswordProtected],N'') = N'';
+
+    UPDATE [dbo].[PayrollReportSettings]
+    SET [YearParameter] = N'IssueYearMonth'
+    WHERE ISNULL([YearParameter],N'') IN (N'',N'YearMonth');
+
+    UPDATE [dbo].[PayrollReportSettings]
+    SET [PersonnelParameter] = N'EmployeeID'
+    WHERE ISNULL([PersonnelParameter],N'') IN (N'',N'PersonnelNo');
+END;";
+        await db.Database.ExecuteSqlRawAsync(sql);
+    }
+
     private static async Task EnsureIndexesAsync(HRPortalDbContext db)
     {
         const string sql = @"

@@ -43,8 +43,10 @@ public class EnvironmentSettingsService(HRPortalDbContext db, ReportCredentialPr
 
         var payroll = await db.PayrollReportSettings.AsNoTracking().FirstOrDefaultAsync()
                       ?? new PayrollReportSettings();
+        var personnelOrder = await db.PersonnelOrderReportSettings.AsNoTracking().FirstOrDefaultAsync()
+                      ?? new PersonnelOrderReportSettings();
 
-        return MapToEditModel(system, otp, sms, payroll);
+        return MapToEditModel(system, otp, sms, payroll, personnelOrder);
     }
 
     public async Task SaveAsync(SystemSettingsEditModel model)
@@ -86,6 +88,14 @@ public class EnvironmentSettingsService(HRPortalDbContext db, ReportCredentialPr
         }
         ApplyPayroll(payroll, model);
 
+        var personnelOrder = await db.PersonnelOrderReportSettings.FirstOrDefaultAsync();
+        if (personnelOrder is null)
+        {
+            personnelOrder = new PersonnelOrderReportSettings();
+            db.PersonnelOrderReportSettings.Add(personnelOrder);
+        }
+        ApplyPersonnelOrder(personnelOrder, model);
+
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
         db.ChangeTracker.Clear();
@@ -95,7 +105,8 @@ public class EnvironmentSettingsService(HRPortalDbContext db, ReportCredentialPr
         SystemSettings system,
         OtpSettings otp,
         SmsSettings sms,
-        PayrollReportSettings payroll)
+        PayrollReportSettings payroll,
+        PersonnelOrderReportSettings personnelOrder)
     {
         return new SystemSettingsEditModel
         {
@@ -165,6 +176,21 @@ public class EnvironmentSettingsService(HRPortalDbContext db, ReportCredentialPr
             PayrollReportPasswordField = payroll.ReportPasswordField ?? "",
             PayrollReportPassword = "",
             PayrollUseIntegratedSecurity = payroll.UseIntegratedSecurity,
+
+            PersonnelOrderEnabled = personnelOrder.Enabled,
+            PersonnelOrderReportUrl = personnelOrder.ReportUrl ?? "",
+            PersonnelOrderReportServerUrl = personnelOrder.ReportServerUrl ?? "",
+            PersonnelOrderReportPath = personnelOrder.ReportPath ?? "",
+            PersonnelOrderIdParameter = string.IsNullOrWhiteSpace(personnelOrder.OrderIdParameter) ? "PersonnelOrderId" : personnelOrder.OrderIdParameter,
+            PersonnelOrderReportFormat = string.IsNullOrWhiteSpace(personnelOrder.ReportFormat) ? "PDF" : personnelOrder.ReportFormat,
+            PersonnelOrderReportAuthentication = string.IsNullOrWhiteSpace(personnelOrder.ReportAuthentication) ? "windows" : personnelOrder.ReportAuthentication,
+            PersonnelOrderReportUsername = personnelOrder.ReportUsername ?? "",
+            PersonnelOrderReportDomain = personnelOrder.ReportDomain ?? "",
+            PersonnelOrderReportLoginUrl = personnelOrder.ReportLoginUrl ?? "",
+            PersonnelOrderReportUsernameField = personnelOrder.ReportUsernameField ?? "",
+            PersonnelOrderReportPasswordField = personnelOrder.ReportPasswordField ?? "",
+            PersonnelOrderReportPassword = "",
+            PersonnelOrderUseIntegratedSecurity = personnelOrder.UseIntegratedSecurity,
 
             MaintenanceMode = system.MaintenanceMode,
             MaintenanceMessage = system.MaintenanceMessage ?? ""

@@ -26,6 +26,9 @@ public static class DatabaseInitializer
         if (!await db.PayrollReportSettings.AnyAsync())
             db.PayrollReportSettings.Add(new PayrollReportSettings());
 
+        if (!await db.PersonnelOrderReportSettings.AnyAsync())
+            db.PersonnelOrderReportSettings.Add(new PersonnelOrderReportSettings());
+
         if (!await db.OrganizationStructureRevisions.AnyAsync())
             db.OrganizationStructureRevisions.Add(new OrganizationStructureRevision
             {
@@ -386,6 +389,76 @@ IF COL_LENGTH(N'PayrollReportSettings', N'ReportUsernameField') IS NULL ALTER TA
 IF COL_LENGTH(N'PayrollReportSettings', N'ReportPasswordField') IS NULL ALTER TABLE [PayrollReportSettings] ADD [ReportPasswordField] nvarchar(300) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportPasswordField] DEFAULT N'';
 IF COL_LENGTH(N'PayrollReportSettings', N'ReportPasswordProtected') IS NULL ALTER TABLE [PayrollReportSettings] ADD [ReportPasswordProtected] nvarchar(4000) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportPasswordProtected] DEFAULT N'';
 IF COL_LENGTH(N'PayrollReportSettings', N'UseIntegratedSecurity') IS NULL ALTER TABLE [PayrollReportSettings] ADD [UseIntegratedSecurity] bit NOT NULL CONSTRAINT [DF_PayrollReportSettings_UseIntegratedSecurity] DEFAULT 0;
+
+IF OBJECT_ID(N'[PersonnelOrderReportSettings]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [PersonnelOrderReportSettings](
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_PersonnelOrderReportSettings] PRIMARY KEY,
+        [Enabled] bit NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_Enabled] DEFAULT 1,
+        [ReportUrl] nvarchar(2000) NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_ReportUrl] DEFAULT N'',
+        [ReportServerUrl] nvarchar(1000) NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_ReportServerUrl] DEFAULT N'',
+        [ReportPath] nvarchar(1000) NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_ReportPath] DEFAULT N'',
+        [OrderIdParameter] nvarchar(200) NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_OrderIdParameter] DEFAULT N'PersonnelOrderId',
+        [ReportFormat] nvarchar(50) NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_ReportFormat] DEFAULT N'PDF',
+        [ReportAuthentication] nvarchar(30) NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_ReportAuthentication] DEFAULT N'windows',
+        [ReportUsername] nvarchar(300) NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_ReportUsername] DEFAULT N'',
+        [ReportDomain] nvarchar(200) NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_ReportDomain] DEFAULT N'',
+        [ReportLoginUrl] nvarchar(2000) NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_ReportLoginUrl] DEFAULT N'',
+        [ReportUsernameField] nvarchar(300) NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_ReportUsernameField] DEFAULT N'',
+        [ReportPasswordField] nvarchar(300) NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_ReportPasswordField] DEFAULT N'',
+        [ReportPasswordProtected] nvarchar(4000) NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_ReportPasswordProtected] DEFAULT N'',
+        [UseIntegratedSecurity] bit NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_UseIntegratedSecurity] DEFAULT 1
+    );
+END;
+
+IF OBJECT_ID(N'[InputQueries]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [InputQueries](
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_InputQueries] PRIMARY KEY,
+        [Title] nvarchar(200) NOT NULL,
+        [SqlText] nvarchar(max) NOT NULL,
+        [ServerInstance] nvarchar(300) NOT NULL,
+        [DatabaseName] nvarchar(200) NOT NULL,
+        [AuthenticationMode] nvarchar(20) NOT NULL CONSTRAINT [DF_InputQueries_AuthenticationMode] DEFAULT N'sql',
+        [Username] nvarchar(300) NOT NULL CONSTRAINT [DF_InputQueries_Username] DEFAULT N'',
+        [PasswordProtected] nvarchar(4000) NOT NULL CONSTRAINT [DF_InputQueries_PasswordProtected] DEFAULT N'',
+        [Encrypt] bit NOT NULL CONSTRAINT [DF_InputQueries_Encrypt] DEFAULT 0,
+        [TrustServerCertificate] bit NOT NULL CONSTRAINT [DF_InputQueries_TrustServerCertificate] DEFAULT 1,
+        [Enabled] bit NOT NULL CONSTRAINT [DF_InputQueries_Enabled] DEFAULT 1,
+        [CommandTimeoutSeconds] int NOT NULL CONSTRAINT [DF_InputQueries_CommandTimeoutSeconds] DEFAULT 30,
+        [CreatedAt] datetime2 NOT NULL CONSTRAINT [DF_InputQueries_CreatedAt] DEFAULT SYSUTCDATETIME(),
+        [UpdatedAt] datetime2 NOT NULL CONSTRAINT [DF_InputQueries_UpdatedAt] DEFAULT SYSUTCDATETIME()
+    );
+END;
+
+IF COL_LENGTH(N'dbo.InputQueries', N'Title') IS NULL ALTER TABLE [dbo].[InputQueries] ADD [Title] nvarchar(200) NOT NULL CONSTRAINT [DF_InputQueries_Title] DEFAULT N'';
+IF COL_LENGTH(N'dbo.InputQueries', N'SqlText') IS NULL ALTER TABLE [dbo].[InputQueries] ADD [SqlText] nvarchar(max) NOT NULL CONSTRAINT [DF_InputQueries_SqlText] DEFAULT N'';
+IF COL_LENGTH(N'dbo.InputQueries', N'ServerInstance') IS NULL ALTER TABLE [dbo].[InputQueries] ADD [ServerInstance] nvarchar(300) NOT NULL CONSTRAINT [DF_InputQueries_ServerInstance] DEFAULT N'';
+IF COL_LENGTH(N'dbo.InputQueries', N'DatabaseName') IS NULL ALTER TABLE [dbo].[InputQueries] ADD [DatabaseName] nvarchar(200) NOT NULL CONSTRAINT [DF_InputQueries_DatabaseName] DEFAULT N'';
+IF COL_LENGTH(N'dbo.InputQueries', N'AuthenticationMode') IS NULL ALTER TABLE [dbo].[InputQueries] ADD [AuthenticationMode] nvarchar(20) NOT NULL CONSTRAINT [DF_InputQueries_AuthenticationMode] DEFAULT N'sql';
+IF COL_LENGTH(N'dbo.InputQueries', N'Username') IS NULL ALTER TABLE [dbo].[InputQueries] ADD [Username] nvarchar(300) NOT NULL CONSTRAINT [DF_InputQueries_Username] DEFAULT N'';
+IF COL_LENGTH(N'dbo.InputQueries', N'PasswordProtected') IS NULL ALTER TABLE [dbo].[InputQueries] ADD [PasswordProtected] nvarchar(4000) NOT NULL CONSTRAINT [DF_InputQueries_PasswordProtected] DEFAULT N'';
+IF COL_LENGTH(N'dbo.InputQueries', N'Encrypt') IS NULL ALTER TABLE [dbo].[InputQueries] ADD [Encrypt] bit NOT NULL CONSTRAINT [DF_InputQueries_Encrypt] DEFAULT 0;
+IF COL_LENGTH(N'dbo.InputQueries', N'TrustServerCertificate') IS NULL ALTER TABLE [dbo].[InputQueries] ADD [TrustServerCertificate] bit NOT NULL CONSTRAINT [DF_InputQueries_TrustServerCertificate] DEFAULT 1;
+IF COL_LENGTH(N'dbo.InputQueries', N'Enabled') IS NULL ALTER TABLE [dbo].[InputQueries] ADD [Enabled] bit NOT NULL CONSTRAINT [DF_InputQueries_Enabled] DEFAULT 1;
+IF COL_LENGTH(N'dbo.InputQueries', N'CommandTimeoutSeconds') IS NULL ALTER TABLE [dbo].[InputQueries] ADD [CommandTimeoutSeconds] int NOT NULL CONSTRAINT [DF_InputQueries_CommandTimeoutSeconds] DEFAULT 30;
+IF COL_LENGTH(N'dbo.InputQueries', N'CreatedAt') IS NULL ALTER TABLE [dbo].[InputQueries] ADD [CreatedAt] datetime2 NOT NULL CONSTRAINT [DF_InputQueries_CreatedAt] DEFAULT SYSUTCDATETIME();
+IF COL_LENGTH(N'dbo.InputQueries', N'UpdatedAt') IS NULL ALTER TABLE [dbo].[InputQueries] ADD [UpdatedAt] datetime2 NOT NULL CONSTRAINT [DF_InputQueries_UpdatedAt] DEFAULT SYSUTCDATETIME();
+
+IF COL_LENGTH(N'dbo.PersonnelOrderReportSettings', N'Enabled') IS NULL ALTER TABLE [dbo].[PersonnelOrderReportSettings] ADD [Enabled] bit NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_Enabled] DEFAULT 1;
+IF COL_LENGTH(N'dbo.PersonnelOrderReportSettings', N'ReportUrl') IS NULL ALTER TABLE [dbo].[PersonnelOrderReportSettings] ADD [ReportUrl] nvarchar(2000) NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_ReportUrl] DEFAULT N'';
+IF COL_LENGTH(N'dbo.PersonnelOrderReportSettings', N'ReportServerUrl') IS NULL ALTER TABLE [dbo].[PersonnelOrderReportSettings] ADD [ReportServerUrl] nvarchar(1000) NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_ReportServerUrl] DEFAULT N'';
+IF COL_LENGTH(N'dbo.PersonnelOrderReportSettings', N'ReportPath') IS NULL ALTER TABLE [dbo].[PersonnelOrderReportSettings] ADD [ReportPath] nvarchar(1000) NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_ReportPath] DEFAULT N'';
+IF COL_LENGTH(N'dbo.PersonnelOrderReportSettings', N'OrderIdParameter') IS NULL ALTER TABLE [dbo].[PersonnelOrderReportSettings] ADD [OrderIdParameter] nvarchar(200) NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_OrderIdParameter] DEFAULT N'PersonnelOrderId';
+IF COL_LENGTH(N'dbo.PersonnelOrderReportSettings', N'ReportFormat') IS NULL ALTER TABLE [dbo].[PersonnelOrderReportSettings] ADD [ReportFormat] nvarchar(50) NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_ReportFormat] DEFAULT N'PDF';
+IF COL_LENGTH(N'dbo.PersonnelOrderReportSettings', N'ReportAuthentication') IS NULL ALTER TABLE [dbo].[PersonnelOrderReportSettings] ADD [ReportAuthentication] nvarchar(30) NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_ReportAuthentication] DEFAULT N'windows';
+IF COL_LENGTH(N'dbo.PersonnelOrderReportSettings', N'ReportUsername') IS NULL ALTER TABLE [dbo].[PersonnelOrderReportSettings] ADD [ReportUsername] nvarchar(300) NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_ReportUsername] DEFAULT N'';
+IF COL_LENGTH(N'dbo.PersonnelOrderReportSettings', N'ReportDomain') IS NULL ALTER TABLE [dbo].[PersonnelOrderReportSettings] ADD [ReportDomain] nvarchar(200) NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_ReportDomain] DEFAULT N'';
+IF COL_LENGTH(N'dbo.PersonnelOrderReportSettings', N'ReportLoginUrl') IS NULL ALTER TABLE [dbo].[PersonnelOrderReportSettings] ADD [ReportLoginUrl] nvarchar(2000) NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_ReportLoginUrl] DEFAULT N'';
+IF COL_LENGTH(N'dbo.PersonnelOrderReportSettings', N'ReportUsernameField') IS NULL ALTER TABLE [dbo].[PersonnelOrderReportSettings] ADD [ReportUsernameField] nvarchar(300) NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_ReportUsernameField] DEFAULT N'';
+IF COL_LENGTH(N'dbo.PersonnelOrderReportSettings', N'ReportPasswordField') IS NULL ALTER TABLE [dbo].[PersonnelOrderReportSettings] ADD [ReportPasswordField] nvarchar(300) NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_ReportPasswordField] DEFAULT N'';
+IF COL_LENGTH(N'dbo.PersonnelOrderReportSettings', N'ReportPasswordProtected') IS NULL ALTER TABLE [dbo].[PersonnelOrderReportSettings] ADD [ReportPasswordProtected] nvarchar(4000) NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_ReportPasswordProtected] DEFAULT N'';
+IF COL_LENGTH(N'dbo.PersonnelOrderReportSettings', N'UseIntegratedSecurity') IS NULL ALTER TABLE [dbo].[PersonnelOrderReportSettings] ADD [UseIntegratedSecurity] bit NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_UseIntegratedSecurity] DEFAULT 1;
 
 IF OBJECT_ID(N'[Employees]', N'U') IS NULL
 BEGIN

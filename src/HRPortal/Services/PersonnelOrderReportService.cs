@@ -51,7 +51,7 @@ public class PersonnelOrderReportService(
             reportSettings,
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                [settings.OrderIdParameter.Trim()] = queryResult.Value
+                [settings.OrderIdParameter.Trim()] = orderId
             });
     }
 }

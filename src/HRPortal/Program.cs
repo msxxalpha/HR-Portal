@@ -40,6 +40,8 @@ builder.Services.AddScoped<OtpService>();
 builder.Services.AddScoped<OrganizationService>();
 builder.Services.AddScoped<ReportCredentialProtector>();
 builder.Services.AddScoped<ReportService>();
+builder.Services.AddScoped<InputQueryService>();
+builder.Services.AddScoped<PersonnelOrderReportService>();
 builder.Services.AddScoped<EmployeeExcelService>();
 builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<RoleService>();
@@ -130,6 +132,16 @@ app.MapControllerRoute(
     name: "organization",
     pattern: "Organization/{action=Index}/{id?}",
     defaults: new { controller = "Organization" });
+
+app.MapControllerRoute(
+    name: "personnel-order",
+    pattern: "PersonnelOrder/{action=Index}/{id?}",
+    defaults: new { controller = "PersonnelOrder" });
+
+app.MapControllerRoute(
+    name: "input-queries",
+    pattern: "InputQueries/{action=Index}/{id?}",
+    defaults: new { controller = "InputQueries" });
 
 app.MapControllerRoute(
     name: "payroll",

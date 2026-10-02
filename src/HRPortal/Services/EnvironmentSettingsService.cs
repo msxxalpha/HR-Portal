@@ -260,6 +260,27 @@ public class EnvironmentSettingsService(HRPortalDbContext db, ReportCredentialPr
             entity.ApiKey = model.SmsApiKey;
     }
 
+    private void ApplyPersonnelOrder(PersonnelOrderReportSettings entity, SystemSettingsEditModel model)
+    {
+        entity.Enabled = model.PersonnelOrderEnabled;
+        entity.ReportUrl = model.PersonnelOrderReportUrl?.Trim() ?? "";
+        entity.ReportServerUrl = model.PersonnelOrderReportServerUrl?.Trim() ?? "";
+        entity.ReportPath = model.PersonnelOrderReportPath?.Trim() ?? "";
+        entity.OrderIdParameter = model.PersonnelOrderIdParameter?.Trim() ?? "PersonnelOrderId";
+        entity.ReportFormat = model.PersonnelOrderReportFormat?.Trim() ?? "PDF";
+        entity.ReportAuthentication = string.IsNullOrWhiteSpace(model.PersonnelOrderReportAuthentication)
+            ? "windows"
+            : model.PersonnelOrderReportAuthentication.Trim().ToLowerInvariant();
+        entity.ReportUsername = model.PersonnelOrderReportUsername?.Trim() ?? "";
+        entity.ReportDomain = model.PersonnelOrderReportDomain?.Trim() ?? "";
+        entity.ReportLoginUrl = model.PersonnelOrderReportLoginUrl?.Trim() ?? "";
+        entity.ReportUsernameField = model.PersonnelOrderReportUsernameField?.Trim() ?? "";
+        entity.ReportPasswordField = model.PersonnelOrderReportPasswordField?.Trim() ?? "";
+        entity.UseIntegratedSecurity = string.Equals(entity.ReportAuthentication, "windows", StringComparison.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(model.PersonnelOrderReportPassword))
+            entity.ReportPasswordProtected = credentialProtector.Protect(model.PersonnelOrderReportPassword);
+    }
+
     private void ApplyPayroll(PayrollReportSettings entity, SystemSettingsEditModel model)
     {
         entity.Enabled = model.PayrollEnabled;

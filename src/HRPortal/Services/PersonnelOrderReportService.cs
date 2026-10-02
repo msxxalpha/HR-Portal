@@ -24,9 +24,9 @@ public class PersonnelOrderReportService(
     {
         var settings = await db.PersonnelOrderReportSettings.AsNoTracking().FirstOrDefaultAsync();
         if (settings is null || !settings.Enabled)
-            return new(false, null, "نمایش حکم کارگزینی در تنظیمات سامانه غیرفعال است.");
+            return new(false, null, "text/html", "نمایش حکم کارگزینی در تنظیمات سامانه غیرفعال است.");
         if (string.IsNullOrWhiteSpace(orderId))
-            return new(false, null, "شناسه حکم کارگزینی دریافت نشده است.");
+            return new(false, null, "text/html", "شناسه حکم کارگزینی دریافت نشده است.");
 
         var reportSettings = new PayrollReportSettings
         {

@@ -1,0 +1,20 @@
+namespace HRPortal.Models;
+
+public class PersonnelOrderReportSettings
+{
+    public int Id { get; set; }
+    public bool Enabled { get; set; } = true;
+    public string ReportUrl { get; set; } = "";
+    public string ReportServerUrl { get; set; } = "";
+    public string ReportPath { get; set; } = "";
+    public string OrderIdParameter { get; set; } = "PersonnelOrderId";
+    public string ReportFormat { get; set; } = "PDF";
+    public string ReportAuthentication { get; set; } = "windows";
+    public string ReportUsername { get; set; } = "";
+    public string ReportDomain { get; set; } = "";
+    public string ReportLoginUrl { get; set; } = "";
+    public string ReportUsernameField { get; set; } = "";
+    public string ReportPasswordField { get; set; } = "";
+    public string ReportPasswordProtected { get; set; } = "";
+    public bool UseIntegratedSecurity { get; set; }
+}

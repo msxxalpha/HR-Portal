@@ -1,0 +1,30 @@
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "حکم کارگزینی";
+}
+<div class="page-head">
+    <div>
+        <h1>حکم کارگزینی</h1>
+        <p>شناسه آخرین حکم کارگزینی به صورت خودکار از کوئری «حکم کارگزینی» دریافت و برای گزارش SSRS ارسال می‌شود.</p>
+    </div>
+</div>
+@if(ViewBag.Message!=null)
+{
+    <div class="alert @(ViewBag.MessageType ?? "error")">@ViewBag.Message</div>
+}
+@if(ViewBag.PersonnelNumber!=null)
+{
+    <div class="card">
+        <div class="report-user-row">
+            <div class="report-user">
+                <span>کاربر جاری</span>
+                <strong>@ViewBag.EmployeeName</strong>
+                <small>شماره پرسنلی: @ViewBag.PersonnelNumber</small>
+            </div>
+        </div>
+    </div>
+    @if(ViewBag.Message==null)
+    {
+        <div class="alert info">در حال دریافت آخرین حکم کارگزینی...</div>
+    }
+}

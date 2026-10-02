@@ -3,7 +3,7 @@
     Layout = "~/Views/Shared/_Layout.cshtml";
     ViewData["Title"] = Model.Id == 0 ? "افزودن کوئری ورودی" : "ویرایش کوئری ورودی";
 }
-<div class="page-head"><div><h1>@ViewData["Title"]</h1><p>کوئری باید فقط SELECT یا CTE خواندنی باشد. پارامترهای قابل استفاده: <code>@PersonnelNumber</code>، <code>@EmployeeId</code> و <code>@Identifier</code>.</p></div></div>
+<div class="page-head"><div><h1>@ViewData["Title"]</h1><p>کوئری باید فقط SELECT یا CTE خواندنی باشد. پارامترهای قابل استفاده: <code>@@PersonnelNumber</code>، <code>@@EmployeeId</code> و <code>@@Identifier</code>.</p></div></div>
 <form method="post" action="/InputQueries/Save" class="card">
 @Html.AntiForgeryToken()
 <input type="hidden" asp-for="Id" />

@@ -9,6 +9,8 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
     public DbSet<OtpSettings> OtpSettings => Set<OtpSettings>();
     public DbSet<SmsSettings> SmsSettings => Set<SmsSettings>();
     public DbSet<PayrollReportSettings> PayrollReportSettings => Set<PayrollReportSettings>();
+    public DbSet<PersonnelOrderReportSettings> PersonnelOrderReportSettings => Set<PersonnelOrderReportSettings>();
+    public DbSet<InputQuery> InputQueries => Set<InputQuery>();
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<OrganizationStructureRevision> OrganizationStructureRevisions => Set<OrganizationStructureRevision>();
     public DbSet<OrganizationNode> OrganizationNodes => Set<OrganizationNode>();
@@ -67,6 +69,12 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
         modelBuilder.Entity<OtpSettings>().HasKey(x => x.Id);
         modelBuilder.Entity<SmsSettings>().HasKey(x => x.Id);
         modelBuilder.Entity<PayrollReportSettings>().HasKey(x => x.Id);
+        modelBuilder.Entity<PersonnelOrderReportSettings>().HasKey(x => x.Id);
+        modelBuilder.Entity<InputQuery>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.Title).IsUnique();
+        });
         modelBuilder.Entity<AdminUser>(e =>
         {
             e.HasKey(x => x.Id);

@@ -1,0 +1,28 @@
+@model IReadOnlyList<HRPortal.Models.InputQuery>
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "کوئری‌های ورودی";
+    var canManage = User.HasClaim("IsAdmin","1") || User.HasClaim("Permission","InputQueries.Manage");
+}
+<div class="page-head">
+    <div><h1>کوئری‌های ورودی</h1><p>کوئری‌های خواندنی برای دریافت شناسه‌های مورد نیاز خدمات کارکنان.</p></div>
+    @if (canManage) { <a class="btn btn-main" href="/InputQueries/Create">افزودن کوئری</a> }
+</div>
+@if(TempData["Success"]!=null){<div class="alert success">@TempData["Success"]</div>}
+<div class="card">
+<table><thead><tr><th>عنوان</th><th>سرور / دیتابیس</th><th>احراز هویت</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+<tbody>
+@foreach(var q in Model){
+<tr>
+<td><strong>@q.Title</strong></td>
+<td>@q.ServerInstance / @q.DatabaseName</td>
+<td>@(q.AuthenticationMode=="windows" ? "Windows" : "SQL")</td>
+<td><span class="badge">@((q.Enabled) ? "فعال" : "غیرفعال")</span></td>
+<td>
+@if(canManage){<a href="/InputQueries/Edit/@q.Id">ویرایش</a>
+<form method="post" action="/InputQueries/Delete/@q.Id" style="display:inline" onsubmit="return confirm('این کوئری حذف شود؟');">@Html.AntiForgeryToken()<button class="link danger" type="submit">حذف</button></form>}
+</td>
+</tr>
+}
+</tbody></table>
+</div>

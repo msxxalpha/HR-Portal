@@ -71,6 +71,22 @@ public class SystemSettingsEditModel
     public string? PayrollReportPassword { get; set; }
     public bool PayrollUseIntegratedSecurity { get; set; }
 
+    // Personnel order / SSRS
+    public bool PersonnelOrderEnabled { get; set; }
+    public string? PersonnelOrderReportUrl { get; set; }
+    public string? PersonnelOrderReportServerUrl { get; set; }
+    public string? PersonnelOrderReportPath { get; set; }
+    public string? PersonnelOrderIdParameter { get; set; }
+    public string? PersonnelOrderReportFormat { get; set; }
+    public string? PersonnelOrderReportAuthentication { get; set; }
+    public string? PersonnelOrderReportUsername { get; set; }
+    public string? PersonnelOrderReportDomain { get; set; }
+    public string? PersonnelOrderReportLoginUrl { get; set; }
+    public string? PersonnelOrderReportUsernameField { get; set; }
+    public string? PersonnelOrderReportPasswordField { get; set; }
+    public string? PersonnelOrderReportPassword { get; set; }
+    public bool PersonnelOrderUseIntegratedSecurity { get; set; }
+
     // Maintenance
     public bool MaintenanceMode { get; set; }
     public string? MaintenanceMessage { get; set; }

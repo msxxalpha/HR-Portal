@@ -64,6 +64,10 @@
             {
                 <div class="nav-caption">خدمات کارکنان</div>
                 <a href="/Payroll/Payslip">فیش حقوقی</a>
+                @if (Can("PersonnelOrder.View"))
+                {
+                    <a href="/PersonnelOrder">حکم کارگزینی</a>
+                }
             }
         </nav>
 

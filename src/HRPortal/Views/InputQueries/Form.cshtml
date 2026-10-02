@@ -1,0 +1,26 @@
+@model HRPortal.Models.InputQuery
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = Model.Id == 0 ? "افزودن کوئری ورودی" : "ویرایش کوئری ورودی";
+}
+<div class="page-head"><div><h1>@ViewData["Title"]</h1><p>کوئری باید فقط SELECT یا CTE خواندنی باشد. پارامترهای قابل استفاده: <code>@PersonnelNumber</code>، <code>@EmployeeId</code> و <code>@Identifier</code>.</p></div></div>
+<form method="post" action="/InputQueries/Save" class="card">
+@Html.AntiForgeryToken()
+<input type="hidden" asp-for="Id" />
+<div class="grid-2">
+<label>عنوان کوئری<input asp-for="Title" /></label>
+<label>نام اینستنس SQL<input asp-for="ServerInstance" placeholder="SERVER\INSTANCE یا SERVER,1433" /></label>
+<label>نام پایگاه داده<input asp-for="DatabaseName" /></label>
+<label>نوع احراز هویت<select asp-for="AuthenticationMode"><option value="sql">SQL Server Authentication</option><option value="windows">Windows Integrated</option></select></label>
+<label>نام کاربری SQL<input asp-for="Username" /></label>
+<label>کلمه عبور<input type="password" name="password" placeholder="برای حفظ رمز فعلی خالی بگذارید" /></label>
+<label>زمان اجرای کوئری (ثانیه)<input asp-for="CommandTimeoutSeconds" type="number" min="5" max="300" /></label>
+</div>
+<label>متن کوئری SQL<textarea asp-for="SqlText" rows="12" dir="ltr" style="text-align:left;font-family:Consolas,monospace"></textarea></label>
+<div class="switch-grid">
+<label class="toggle-card"><span class="toggle-text"><strong>Encrypt</strong></span><span class="switch-control"><input type="checkbox" asp-for="Encrypt" /><span class="switch-slider"></span></span></label>
+<label class="toggle-card"><span class="toggle-text"><strong>Trust Server Certificate</strong></span><span class="switch-control"><input type="checkbox" asp-for="TrustServerCertificate" /><span class="switch-slider"></span></span></label>
+<label class="toggle-card"><span class="toggle-text"><strong>کوئری فعال</strong></span><span class="switch-control"><input type="checkbox" asp-for="Enabled" /><span class="switch-slider"></span></span></label>
+</div>
+<div class="form-actions"><button class="btn btn-main" type="submit">ذخیره</button><a class="btn btn-outline" href="/InputQueries">انصراف</a></div>
+</form>

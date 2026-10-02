@@ -700,6 +700,8 @@ END;";
     private static async Task EnsureIndexesAsync(HRPortalDbContext db)
     {
         const string sql = @"
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_InputQueries_Title' AND object_id=OBJECT_ID(N'dbo.InputQueries'))
+    CREATE UNIQUE INDEX [IX_InputQueries_Title] ON [dbo].[InputQueries]([Title]);
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_Employees_PersonnelNumber' AND object_id=OBJECT_ID(N'dbo.Employees'))
     CREATE UNIQUE INDEX [IX_Employees_PersonnelNumber] ON [dbo].[Employees]([PersonnelNumber]);
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_Employees_NationalId' AND object_id=OBJECT_ID(N'dbo.Employees'))

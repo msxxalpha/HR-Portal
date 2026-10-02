@@ -31,6 +31,8 @@
         <button type="button" class="tab" data-tab="security">امنیت و OTP</button>
         <button type="button" class="tab" data-tab="sms">سرویس پیامک</button>
         <button type="button" class="tab" data-tab="payroll">فیش حقوقی / SSRS</button>
+        <button type="button" class="tab" data-tab="queries">کوئری‌های ورودی</button>
+        <button type="button" class="tab" data-tab="personnel-order">حکم کارگزینی / SSRS</button>
         <button type="button" class="tab" data-tab="maintenance">نگهداری</button>
     </div>
 
@@ -352,6 +354,82 @@
                 <span class="switch-control">
                     <input type="checkbox" name="PayrollEnabled" value="true" @(Model.PayrollEnabled ? "checked" : "") aria-label="فیش حقوقی" />
                     <input type="hidden" name="PayrollEnabled" value="false" />
+                    <span class="switch-slider"></span>
+                </span>
+            </label>
+        </div>
+    </section>
+
+    <section id="queries" class="tab-panel">
+        <div class="settings-section-intro">
+            <strong>کوئری‌های ورودی</strong>
+            <span>کوئری‌های خواندنی برای دریافت شناسه‌های مورد نیاز خدمات کارکنان.</span>
+        </div>
+        <div class="card">
+            <p>هر کوئری دارای اتصال SQL مستقل است و رمز عبور آن به‌صورت رمزنگاری‌شده در پایگاه داده نگهداری می‌شود.</p>
+            <p>برای سرویس حکم کارگزینی، عنوان کوئری باید دقیقاً <strong>حکم کارگزینی</strong> باشد.</p>
+            <a class="btn btn-main" href="/InputQueries">مدیریت کوئری‌های ورودی</a>
+        </div>
+    </section>
+
+    <section id="personnel-order" class="tab-panel">
+        <div class="settings-section-intro">
+            <strong>حکم کارگزینی / SSRS</strong>
+            <span>در زمان ورود به صفحه، کوئری «حکم کارگزینی» اجرا می‌شود و مقدار ستون اول نتیجه به پارامتر گزارش ارسال می‌گردد.</span>
+        </div>
+        <div class="grid-2">
+            <label class="wide">آدرس Report Server
+                <input name="PersonnelOrderReportServerUrl" value="@S(Model.PersonnelOrderReportServerUrl)" placeholder="مثلاً http://srvwebapps/ReportServer" />
+            </label>
+            <label class="wide">مسیر مستقیم گزارش
+                <input name="PersonnelOrderReportPath" value="@S(Model.PersonnelOrderReportPath)" placeholder="مثلاً /PersonnelOrder" />
+            </label>
+            <label>نام پارامتر شناسه حکم کارگزینی
+                <input name="PersonnelOrderIdParameter" value="@S(Model.PersonnelOrderIdParameter)" placeholder="مثلاً PersonnelOrderId" />
+            </label>
+            <label>فرمت گزارش
+                <select name="PersonnelOrderReportFormat">
+                    <option value="PDF" selected="@(string.Equals(Model.PersonnelOrderReportFormat, "PDF", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">PDF</option>
+                    <option value="HTML5" selected="@(string.Equals(Model.PersonnelOrderReportFormat, "HTML5", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">HTML5</option>
+                    <option value="MHTML" selected="@(string.Equals(Model.PersonnelOrderReportFormat, "MHTML", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">MHTML</option>
+                </select>
+            </label>
+            <label>نوع احراز هویت SSRS
+                <select name="PersonnelOrderReportAuthentication">
+                    <option value="windows" selected="@(string.Equals(Model.PersonnelOrderReportAuthentication, "windows", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Windows خودکار (حساب اجرای سامانه)</option>
+                    <option value="none" selected="@(string.Equals(Model.PersonnelOrderReportAuthentication, "none", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">بدون احراز هویت</option>
+                    <option value="forms" selected="@(string.Equals(Model.PersonnelOrderReportAuthentication, "forms", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Forms / Custom Login</option>
+                    <option value="basic" selected="@(string.Equals(Model.PersonnelOrderReportAuthentication, "basic", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Basic</option>
+                </select>
+            </label>
+            <label>نام کاربری SSRS
+                <input name="PersonnelOrderReportUsername" value="@S(Model.PersonnelOrderReportUsername)" />
+            </label>
+            <label>دامنه
+                <input name="PersonnelOrderReportDomain" value="@S(Model.PersonnelOrderReportDomain)" />
+            </label>
+            <label>آدرس صفحه ورود
+                <input name="PersonnelOrderReportLoginUrl" value="@S(Model.PersonnelOrderReportLoginUrl)" />
+            </label>
+            <label>نام فیلد کاربری
+                <input name="PersonnelOrderReportUsernameField" value="@S(Model.PersonnelOrderReportUsernameField)" />
+            </label>
+            <label>نام فیلد رمز
+                <input name="PersonnelOrderReportPasswordField" value="@S(Model.PersonnelOrderReportPasswordField)" />
+            </label>
+            <label>کلمه عبور SSRS
+                <input name="PersonnelOrderReportPassword" type="password" value="" placeholder="برای حفظ رمز فعلی خالی بگذارید" />
+            </label>
+            <label class="wide">آدرس کامل گزارش SSRS / Report URL
+                <input name="PersonnelOrderReportUrl" value="@S(Model.PersonnelOrderReportUrl)" placeholder="اختیاری؛ در صورت تکمیل Report Server و مسیر گزارش، این دو مبنا قرار می‌گیرند" />
+            </label>
+        </div>
+        <div class="settings-actions">
+            <label class="toggle-card compact-toggle">
+                <span class="toggle-text"><strong>حکم کارگزینی</strong><small>فعال بودن نمایش آخرین حکم کارگزینی</small></span>
+                <span class="switch-control">
+                    <input type="checkbox" name="PersonnelOrderEnabled" value="true" @(Model.PersonnelOrderEnabled ? "checked" : "") aria-label="حکم کارگزینی" />
+                    <input type="hidden" name="PersonnelOrderEnabled" value="false" />
                     <span class="switch-slider"></span>
                 </span>
             </label>

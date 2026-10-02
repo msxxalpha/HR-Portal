@@ -23,8 +23,8 @@
             </div>
         </div>
     </div>
-    @if(ViewBag.Message==null)
+    @if(ViewBag.ReportEndpoint!=null)
     {
-        <div class="alert info">در حال دریافت آخرین حکم کارگزینی...</div>
+        <div class="report-frame"><iframe src="@ViewBag.ReportEndpoint" title="گزارش حکم کارگزینی"></iframe></div>
     }
 }

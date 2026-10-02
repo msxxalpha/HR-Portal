@@ -23,6 +23,9 @@ public class RoleService(HRPortalDbContext db)
         ("Settings.View", "مشاهده تنظیمات سامانه", "مدیریت سامانه"),
         ("Settings.Edit", "ویرایش تنظیمات سامانه", "مدیریت سامانه"),
         ("Payroll.View", "مشاهده فیش حقوقی", "خدمات کارکنان"),
+        ("PersonnelOrder.View", "مشاهده حکم کارگزینی", "خدمات کارکنان"),
+        ("InputQueries.View", "مشاهده کوئری‌های ورودی", "مدیریت سامانه"),
+        ("InputQueries.Manage", "مدیریت کوئری‌های ورودی", "مدیریت سامانه"),
         ("Users.Manage", "مدیریت کاربران", "مدیریت کاربران"),
         ("Roles.Manage", "مدیریت نقش‌ها", "مدیریت کاربران")
     ];
@@ -41,11 +44,11 @@ public class RoleService(HRPortalDbContext db)
         await EnsureRoleAsync("ORG_MANAGER", "مدیریت ساختار سازمانی", "مدیریت نسخه‌ها و ساختار درختی",
             ["Organization.View", "Organization.Create", "Organization.Edit", "Organization.Delete", "Organization.Move", "Organization.Finalize"]);
         await EnsureRoleAsync("SETTINGS_MANAGER", "مدیریت سامانه", "مدیریت تنظیمات سامانه",
-            ["Settings.View", "Settings.Edit"]);
+            ["Settings.View", "Settings.Edit", "InputQueries.View", "InputQueries.Manage"]);
         await EnsureRoleAsync("PAYROLL_USER", "گزارش فیش حقوقی", "دسترسی به فیش حقوقی",
-            ["Payroll.View"]);
+            ["Payroll.View", "PersonnelOrder.View"]);
         await EnsureRoleAsync("EMPLOYEE", "کاربر کارکنان", "نقش پیش‌فرض کارکنان برای استفاده از خدمات پرسنلی",
-            ["Payroll.View"]);
+            ["Payroll.View", "PersonnelOrder.View"]);
         var defaultRoleId = await db.Roles.Where(x => x.Code == "EMPLOYEE").Select(x => x.Id).SingleAsync();
         var assignedEmployees = await db.EmployeeRoles.Select(x => x.EmployeeId).Distinct().ToListAsync();
         var employeesWithoutRole = await db.Employees.Where(x => x.IsSystemUser && !assignedEmployees.Contains(x.Id)).Select(x => x.Id).ToListAsync();

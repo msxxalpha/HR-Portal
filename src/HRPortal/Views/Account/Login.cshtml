@@ -2,7 +2,8 @@
 @{
     Layout = "~/Views/Shared/_AuthLayout.cshtml";
     ViewData["Title"] = "ورود";
-    var adminMode = string.Equals(ViewBag.Mode as string, "admin", StringComparison.OrdinalIgnoreCase);
+    var adminMode = string.Equals(Model.Mode, "admin", StringComparison.OrdinalIgnoreCase);
+    var employeePasswordMode = string.Equals(Model.Mode, "employee-password", StringComparison.OrdinalIgnoreCase);
 }
 <div class="auth-shell">
     <div class="auth-card">
@@ -27,24 +28,24 @@
         <div id="employeePanel" class="login-panel @(adminMode ? "hidden" : "")">
             <div class="auth-intro"><h1>ورود کارکنان</h1><p>روش ورود را انتخاب کنید.</p></div>
             <div class="login-tabs">
-                <button type="button" class="login-tab active" data-employee-login-mode="otp">رمز یکبارمصرف</button>
-                <button type="button" class="login-tab" data-employee-login-mode="password">نام کاربری و رمز شخصی</button>
+                <button type="button" class="login-tab @(employeePasswordMode ? "" : "active")" data-employee-login-mode="otp">رمز یکبارمصرف</button>
+                <button type="button" class="login-tab @(employeePasswordMode ? "active" : "")" data-employee-login-mode="password">نام کاربری و رمز شخصی</button>
             </div>
-            <div id="employeeOtpPanel" class="login-panel">
-            <div class="auth-intro"><h2>ورود با رمز یکبارمصرف</h2><p>شماره پرسنلی را وارد کنید تا کد یکبارمصرف برای موبایل ثبت‌شده ارسال شود.</p></div>
-            <form method="post" action="/Account/EmployeeLogin" class="login-form">
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
-                <label>شماره پرسنلی<input name="PersonnelNumber" value="@Model.PersonnelNumber" autocomplete="username" inputmode="numeric" autofocus="@(!adminMode)" required /></label>
-                <button type="submit" class="btn btn-main btn-block">ارسال کد ورود</button>
-            </form>
+            <div id="employeeOtpPanel" class="login-panel @(employeePasswordMode ? "hidden" : "")">
+                <div class="auth-intro"><h2>ورود با رمز یکبارمصرف</h2><p>شماره پرسنلی را وارد کنید تا کد یکبارمصرف برای موبایل ثبت‌شده ارسال شود.</p></div>
+                <form method="post" action="/Account/EmployeeLogin" class="login-form">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
+                    <label>شماره پرسنلی<input name="PersonnelNumber" value="@Model.PersonnelNumber" autocomplete="username" inputmode="numeric" autofocus="@(!adminMode && !employeePasswordMode)" required /></label>
+                    <button type="submit" class="btn btn-main btn-block">ارسال کد ورود</button>
+                </form>
             </div>
-            <div id="employeePasswordPanel" class="login-panel hidden">
+            <div id="employeePasswordPanel" class="login-panel @(employeePasswordMode ? "" : "hidden")">
                 <div class="auth-intro"><h2>ورود با رمز شخصی</h2><p>نام کاربری همان کد پرسنلی است.</p></div>
                 <form method="post" action="/Account/EmployeePasswordLogin" class="login-form">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
-                    <label>نام کاربری (کد پرسنلی)<input name="PersonnelNumber" value="@Model.PersonnelNumber" autocomplete="username" required /></label>
+                    <label>نام کاربری (کد پرسنلی)<input name="PersonnelNumber" value="@Model.PersonnelNumber" autocomplete="username" autofocus="@employeePasswordMode" required /></label>
                     <label>رمز عبور شخصی<input type="password" name="Password" autocomplete="current-password" required /></label>
                     <button type="submit" class="btn btn-main btn-block">ورود به سامانه</button>
                 </form>
@@ -60,7 +61,7 @@
                 <button type="submit" class="btn btn-main btn-block">ورود مدیر</button>
             </form>
         </div>
-        <div class="auth-note">کارکنان در هر ورود یک کد یکبارمصرف جدید دریافت می‌کنند.</div>
+        <div class="auth-note">کارکنان در هر ورود می‌توانند بین رمز یکبارمصرف و رمز شخصی انتخاب کنند.</div>
         <div class="login-build-version">Build @HRPortal.BuildInfo.Number</div>
     </div>
 </div>

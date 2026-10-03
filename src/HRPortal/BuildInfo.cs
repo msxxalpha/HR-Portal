@@ -6,5 +6,5 @@ namespace HRPortal;
 /// </summary>
 public static class BuildInfo
 {
-    public const string Number = "260";
+    public const string Number = "307";
 }

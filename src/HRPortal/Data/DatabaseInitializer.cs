@@ -373,6 +373,7 @@ IF COL_LENGTH(N'dbo.SmsSettings', N'Template') IS NULL ALTER TABLE [dbo].[SmsSet
 IF COL_LENGTH(N'dbo.SmsSettings', N'TestRecipient') IS NULL ALTER TABLE [dbo].[SmsSettings] ADD [TestRecipient] nvarchar(30) NOT NULL CONSTRAINT [DF_SmsSettings_TestRecipient] DEFAULT N'';
 
 IF COL_LENGTH(N'dbo.Employees', N'Identifier') IS NULL ALTER TABLE [dbo].[Employees] ADD [Identifier] nvarchar(100) NOT NULL CONSTRAINT [DF_Employees_Identifier] DEFAULT N'';
+IF COL_LENGTH(N'dbo.Employees', N'PersonalPasswordHash') IS NULL ALTER TABLE [dbo].[Employees] ADD [PersonalPasswordHash] nvarchar(1000) NULL;
 
 IF COL_LENGTH(N'PayrollReportSettings', N'Enabled') IS NULL ALTER TABLE [PayrollReportSettings] ADD [Enabled] bit NOT NULL CONSTRAINT [DF_PayrollReportSettings_Enabled] DEFAULT 1;
 IF COL_LENGTH(N'PayrollReportSettings', N'ReportUrl') IS NULL ALTER TABLE [PayrollReportSettings] ADD [ReportUrl] nvarchar(2000) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportUrl] DEFAULT N'';
@@ -480,6 +481,7 @@ BEGIN
         [FatherName] nvarchar(100) NULL,
         [Status] nvarchar(50) NOT NULL CONSTRAINT [DF_Employees_Status] DEFAULT N'فعال',
         [IsSystemUser] bit NOT NULL CONSTRAINT [DF_Employees_IsSystemUser] DEFAULT 1,
+        [PersonalPasswordHash] nvarchar(1000) NULL,
         [IsSystemAdministrator] bit NOT NULL CONSTRAINT [DF_Employees_IsSystemAdministrator] DEFAULT 0,
         [CreatedAt] datetime2 NOT NULL,
         [UpdatedAt] datetime2 NOT NULL

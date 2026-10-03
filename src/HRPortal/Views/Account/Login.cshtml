@@ -25,13 +25,30 @@
             <div class="alert error">@TempData["Error"]</div>
         }
         <div id="employeePanel" class="login-panel @(adminMode ? "hidden" : "")">
-            <div class="auth-intro"><h1>ورود کارکنان</h1><p>شماره پرسنلی را وارد کنید تا کد پنج رقمی یکبارمصرف برای موبایل ثبت‌شده ارسال شود.</p></div>
+            <div class="auth-intro"><h1>ورود کارکنان</h1><p>روش ورود را انتخاب کنید.</p></div>
+            <div class="login-tabs">
+                <button type="button" class="login-tab active" data-employee-login-mode="otp">رمز یکبارمصرف</button>
+                <button type="button" class="login-tab" data-employee-login-mode="password">نام کاربری و رمز شخصی</button>
+            </div>
+            <div id="employeeOtpPanel" class="login-panel">
+            <div class="auth-intro"><h2>ورود با رمز یکبارمصرف</h2><p>شماره پرسنلی را وارد کنید تا کد یکبارمصرف برای موبایل ثبت‌شده ارسال شود.</p></div>
             <form method="post" action="/Account/EmployeeLogin" class="login-form">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
                 <label>شماره پرسنلی<input name="PersonnelNumber" value="@Model.PersonnelNumber" autocomplete="username" inputmode="numeric" autofocus="@(!adminMode)" required /></label>
                 <button type="submit" class="btn btn-main btn-block">ارسال کد ورود</button>
             </form>
+            </div>
+            <div id="employeePasswordPanel" class="login-panel hidden">
+                <div class="auth-intro"><h2>ورود با رمز شخصی</h2><p>نام کاربری همان کد پرسنلی است.</p></div>
+                <form method="post" action="/Account/EmployeePasswordLogin" class="login-form">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
+                    <label>نام کاربری (کد پرسنلی)<input name="PersonnelNumber" value="@Model.PersonnelNumber" autocomplete="username" required /></label>
+                    <label>رمز عبور شخصی<input type="password" name="Password" autocomplete="current-password" required /></label>
+                    <button type="submit" class="btn btn-main btn-block">ورود به سامانه</button>
+                </form>
+            </div>
         </div>
         <div id="adminPanel" class="login-panel @(adminMode ? "" : "hidden")">
             <div class="auth-intro"><h1>ورود مدیر سامانه</h1><p>نام کاربری و رمز عبور حساب مدیر سامانه را وارد کنید.</p></div>
@@ -50,7 +67,8 @@
 @section Scripts {
 <script>
 (function () {
-    const tabs = document.querySelectorAll('.login-tab');
+    const tabs = document.querySelectorAll('.login-tab[data-mode]');
+    const employeeTabs = document.querySelectorAll('.login-tab[data-employee-login-mode]');
     const employee = document.getElementById('employeePanel');
     const admin = document.getElementById('adminPanel');
     tabs.forEach(function (tab) {
@@ -59,6 +77,17 @@
             tabs.forEach(function (x) { x.classList.toggle('active', x === tab); });
             employee.classList.toggle('hidden', isAdmin);
             admin.classList.toggle('hidden', !isAdmin);
+        });
+    });
+
+    const otp = document.getElementById('employeeOtpPanel');
+    const password = document.getElementById('employeePasswordPanel');
+    employeeTabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+            const isPassword = tab.dataset.employeeLoginMode === 'password';
+            employeeTabs.forEach(function (x) { x.classList.toggle('active', x === tab); });
+            otp.classList.toggle('hidden', isPassword);
+            password.classList.toggle('hidden', !isPassword);
         });
     });
 })();

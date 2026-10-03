@@ -124,7 +124,9 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         if (!ModelState.IsValid)
             return View("Form", await BuildFormVmAsync(employee));
 
+        var personalPasswordHash = existing.PersonalPasswordHash;
         db.Entry(existing).CurrentValues.SetValues(employee);
+        existing.PersonalPasswordHash = personalPasswordHash;
         existing.IsSystemUser = existing.Status == "فعال";
         existing.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();

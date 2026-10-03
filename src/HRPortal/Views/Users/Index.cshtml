@@ -69,7 +69,16 @@
                                 <span class="switch-slider"></span>
                             </label>
                         </td>
-                        <td><button class="btn btn-outline btn-sm" type="submit" form="@formId">ذخیره</button></td>
+                        <td>
+                            <button class="btn btn-outline btn-sm" type="submit" form="@formId">ذخیره</button>
+                            <form method="post" action="/Users/SetPersonalCredential" style="margin-top:8px;">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="employeeId" value="@row.Employee.Id" />
+                                <input type="password" name="newValue" minlength="6" autocomplete="new-password" placeholder="رمز جدید (حداقل ۶)" required style="max-width:150px;" />
+                                <input type="password" name="confirmValue" minlength="6" autocomplete="new-password" placeholder="تکرار رمز" required style="max-width:150px;margin-top:4px;" />
+                                <button class="btn btn-main btn-sm" type="submit" style="margin-top:4px;">تعیین/تغییر رمز</button>
+                            </form>
+                        </td>
                     </tr>
                 }
                 @if (!Model.Users.Any())

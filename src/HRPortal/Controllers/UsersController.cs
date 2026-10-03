@@ -50,6 +50,46 @@ public class UsersController(HRPortalDbContext db, RoleService roles, AuditServi
         return RedirectToAction(nameof(Index));
     }
 
+    [HttpPost, Authorize(Policy = "Users.Manage"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> SetPersonalCredential(int employeeId, string? newValue, string? confirmValue)
+    {
+        if (string.IsNullOrWhiteSpace(newValue) || newValue.Length < 6)
+        {
+            TempData["Error"] = "رمز جدید باید حداقل ۶ کاراکتر داشته باشد.";
+            return RedirectToAction(nameof(Index));
+        }
+        if (!string.Equals(newValue, confirmValue, StringComparison.Ordinal))
+        {
+            TempData["Error"] = "تکرار رمز جدید با مقدار جدید یکسان نیست.";
+            return RedirectToAction(nameof(Index));
+        }
+        var employee = await db.Employees.FindAsync(employeeId);
+        if (employee is null)
+        {
+            TempData["Error"] = "کارمند موردنظر یافت نشد.";
+            return RedirectToAction(nameof(Index));
+        }
+        if (!employee.IsSystemUser || employee.Status != "فعال")
+        {
+            TempData["Error"] = "فقط برای کاربران فعال سامانه می‌توان رمز شخصی تعیین یا تغییر داد.";
+            return RedirectToAction(nameof(Index));
+        }
+        var hadValue = !string.IsNullOrWhiteSpace(employee.PersonalPasswordHash);
+        employee.PersonalPasswordHash = PasswordHasher.Hash(newValue);
+        employee.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        await audit.WriteAsync(
+            hadValue ? "تغییر رمز شخصی توسط مدیر" : "تعیین رمز شخصی توسط مدیر",
+            "Employee",
+            employee.Id.ToString(),
+            employee.PersonnelNumber,
+            employee.Id);
+        TempData["Success"] = hadValue
+            ? $"رمز شخصی کاربر {employee.PersonnelNumber} تغییر کرد."
+            : $"رمز شخصی برای کاربر {employee.PersonnelNumber} تعیین شد.";
+        return RedirectToAction(nameof(Index));
+    }
+
     [HttpPost, Authorize(Policy = "Roles.Manage"), ValidateAntiForgeryToken]
     public async Task<IActionResult> SaveRole(RoleEditModel model)
     {

@@ -18,7 +18,7 @@ public class Employee
     public string? EmploymentType { get; set; }
     public string? Email { get; set; }
     public string? FatherName { get; set; }
-    public string Status { get; set; } = "فعال"; public bool IsSystemUser { get; set; } = true; public bool IsSystemAdministrator { get; set; }
+    public string Status { get; set; } = "فعال"; public bool IsSystemUser { get; set; } = true; [MaxLength(1000)] public string? PersonalPasswordHash { get; set; } public bool IsSystemAdministrator { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow; public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public OrganizationNode? OrganizationUnit { get; set; }
     public OrganizationNode? OrganizationDepartment { get; set; }

@@ -54,6 +54,11 @@
                 <div class="nav-caption">حساب مدیر</div>
                 <a href="/Account/ChangePassword">تغییر رمز مدیر</a>
             }
+            else if (User.HasClaim("UserType", "Employee"))
+            {
+                <div class="nav-caption">حساب کاربری</div>
+                <a href="/Account/PersonalPassword">رمز عبور شخصی</a>
+            }
             @if (Can("Settings.View"))
             {
                 <div class="nav-caption">تنظیمات سامانه</div>

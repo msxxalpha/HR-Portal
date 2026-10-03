@@ -8,7 +8,7 @@
 <div class="page-head">
     <div>
         <h1>مدیریت کاربران و نقش‌ها</h1>
-        <p>کاربران از کارکنان سامانه انتخاب می‌شوند و سطح دسترسی هر کاربر از طریق نقش‌ها تعیین می‌گردد.</p>
+        <p>کاربران از کارکنان سامانه انتخاب می‌شوند و سطح دسترسی هر کاربر از طریق نقش‌ها تعیین می‌گردد. وضعیت رمز شخصی قابل مشاهده است و مدیر می‌تواند آن را تعیین یا تغییر دهد.</p>
     </div>
 </div>
 
@@ -27,13 +27,13 @@
         <div class="section-head">
             <div>
                 <h3>کاربران کارکنان</h3>
-                <span class="muted">نام کاربری کارکنان همان شماره پرسنلی است و ورود با OTP انجام می‌شود.</span>
+                <span class="muted">نام کاربری کارکنان همان شماره پرسنلی است و ورود با OTP یا رمز شخصی انجام می‌شود.</span>
             </div>
         </div>
         <div class="table-wrap">
             <table>
                 <thead>
-                    <tr><th>شماره پرسنلی</th><th>کارمند</th><th>واحد</th><th>نقش‌ها</th><th>فعال</th><th>عملیات</th></tr>
+                    <tr><th>شماره پرسنلی</th><th>کارمند</th><th>واحد</th><th>نقش‌ها</th><th>فعال</th><th>رمز شخصی</th><th>عملیات</th></tr>
                 </thead>
                 <tbody>
                 @foreach (var row in Model.Users)
@@ -61,6 +61,9 @@
                             </div>
                         </td>
                         <td>
+                            <span class="badge">@(string.IsNullOrWhiteSpace(row.Employee.PersonalPasswordHash) ? "تعیین نشده" : "تعیین شده")</span>
+                        </td>
+                        <td>
                             <label class="switch-control">
                                 <input type="checkbox" name="isSystemUser" value="true" form="@formId" @(row.Employee.IsSystemUser ? "checked" : "") />
                                 <span class="switch-slider"></span>
@@ -71,7 +74,7 @@
                 }
                 @if (!Model.Users.Any())
                 {
-                    <tr><td colspan="6" class="empty">هنوز کارمندی ثبت نشده است.</td></tr>
+                    <tr><td colspan="7" class="empty">هنوز کارمندی ثبت نشده است.</td></tr>
                 }
                 </tbody>
             </table>

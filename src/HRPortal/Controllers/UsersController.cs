@@ -56,10 +56,10 @@ public class UsersController(HRPortalDbContext db, RoleService roles, AuditServi
         var password = newValue ?? string.Empty;
         var confirmation = confirmValue ?? string.Empty;
 
-        // The only personal-password rule is string length >= 6.
-        // Digits, letters, symbols, and their combinations are all valid.
-        // Do not trim or otherwise normalize the supplied password.
-        if (password.Length < 6)
+        // The personal-password policy is centralized: the raw string must
+        // contain at least six characters. No character composition, trimming,
+        // or normalization is applied.
+        if (!PasswordHasher.IsValidPersonalPassword(password))
         {
             TempData["Error"] = "رمز جدید باید حداقل ۶ کاراکتر داشته باشد.";
             return RedirectToAction(nameof(Index));

@@ -111,7 +111,6 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
             new("PersonnelNumber", employee.PersonnelNumber),
             new("IsAdmin", "0"),
             new("UserType", "Employee"),
-            new("LoginMethod", "Otp"),
             new("LoginMethod", "Password")
         };
 
@@ -244,7 +243,8 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
             new("EmployeeId", employee.Id.ToString()),
             new("PersonnelNumber", employee.PersonnelNumber),
             new("IsAdmin", "0"),
-            new("UserType", "Employee")
+            new("UserType", "Employee"),
+            new("LoginMethod", "Otp")
         };
 
         var permissions = await roleService.GetEmployeePermissionsAsync(employee.Id);

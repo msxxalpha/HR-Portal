@@ -272,8 +272,13 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
     {
         var employee = await GetAuthenticatedEmployeeAsync();
         if (employee is null) return Forbid();
-        var hasExistingPassword = !string.IsNullOrWhiteSpace(employee.PersonalPasswordHash);
-        var isOtpSession = string.Equals(User.FindFirst("LoginMethod")?.Value, "Otp", StringComparison.OrdinalIgnoreCase);
+
+        var hasExistingPassword = !string.IsNullOrEmpty(employee.PersonalPasswordHash);
+        var isOtpSession = string.Equals(
+            User.FindFirst("LoginMethod")?.Value,
+            "Otp",
+            StringComparison.OrdinalIgnoreCase);
+
         return View(new PersonalPasswordVm
         {
             HasExistingPassword = hasExistingPassword,
@@ -282,44 +287,93 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
     }
 
     [HttpPost, Authorize, ValidateAntiForgeryToken]
-    public async Task<IActionResult> PersonalPassword(PersonalPasswordVm model)
+    public async Task<IActionResult> PersonalPassword(
+        string? currentPassword,
+        string? newPassword,
+        string? confirmPassword)
     {
         var employee = await GetAuthenticatedEmployeeAsync();
         if (employee is null) return Forbid();
 
-        var hasExistingPassword = !string.IsNullOrWhiteSpace(employee.PersonalPasswordHash);
-        var isOtpSession = string.Equals(User.FindFirst("LoginMethod")?.Value, "Otp", StringComparison.OrdinalIgnoreCase);
+        var hasExistingPassword = !string.IsNullOrEmpty(employee.PersonalPasswordHash);
+        var isOtpSession = string.Equals(
+            User.FindFirst("LoginMethod")?.Value,
+            "Otp",
+            StringComparison.OrdinalIgnoreCase);
 
-        // Personal passwords have exactly one format rule:
-        // the string must contain at least 6 characters. No character-class
-        // requirement (digits/letters/symbols) is imposed, and the value is
-        // never trimmed or normalized before hashing.
-        ModelState.Remove(nameof(PersonalPasswordVm.NewPassword));
-        ModelState.Remove(nameof(PersonalPasswordVm.ConfirmPassword));
-        ModelState.Remove(nameof(PersonalPasswordVm.CurrentPassword));
+        // Password fields are intentionally handled as raw strings instead of
+        // binding to a validation model. The only password-format rule is:
+        // at least six characters; no composition, trimming, or normalization.
+        ModelState.Clear();
 
-        var newPassword = model.NewPassword ?? string.Empty;
-        var confirmPassword = model.ConfirmPassword ?? string.Empty;
-        var currentPassword = model.CurrentPassword ?? string.Empty;
+        var suppliedNewPassword = newPassword ?? string.Empty;
+        var suppliedConfirmation = confirmPassword ?? string.Empty;
+        var suppliedCurrentPassword = currentPassword ?? string.Empty;
 
-        if (newPassword.Length < 6)
-            ModelState.AddModelError(nameof(model.NewPassword), "رمز عبور شخصی باید حداقل ۶ کاراکتر داشته باشد.");
-        if (!string.Equals(newPassword, confirmPassword, StringComparison.Ordinal))
-            ModelState.AddModelError(nameof(model.ConfirmPassword), "تکرار رمز عبور با رمز جدید یکسان نیست.");
-        if (hasExistingPassword && !isOtpSession &&
-            !PasswordHasher.Verify(currentPassword, employee.PersonalPasswordHash!))
-            ModelState.AddModelError(nameof(model.CurrentPassword), "رمز عبور فعلی صحیح نیست.");
+        var passwordValid = PasswordHasher.IsValidPersonalPassword(suppliedNewPassword);
+        if (!passwordValid)
+        {
+            ModelState.AddModelError(
+                "NewPassword",
+                "رمز عبور شخصی باید حداقل ۶ کاراکتر داشته باشد.");
+        }
 
-        model.HasExistingPassword = hasExistingPassword;
-        model.CurrentPasswordRequired = hasExistingPassword && !isOtpSession;
-        if (!ModelState.IsValid) return View(model);
+        if (!string.Equals(suppliedNewPassword, suppliedConfirmation, StringComparison.Ordinal))
+        {
+            ModelState.AddModelError(
+                "ConfirmPassword",
+                "تکرار رمز عبور با رمز جدید یکسان نیست.");
+        }
 
-        employee.PersonalPasswordHash = PasswordHasher.Hash(newPassword);
+        // Only a password-login session must prove the current personal
+        // password. An OTP-authenticated session is trusted for a password
+        // set/change, so the current password is not requested.
+        var currentPasswordValid = true;
+        if (passwordValid &&
+            string.Equals(suppliedNewPassword, suppliedConfirmation, StringComparison.Ordinal) &&
+            hasExistingPassword &&
+            !isOtpSession)
+        {
+            currentPasswordValid = PasswordHasher.Verify(
+                suppliedCurrentPassword,
+                employee.PersonalPasswordHash!);
+
+            if (!currentPasswordValid)
+            {
+                ModelState.AddModelError(
+                    "CurrentPassword",
+                    "رمز عبور فعلی صحیح نیست. برای تغییر رمز می‌توانید با رمز یکبارمصرف وارد شوید.");
+            }
+        }
+
+        var currentPasswordRequired = hasExistingPassword && !isOtpSession;
+        if (!ModelState.IsValid)
+        {
+            // Never return password values back to the browser.
+            return View(new PersonalPasswordVm
+            {
+                HasExistingPassword = hasExistingPassword,
+                CurrentPasswordRequired = currentPasswordRequired
+            });
+        }
+
+        employee.PersonalPasswordHash = PasswordHasher.Hash(suppliedNewPassword);
         employee.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
 
-        await audit.WriteAsync(hasExistingPassword ? "تغییر رمز عبور شخصی کارمند" : "تعیین رمز عبور شخصی کارمند", "Employee", employee.Id.ToString(), employee.PersonnelNumber, employee.Id);
-        TempData["Success"] = hasExistingPassword ? "رمز عبور شخصی شما با موفقیت تغییر کرد." : "رمز عبور شخصی شما با موفقیت تعیین شد.";
+        await audit.WriteAsync(
+            hasExistingPassword
+                ? "تغییر رمز عبور شخصی کارمند"
+                : "تعیین رمز عبور شخصی کارمند",
+            "Employee",
+            employee.Id.ToString(),
+            employee.PersonnelNumber,
+            employee.Id);
+
+        TempData["Success"] = hasExistingPassword
+            ? "رمز عبور شخصی شما با موفقیت تغییر کرد."
+            : "رمز عبور شخصی شما با موفقیت تعیین شد.";
+
         return RedirectToAction("Index", "Home");
     }
 

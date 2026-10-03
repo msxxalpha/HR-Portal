@@ -131,6 +131,7 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
         return true;
     }
 
+    // Normalize SSRS browser portal URLs to the native ReportServer endpoint.
     private static string NormalizeReportTarget(string target)
     {
         if (!Uri.TryCreate(target, UriKind.Absolute, out var uri))

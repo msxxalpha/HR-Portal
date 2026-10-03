@@ -9,6 +9,15 @@
     var canViewSettings = isAdmin || User.HasClaim("Permission", "Settings.View");
 
 }
+@if (!isAdmin && !((bool?)ViewBag.HasPersonalPassword ?? true))
+{
+    <div class="alert warning" style="margin-bottom:16px;">
+        <strong>رمز عبور شخصی خود را تعیین کنید.</strong>
+        <div>برای ورودهای بعدی می‌توانید علاوه بر رمز یکبارمصرف، با نام کاربری و رمز شخصی نیز وارد سامانه شوید.</div>
+        <a class="btn btn-main btn-sm" href="/Account/PersonalPassword" style="margin-top:10px;">تنظیم رمز شخصی</a>
+    </div>
+}
+
 <div class="hero">
     <div>
         <div class="eyebrow">سامانه یکپارچه منابع انسانی</div>

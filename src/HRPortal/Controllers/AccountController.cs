@@ -72,7 +72,7 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
         model.Mode = "employee-password";
 
         if (string.IsNullOrWhiteSpace(model.PersonnelNumber) ||
-            string.IsNullOrWhiteSpace(model.Password))
+            string.IsNullOrEmpty(model.Password))
         {
             ModelState.AddModelError("", "نام کاربری و رمز عبور شخصی الزامی است.");
             return View("Login", model);
@@ -290,19 +290,31 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
         var hasExistingPassword = !string.IsNullOrWhiteSpace(employee.PersonalPasswordHash);
         var isOtpSession = string.Equals(User.FindFirst("LoginMethod")?.Value, "Otp", StringComparison.OrdinalIgnoreCase);
 
-        if (string.IsNullOrWhiteSpace(model.NewPassword) || model.NewPassword.Length < 6)
+        // Personal passwords have exactly one format rule:
+        // the string must contain at least 6 characters. No character-class
+        // requirement (digits/letters/symbols) is imposed, and the value is
+        // never trimmed or normalized before hashing.
+        ModelState.Remove(nameof(PersonalPasswordVm.NewPassword));
+        ModelState.Remove(nameof(PersonalPasswordVm.ConfirmPassword));
+        ModelState.Remove(nameof(PersonalPasswordVm.CurrentPassword));
+
+        var newPassword = model.NewPassword ?? string.Empty;
+        var confirmPassword = model.ConfirmPassword ?? string.Empty;
+        var currentPassword = model.CurrentPassword ?? string.Empty;
+
+        if (newPassword.Length < 6)
             ModelState.AddModelError(nameof(model.NewPassword), "رمز عبور شخصی باید حداقل ۶ کاراکتر داشته باشد.");
-        if (!string.Equals(model.NewPassword, model.ConfirmPassword, StringComparison.Ordinal))
+        if (!string.Equals(newPassword, confirmPassword, StringComparison.Ordinal))
             ModelState.AddModelError(nameof(model.ConfirmPassword), "تکرار رمز عبور با رمز جدید یکسان نیست.");
         if (hasExistingPassword && !isOtpSession &&
-            (string.IsNullOrWhiteSpace(model.CurrentPassword) || !PasswordHasher.Verify(model.CurrentPassword, employee.PersonalPasswordHash!)))
+            !PasswordHasher.Verify(currentPassword, employee.PersonalPasswordHash!))
             ModelState.AddModelError(nameof(model.CurrentPassword), "رمز عبور فعلی صحیح نیست.");
 
         model.HasExistingPassword = hasExistingPassword;
         model.CurrentPasswordRequired = hasExistingPassword && !isOtpSession;
         if (!ModelState.IsValid) return View(model);
 
-        employee.PersonalPasswordHash = PasswordHasher.Hash(model.NewPassword!);
+        employee.PersonalPasswordHash = PasswordHasher.Hash(newPassword);
         employee.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
 

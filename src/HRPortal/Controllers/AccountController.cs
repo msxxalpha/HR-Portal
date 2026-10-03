@@ -67,6 +67,72 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
     }
 
     [HttpPost, AllowAnonymous, ValidateAntiForgeryToken]
+    public async Task<IActionResult> EmployeePasswordLogin(LoginVm model)
+    {
+        model.Mode = "employee-password";
+
+        if (string.IsNullOrWhiteSpace(model.PersonnelNumber) ||
+            string.IsNullOrWhiteSpace(model.Password))
+        {
+            ModelState.AddModelError("", "نام کاربری و رمز عبور شخصی الزامی است.");
+            return View("Login", model);
+        }
+
+        var personnelNumber = model.PersonnelNumber.Trim();
+        var employee = await db.Employees.SingleOrDefaultAsync(x =>
+            x.PersonnelNumber == personnelNumber &&
+            x.IsSystemUser &&
+            x.Status == "فعال");
+
+        if (employee is null)
+        {
+            await audit.WriteAsync("ورود ناموفق کارکنان با رمز شخصی", "Account", personnelNumber, "کارمند فعال یافت نشد.");
+            ModelState.AddModelError("", "کارمند فعال با این نام کاربری یافت نشد.");
+            return View("Login", model);
+        }
+
+        if (string.IsNullOrWhiteSpace(employee.PersonalPasswordHash))
+        {
+            ModelState.AddModelError("", "برای این کاربر هنوز رمز عبور شخصی تعیین نشده است. از گزینه «ورود با رمز یکبارمصرف» استفاده کنید.");
+            return View("Login", model);
+        }
+
+        if (!PasswordHasher.Verify(model.Password, employee.PersonalPasswordHash))
+        {
+            await audit.WriteAsync("ورود ناموفق کارکنان با رمز شخصی", "Account", employee.Id.ToString(), "نام کاربری یا رمز عبور نادرست است.", employee.Id);
+            ModelState.AddModelError("", "نام کاربری یا رمز عبور صحیح نیست.");
+            return View("Login", model);
+        }
+
+        var claims = new List<System.Security.Claims.Claim>
+        {
+            new(System.Security.Claims.ClaimTypes.Name, $"{employee.FirstName} {employee.LastName}"),
+            new("EmployeeId", employee.Id.ToString()),
+            new("PersonnelNumber", employee.PersonnelNumber),
+            new("IsAdmin", "0"),
+            new("UserType", "Employee"),
+            new("LoginMethod", "Otp"),
+            new("LoginMethod", "Password")
+        };
+
+        var permissions = await roleService.GetEmployeePermissionsAsync(employee.Id);
+        foreach (var permission in permissions)
+            claims.Add(new System.Security.Claims.Claim("Permission", permission));
+
+        var identity = new System.Security.Claims.ClaimsIdentity(
+            claims,
+            CookieAuthenticationDefaults.AuthenticationScheme);
+
+        await HttpContext.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            new System.Security.Claims.ClaimsPrincipal(identity));
+
+        await audit.WriteAsync("ورود موفق کارمند با رمز شخصی", "Account", employee.Id.ToString(), employee.PersonnelNumber, employee.Id);
+
+        return Redirect(!string.IsNullOrWhiteSpace(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl) ? model.ReturnUrl : "/");
+    }
+
+    [HttpPost, AllowAnonymous, ValidateAntiForgeryToken]
     public async Task<IActionResult> AdminLogin(LoginVm model)
     {
         model.Mode = "admin";
@@ -201,6 +267,50 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
         return Redirect(!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl) ? returnUrl : "/");
     }
 
+    [HttpGet, Authorize]
+    public async Task<IActionResult> PersonalPassword()
+    {
+        var employee = await GetAuthenticatedEmployeeAsync();
+        if (employee is null) return Forbid();
+        var hasExistingPassword = !string.IsNullOrWhiteSpace(employee.PersonalPasswordHash);
+        var isOtpSession = string.Equals(User.FindFirst("LoginMethod")?.Value, "Otp", StringComparison.OrdinalIgnoreCase);
+        return View(new PersonalPasswordVm
+        {
+            HasExistingPassword = hasExistingPassword,
+            CurrentPasswordRequired = hasExistingPassword && !isOtpSession
+        });
+    }
+
+    [HttpPost, Authorize, ValidateAntiForgeryToken]
+    public async Task<IActionResult> PersonalPassword(PersonalPasswordVm model)
+    {
+        var employee = await GetAuthenticatedEmployeeAsync();
+        if (employee is null) return Forbid();
+
+        var hasExistingPassword = !string.IsNullOrWhiteSpace(employee.PersonalPasswordHash);
+        var isOtpSession = string.Equals(User.FindFirst("LoginMethod")?.Value, "Otp", StringComparison.OrdinalIgnoreCase);
+
+        if (string.IsNullOrWhiteSpace(model.NewPassword) || model.NewPassword.Length < 6)
+            ModelState.AddModelError(nameof(model.NewPassword), "رمز عبور شخصی باید حداقل ۶ کاراکتر داشته باشد.");
+        if (!string.Equals(model.NewPassword, model.ConfirmPassword, StringComparison.Ordinal))
+            ModelState.AddModelError(nameof(model.ConfirmPassword), "تکرار رمز عبور با رمز جدید یکسان نیست.");
+        if (hasExistingPassword && !isOtpSession &&
+            (string.IsNullOrWhiteSpace(model.CurrentPassword) || !PasswordHasher.Verify(model.CurrentPassword, employee.PersonalPasswordHash!)))
+            ModelState.AddModelError(nameof(model.CurrentPassword), "رمز عبور فعلی صحیح نیست.");
+
+        model.HasExistingPassword = hasExistingPassword;
+        model.CurrentPasswordRequired = hasExistingPassword && !isOtpSession;
+        if (!ModelState.IsValid) return View(model);
+
+        employee.PersonalPasswordHash = PasswordHasher.Hash(model.NewPassword!);
+        employee.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+
+        await audit.WriteAsync(hasExistingPassword ? "تغییر رمز عبور شخصی کارمند" : "تعیین رمز عبور شخصی کارمند", "Employee", employee.Id.ToString(), employee.PersonnelNumber, employee.Id);
+        TempData["Success"] = hasExistingPassword ? "رمز عبور شخصی شما با موفقیت تغییر کرد." : "رمز عبور شخصی شما با موفقیت تعیین شد.";
+        return RedirectToAction("Index", "Home");
+    }
+
     [HttpGet, Authorize(Policy = "AdminOnly")]
     public IActionResult ChangePassword()
     {
@@ -250,6 +360,13 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
     [HttpGet, AllowAnonymous]
     public IActionResult Denied() => View();
 
+    private async Task<Employee?> GetAuthenticatedEmployeeAsync()
+    {
+        if (User.HasClaim("IsAdmin", "1") || !int.TryParse(User.FindFirst("EmployeeId")?.Value, out var employeeId))
+            return null;
+        return await db.Employees.SingleOrDefaultAsync(x => x.Id == employeeId && x.IsSystemUser && x.Status == "فعال");
+    }
+
     private static int GetRemainingSeconds(DateTime? expiresAt)
     {
         if (expiresAt is null)
@@ -266,6 +383,15 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
         public string? Username { get; set; }
         public string? Password { get; set; }
         public string? ReturnUrl { get; set; }
+    }
+
+    public sealed class PersonalPasswordVm
+    {
+        public string? CurrentPassword { get; set; }
+        public string? NewPassword { get; set; }
+        public string? ConfirmPassword { get; set; }
+        public bool HasExistingPassword { get; set; }
+        public bool CurrentPasswordRequired { get; set; }
     }
 
     public sealed class ChangePasswordVm

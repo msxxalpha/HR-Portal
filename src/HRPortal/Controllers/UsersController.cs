@@ -53,12 +53,18 @@ public class UsersController(HRPortalDbContext db, RoleService roles, AuditServi
     [HttpPost, Authorize(Policy = "Users.Manage"), ValidateAntiForgeryToken]
     public async Task<IActionResult> SetPersonalCredential(int employeeId, string? newValue, string? confirmValue)
     {
-        if (string.IsNullOrWhiteSpace(newValue) || newValue.Length < 6)
+        var password = newValue ?? string.Empty;
+        var confirmation = confirmValue ?? string.Empty;
+
+        // The only personal-password rule is string length >= 6.
+        // Digits, letters, symbols, and their combinations are all valid.
+        // Do not trim or otherwise normalize the supplied password.
+        if (password.Length < 6)
         {
             TempData["Error"] = "رمز جدید باید حداقل ۶ کاراکتر داشته باشد.";
             return RedirectToAction(nameof(Index));
         }
-        if (!string.Equals(newValue, confirmValue, StringComparison.Ordinal))
+        if (!string.Equals(password, confirmation, StringComparison.Ordinal))
         {
             TempData["Error"] = "تکرار رمز جدید با مقدار جدید یکسان نیست.";
             return RedirectToAction(nameof(Index));
@@ -75,7 +81,7 @@ public class UsersController(HRPortalDbContext db, RoleService roles, AuditServi
             return RedirectToAction(nameof(Index));
         }
         var hadValue = !string.IsNullOrWhiteSpace(employee.PersonalPasswordHash);
-        employee.PersonalPasswordHash = PasswordHasher.Hash(newValue);
+        employee.PersonalPasswordHash = PasswordHasher.Hash(password);
         employee.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
         await audit.WriteAsync(

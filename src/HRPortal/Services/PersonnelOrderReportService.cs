@@ -14,6 +14,9 @@ public class PersonnelOrderReportService(
         var settings = await db.PersonnelOrderReportSettings.AsNoTracking().FirstOrDefaultAsync();
         if (settings is null || !settings.Enabled)
             return (false, null, "نمایش حکم کارگزینی در تنظیمات سامانه غیرفعال است.");
+        if (string.IsNullOrWhiteSpace(employee.Identifier))
+            return (false, null, "فیلد «شناسه» کارمند برای اجرای کوئری «حکم کارگزینی» خالی است.");
+
         var queryResult = await queries.ExecuteForEmployeeAsync("حکم کارگزینی", employee);
         return queryResult.Success && !string.IsNullOrWhiteSpace(queryResult.Value)
             ? (true, queryResult.Value, "")
@@ -28,14 +31,18 @@ public class PersonnelOrderReportService(
         if (string.IsNullOrWhiteSpace(orderId))
             return new(false, null, "text/html", "شناسه حکم کارگزینی دریافت نشده است.");
 
+        var parameterName = settings.OrderIdParameter?.Trim();
+        if (string.IsNullOrWhiteSpace(parameterName))
+            return new(false, null, "نام پارامتر گزارش شناسه حکم کارگزینی در تنظیمات سامانه وارد نشده است.");
+
         var reportSettings = new PayrollReportSettings
         {
             Enabled = settings.Enabled,
             ReportUrl = settings.ReportUrl,
             ReportServerUrl = settings.ReportServerUrl,
             ReportPath = settings.ReportPath,
-            YearParameter = settings.OrderIdParameter,
-            PersonnelParameter = settings.OrderIdParameter,
+            YearParameter = parameterName,
+            PersonnelParameter = parameterName,
             ReportFormat = settings.ReportFormat,
             ReportAuthentication = settings.ReportAuthentication,
             ReportUsername = settings.ReportUsername,
@@ -51,7 +58,7 @@ public class PersonnelOrderReportService(
             reportSettings,
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                [settings.OrderIdParameter.Trim()] = orderId
+                [parameterName] = orderId
             });
     }
 }

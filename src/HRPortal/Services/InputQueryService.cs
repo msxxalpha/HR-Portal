@@ -10,6 +10,42 @@ public sealed record InputQueryResult(bool Success, string? Value, string ErrorM
 
 public class InputQueryService(HRPortalDbContext db, ReportCredentialProtector credentialProtector)
 {
+    public async Task<InputQueryResult> ExecutePersonnelOrderAsync(string personnelNumber)
+    {
+        var normalizedPersonnelNumber = personnelNumber?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(normalizedPersonnelNumber))
+            return new(false, null, "کد پرسنلی کاربر لاگین‌شده برای دریافت حکم کارگزینی مشخص نیست.");
+
+        var employee = await db.Employees.AsNoTracking()
+            .Where(x => x.PersonnelNumber == normalizedPersonnelNumber &&
+                        x.IsSystemUser &&
+                        x.Status == "فعال")
+            .Select(x => new Employee
+            {
+                Id = x.Id,
+                PersonnelNumber = x.PersonnelNumber,
+                Identifier = x.Identifier
+            })
+            .SingleOrDefaultAsync();
+
+        if (employee is null)
+            return new(false, null, "کارمند فعال متناظر با کد پرسنلی کاربر لاگین‌شده یافت نشد.");
+
+        if (string.IsNullOrWhiteSpace(employee.Identifier))
+            return new(false, null, $"فیلد «شناسه» برای کارمند با کد پرسنلی {normalizedPersonnelNumber} خالی است.");
+
+        var query = await db.InputQueries.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Title == "حکم کارگزینی" && x.Enabled);
+
+        if (query is null)
+            return new(false, null, "کوئری فعال با عنوان دقیقاً «حکم کارگزینی» در بخش کوئری‌های ورودی ثبت نشده است.");
+
+        if (!Regex.IsMatch(query.SqlText ?? "", @"(?<![A-Za-z0-9_])@Identifier\\b", RegexOptions.IgnoreCase))
+            return new(false, null, "کوئری «حکم کارگزینی» باید پارامتر @Identifier داشته باشد.");
+
+        return await ExecuteAsync(query, employee.Id, employee.PersonnelNumber, employee.Identifier, identifierOnly: true);
+    }
+
     public async Task<InputQueryResult> ExecuteForEmployeeAsync(string title, Employee employee)
     {
         var query = await db.InputQueries.AsNoTracking()
@@ -27,7 +63,7 @@ public class InputQueryService(HRPortalDbContext db, ReportCredentialProtector c
         return await ExecuteAsync(query, employee.Id, employee.PersonnelNumber, employee.Identifier);
     }
 
-    public async Task<InputQueryResult> ExecuteAsync(InputQuery query, int employeeId, string personnelNumber, string? identifier)
+    public async Task<InputQueryResult> ExecuteAsync(InputQuery query, int employeeId, string personnelNumber, string? identifier, bool identifierOnly = false)
     {
         if (!IsReadOnlyQuery(query.SqlText))
             return new(false, null, "متن کوئری فقط باید یک SELECT یا CTE خواندنی باشد؛ دستورات تغییر داده مجاز نیستند.");
@@ -66,21 +102,25 @@ public class InputQueryService(HRPortalDbContext db, ReportCredentialProtector c
             command.CommandType = System.Data.CommandType.Text;
             command.CommandTimeout = Math.Clamp(query.CommandTimeoutSeconds, 5, 300);
 
-            // The personnel-order query convention is a single input parameter:
-            // @Identifier = the value of the logged-in employee's «شناسه» field.
-            // The two legacy aliases are retained for older input queries.
+            // Personnel-order queries receive exactly one application parameter:
+            // @Identifier = Employee.Identifier for the authenticated employee.
+            // Legacy aliases remain available to other input queries.
             command.Parameters.Add(new SqlParameter("@Identifier", System.Data.SqlDbType.NVarChar, 100)
             {
                 Value = identifier ?? ""
             });
-            command.Parameters.Add(new SqlParameter("@PersonnelNumber", System.Data.SqlDbType.NVarChar, 50)
+
+            if (!identifierOnly)
             {
-                Value = personnelNumber
-            });
-            command.Parameters.Add(new SqlParameter("@EmployeeId", System.Data.SqlDbType.Int)
-            {
-                Value = employeeId
-            });
+                command.Parameters.Add(new SqlParameter("@PersonnelNumber", System.Data.SqlDbType.NVarChar, 50)
+                {
+                    Value = personnelNumber
+                });
+                command.Parameters.Add(new SqlParameter("@EmployeeId", System.Data.SqlDbType.Int)
+                {
+                    Value = employeeId
+                });
+            }
 
             await using var reader = await command.ExecuteReaderAsync(System.Data.CommandBehavior.SingleRow);
             if (!await reader.ReadAsync())

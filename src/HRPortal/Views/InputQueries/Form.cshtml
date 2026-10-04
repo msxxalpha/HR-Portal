@@ -3,7 +3,19 @@
     Layout = "~/Views/Shared/_Layout.cshtml";
     ViewData["Title"] = Model.Id == 0 ? "افزودن کوئری ورودی" : "ویرایش کوئری ورودی";
 }
-<div class="page-head"><div><h1>@ViewData["Title"]</h1><p>کوئری باید فقط SELECT یا CTE خواندنی باشد. پارامترهای قابل استفاده: <code>@@PersonnelNumber</code>، <code>@@EmployeeId</code> و <code>@@Identifier</code>.</p></div></div>
+<div class="page-head"><div><h1>@ViewData["Title"]</h1><p>کوئری باید فقط SELECT یا CTE خواندنی باشد. برای کوئری «حکم کارگزینی» فقط از پارامتر <code>@@Identifier</code> استفاده کنید؛ این مقدار دقیقاً از فیلد «شناسه» کارمند لاگین‌شده خوانده می‌شود. پارامترهای قدیمی <code>@@PersonnelNumber</code> و <code>@@EmployeeId</code> نیز برای سازگاری پشتیبانی می‌شوند.</p></div></div>
+@if (!ViewData.ModelState.IsValid)
+{
+    <div class="alert error">
+        @foreach (var item in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+        {
+            if (!string.IsNullOrWhiteSpace(item.ErrorMessage))
+            {
+                <div>@item.ErrorMessage</div>
+            }
+        }
+    </div>
+}
 <form method="post" action="/InputQueries/Save" class="card">
 @Html.AntiForgeryToken()
 <input type="hidden" asp-for="Id" />

@@ -1,6 +1,7 @@
 using HRPortal.Data;
 using HRPortal.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Net.Sockets;
 using System.Text.Json;
 
 namespace HRPortal.Services;
@@ -28,6 +29,8 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
             using var client = clients.CreateClient();
             client.Timeout = TimeSpan.FromSeconds(20);
 
+            await EnsureEndpointDnsAsync(request.RequestUri);
+
             using var response = await client.SendAsync(request);
             var body = await response.Content.ReadAsStringAsync();
             var ok = IsSuccessCode(settings.SuccessCodes, (int)response.StatusCode);
@@ -37,10 +40,63 @@ public class ConfigurableSmsService(HRPortalDbContext db, IHttpClientFactory cli
                     ? "پیامک با موفقیت به سرویس‌دهنده ارسال شد."
                     : $"سرویس‌دهنده پیامک کد HTTP موفق برنگرداند: {(int)response.StatusCode} {body}");
         }
+        catch (InvalidOperationException ex) when (ex.InnerException is SocketException socket &&
+            (socket.SocketErrorCode == SocketError.HostNotFound ||
+             socket.SocketErrorCode == SocketError.NoData ||
+             socket.SocketErrorCode == SocketError.TryAgain))
+        {
+            return (false,
+                "خطای DNS سرویس پیامک: " + ex.Message +
+                " این خطا مربوط به DNS/شبکه سرور IIS است، نه اطلاعات کاربر یا کد OTP.");
+        }
+        catch (HttpRequestException ex) when (FindSocketException(ex) is SocketException socket &&
+            (socket.SocketErrorCode == SocketError.HostNotFound ||
+             socket.SocketErrorCode == SocketError.NoData ||
+             socket.SocketErrorCode == SocketError.TryAgain))
+        {
+            return (false,
+                "خطای DNS سرویس پیامک: سرور IIS نتوانست نام میزبان سرویس پیامک را Resolve کند. " +
+                "DNS/Forwarder سرور IIS را بررسی کنید.");
+        }
         catch (Exception ex)
         {
             return (false, "خطای ارتباط با سرویس پیامک: " + ex.Message);
         }
+    }
+
+    private static async Task EnsureEndpointDnsAsync(Uri? endpoint)
+    {
+        if (endpoint is null || string.IsNullOrWhiteSpace(endpoint.Host))
+            throw new InvalidOperationException("نشانی API پیامک معتبر نیست.");
+
+        try
+        {
+            // Resolve the API hostname explicitly so IIS/network problems are
+            // reported as a DNS problem instead of a generic SMS failure.
+            var addresses = await Dns.GetHostAddressesAsync(endpoint.Host);
+            if (addresses.Length == 0)
+                throw new SocketException((int)SocketError.HostNotFound);
+        }
+        catch (SocketException ex)
+        {
+            throw new InvalidOperationException(
+                $"سرور اجرای پورتال نمی‌تواند نام میزبان سرویس پیامک «{endpoint.Host}» را از DNS پیدا کند. " +
+                "روی خود سرور IIS دستور Resolve-DnsName برای این میزبان را بررسی کنید و DNS/Forwarder سرور را اصلاح کنید.",
+                ex);
+        }
+    }
+
+    private static SocketException? FindSocketException(Exception? exception)
+    {
+        while (exception is not null)
+        {
+            if (exception is SocketException socket)
+                return socket;
+
+            exception = exception.InnerException;
+        }
+
+        return null;
     }
 
     private static HttpRequestMessage BuildRequest(SmsSettings settings, string recipient, string code, string message)

@@ -227,6 +227,24 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
             target = NormalizeReportTarget(target);
         }
 
+        // Remove any old values of parameters supplied by the current request.
+        // This is important for personnel-order reports: a report URL may have
+        // been saved with a fixed/old order id. The authenticated user's current
+        // value must be the only value sent to SSRS.
+        foreach (var parameter in parameters.Where(x => !string.IsNullOrWhiteSpace(x.Key)))
+        {
+            var key = Regex.Escape(parameter.Key.Trim());
+            target = Regex.Replace(
+                target,
+                $@"([?&]){key}=[^&]*",
+                "$1",
+                RegexOptions.IgnoreCase);
+        }
+
+        target = Regex.Replace(target, @"\?&", "?", RegexOptions.None);
+        target = Regex.Replace(target, @"&&+", "&", RegexOptions.None);
+        target = Regex.Replace(target, @"[?&]$", "", RegexOptions.None);
+
         var separator = target.Contains('?') ? '&' : '?';
         var query = string.Join("&", parameters
             .Where(x => !string.IsNullOrWhiteSpace(x.Key))

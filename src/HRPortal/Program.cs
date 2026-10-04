@@ -37,6 +37,15 @@ if (string.IsNullOrWhiteSpace(configuredConnectionString))
 
 var sqlConnection = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(configuredConnectionString);
 
+if (string.Equals(
+        sqlConnection.Password,
+        "SET_IN_IIS",
+        StringComparison.Ordinal))
+{
+    throw new InvalidOperationException(
+        "The SQL Server password is not configured. Set ConnectionStrings__DefaultConnection on the server/IIS Application Pool.");
+}
+
 // This application is deployed with SQL Server credentials. If credentials are
 // supplied, explicitly disable Windows/Integrated Authentication so an IIS
 // Application Pool identity cannot silently replace the configured SQL login.

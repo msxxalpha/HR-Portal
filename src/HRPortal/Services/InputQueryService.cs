@@ -106,6 +106,11 @@ public class InputQueryService(HRPortalDbContext db, ReportCredentialProtector c
     private static bool IsReadOnlyQuery(string sql)
     {
         var text = Regex.Replace(sql ?? "", @"--.*?$|/\*.*?\*/", "", RegexOptions.Multiline | RegexOptions.Singleline).Trim();
+
+        // A single trailing semicolon is valid SQL syntax and is commonly
+        // included when administrators paste a query from SSMS.
+        text = Regex.Replace(text, @";\s*$", "").Trim();
+
         if (text.Length == 0 || text.Contains(';') || !Regex.IsMatch(text, @"^(SELECT|WITH)\b", RegexOptions.IgnoreCase))
             return false;
 

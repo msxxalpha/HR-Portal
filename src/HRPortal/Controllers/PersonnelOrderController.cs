@@ -38,7 +38,6 @@ public class PersonnelOrderController(
             return View();
         }
 
-        HttpContext.Session.SetString("PersonnelOrderId", resolved.OrderId);
         ViewBag.ReportEndpoint = Url.Action(nameof(Report), "PersonnelOrder");
         return View();
     }
@@ -53,11 +52,13 @@ public class PersonnelOrderController(
         if (employee is null)
             return StyledError("کارمند فعال و احراز‌شده یافت نشد.", StatusCodes.Status403Forbidden);
 
-        var orderId = HttpContext.Session.GetString("PersonnelOrderId");
-        if (string.IsNullOrWhiteSpace(orderId))
-            return StyledError("شناسه حکم کارگزینی در نشست کاربر یافت نشد.", StatusCodes.Status422UnprocessableEntity);
+        // Resolve the order for the currently authenticated employee every time
+        // the report is requested. This prevents stale/session-cross-user values.
+        var resolved = await reports.ResolveOrderIdAsync(employee);
+        if (!resolved.Success || string.IsNullOrWhiteSpace(resolved.OrderId))
+            return StyledError(resolved.ErrorMessage, StatusCodes.Status422UnprocessableEntity);
 
-        var result = await reports.FetchForOrderIdAsync(orderId);
+        var result = await reports.FetchForOrderIdAsync(resolved.OrderId);
         if (!result.Success || result.Content is null)
             return StyledError(result.ErrorMessage, StatusCodes.Status502BadGateway);
 
@@ -74,6 +75,32 @@ public class PersonnelOrderController(
 
     private async Task<HRPortal.Models.Employee?> GetAuthenticatedEmployeeAsync()
     {
+        // The employee username is the personnel number. Resolve the employee
+        // from that claim so both OTP and personal-password login paths use the
+        // exact same source of truth for the «شناسه» value.
+        var personnelNumber = User.FindFirst("PersonnelNumber")?.Value?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(personnelNumber))
+        {
+            var employeeByUsername = await db.Employees.AsNoTracking()
+                .Where(x => x.PersonnelNumber == personnelNumber &&
+                            x.IsSystemUser &&
+                            x.Status == "فعال")
+                .Select(x => new HRPortal.Models.Employee
+                {
+                    Id = x.Id,
+                    PersonnelNumber = x.PersonnelNumber,
+                    Identifier = x.Identifier,
+                    FirstName = x.FirstName,
+                    LastName = x.LastName
+                })
+                .FirstOrDefaultAsync();
+
+            if (employeeByUsername is not null)
+                return employeeByUsername;
+        }
+
+        // Backward-compatible fallback for older authentication cookies.
         if (!int.TryParse(User.FindFirst("EmployeeId")?.Value, out var employeeId))
             return null;
 

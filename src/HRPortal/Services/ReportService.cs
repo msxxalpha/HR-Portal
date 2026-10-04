@@ -12,7 +12,7 @@ public sealed record ReportFetchResult(
     bool Success,
     byte[]? Content,
     string ContentType,
-    string ErrorMessage);
+    string ErrorMessage = "");
 
 public class ReportService(HRPortalDbContext db, ReportCredentialProtector credentialProtector)
 {

@@ -30,8 +30,24 @@ builder.Services.AddSession(o =>
     o.IdleTimeout = TimeSpan.FromHours(4);
 });
 
+var configuredConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (string.IsNullOrWhiteSpace(configuredConnectionString))
+    throw new InvalidOperationException(
+        "ConnectionStrings:DefaultConnection is not configured. Set it in appsettings or as the ConnectionStrings__DefaultConnection environment variable.");
+
+var sqlConnection = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(configuredConnectionString);
+
+// This application is deployed with SQL Server credentials. If credentials are
+// supplied, explicitly disable Windows/Integrated Authentication so an IIS
+// Application Pool identity cannot silently replace the configured SQL login.
+if (!string.IsNullOrWhiteSpace(sqlConnection.UserID) &&
+    !string.IsNullOrWhiteSpace(sqlConnection.Password))
+{
+    sqlConnection.IntegratedSecurity = false;
+}
+
 builder.Services.AddDbContext<HRPortalDbContext>(o =>
-    o.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    o.UseSqlServer(sqlConnection.ConnectionString));
 
 builder.Services.AddScoped<SystemSettingsService>();
 builder.Services.AddScoped<EnvironmentSettingsService>();

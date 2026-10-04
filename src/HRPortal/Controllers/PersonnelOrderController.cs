@@ -54,7 +54,7 @@ public class PersonnelOrderController(
 
         // Resolve the order for the currently authenticated employee every time
         // the report is requested. This prevents stale/session-cross-user values.
-        var resolved = await reports.ResolveOrderIdAsync(employee);
+        var resolved = await reports.ResolveOrderIdAsync(employee.PersonnelNumber);
         if (!resolved.Success || string.IsNullOrWhiteSpace(resolved.OrderId))
             return StyledError(resolved.ErrorMessage, StatusCodes.Status422UnprocessableEntity);
 

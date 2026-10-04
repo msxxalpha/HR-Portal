@@ -21,6 +21,9 @@ public class InputQueryService(HRPortalDbContext db, ReportCredentialProtector c
         if (string.IsNullOrWhiteSpace(employee.PersonnelNumber))
             return new(false, null, "شماره پرسنلی کارمند برای اجرای کوئری موجود نیست.");
 
+        if (string.IsNullOrWhiteSpace(employee.Identifier))
+            return new(false, null, "فیلد «شناسه» این کارمند در اطلاعات کارکنان ثبت نشده است.");
+
         return await ExecuteAsync(query, employee.Id, employee.PersonnelNumber, employee.Identifier);
     }
 
@@ -63,9 +66,21 @@ public class InputQueryService(HRPortalDbContext db, ReportCredentialProtector c
             command.CommandType = System.Data.CommandType.Text;
             command.CommandTimeout = Math.Clamp(query.CommandTimeoutSeconds, 5, 300);
 
-            command.Parameters.Add(new SqlParameter("@PersonnelNumber", System.Data.SqlDbType.NVarChar, 50) { Value = personnelNumber });
-            command.Parameters.Add(new SqlParameter("@EmployeeId", System.Data.SqlDbType.Int) { Value = employeeId });
-            command.Parameters.Add(new SqlParameter("@Identifier", System.Data.SqlDbType.NVarChar, 100) { Value = identifier ?? "" });
+            // The personnel-order query convention is a single input parameter:
+            // @Identifier = the value of the logged-in employee's «شناسه» field.
+            // The two legacy aliases are retained for older input queries.
+            command.Parameters.Add(new SqlParameter("@Identifier", System.Data.SqlDbType.NVarChar, 100)
+            {
+                Value = identifier ?? ""
+            });
+            command.Parameters.Add(new SqlParameter("@PersonnelNumber", System.Data.SqlDbType.NVarChar, 50)
+            {
+                Value = personnelNumber
+            });
+            command.Parameters.Add(new SqlParameter("@EmployeeId", System.Data.SqlDbType.Int)
+            {
+                Value = employeeId
+            });
 
             await using var reader = await command.ExecuteReaderAsync(System.Data.CommandBehavior.SingleRow);
             if (!await reader.ReadAsync())

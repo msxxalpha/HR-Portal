@@ -31,7 +31,7 @@ public class PersonnelOrderController(
         ViewBag.PersonnelNumber = employee.PersonnelNumber;
         ViewBag.EmployeeName = $"{employee.FirstName} {employee.LastName}";
 
-        var resolved = await reports.ResolveOrderIdAsync(employee);
+        var resolved = await reports.ResolveOrderIdAsync(employee.PersonnelNumber);
         if (!resolved.Success || string.IsNullOrWhiteSpace(resolved.OrderId))
         {
             ViewBag.Message = resolved.ErrorMessage;

@@ -40,7 +40,7 @@ public class InputQueryService(HRPortalDbContext db, ReportCredentialProtector c
         if (query is null)
             return new(false, null, "کوئری فعال با عنوان دقیقاً «حکم کارگزینی» در بخش کوئری‌های ورودی ثبت نشده است.");
 
-        if (!Regex.IsMatch(query.SqlText ?? "", @"(?<![A-Za-z0-9_])@Identifier\\b", RegexOptions.IgnoreCase))
+        if (!Regex.IsMatch(query.SqlText ?? "", @"(?<![A-Za-z0-9_])@Identifier\b", RegexOptions.IgnoreCase))
             return new(false, null, "کوئری «حکم کارگزینی» باید پارامتر @Identifier داشته باشد.");
 
         return await ExecuteAsync(query, employee.Id, employee.PersonnelNumber, employee.Identifier, identifierOnly: true);

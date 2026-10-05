@@ -1,4 +1,3 @@
-using HRPortal.Data;
 using HRPortal.Models;
 using HRPortal.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -7,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace HRPortal.Controllers;
 
 [Authorize(Policy = "Announcements.Manage")]
-public class AnnouncementsController(HRPortalDbContext db, AnnouncementService announcements, AuditService audit) : Controller
+public class AnnouncementsController(AnnouncementService announcements, AuditService audit) : Controller
 {
     [HttpGet]
     public async Task<IActionResult> Index(int? id = null)

@@ -6,13 +6,14 @@ using Microsoft.EntityFrameworkCore;
 namespace HRPortal.Controllers;
 
 [Authorize]
-public class HomeController(HRPortalDbContext db) : Controller
+public class HomeController(HRPortalDbContext db, AnnouncementService announcements) : Controller
 {
     public async Task<IActionResult> Index()
     {
         ViewBag.EmployeeCount = await db.Employees.CountAsync();
         ViewBag.ActiveEmployeeCount = await db.Employees.CountAsync(x => x.Status == "فعال");
         ViewBag.RevisionCount = await db.OrganizationStructureRevisions.CountAsync(x => x.IsFinalized);
+        ViewBag.Announcements = (await announcements.GetActiveAsync()).Take(8).ToList();
 
         ViewBag.HasPersonalPassword = true;
         if (!User.HasClaim("IsAdmin", "1") &&

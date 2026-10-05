@@ -46,7 +46,9 @@ public class EnvironmentSettingsService(HRPortalDbContext db, ReportCredentialPr
         var personnelOrder = await db.PersonnelOrderReportSettings.AsNoTracking().FirstOrDefaultAsync()
                       ?? new PersonnelOrderReportSettings();
 
-        return MapToEditModel(system, otp, sms, payroll, personnelOrder);
+        var model = MapToEditModel(system, otp, sms, payroll, personnelOrder);
+        model.AnnouncementCategories = await db.AnnouncementCategories.AsNoTracking().OrderBy(x => x.SortOrder).ThenBy(x => x.Title).ToListAsync();
+        return model;
     }
 
     public async Task SaveAsync(SystemSettingsEditModel model)
@@ -178,6 +180,8 @@ public class EnvironmentSettingsService(HRPortalDbContext db, ReportCredentialPr
             PayrollReportPasswordField = payroll.ReportPasswordField ?? "",
             PayrollReportPassword = "",
             PayrollUseIntegratedSecurity = payroll.UseIntegratedSecurity,
+            PayrollAllowPrint = payroll.AllowPrint,
+            PayrollAllowDownload = payroll.AllowDownload,
 
             PersonnelOrderEnabled = personnelOrder.Enabled,
             PersonnelOrderReportUrl = personnelOrder.ReportUrl ?? "",
@@ -193,6 +197,8 @@ public class EnvironmentSettingsService(HRPortalDbContext db, ReportCredentialPr
             PersonnelOrderReportPasswordField = personnelOrder.ReportPasswordField ?? "",
             PersonnelOrderReportPassword = "",
             PersonnelOrderUseIntegratedSecurity = personnelOrder.UseIntegratedSecurity,
+            PersonnelOrderAllowPrint = personnelOrder.AllowPrint,
+            PersonnelOrderAllowDownload = personnelOrder.AllowDownload,
 
             MaintenanceMode = system.MaintenanceMode,
             MaintenanceMessage = system.MaintenanceMessage ?? ""
@@ -279,6 +285,8 @@ public class EnvironmentSettingsService(HRPortalDbContext db, ReportCredentialPr
         entity.ReportUsernameField = model.PersonnelOrderReportUsernameField?.Trim() ?? "";
         entity.ReportPasswordField = model.PersonnelOrderReportPasswordField?.Trim() ?? "";
         entity.UseIntegratedSecurity = string.Equals(entity.ReportAuthentication, "windows", StringComparison.OrdinalIgnoreCase);
+        entity.AllowPrint = model.PersonnelOrderAllowPrint;
+        entity.AllowDownload = model.PersonnelOrderAllowDownload;
         if (!string.IsNullOrWhiteSpace(model.PersonnelOrderReportPassword))
             entity.ReportPasswordProtected = credentialProtector.Protect(model.PersonnelOrderReportPassword);
     }
@@ -301,6 +309,8 @@ public class EnvironmentSettingsService(HRPortalDbContext db, ReportCredentialPr
         entity.ReportUsernameField = model.PayrollReportUsernameField?.Trim() ?? "";
         entity.ReportPasswordField = model.PayrollReportPasswordField?.Trim() ?? "";
         entity.UseIntegratedSecurity = string.Equals(entity.ReportAuthentication, "windows", StringComparison.OrdinalIgnoreCase);
+        entity.AllowPrint = model.PayrollAllowPrint;
+        entity.AllowDownload = model.PayrollAllowDownload;
 
         // Password is never returned to the browser. A blank form value means
         // keep the encrypted credential already stored in SQL Server.

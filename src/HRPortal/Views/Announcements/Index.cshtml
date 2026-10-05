@@ -1,0 +1,230 @@
+@model HRPortal.Models.AnnouncementManagementViewModel
+@inject HRPortal.Services.AnnouncementService AnnouncementService
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "مدیریت اطلاعیه‌ها";
+    var editing = Model.Form.Id > 0;
+}
+
+<div class="page-head">
+    <div>
+        <h1>مدیریت اطلاعیه‌ها</h1>
+        <p>تعریف اطلاعیه، تعیین زمان اعتبار، اولویت و وضعیت نمایش در داشبورد کاربران.</p>
+    </div>
+</div>
+
+@if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
+@if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
+
+<div class="announcement-management-grid">
+    <section class="card announcement-editor">
+        <div class="section-head">
+            <div>
+                <h3>@(editing ? "ویرایش اطلاعیه" : "ثبت اطلاعیه جدید")</h3>
+                <span class="muted">زمان‌ها با منطقه زمانی تنظیم‌شده سامانه محاسبه می‌شوند.</span>
+            </div>
+            @if (editing)
+            {
+                <a class="btn btn-outline btn-sm" href="/Announcements">اطلاعیه جدید</a>
+            }
+        </div>
+
+        <div class="announcement-clock">
+            <span>زمان جاری سامانه</span>
+            <strong>@Model.CurrentSystemDateTime</strong>
+        </div>
+
+        <form method="post" action="/Announcements/Save" class="form-stack">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="Id" value="@Model.Form.Id" />
+
+            <div class="grid-2">
+                <label class="wide">عنوان اطلاعیه *
+                    <input name="Title" value="@Model.Form.Title" maxlength="250" required />
+                </label>
+                <label class="wide">خلاصه
+                    <input name="Summary" value="@Model.Form.Summary" maxlength="700" placeholder="متن کوتاه برای نمایش سریع در داشبورد" />
+                </label>
+                <label>دسته‌بندی *
+                    <select name="CategoryId" required>
+                        <option value="">انتخاب دسته‌بندی</option>
+                        @foreach (var category in Model.Categories.Where(x => x.IsActive))
+                        {
+                            if (Model.Form.CategoryId == category.Id)
+                            {
+                                <option value="@category.Id" selected>@category.Title</option>
+                            }
+                            else
+                            {
+                                <option value="@category.Id">@category.Title</option>
+                            }
+                        }
+                    </select>
+                </label>
+                <label>اولویت
+                    <select name="Priority">
+                        @if (string.Equals(Model.Form.Priority, "urgent", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <option value="urgent" selected>فوری</option>
+                        }
+                        else
+                        {
+                            <option value="urgent">فوری</option>
+                        }
+                        @if (string.Equals(Model.Form.Priority, "important", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <option value="important" selected>مهم</option>
+                        }
+                        else
+                        {
+                            <option value="important">مهم</option>
+                        }
+                        @if (!string.Equals(Model.Form.Priority, "urgent", StringComparison.OrdinalIgnoreCase) &&
+                             !string.Equals(Model.Form.Priority, "important", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <option value="normal" selected>عادی</option>
+                        }
+                        else
+                        {
+                            <option value="normal">عادی</option>
+                        }
+                    </select>
+                </label>
+                <label>شروع نمایش *
+                    <input name="StartAt" value="@Model.Form.StartAt" placeholder="۱۴۰۵/۰۷/۰۵ 08:30" autocomplete="off" required />
+                    <span class="field-help">قالب: سال/ماه/روز ساعت:دقیقه</span>
+                </label>
+                <label>پایان اعتبار *
+                    <input name="EndAt" value="@Model.Form.EndAt" placeholder="۱۴۰۵/۰۷/۱۵ 23:59" autocomplete="off" required />
+                    <span class="field-help">در بازه معتبر، اطلاعیه در داشبورد نمایش داده می‌شود.</span>
+                </label>
+            </div>
+
+            <label>متن اطلاعیه *
+                <textarea name="Body" rows="9" maxlength="10000" required>@Model.Form.Body</textarea>
+            </label>
+
+            <div class="announcement-options">
+                <label class="toggle-card compact-toggle">
+                    <span class="toggle-text"><strong>سنجاق در ابتدای اطلاعیه‌ها</strong><small>این اطلاعیه در ابتدای فهرست داشبورد نمایش داده می‌شود.</small></span>
+                    <span class="switch-control">
+                        <input type="checkbox" name="IsPinned" value="true" @(Model.Form.IsPinned ? "checked" : "") aria-label="سنجاق اطلاعیه" />
+                        <input type="hidden" name="IsPinned" value="false" />
+                        <span class="switch-slider"></span>
+                    </span>
+                </label>
+                <label class="toggle-card compact-toggle">
+                    <span class="toggle-text"><strong>وضعیت اطلاعیه</strong><small>برای نمایش در داشبورد باید فعال و در بازه زمانی معتبر باشد.</small></span>
+                    <span class="switch-control">
+                        <input type="checkbox" name="IsActive" value="true" @(Model.Form.IsActive ? "checked" : "") aria-label="فعال بودن اطلاعیه" />
+                        <input type="hidden" name="IsActive" value="false" />
+                        <span class="switch-slider"></span>
+                    </span>
+                </label>
+            </div>
+
+            <div class="form-actions">
+                <button class="btn btn-main" type="submit">@(editing ? "ذخیره تغییرات" : "ثبت اطلاعیه")</button>
+                @if (editing) { <a class="btn btn-outline" href="/Announcements">انصراف</a> }
+            </div>
+        </form>
+    </section>
+
+    <section class="card">
+        <div class="section-head">
+            <div><h3>دسته‌بندی‌ها</h3><span class="muted">از تب اطلاعات پایه مدیریت می‌شوند.</span></div>
+            <a class="btn btn-outline btn-sm" href="/SystemSettings">مدیریت دسته‌بندی‌ها</a>
+        </div>
+        <div class="category-chip-list">
+            @foreach (var category in Model.Categories)
+            {
+                <span class="category-chip @(category.IsActive ? "" : "inactive")">
+                    @category.Title
+                    <small>@(category.IsActive ? "فعال" : "غیرفعال")</small>
+                </span>
+            }
+        </div>
+    </section>
+</div>
+
+<section class="card">
+    <div class="section-head">
+        <div><h3>فهرست اطلاعیه‌ها</h3><span class="muted">@Model.Announcements.Count اطلاعیه ثبت شده است.</span></div>
+    </div>
+
+    @if (Model.Announcements.Count == 0)
+    {
+        <div class="empty">هنوز اطلاعیه‌ای ثبت نشده است.</div>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>عنوان</th>
+                        <th>دسته‌بندی</th>
+                        <th>اولویت</th>
+                        <th>شروع نمایش</th>
+                        <th>پایان اعتبار</th>
+                        <th>وضعیت</th>
+                        <th>عملیات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var announcement in Model.Announcements)
+                {
+                    var now = DateTime.UtcNow;
+                    var current = announcement.IsActive && announcement.StartAtUtc <= now && announcement.EndAtUtc >= now;
+                    var priorityTitle = announcement.Priority switch
+                    {
+                        "urgent" => "فوری",
+                        "important" => "مهم",
+                        _ => "عادی"
+                    };
+                    <tr>
+                        <td>
+                            <strong>@announcement.Title</strong>
+                            @if (announcement.IsPinned) { <span class="badge badge-pinned">سنجاق</span> }
+                        </td>
+                        <td>@announcement.Category?.Title</td>
+                        <td><span class="priority-badge priority-@announcement.Priority">@priorityTitle</span></td>
+                        <td>@await AnnouncementService.FormatLocal(announcement.StartAtUtc)</td>
+                        <td>@await AnnouncementService.FormatLocal(announcement.EndAtUtc)</td>
+                        <td>
+                            @if (!announcement.IsActive)
+                            {
+                                <span class="badge badge-neutral">غیرفعال</span>
+                            }
+                            else if (current)
+                            {
+                                <span class="badge">در حال نمایش</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-neutral">خارج از بازه</span>
+                            }
+                        </td>
+                        <td>
+                            <div class="actions">
+                                <a class="btn btn-outline btn-sm" href="/Announcements?id=@announcement.Id">ویرایش</a>
+                                <form method="post" action="/Announcements/SetActive" class="inline">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@announcement.Id" />
+                                    <input type="hidden" name="active" value="@(!announcement.IsActive).ToString().ToLowerInvariant()" />
+                                    <button class="btn btn-outline btn-sm" type="submit">@(announcement.IsActive ? "غیرفعال" : "فعال")</button>
+                                </form>
+                                <form method="post" action="/Announcements/Delete" class="inline" onsubmit="return confirm('اطلاعیه حذف شود؟');">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@announcement.Id" />
+                                    <button class="btn btn-outline btn-sm danger" type="submit">حذف</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

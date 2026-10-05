@@ -10,12 +10,33 @@ namespace HRPortal.Controllers;
 public class SystemSettingsController(
     EnvironmentSettingsService service,
     ISmsService sms,
-    ILogger<SystemSettingsController> logger) : Controller
+    ILogger<SystemSettingsController> logger,
+    AnnouncementService announcements) : Controller
 {
     [HttpGet("")]
     public async Task<IActionResult> Index()
     {
         return View("Index", await service.GetEditAsync());
+    }
+
+
+    [HttpPost("SaveAnnouncementCategory")]
+    [Authorize(Policy = "Settings.Edit")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveAnnouncementCategory(
+        int id, string? title, string? description, int sortOrder = 0, bool isActive = true)
+    {
+        try
+        {
+            await announcements.SaveCategoryAsync(id, title, description, sortOrder, isActive);
+            TempData["Success"] = "دسته‌بندی اطلاعیه با موفقیت ذخیره شد.";
+        }
+        catch (Exception ex)
+        {
+            TempData["Error"] = "ذخیره دسته‌بندی انجام نشد: " + ex.Message;
+        }
+
+        return RedirectToAction(nameof(Index));
     }
 
     [HttpPost("Save")]

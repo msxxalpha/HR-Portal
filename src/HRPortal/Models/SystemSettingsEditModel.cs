@@ -70,6 +70,8 @@ public class SystemSettingsEditModel
     public string? PayrollReportPasswordField { get; set; }
     public string? PayrollReportPassword { get; set; }
     public bool PayrollUseIntegratedSecurity { get; set; }
+    public bool PayrollAllowPrint { get; set; } = true;
+    public bool PayrollAllowDownload { get; set; } = true;
 
     // Personnel order / SSRS
     public bool PersonnelOrderEnabled { get; set; }
@@ -86,6 +88,8 @@ public class SystemSettingsEditModel
     public string? PersonnelOrderReportPasswordField { get; set; }
     public string? PersonnelOrderReportPassword { get; set; }
     public bool PersonnelOrderUseIntegratedSecurity { get; set; }
+    public bool PersonnelOrderAllowPrint { get; set; } = true;
+    public bool PersonnelOrderAllowDownload { get; set; } = true;
 
     // Maintenance
     public bool MaintenanceMode { get; set; }

@@ -57,6 +57,84 @@ public static class DatabaseInitializer
         await roleService.SeedAsync();
     }
 
+    private static async Task EnsureReportAndAnnouncementSchemaAsync(HRPortalDbContext db)
+    {
+        const string sql = @"
+IF OBJECT_ID(N'dbo.PayrollReportSettings', N'U') IS NOT NULL
+BEGIN
+    IF COL_LENGTH(N'dbo.PayrollReportSettings', N'AllowPrint') IS NULL
+        ALTER TABLE [dbo].[PayrollReportSettings] ADD [AllowPrint] bit NOT NULL CONSTRAINT [DF_PayrollReportSettings_AllowPrint] DEFAULT 1;
+    IF COL_LENGTH(N'dbo.PayrollReportSettings', N'AllowDownload') IS NULL
+        ALTER TABLE [dbo].[PayrollReportSettings] ADD [AllowDownload] bit NOT NULL CONSTRAINT [DF_PayrollReportSettings_AllowDownload] DEFAULT 1;
+END;
+
+IF OBJECT_ID(N'dbo.PersonnelOrderReportSettings', N'U') IS NOT NULL
+BEGIN
+    IF COL_LENGTH(N'dbo.PersonnelOrderReportSettings', N'AllowPrint') IS NULL
+        ALTER TABLE [dbo].[PersonnelOrderReportSettings] ADD [AllowPrint] bit NOT NULL CONSTRAINT [DF_PersonnelOrderReportSettings_AllowPrint] DEFAULT 1;
+    IF COL_LENGTH(N'dbo.PersonnelOrderReportSettings', N'AllowDownload') IS NULL
+        ALTER TABLE [dbo].[PersonnelOrderReportSettings] ADD [AllowDownload] bit NOT NULL CONSTRAINT [DF_PersonnelOrderSettings_AllowDownload] DEFAULT 1;
+END;
+
+IF OBJECT_ID(N'dbo.AnnouncementCategories', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[AnnouncementCategories](
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_AnnouncementCategories] PRIMARY KEY,
+        [Title] nvarchar(100) NOT NULL,
+        [Description] nvarchar(500) NOT NULL CONSTRAINT [DF_AnnouncementCategories_Description] DEFAULT N'',
+        [SortOrder] int NOT NULL CONSTRAINT [DF_AnnouncementCategories_SortOrder] DEFAULT 0,
+        [IsActive] bit NOT NULL CONSTRAINT [DF_AnnouncementCategories_IsActive] DEFAULT 1,
+        [CreatedAt] datetime2 NOT NULL CONSTRAINT [DF_AnnouncementCategories_CreatedAt] DEFAULT SYSUTCDATETIME(),
+        [UpdatedAt] datetime2 NOT NULL CONSTRAINT [DF_AnnouncementCategories_UpdatedAt] DEFAULT SYSUTCDATETIME()
+    );
+END;
+
+IF OBJECT_ID(N'dbo.Announcements', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[Announcements](
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_Announcements] PRIMARY KEY,
+        [Title] nvarchar(250) NOT NULL,
+        [Summary] nvarchar(700) NOT NULL CONSTRAINT [DF_Announcements_Summary] DEFAULT N'',
+        [Body] nvarchar(max) NOT NULL,
+        [CategoryId] int NOT NULL,
+        [StartAtUtc] datetime2 NOT NULL,
+        [EndAtUtc] datetime2 NOT NULL,
+        [Priority] nvarchar(20) NOT NULL CONSTRAINT [DF_Announcements_Priority] DEFAULT N'normal',
+        [IsPinned] bit NOT NULL CONSTRAINT [DF_Announcements_IsPinned] DEFAULT 0,
+        [IsActive] bit NOT NULL CONSTRAINT [DF_Announcements_IsActive] DEFAULT 1,
+        [CreatedAt] datetime2 NOT NULL CONSTRAINT [DF_Announcements_CreatedAt] DEFAULT SYSUTCDATETIME(),
+        [UpdatedAt] datetime2 NOT NULL CONSTRAINT [DF_Announcements_UpdatedAt] DEFAULT SYSUTCDATETIME()
+    );
+END;
+
+IF NOT EXISTS(
+    SELECT 1 FROM sys.indexes
+    WHERE name=N'IX_AnnouncementCategories_Title'
+      AND object_id=OBJECT_ID(N'dbo.AnnouncementCategories'))
+    CREATE UNIQUE INDEX [IX_AnnouncementCategories_Title] ON [dbo].[AnnouncementCategories]([Title]);
+
+IF NOT EXISTS(
+    SELECT 1 FROM sys.indexes
+    WHERE name=N'IX_Announcements_ActiveDates'
+      AND object_id=OBJECT_ID(N'dbo.Announcements'))
+    CREATE INDEX [IX_Announcements_ActiveDates]
+        ON [dbo].[Announcements]([IsActive],[StartAtUtc],[EndAtUtc]);
+
+IF OBJECT_ID(N'dbo.Announcements', N'U') IS NOT NULL
+AND OBJECT_ID(N'dbo.AnnouncementCategories', N'U') IS NOT NULL
+AND NOT EXISTS(
+    SELECT 1 FROM sys.foreign_keys
+    WHERE name=N'FK_Announcements_AnnouncementCategories_CategoryId'
+      AND parent_object_id=OBJECT_ID(N'dbo.Announcements'))
+BEGIN
+    ALTER TABLE [dbo].[Announcements]
+    ADD CONSTRAINT [FK_Announcements_AnnouncementCategories_CategoryId]
+    FOREIGN KEY ([CategoryId]) REFERENCES [dbo].[AnnouncementCategories]([Id]);
+END;
+";
+        await db.Database.ExecuteSqlRawAsync(sql);
+    }
+
     private static async Task EnsureAdminTableAsync(HRPortalDbContext db)
     {
         const string sql = @"

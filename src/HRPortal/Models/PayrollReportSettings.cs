@@ -18,4 +18,6 @@ public class PayrollReportSettings
     public string ReportPasswordField { get; set; } = "";
     public string ReportPasswordProtected { get; set; } = "";
     public bool UseIntegratedSecurity { get; set; }
+    public bool AllowPrint { get; set; } = true;
+    public bool AllowDownload { get; set; } = true;
 }

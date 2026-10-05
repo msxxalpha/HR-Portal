@@ -27,7 +27,8 @@ public class RoleService(HRPortalDbContext db)
         ("InputQueries.View", "مشاهده کوئری‌های ورودی", "مدیریت سامانه"),
         ("InputQueries.Manage", "مدیریت کوئری‌های ورودی", "مدیریت سامانه"),
         ("Users.Manage", "مدیریت کاربران", "مدیریت کاربران"),
-        ("Roles.Manage", "مدیریت نقش‌ها", "مدیریت کاربران")
+        ("Roles.Manage", "مدیریت نقش‌ها", "مدیریت کاربران"),
+        ("Announcements.Manage", "مدیریت اطلاعیه‌ها", "مدیریت سامانه")
     ];
 
     public async Task SeedAsync()
@@ -44,7 +45,7 @@ public class RoleService(HRPortalDbContext db)
         await EnsureRoleAsync("ORG_MANAGER", "مدیریت ساختار سازمانی", "مدیریت نسخه‌ها و ساختار درختی",
             ["Organization.View", "Organization.Create", "Organization.Edit", "Organization.Delete", "Organization.Move", "Organization.Finalize"]);
         await EnsureRoleAsync("SETTINGS_MANAGER", "مدیریت سامانه", "مدیریت تنظیمات سامانه",
-            ["Settings.View", "Settings.Edit", "InputQueries.View", "InputQueries.Manage"]);
+            ["Settings.View", "Settings.Edit", "InputQueries.View", "InputQueries.Manage", "Announcements.Manage"]);
         await EnsureRoleAsync("PAYROLL_USER", "گزارش فیش حقوقی", "دسترسی به فیش حقوقی",
             ["Payroll.View", "PersonnelOrder.View"]);
         await EnsureRoleAsync("EMPLOYEE", "کاربر کارکنان", "نقش پیش‌فرض کارکنان برای استفاده از خدمات پرسنلی",

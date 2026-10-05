@@ -587,14 +587,25 @@
 @section Scripts {
 <script>
 (function () {
+    function activate(tabId) {
+        const target = document.getElementById(tabId);
+        const button = document.querySelector('.tab[data-tab="' + tabId + '"]');
+        if (!target || !button) return;
+        document.querySelectorAll('.tab').forEach(function (b) { b.classList.remove('active'); });
+        document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
+        button.classList.add('active');
+        target.classList.add('active');
+    }
+
     document.querySelectorAll('.tab').forEach(function (button) {
         button.addEventListener('click', function () {
-            document.querySelectorAll('.tab').forEach(function (b) { b.classList.remove('active'); });
-            document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
-            button.classList.add('active');
-            document.getElementById(button.dataset.tab).classList.add('active');
+            activate(button.dataset.tab);
+            if (history.replaceState) history.replaceState(null, '', '#' + button.dataset.tab);
         });
     });
+
+    const hash = window.location.hash ? window.location.hash.substring(1) : "";
+    if (hash) activate(hash);
 })();
 </script>
 }

@@ -34,20 +34,34 @@
             <div class="nav-caption">داشبورد</div>
             <a href="/">داشبورد</a>
 
-            @if (Can("Employees.View"))
+            @if (Can("Employees.View") || Can("Settings.View"))
             {
                 <div class="nav-caption">اطلاعات پایه</div>
-                <a href="/Employees">مدیریت کارکنان</a>
+                @if (Can("Employees.View"))
+                {
+                    <a href="/Employees">مدیریت کارکنان</a>
+                }
+                @if (Can("Settings.View"))
+                {
+                    <a href="/SystemSettings">دسته‌بندی اطلاعیه‌ها</a>
+                }
             }
             @if (Can("Organization.View"))
             {
                 <div class="nav-caption">ساختار سازمانی</div>
                 <a href="/Organization">ساختار سازمانی</a>
             }
-            @if (Can("Users.Manage") || Can("Roles.Manage"))
+            @if (Can("Users.Manage") || Can("Roles.Manage") || Can("Announcements.Manage"))
             {
                 <div class="nav-caption">مدیریت سامانه</div>
-                <a href="/Users">مدیریت کاربران و نقش‌ها</a>
+                @if (Can("Users.Manage") || Can("Roles.Manage"))
+                {
+                    <a href="/Users">مدیریت کاربران و نقش‌ها</a>
+                }
+                @if (Can("Announcements.Manage"))
+                {
+                    <a href="/Announcements">مدیریت اطلاعیه‌ها</a>
+                }
             }
             @if (isAdmin)
             {

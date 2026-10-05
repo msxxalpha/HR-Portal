@@ -52,3 +52,35 @@
         </div>
     }
 }
+
+@section Scripts
+{
+    <script>
+        (() => {
+            const blockProtectedActions = (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+            };
+
+            document.addEventListener("contextmenu", blockProtectedActions, true);
+
+            const isScreenCaptureShortcut = (event) =>
+                event.code === "PrintScreen" ||
+                event.key === "PrintScreen" ||
+                event.keyCode === 44 ||
+                (event.metaKey && event.shiftKey && event.code === "KeyS");
+
+            document.addEventListener("keydown", (event) => {
+                if (isScreenCaptureShortcut(event)) {
+                    blockProtectedActions(event);
+                }
+            }, true);
+
+            document.addEventListener("keyup", (event) => {
+                if (event.code === "PrintScreen" || event.key === "PrintScreen" || event.keyCode === 44) {
+                    blockProtectedActions(event);
+                }
+            }, true);
+        })();
+    </script>
+}

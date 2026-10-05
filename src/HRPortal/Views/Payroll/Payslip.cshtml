@@ -60,7 +60,31 @@
 
 @if (ViewBag.ReportEndpoint != null)
 {
-    <div class="report-frame">
-        <iframe src="@ViewBag.ReportEndpoint" title="گزارش فیش حقوقی"></iframe>
+    var allowPrint = (bool?)ViewBag.ReportAllowPrint ?? true;
+    var allowDownload = (bool?)ViewBag.ReportAllowDownload ?? true;
+    var showToolbar = allowPrint || allowDownload;
+    <div class="report-container">
+        @if (showToolbar)
+        {
+            <div class="report-toolbar">
+                <div>
+                    <strong>ابزارهای گزارش</strong>
+                    <span>امکانات نمایش مطابق تنظیمات سامانه فعال شده‌اند.</span>
+                </div>
+                <div class="actions">
+                    @if (allowPrint)
+                    {
+                        <a class="btn btn-outline" href="@Url.Action("Print", "Payroll", new { yearMonth = ViewBag.YearMonth })" target="_blank" rel="noopener">چاپ گزارش</a>
+                    }
+                    @if (allowDownload)
+                    {
+                        <a class="btn btn-main" href="@Url.Action("Download", "Payroll", new { yearMonth = ViewBag.YearMonth })">ذخیره PDF</a>
+                    }
+                </div>
+            </div>
+        }
+        <div class="report-frame">
+            <iframe src="@ViewBag.ReportEndpoint#toolbar=0&navpanes=0&scrollbar=1&view=FitH" title="گزارش فیش حقوقی"></iframe>
+        </div>
     </div>
 }

@@ -1,6 +1,7 @@
 using HRPortal.Data;
 using HRPortal.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
 

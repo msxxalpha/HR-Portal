@@ -22,6 +22,8 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
     public DbSet<EmployeeRole> EmployeeRoles => Set<EmployeeRole>();
+    public DbSet<AnnouncementCategory> AnnouncementCategories => Set<AnnouncementCategory>();
+    public DbSet<Announcement> Announcements => Set<Announcement>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -115,6 +117,26 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
                 .HasForeignKey(x => x.PermissionId)
                 .IsRequired()
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<AnnouncementCategory>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Title).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(500);
+            e.HasIndex(x => x.Title).IsUnique();
+        });
+        modelBuilder.Entity<Announcement>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Title).HasMaxLength(250).IsRequired();
+            e.Property(x => x.Summary).HasMaxLength(700);
+            e.Property(x => x.Priority).HasMaxLength(20).IsRequired();
+            e.HasIndex(x => new { x.IsActive, x.StartAtUtc, x.EndAtUtc });
+            e.HasOne(x => x.Category)
+                .WithMany()
+                .HasForeignKey(x => x.CategoryId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<EmployeeRole>(e =>
         {

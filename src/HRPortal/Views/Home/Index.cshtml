@@ -1,3 +1,4 @@
+@inject HRPortal.Services.AnnouncementService AnnouncementService
 @{
     Layout = "~/Views/Shared/_Layout.cshtml";
     ViewData["Title"] = "داشبورد";
@@ -75,7 +76,7 @@
                     <div class="announcement-body">@Html.Raw(System.Net.WebUtility.HtmlEncode(item.Body).Replace("
 ", "<br />"))</div>
                     <div class="announcement-meta">
-                        <span>اعتبار تا @HRPortal.Services.PersianDateService.FormatDateTime(item.EndAtUtc.ToLocalTime())</span>
+                        <span>اعتبار تا @(await AnnouncementService.FormatLocal(item.EndAtUtc))</span>
                     </div>
                 </article>
             }

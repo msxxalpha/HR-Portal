@@ -13,6 +13,7 @@ public static class DatabaseInitializer
         await EnsureAdminTableAsync(db);
         await EnsureAdminColumnsAsync(db);
         await EnsureRoleTablesAsync(db);
+        await EnsureReportAndAnnouncementSchemaAsync(db);
 
         if (!await db.SystemSettings.AnyAsync())
             db.SystemSettings.Add(new SystemSettings { OrganizationName = "شرکت کمک فنرسازی ایندامین سایپا", ApplicationName = "پورتال جامع منابع انسانی" });
@@ -28,6 +29,15 @@ public static class DatabaseInitializer
 
         if (!await db.PersonnelOrderReportSettings.AnyAsync())
             db.PersonnelOrderReportSettings.Add(new PersonnelOrderReportSettings());
+
+        if (!await db.AnnouncementCategories.AnyAsync())
+            db.AnnouncementCategories.Add(new AnnouncementCategory
+            {
+                Title = "عمومی",
+                Description = "اطلاعیه‌های عمومی سامانه",
+                SortOrder = 10,
+                IsActive = true
+            });
 
         if (!await db.OrganizationStructureRevisions.AnyAsync())
             db.OrganizationStructureRevisions.Add(new OrganizationStructureRevision

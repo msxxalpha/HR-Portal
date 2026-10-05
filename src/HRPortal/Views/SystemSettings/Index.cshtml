@@ -33,6 +33,7 @@
         <button type="button" class="tab" data-tab="payroll">فیش حقوقی / SSRS</button>
         <button type="button" class="tab" data-tab="queries">کوئری‌های ورودی</button>
         <button type="button" class="tab" data-tab="personnel-order">حکم کارگزینی / SSRS</button>
+        <button type="button" class="tab" data-tab="announcement-categories">اطلاعات پایه / دسته‌بندی اطلاعیه</button>
         <button type="button" class="tab" data-tab="maintenance">نگهداری</button>
     </div>
 
@@ -384,6 +385,22 @@
                     <span class="switch-slider"></span>
                 </span>
             </label>
+            <label class="toggle-card compact-toggle">
+                <span class="toggle-text"><strong>امکان چاپ فیش حقوقی</strong><small>نمایش گزینه چاپ در نمایشگر PDF</small></span>
+                <span class="switch-control">
+                    <input type="checkbox" name="PayrollAllowPrint" value="true" @(Model.PayrollAllowPrint ? "checked" : "") aria-label="چاپ فیش حقوقی" />
+                    <input type="hidden" name="PayrollAllowPrint" value="false" />
+                    <span class="switch-slider"></span>
+                </span>
+            </label>
+            <label class="toggle-card compact-toggle">
+                <span class="toggle-text"><strong>امکان ذخیره فیش حقوقی</strong><small>نمایش گزینه ذخیره PDF</small></span>
+                <span class="switch-control">
+                    <input type="checkbox" name="PayrollAllowDownload" value="true" @(Model.PayrollAllowDownload ? "checked" : "") aria-label="ذخیره فیش حقوقی" />
+                    <input type="hidden" name="PayrollAllowDownload" value="false" />
+                    <span class="switch-slider"></span>
+                </span>
+            </label>
         </div>
     </section>
 
@@ -460,6 +477,83 @@
                     <span class="switch-slider"></span>
                 </span>
             </label>
+            <label class="toggle-card compact-toggle">
+                <span class="toggle-text"><strong>امکان چاپ حکم کارگزینی</strong><small>نمایش گزینه چاپ در نمایشگر PDF</small></span>
+                <span class="switch-control">
+                    <input type="checkbox" name="PersonnelOrderAllowPrint" value="true" @(Model.PersonnelOrderAllowPrint ? "checked" : "") aria-label="چاپ حکم کارگزینی" />
+                    <input type="hidden" name="PersonnelOrderAllowPrint" value="false" />
+                    <span class="switch-slider"></span>
+                </span>
+            </label>
+            <label class="toggle-card compact-toggle">
+                <span class="toggle-text"><strong>امکان ذخیره حکم کارگزینی</strong><small>نمایش گزینه ذخیره PDF</small></span>
+                <span class="switch-control">
+                    <input type="checkbox" name="PersonnelOrderAllowDownload" value="true" @(Model.PersonnelOrderAllowDownload ? "checked" : "") aria-label="ذخیره حکم کارگزینی" />
+                    <input type="hidden" name="PersonnelOrderAllowDownload" value="false" />
+                    <span class="switch-slider"></span>
+                </span>
+            </label>
+        </div>
+    </section>
+
+    <section id="announcement-categories" class="tab-panel">
+        <div class="settings-section-intro">
+            <strong>اطلاعات پایه / دسته‌بندی اطلاعیه‌ها</strong>
+            <span>دسته‌بندی‌ها در زمان تعریف اطلاعیه به‌صورت انتخابی نمایش داده می‌شوند. دسته‌بندی مورد استفاده در اطلاعیه فعال را می‌توان غیرفعال کرد فقط پس از تعیین تکلیف اطلاعیه‌های آن.</span>
+        </div>
+
+        <div class="category-management-grid">
+            <form method="post" action="/SystemSettings/SaveAnnouncementCategory" class="category-editor-card">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" value="0" />
+                <h3>افزودن دسته‌بندی</h3>
+                <label>عنوان دسته‌بندی *
+                    <input name="title" placeholder="مثلاً منابع انسانی" required />
+                </label>
+                <label>توضیحات
+                    <input name="description" />
+                </label>
+                <label>ترتیب نمایش
+                    <input name="sortOrder" type="number" value="10" />
+                </label>
+                <label class="inline-check">
+                    <input type="checkbox" name="isActive" value="true" checked />
+                    فعال
+                </label>
+                <button class="btn btn-main" type="submit">افزودن دسته‌بندی</button>
+            </form>
+
+            <div class="category-list">
+                @if (Model.AnnouncementCategories.Count == 0)
+                {
+                    <div class="empty">دسته‌بندی‌ای ثبت نشده است.</div>
+                }
+                else
+                {
+                    foreach (var category in Model.AnnouncementCategories)
+                    {
+                        <form method="post" action="/SystemSettings/SaveAnnouncementCategory" class="category-editor-card">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="id" value="@category.Id" />
+                            <h3>@category.Title</h3>
+                            <label>عنوان
+                                <input name="title" value="@category.Title" required />
+                            </label>
+                            <label>توضیحات
+                                <input name="description" value="@category.Description" />
+                            </label>
+                            <label>ترتیب نمایش
+                                <input name="sortOrder" type="number" value="@category.SortOrder" />
+                            </label>
+                            <label class="inline-check">
+                                <input type="checkbox" name="isActive" value="true" @(category.IsActive ? "checked" : "") />
+                                فعال
+                            </label>
+                            <button class="btn btn-outline" type="submit">ذخیره دسته‌بندی</button>
+                        </form>
+                    }
+                }
+            </div>
         </div>
     </section>
 

@@ -28,6 +28,10 @@ public class PayrollController(HRPortalDbContext db, ReportService reports) : Co
 
         ViewBag.YearMonth = requestedYearMonth;
 
+        var reportSettings = db.PayrollReportSettings.AsNoTracking().FirstOrDefault();
+        ViewBag.ReportAllowPrint = reportSettings?.AllowPrint ?? true;
+        ViewBag.ReportAllowDownload = reportSettings?.AllowDownload ?? true;
+
         if (employee is null)
         {
             ViewBag.Message = "کارمند فعال و احراز‌شده یافت نشد.";

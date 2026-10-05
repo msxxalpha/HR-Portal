@@ -47,7 +47,7 @@ public class AnnouncementService(HRPortalDbContext db)
     public async Task<List<Announcement>> GetActiveAsync()
     {
         var now = DateTime.UtcNow;
-        return await db.Announcements
+        var items = await db.Announcements
             .AsNoTracking()
             .Include(x => x.Category)
             .Where(x => x.IsActive &&
@@ -56,10 +56,19 @@ public class AnnouncementService(HRPortalDbContext db)
                         x.StartAtUtc <= now &&
                         x.EndAtUtc >= now)
             .OrderByDescending(x => x.IsPinned)
-            .ThenByDescending(x => PriorityRank(x.Priority))
             .ThenByDescending(x => x.StartAtUtc)
             .ThenByDescending(x => x.Id)
             .ToListAsync();
+
+        // PriorityRank is a CLR method and cannot be translated to SQL by EF Core.
+        // Apply this final ranking only after the small active-announcements set
+        // has been materialized.
+        return items
+            .OrderByDescending(x => x.IsPinned)
+            .ThenByDescending(x => PriorityRank(x.Priority))
+            .ThenByDescending(x => x.StartAtUtc)
+            .ThenByDescending(x => x.Id)
+            .ToList();
     }
 
     public async Task SaveAsync(AnnouncementEditModel model)

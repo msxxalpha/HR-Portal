@@ -496,6 +496,33 @@
         </div>
     </section>
 
+    <section id="maintenance" class="tab-panel">
+        <div class="settings-section-intro">
+            <strong>نگهداری</strong>
+            <span>وضعیت فعال سبز و وضعیت غیرفعال خاکستری نمایش داده می‌شود.</span>
+        </div>
+
+        <div class="settings-actions">
+            <label class="toggle-card compact-toggle">
+                <span class="toggle-text"><strong>حالت تعمیر و نگهداری</strong><small>جلوگیری از ورود کاربران هنگام تعمیرات</small></span>
+                <span class="switch-control">
+                    <input type="checkbox" name="MaintenanceMode" value="true" @(Model.MaintenanceMode ? "checked" : "") aria-label="حالت تعمیر و نگهداری" />
+                    <input type="hidden" name="MaintenanceMode" value="false" />
+                    <span class="switch-slider"></span>
+                </span>
+            </label>
+        </div>
+
+        <label>پیام نگهداری
+            <textarea name="MaintenanceMessage">@S(Model.MaintenanceMessage)</textarea>
+        </label>
+    </section>
+
+    <div class="form-actions">
+        <button class="btn btn-main" type="submit" name="command" value="save">ذخیره همه تنظیمات</button>
+    </div>
+</form>
+
     <section id="announcement-categories" class="tab-panel">
         <div class="settings-section-intro">
             <strong>اطلاعات پایه / دسته‌بندی اطلاعیه‌ها</strong>
@@ -557,32 +584,6 @@
         </div>
     </section>
 
-    <section id="maintenance" class="tab-panel">
-        <div class="settings-section-intro">
-            <strong>نگهداری</strong>
-            <span>وضعیت فعال سبز و وضعیت غیرفعال خاکستری نمایش داده می‌شود.</span>
-        </div>
-
-        <div class="settings-actions">
-            <label class="toggle-card compact-toggle">
-                <span class="toggle-text"><strong>حالت تعمیر و نگهداری</strong><small>جلوگیری از ورود کاربران هنگام تعمیرات</small></span>
-                <span class="switch-control">
-                    <input type="checkbox" name="MaintenanceMode" value="true" @(Model.MaintenanceMode ? "checked" : "") aria-label="حالت تعمیر و نگهداری" />
-                    <input type="hidden" name="MaintenanceMode" value="false" />
-                    <span class="switch-slider"></span>
-                </span>
-            </label>
-        </div>
-
-        <label>پیام نگهداری
-            <textarea name="MaintenanceMessage">@S(Model.MaintenanceMessage)</textarea>
-        </label>
-    </section>
-
-    <div class="form-actions">
-        <button class="btn btn-main" type="submit" name="command" value="save">ذخیره همه تنظیمات</button>
-    </div>
-</form>
 
 @section Scripts {
 <script>

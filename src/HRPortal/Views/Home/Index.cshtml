@@ -73,8 +73,7 @@
                     {
                         <p class="announcement-summary">@item.Summary</p>
                     }
-                    <div class="announcement-body">@Html.Raw(System.Net.WebUtility.HtmlEncode(item.Body).Replace("
-", "<br />"))</div>
+                    <div class="announcement-body">@Html.Raw(System.Net.WebUtility.HtmlEncode(item.Body).Replace("\n", "<br />"))</div>
                     <div class="announcement-meta">
                         <span>اعتبار تا @(await AnnouncementService.FormatLocal(item.EndAtUtc))</span>
                     </div>

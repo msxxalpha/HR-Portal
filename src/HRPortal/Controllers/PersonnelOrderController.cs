@@ -49,6 +49,63 @@ public class PersonnelOrderController(
     }
 
     [HttpGet]
+    public async Task<IActionResult> Download()
+    {
+        if (User.HasClaim("IsAdmin", "1"))
+            return StyledError("این کاربر حکم کارگزینی ندارد.", StatusCodes.Status403Forbidden);
+
+        var employee = await GetAuthenticatedEmployeeAsync();
+        if (employee is null)
+            return StyledError("کارمند فعال و احراز‌شده یافت نشد.", StatusCodes.Status403Forbidden);
+
+        var settings = await db.PersonnelOrderReportSettings.AsNoTracking().FirstOrDefaultAsync();
+        if (settings is null || !settings.Enabled)
+            return StyledError("نمایش حکم کارگزینی در تنظیمات سامانه غیرفعال است.", StatusCodes.Status403Forbidden);
+
+        if (!settings.AllowDownload)
+            return StyledError("ذخیره فایل PDF حکم کارگزینی در تنظیمات سامانه غیرفعال است.", StatusCodes.Status403Forbidden);
+
+        var resolved = await reports.ResolveOrderIdAsync(employee.PersonnelNumber);
+        if (!resolved.Success || string.IsNullOrWhiteSpace(resolved.OrderId))
+            return StyledError(resolved.ErrorMessage, StatusCodes.Status422UnprocessableEntity);
+
+        var result = await reports.FetchForOrderIdAsync(resolved.OrderId);
+        if (!result.Success || result.Content is null)
+            return StyledError(result.ErrorMessage, StatusCodes.Status502BadGateway);
+
+        return File(result.Content, result.ContentType, $"حکم-کارگزینی-{employee.PersonnelNumber}.pdf");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Print()
+    {
+        if (User.HasClaim("IsAdmin", "1"))
+            return StyledError("این کاربر حکم کارگزینی ندارد.", StatusCodes.Status403Forbidden);
+
+        var employee = await GetAuthenticatedEmployeeAsync();
+        if (employee is null)
+            return StyledError("کارمند فعال و احراز‌شده یافت نشد.", StatusCodes.Status403Forbidden);
+
+        var settings = await db.PersonnelOrderReportSettings.AsNoTracking().FirstOrDefaultAsync();
+        if (settings is null || !settings.Enabled)
+            return StyledError("نمایش حکم کارگزینی در تنظیمات سامانه غیرفعال است.", StatusCodes.Status403Forbidden);
+
+        if (!settings.AllowPrint)
+            return StyledError("چاپ حکم کارگزینی در تنظیمات سامانه غیرفعال است.", StatusCodes.Status403Forbidden);
+
+        var resolved = await reports.ResolveOrderIdAsync(employee.PersonnelNumber);
+        if (!resolved.Success || string.IsNullOrWhiteSpace(resolved.OrderId))
+            return StyledError(resolved.ErrorMessage, StatusCodes.Status422UnprocessableEntity);
+
+        var result = await reports.FetchForOrderIdAsync(resolved.OrderId);
+        if (!result.Success || result.Content is null)
+            return StyledError(result.ErrorMessage, StatusCodes.Status502BadGateway);
+
+        Response.Headers.ContentDisposition = "inline";
+        return File(result.Content, result.ContentType);
+    }
+
+    [HttpGet]
     public async Task<IActionResult> Report()
     {
         if (User.HasClaim("IsAdmin", "1"))

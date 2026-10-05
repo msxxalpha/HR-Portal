@@ -91,6 +91,9 @@ public class SystemSettingsEditModel
     public bool PersonnelOrderAllowPrint { get; set; } = true;
     public bool PersonnelOrderAllowDownload { get; set; } = true;
 
+    // Announcement categories (base data)
+    public List<AnnouncementCategory> AnnouncementCategories { get; set; } = [];
+
     // Maintenance
     public bool MaintenanceMode { get; set; }
     public string? MaintenanceMessage { get; set; }

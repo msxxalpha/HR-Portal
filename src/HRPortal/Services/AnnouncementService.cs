@@ -28,14 +28,17 @@ public class AnnouncementService(HRPortalDbContext db)
             ? announcements.FirstOrDefault(x => x.Id == id.Value)
             : null;
 
+        var timeZone = await GetTimeZoneAsync();
+        var nowLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, timeZone);
+
         var model = new AnnouncementManagementViewModel
         {
             Announcements = announcements,
             Categories = categories,
-            CurrentSystemDateTime = PersianDateService.FormatDateTime(await GetLocalNowAsync()),
+            CurrentSystemDateTime = PersianDateService.FormatDateTime(nowLocal),
             Form = selected is null
-                ? CreateDefault(categories)
-                : ToEditModel(selected, await GetTimeZoneAsync())
+                ? CreateDefault(categories, nowLocal)
+                : ToEditModel(selected, timeZone)
         };
 
         return model;
@@ -193,9 +196,8 @@ public class AnnouncementService(HRPortalDbContext db)
         return PersianDateService.FormatDateTime(local);
     }
 
-    private AnnouncementEditModel CreateDefault(List<AnnouncementCategory> categories)
+    private static AnnouncementEditModel CreateDefault(List<AnnouncementCategory> categories, DateTime now)
     {
-        var now = GetLocalNowAsync().GetAwaiter().GetResult();
         var start = now;
         var end = now.AddMonths(1);
         return new AnnouncementEditModel

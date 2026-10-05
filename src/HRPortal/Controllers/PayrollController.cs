@@ -95,6 +95,67 @@ public class PayrollController(HRPortalDbContext db, ReportService reports) : Co
     }
 
     [HttpGet]
+    public async Task<IActionResult> Download(string yearMonth)
+    {
+        if (User.HasClaim("IsAdmin", "1"))
+            return StyledReportError("این کاربر فیش حقوقی ندارد.", StatusCodes.Status403Forbidden);
+
+        var employee = GetAuthenticatedEmployee();
+        if (employee is null)
+            return StyledReportError("کارمند فعال و احراز‌شده یافت نشد.", StatusCodes.Status403Forbidden);
+
+        var settings = await db.PayrollReportSettings.AsNoTracking().FirstOrDefaultAsync();
+        if (settings is null || !settings.Enabled)
+            return StyledReportError("نمایش فیش حقوقی در تنظیمات سامانه غیرفعال است.", StatusCodes.Status403Forbidden);
+
+        if (!settings.AllowDownload)
+            return StyledReportError("ذخیره فایل PDF فیش حقوقی در تنظیمات سامانه غیرفعال است.", StatusCodes.Status403Forbidden);
+
+        if (!ReportService.TryNormalizeYearMonth(yearMonth, out var normalizedYearMonth))
+            return StyledReportError("پارامتر سال و ماه نامعتبر است.", StatusCodes.Status400BadRequest);
+
+        if (string.IsNullOrWhiteSpace(employee.Identifier))
+            return StyledReportError("شناسه گزارش این کارمند در اطلاعات کارکنان ثبت نشده است.", StatusCodes.Status422UnprocessableEntity);
+
+        var result = await reports.FetchAsync(normalizedYearMonth, employee.Identifier);
+        if (!result.Success || result.Content is null)
+            return StyledReportError(result.ErrorMessage, StatusCodes.Status502BadGateway);
+
+        return File(result.Content, result.ContentType, $"فیش-حقوقی-{normalizedYearMonth}.pdf");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Print(string yearMonth)
+    {
+        if (User.HasClaim("IsAdmin", "1"))
+            return StyledReportError("این کاربر فیش حقوقی ندارد.", StatusCodes.Status403Forbidden);
+
+        var employee = GetAuthenticatedEmployee();
+        if (employee is null)
+            return StyledReportError("کارمند فعال و احراز‌شده یافت نشد.", StatusCodes.Status403Forbidden);
+
+        var settings = await db.PayrollReportSettings.AsNoTracking().FirstOrDefaultAsync();
+        if (settings is null || !settings.Enabled)
+            return StyledReportError("نمایش فیش حقوقی در تنظیمات سامانه غیرفعال است.", StatusCodes.Status403Forbidden);
+
+        if (!settings.AllowPrint)
+            return StyledReportError("چاپ فیش حقوقی در تنظیمات سامانه غیرفعال است.", StatusCodes.Status403Forbidden);
+
+        if (!ReportService.TryNormalizeYearMonth(yearMonth, out var normalizedYearMonth))
+            return StyledReportError("پارامتر سال و ماه نامعتبر است.", StatusCodes.Status400BadRequest);
+
+        if (string.IsNullOrWhiteSpace(employee.Identifier))
+            return StyledReportError("شناسه گزارش این کارمند در اطلاعات کارکنان ثبت نشده است.", StatusCodes.Status422UnprocessableEntity);
+
+        var result = await reports.FetchAsync(normalizedYearMonth, employee.Identifier);
+        if (!result.Success || result.Content is null)
+            return StyledReportError(result.ErrorMessage, StatusCodes.Status502BadGateway);
+
+        Response.Headers.ContentDisposition = "inline";
+        return File(result.Content, result.ContentType);
+    }
+
+    [HttpGet]
     public async Task<IActionResult> Report(string yearMonth)
     {
         if (User.HasClaim("IsAdmin", "1"))

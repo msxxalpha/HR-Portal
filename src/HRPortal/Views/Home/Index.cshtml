@@ -9,6 +9,10 @@
     var canViewSettings = isAdmin || User.HasClaim("Permission", "Settings.View");
 
 }
+
+@{
+    var activeAnnouncements = ViewBag.Announcements as List<HRPortal.Models.Announcement> ?? [];
+}
 @if (!isAdmin && !((bool?)ViewBag.HasPersonalPassword ?? true))
 {
     <div class="alert warning" style="margin-bottom:16px;">
@@ -32,6 +36,52 @@
     <div class="stat"><span>کارکنان فعال</span><strong>@ViewBag.ActiveEmployeeCount</strong></div>
     <div class="stat"><span>نسخه‌های نهایی ساختار</span><strong>@ViewBag.RevisionCount</strong></div>
 </div>
+
+@if (activeAnnouncements.Count > 0)
+{
+    <section class="announcement-dashboard">
+        <div class="announcement-dashboard-head">
+            <div>
+                <span class="eyebrow">اطلاعیه‌های سامانه</span>
+                <h2>آخرین اطلاعیه‌ها</h2>
+            </div>
+            <span class="announcement-count">@activeAnnouncements.Count مورد معتبر</span>
+        </div>
+        <div class="announcement-dashboard-list">
+            @foreach (var item in activeAnnouncements)
+            {
+                var priorityClass = item.Priority switch
+                {
+                    "urgent" => "urgent",
+                    "important" => "important",
+                    _ => "normal"
+                };
+                <article class="announcement-card @priorityClass @(item.IsPinned ? "pinned" : "")">
+                    <div class="announcement-card-top">
+                        <span class="announcement-category">@item.Category?.Title</span>
+                        @if (item.IsPinned)
+                        {
+                            <span class="announcement-pin">سنجاق‌شده</span>
+                        }
+                        <span class="announcement-priority">@(
+                            item.Priority == "urgent" ? "فوری" :
+                            item.Priority == "important" ? "مهم" : "اطلاعیه")</span>
+                    </div>
+                    <h3>@item.Title</h3>
+                    @if (!string.IsNullOrWhiteSpace(item.Summary))
+                    {
+                        <p class="announcement-summary">@item.Summary</p>
+                    }
+                    <div class="announcement-body">@Html.Raw(System.Net.WebUtility.HtmlEncode(item.Body).Replace("
+", "<br />"))</div>
+                    <div class="announcement-meta">
+                        <span>اعتبار تا @HRPortal.Services.PersianDateService.FormatDateTime(item.EndAtUtc.ToLocalTime())</span>
+                    </div>
+                </article>
+            }
+        </div>
+    </section>
+}
 
 <div class="module-grid">
     @if (canViewEmployees) { <a class="module" href="/Employees"><b>01</b><h3>مدیریت کارکنان</h3><p>ثبت، ویرایش، غیرفعال‌سازی، جستجو، فیلتر و تبادل Excel.</p></a> }

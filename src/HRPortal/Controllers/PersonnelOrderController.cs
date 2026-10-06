@@ -101,6 +101,11 @@ public class PersonnelOrderController(
         if (!result.Success || result.Content is null)
             return StyledError(result.ErrorMessage, StatusCodes.Status502BadGateway);
 
+        Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0";
+        Response.Headers["Pragma"] = "no-cache";
+        Response.Headers["Expires"] = "0";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        Response.Headers["Content-Security-Policy"] = "frame-ancestors 'self';";
         Response.Headers.ContentDisposition = "inline";
         return File(result.Content, result.ContentType);
     }

@@ -64,14 +64,16 @@
 
             document.addEventListener("contextmenu", blockProtectedActions, true);
 
-            const isScreenCaptureShortcut = (event) =>
+            const isProtectedShortcut = (event) =>
                 event.code === "PrintScreen" ||
                 event.key === "PrintScreen" ||
                 event.keyCode === 44 ||
+                ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") ||
+                ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "p") ||
                 (event.metaKey && event.shiftKey && event.code === "KeyS");
 
             document.addEventListener("keydown", (event) => {
-                if (isScreenCaptureShortcut(event)) {
+                if (isProtectedShortcut(event)) {
                     blockProtectedActions(event);
                 }
             }, true);

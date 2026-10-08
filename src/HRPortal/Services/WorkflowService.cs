@@ -328,6 +328,19 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             sibling.Action = action;
         }
 
+        var hasPendingSiblings = instance.Tasks.Any(x =>
+            x.WorkflowStepId == task.WorkflowStepId &&
+            x.Id != task.Id &&
+            x.Status == "Pending");
+
+        if (task.WorkflowStep.AssignmentMode == "All" && hasPendingSiblings)
+        {
+            instance.Status = "InProgress";
+            await db.SaveChangesAsync();
+            await audit.WriteAsync("اقدام مرحله گردش کار", nameof(WorkflowTask), task.Id.ToString(), action);
+            return;
+        }
+
         if (action == "Approve")
         {
             var next = await ResolveTransitionAsync(task.WorkflowStepId, "Approve", instance.WorkflowDefinition.Steps);
@@ -376,7 +389,27 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         if (!step.OrganizationNodeId.HasValue)
             throw new InvalidOperationException($"برای مرحله «{step.Title}» جایگاه سازمانی تعیین نشده است.");
 
-        var positionId = step.OrganizationNodeId.Value;
+        var configuredPosition = await db.OrganizationNodes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == step.OrganizationNodeId.Value, cancellationToken)
+            ?? throw new InvalidOperationException($"جایگاه تنظیم‌شده برای مرحله «{step.Title}» یافت نشد.");
+
+        var currentRevision = await db.OrganizationStructureRevisions
+            .AsNoTracking()
+            .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
+            .OrderByDescending(x => x.EffectiveDate)
+            .ThenByDescending(x => x.Id)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new InvalidOperationException("نسخه نهایی فعال ساختار سازمانی یافت نشد.");
+
+        var position = await db.OrganizationNodes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.OrganizationStructureRevisionId == currentRevision.Id &&
+                                       x.Code == configuredPosition.Code &&
+                                       x.IsActive, cancellationToken)
+            ?? throw new InvalidOperationException($"جایگاه «{configuredPosition.Title}» در نسخه فعال ساختار سازمانی یافت نشد.");
+
+        var positionId = position.Id;
         var employees = await db.Employees
             .AsNoTracking()
             .Where(e => e.Status == "فعال" &&
@@ -386,7 +419,16 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .OrderBy(e => e.Id)
             .ToListAsync(cancellationToken);
 
-        if (step.AssignmentMode == "All" && employees.Count > 0)
+        if (employees.Count == 0)
+        {
+            db.WorkflowTasks.Add(new WorkflowTask
+            {
+                WorkflowInstanceId = instance.Id,
+                WorkflowStepId = step.Id,
+                AssignedPositionId = positionId
+            });
+        }
+        else
         {
             foreach (var employee in employees)
                 db.WorkflowTasks.Add(new WorkflowTask
@@ -396,16 +438,6 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                     AssignedPositionId = positionId,
                     AssignedEmployeeId = employee.Id
                 });
-        }
-        else
-        {
-            db.WorkflowTasks.Add(new WorkflowTask
-            {
-                WorkflowInstanceId = instance.Id,
-                WorkflowStepId = step.Id,
-                AssignedPositionId = positionId,
-                AssignedEmployeeId = employees.FirstOrDefault()?.Id
-            });
         }
 
         await db.SaveChangesAsync(cancellationToken);

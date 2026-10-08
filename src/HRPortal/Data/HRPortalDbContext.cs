@@ -24,6 +24,12 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
     public DbSet<EmployeeRole> EmployeeRoles => Set<EmployeeRole>();
     public DbSet<AnnouncementCategory> AnnouncementCategories => Set<AnnouncementCategory>();
     public DbSet<Announcement> Announcements => Set<Announcement>();
+    public DbSet<WorkflowDefinition> WorkflowDefinitions => Set<WorkflowDefinition>();
+    public DbSet<WorkflowStep> WorkflowSteps => Set<WorkflowStep>();
+    public DbSet<WorkflowTransition> WorkflowTransitions => Set<WorkflowTransition>();
+    public DbSet<WorkflowInstance> WorkflowInstances => Set<WorkflowInstance>();
+    public DbSet<WorkflowTask> WorkflowTasks => Set<WorkflowTask>();
+    public DbSet<WorkflowHistory> WorkflowHistory => Set<WorkflowHistory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

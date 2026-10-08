@@ -52,7 +52,7 @@ else
     @foreach (var step in selected.Steps.OrderBy(x => x.SortOrder))
     {
         <div class="workflow-step-card">
-            <div class="workflow-step-head"><strong>@step.SortOrder. @step.Title</strong><span>@step.Code · @(step.OrganizationNode?.Title ?? "بدون جایگاه")</span></div>
+            <div class="workflow-step-head"><strong>@(step.SortOrder). @step.Title</strong><span>@step.Code · @(step.OrganizationNode?.Title ?? "بدون جایگاه")</span></div>
             <div class="workflow-step-actions">
                 <form method="post" action="/Workflow/SaveTransition" class="transition-form">
                     @Html.AntiForgeryToken()
@@ -65,6 +65,12 @@ else
                     <input type="hidden" name="stepId" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" />
                     <label>برگشت → <select name="toStepId"><option value="">وضعیت برگشت</option>@foreach (var s in selected.Steps.Where(x=>x.Id!=step.Id).OrderBy(x=>x.SortOrder)){<option value="@s.Id">@(s.SortOrder + " - " + s.Title)</option>}</select></label>
                     <input type="hidden" name="action" value="Return" /><button class="btn btn-outline btn-sm" type="submit">ذخیره مسیر برگشت</button>
+                </form>
+                <form method="post" action="/Workflow/SaveTransition" class="transition-form">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="stepId" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" />
+                    <label>رد → <select name="toStepId"><option value="">پایان و رد</option>@foreach (var s in selected.Steps.Where(x=>x.Id!=step.Id).OrderBy(x=>x.SortOrder)){<option value="@s.Id">@(s.SortOrder + " - " + s.Title)</option>}</select></label>
+                    <input type="hidden" name="action" value="Reject" /><button class="btn btn-outline btn-sm" type="submit">ذخیره مسیر رد</button>
                 </form>
                 <form method="post" action="/Workflow/DeleteStep" class="inline" onsubmit="return confirm('این مرحله حذف شود؟');">
                     @Html.AntiForgeryToken()<input type="hidden" name="id" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" /><button class="btn btn-outline btn-sm danger" type="submit">حذف</button>

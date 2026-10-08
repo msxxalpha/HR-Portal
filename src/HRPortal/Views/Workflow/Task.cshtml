@@ -1,0 +1,50 @@
+@model HRPortal.Models.WorkflowTask
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "اقدام در گردش کار";
+    var history = ViewBag.History as List<HRPortal.Models.WorkflowHistory> ?? [];
+}
+<div class="page-head">
+    <div><h1>@Model.WorkflowStep.Title</h1><p>@Model.WorkflowInstance.WorkflowDefinition.Title — درخواست @Model.WorkflowInstance.EntityType #@Model.WorkflowInstance.EntityId</p></div>
+    <a class="btn btn-outline" href="/Workflow/Inbox">بازگشت به کارتابل</a>
+</div>
+<section class="workflow-detail-grid">
+    <div class="card">
+        <div class="section-head"><h3>مشخصات درخواست</h3></div>
+        <dl class="detail-list">
+            <dt>درخواست‌کننده</dt><dd>@Model.WorkflowInstance.RequesterEmployee.FirstName @Model.WorkflowInstance.RequesterEmployee.LastName</dd>
+            <dt>شماره پرسنلی</dt><dd>@Model.WorkflowInstance.RequesterEmployee.PersonnelNumber</dd>
+            <dt>نوع فرم</dt><dd>@Model.WorkflowInstance.EntityType</dd>
+            <dt>شناسه درخواست</dt><dd>@Model.WorkflowInstance.EntityId</dd>
+            <dt>مرحله جاری</dt><dd>@Model.WorkflowStep.Title</dd>
+            <dt>جایگاه سازمانی مسئول</dt><dd>@Model.AssignedPosition?.Title</dd>
+        </dl>
+    </div>
+    <div class="card">
+        <div class="section-head"><h3>اقدام</h3></div>
+        <form method="post" action="/Workflow/Act" class="form-stack">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@Model.Id" />
+            <label>توضیحات
+                <textarea name="comment" rows="7" placeholder="در صورت نیاز توضیح خود را ثبت کنید."></textarea>
+            </label>
+            <div class="actions">
+                @if (Model.WorkflowStep.AllowReturn) { <button class="btn btn-outline" name="action" value="Return" type="submit">برگشت</button> }
+                @if (Model.WorkflowStep.AllowReject) { <button class="btn danger" name="action" value="Reject" type="submit">رد درخواست</button> }
+                @if (Model.WorkflowStep.AllowApprove) { <button class="btn btn-main" name="action" value="Approve" type="submit">تأیید</button> }
+            </div>
+        </form>
+    </div>
+</section>
+<section class="card">
+    <div class="section-head"><h3>تاریخچه گردش کار</h3></div>
+    <div class="workflow-history">
+    @foreach (var item in history)
+    {
+        <div class="workflow-history-item">
+            <div><strong>@item.Action</strong><span>@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span></div>
+            <p>@(item.ActorEmployee == null ? "سیستم" : item.ActorEmployee.FirstName + " " + item.ActorEmployee.LastName) — @(item.Comment ?? "بدون توضیح")</p>
+        </div>
+    }
+    </div>
+</section>

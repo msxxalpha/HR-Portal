@@ -88,11 +88,7 @@ public class WorkflowController(
         {
             Definitions = await workflow.GetDefinitionsAsync(),
             SelectedDefinition = id.HasValue ? await workflow.GetDefinitionAsync(id.Value) : null,
-            Positions = await db.OrganizationNodes
-                .AsNoTracking()
-                .Where(x => x.IsActive)
-                .OrderBy(x => x.Title)
-                .ToListAsync()
+            Positions = await GetCurrentPositionsAsync()
         };
         return View(model);
     }

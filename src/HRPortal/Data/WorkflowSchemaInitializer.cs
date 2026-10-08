@@ -156,8 +156,11 @@ IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowHistory_Instance
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowStepFields_Step_Code' AND object_id=OBJECT_ID(N'dbo.WorkflowStepFields'))
     CREATE UNIQUE INDEX [IX_WorkflowStepFields_Step_Code] ON [dbo].[WorkflowStepFields]([WorkflowStepId],[Code]);
 
+IF EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowFieldValues_Instance_Field' AND object_id=OBJECT_ID(N'dbo.WorkflowFieldValues') AND is_unique=1)
+    DROP INDEX [IX_WorkflowFieldValues_Instance_Field] ON [dbo].[WorkflowFieldValues];
+
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowFieldValues_Instance_Field' AND object_id=OBJECT_ID(N'dbo.WorkflowFieldValues'))
-    CREATE UNIQUE INDEX [IX_WorkflowFieldValues_Instance_Field] ON [dbo].[WorkflowFieldValues]([WorkflowInstanceId],[WorkflowStepFieldId]);
+    CREATE INDEX [IX_WorkflowFieldValues_Instance_Field] ON [dbo].[WorkflowFieldValues]([WorkflowInstanceId],[WorkflowStepFieldId],[UpdatedAt]);
 
 IF OBJECT_ID(N'dbo.WorkflowSteps', N'U') IS NOT NULL
 AND OBJECT_ID(N'dbo.WorkflowDefinitions', N'U') IS NOT NULL

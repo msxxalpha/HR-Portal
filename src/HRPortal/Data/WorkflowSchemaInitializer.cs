@@ -100,6 +100,38 @@ BEGIN
     );
 END;
 
+IF OBJECT_ID(N'dbo.WorkflowStepFields', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[WorkflowStepFields](
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_WorkflowStepFields] PRIMARY KEY,
+        [WorkflowStepId] int NOT NULL,
+        [Code] nvarchar(100) NOT NULL,
+        [Title] nvarchar(200) NOT NULL,
+        [FieldType] nvarchar(30) NOT NULL CONSTRAINT [DF_WorkflowStepFields_FieldType] DEFAULT N'Text',
+        [Options] nvarchar(4000) NULL,
+        [HelpText] nvarchar(1000) NULL,
+        [SortOrder] int NOT NULL CONSTRAINT [DF_WorkflowStepFields_SortOrder] DEFAULT 0,
+        [IsRequired] bit NOT NULL CONSTRAINT [DF_WorkflowStepFields_IsRequired] DEFAULT 0,
+        [MaxLength] int NULL
+    );
+END;
+
+IF OBJECT_ID(N'dbo.WorkflowFieldValues', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[WorkflowFieldValues](
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_WorkflowFieldValues] PRIMARY KEY,
+        [WorkflowInstanceId] int NOT NULL,
+        [WorkflowStepId] int NOT NULL,
+        [WorkflowStepFieldId] int NOT NULL,
+        [FieldCode] nvarchar(100) NOT NULL,
+        [FieldTitle] nvarchar(200) NOT NULL,
+        [FieldType] nvarchar(30) NOT NULL,
+        [Value] nvarchar(4000) NULL,
+        [UpdatedByEmployeeId] int NULL,
+        [UpdatedAt] datetime2 NOT NULL CONSTRAINT [DF_WorkflowFieldValues_UpdatedAt] DEFAULT SYSUTCDATETIME()
+    );
+END;
+
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowDefinitions_Code' AND object_id=OBJECT_ID(N'dbo.WorkflowDefinitions'))
     CREATE UNIQUE INDEX [IX_WorkflowDefinitions_Code] ON [dbo.WorkflowDefinitions]([Code]);
 
@@ -120,6 +152,12 @@ IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowTasks_PositionIn
 
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowHistory_Instance_Created' AND object_id=OBJECT_ID(N'dbo.WorkflowHistory'))
     CREATE INDEX [IX_WorkflowHistory_Instance_Created] ON [dbo].[WorkflowHistory]([WorkflowInstanceId],[CreatedAt]);
+
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowStepFields_Step_Code' AND object_id=OBJECT_ID(N'dbo.WorkflowStepFields'))
+    CREATE UNIQUE INDEX [IX_WorkflowStepFields_Step_Code] ON [dbo].[WorkflowStepFields]([WorkflowStepId],[Code]);
+
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowFieldValues_Instance_Field' AND object_id=OBJECT_ID(N'dbo.WorkflowFieldValues'))
+    CREATE UNIQUE INDEX [IX_WorkflowFieldValues_Instance_Field] ON [dbo].[WorkflowFieldValues]([WorkflowInstanceId],[WorkflowStepFieldId]);
 
 IF OBJECT_ID(N'dbo.WorkflowSteps', N'U') IS NOT NULL
 AND OBJECT_ID(N'dbo.WorkflowDefinitions', N'U') IS NOT NULL
@@ -179,6 +217,32 @@ AND OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL
 AND NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name=N'FK_WorkflowTasks_Employee')
     ALTER TABLE [dbo].[WorkflowTasks] ADD CONSTRAINT [FK_WorkflowTasks_Employee]
     FOREIGN KEY([AssignedEmployeeId]) REFERENCES [dbo].[Employees]([Id]) ON DELETE SET NULL;
+
+IF OBJECT_ID(N'dbo.WorkflowStepFields', N'U') IS NOT NULL
+AND NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name=N'FK_WorkflowStepFields_Step')
+    ALTER TABLE [dbo].[WorkflowStepFields] ADD CONSTRAINT [FK_WorkflowStepFields_Step]
+    FOREIGN KEY([WorkflowStepId]) REFERENCES [dbo].[WorkflowSteps]([Id]) ON DELETE CASCADE;
+
+IF OBJECT_ID(N'dbo.WorkflowFieldValues', N'U') IS NOT NULL
+AND NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name=N'FK_WorkflowFieldValues_Instance')
+    ALTER TABLE [dbo].[WorkflowFieldValues] ADD CONSTRAINT [FK_WorkflowFieldValues_Instance]
+    FOREIGN KEY([WorkflowInstanceId]) REFERENCES [dbo].[WorkflowInstances]([Id]) ON DELETE CASCADE;
+
+IF OBJECT_ID(N'dbo.WorkflowFieldValues', N'U') IS NOT NULL
+AND NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name=N'FK_WorkflowFieldValues_Step')
+    ALTER TABLE [dbo].[WorkflowFieldValues] ADD CONSTRAINT [FK_WorkflowFieldValues_Step]
+    FOREIGN KEY([WorkflowStepId]) REFERENCES [dbo].[WorkflowSteps]([Id]) ON DELETE NO ACTION;
+
+IF OBJECT_ID(N'dbo.WorkflowFieldValues', N'U') IS NOT NULL
+AND NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name=N'FK_WorkflowFieldValues_Field')
+    ALTER TABLE [dbo].[WorkflowFieldValues] ADD CONSTRAINT [FK_WorkflowFieldValues_Field]
+    FOREIGN KEY([WorkflowStepFieldId]) REFERENCES [dbo].[WorkflowStepFields]([Id]) ON DELETE NO ACTION;
+
+IF OBJECT_ID(N'dbo.WorkflowFieldValues', N'U') IS NOT NULL
+AND OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL
+AND NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name=N'FK_WorkflowFieldValues_UpdatedBy')
+    ALTER TABLE [dbo].[WorkflowFieldValues] ADD CONSTRAINT [FK_WorkflowFieldValues_UpdatedBy]
+    FOREIGN KEY([UpdatedByEmployeeId]) REFERENCES [dbo].[Employees]([Id]) ON DELETE SET NULL;
 
 IF OBJECT_ID(N'dbo.WorkflowHistory', N'U') IS NOT NULL
 AND NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name=N'FK_WorkflowHistory_Instance')

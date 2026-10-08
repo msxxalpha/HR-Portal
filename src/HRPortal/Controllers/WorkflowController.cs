@@ -93,6 +93,24 @@ public class WorkflowController(
         return View(model);
     }
 
+    private async Task<List<OrganizationNode>> GetCurrentPositionsAsync()
+    {
+        var revision = await db.OrganizationStructureRevisions
+            .AsNoTracking()
+            .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
+            .OrderByDescending(x => x.EffectiveDate)
+            .ThenByDescending(x => x.Id)
+            .FirstOrDefaultAsync();
+
+        if (revision is null) return [];
+        return await db.OrganizationNodes
+            .AsNoTracking()
+            .Where(x => x.OrganizationStructureRevisionId == revision.Id && x.IsActive)
+            .OrderBy(x => x.RankType)
+            .ThenBy(x => x.Title)
+            .ToListAsync();
+    }
+
     [HttpPost]
     [Authorize(Policy = "Workflow.Manage")]
     [ValidateAntiForgeryToken]

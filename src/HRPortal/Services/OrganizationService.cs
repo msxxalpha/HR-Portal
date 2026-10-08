@@ -110,6 +110,9 @@ public class OrganizationService(HRPortalDbContext db, AuditService audit)
             e.OrganizationUnitId == id ||
             e.OrganizationDepartmentId == id ||
             e.OrganizationSectionId == id) &&
+        !await db.WorkflowSteps.AnyAsync(x => x.OrganizationNodeId == id) &&
+        !await db.WorkflowTasks.AnyAsync(x => x.AssignedPositionId == id) &&
+        !await db.WorkflowHistory.AnyAsync(x => x.ActorPositionId == id) &&
         !await db.OrganizationNodes.AnyAsync(x => x.ParentId == id);
 
     public async Task FinalizeAsync(int id)

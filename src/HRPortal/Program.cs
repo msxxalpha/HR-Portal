@@ -71,6 +71,7 @@ builder.Services.AddScoped<AnnouncementService>();
 builder.Services.AddScoped<EmployeeExcelService>();
 builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<RoleService>();
+builder.Services.AddScoped<WorkflowService>();
 builder.Services.AddScoped<ISmsService, ConfigurableSmsService>();
 
 builder.Services
@@ -163,6 +164,11 @@ app.MapControllerRoute(
     name: "personnel-order",
     pattern: "PersonnelOrder/{action=Index}/{id?}",
     defaults: new { controller = "PersonnelOrder" });
+
+app.MapControllerRoute(
+    name: "workflow",
+    pattern: "Workflow/{action=Inbox}/{id?}",
+    defaults: new { controller = "Workflow" });
 
 app.MapControllerRoute(
     name: "announcements",

@@ -157,7 +157,8 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         if (employee is not null)
         {
             if (await db.OtpChallenges.AnyAsync(x => x.EmployeeId == id) ||
-                await db.AuditLogs.AnyAsync(x => x.EmployeeId == id))
+                await db.AuditLogs.AnyAsync(x => x.EmployeeId == id) ||
+                await db.WorkflowInstances.AnyAsync(x => x.RequesterEmployeeId == id))
             {
                 TempData["Error"] = "این کارمند دارای سوابق سامانه است و حذف مستقیم مجاز نیست؛ او را غیرفعال کنید.";
             }
@@ -243,7 +244,8 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
             else
             {
                 var hasHistory = await db.OtpChallenges.AnyAsync(x => x.EmployeeId == employee.Id) ||
-                                 await db.AuditLogs.AnyAsync(x => x.EmployeeId == employee.Id);
+                                 await db.AuditLogs.AnyAsync(x => x.EmployeeId == employee.Id) ||
+                                 await db.WorkflowInstances.AnyAsync(x => x.RequesterEmployeeId == employee.Id);
 
                 if (hasHistory)
                 {

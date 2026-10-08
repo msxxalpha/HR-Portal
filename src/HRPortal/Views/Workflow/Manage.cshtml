@@ -1,0 +1,86 @@
+@model HRPortal.Models.WorkflowManagementViewModel
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "مدیریت گردش کار";
+    var selected = Model.SelectedDefinition;
+}
+<div class="page-head">
+    <div><h1>مدیریت گردش کار</h1><p>تعریف گردش کار و تخصیص مراحل به جایگاه‌های ساختار سازمانی.</p></div>
+</div>
+@if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
+@if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
+
+<div class="workflow-management-grid">
+<section class="card">
+    <div class="section-head"><h3>گردش کارها</h3></div>
+    @foreach (var item in Model.Definitions)
+    {
+        <a class="workflow-definition-item @(selected?.Id == item.Id ? "selected" : "")" href="/Workflow/Manage?id=@item.Id">
+            <strong>@item.Title</strong><span>@item.Code · @item.Steps.Count مرحله · @(item.IsActive ? "فعال" : "غیرفعال")</span>
+        </a>
+    }
+    <hr />
+    <h3>گردش کار جدید</h3>
+    <form method="post" action="/Workflow/SaveDefinition" class="form-stack">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="Id" value="0" />
+        <label>کد <input name="Code" required maxlength="100" placeholder="LeaveRequest" /></label>
+        <label>عنوان <input name="Title" required maxlength="200" /></label>
+        <label>توضیحات <textarea name="Description" rows="3"></textarea></label>
+        <label class="toggle-card compact-toggle"><span class="toggle-text"><strong>فعال</strong></span><span class="switch-control"><input type="checkbox" name="IsActive" value="true" checked /><span class="switch-slider"></span></span></label>
+        <button class="btn btn-main" type="submit">ایجاد گردش کار</button>
+    </form>
+</section>
+<section class="card">
+@if (selected is null)
+{
+    <div class="empty">یک گردش کار را انتخاب کنید یا گردش کار جدید بسازید.</div>
+}
+else
+{
+    <div class="section-head"><div><h3>@selected.Title</h3><span class="muted">@selected.Code · نسخه @selected.Version</span></div></div>
+    <form method="post" action="/Workflow/SaveDefinition" class="form-stack workflow-definition-edit">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="Id" value="@selected.Id" />
+        <div class="grid-2"><label>کد<input name="Code" value="@selected.Code" required /></label><label>عنوان<input name="Title" value="@selected.Title" required /></label></div>
+        <label>توضیحات<textarea name="Description" rows="2">@selected.Description</textarea></label>
+        <label class="toggle-card compact-toggle"><span class="toggle-text"><strong>فعال</strong></span><span class="switch-control"><input type="checkbox" name="IsActive" value="true" @(selected.IsActive ? "checked" : "") /><span class="switch-slider"></span></span></label>
+        <button class="btn btn-main btn-sm" type="submit">ذخیره مشخصات</button>
+    </form>
+    <hr />
+    <div class="section-head"><div><h3>مراحل</h3><span class="muted">هر مرحله مستقیماً به یک جایگاه سازمانی متصل است.</span></div></div>
+    @foreach (var step in selected.Steps.OrderBy(x => x.SortOrder))
+    {
+        <div class="workflow-step-card">
+            <div class="workflow-step-head"><strong>@step.SortOrder. @step.Title</strong><span>@step.Code · @(step.OrganizationNode?.Title ?? "بدون جایگاه")</span></div>
+            <div class="workflow-step-actions">
+                <form method="post" action="/Workflow/SaveTransition" class="transition-form">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="stepId" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" />
+                    <label>تأیید → <select name="toStepId"><option value="">پایان</option>@foreach (var s in selected.Steps.Where(x=>x.Id!=step.Id).OrderBy(x=>x.SortOrder)){<option value="@s.Id">@(s.SortOrder + " - " + s.Title)</option>}</select></label>
+                    <input type="hidden" name="action" value="Approve" /><button class="btn btn-outline btn-sm" type="submit">ذخیره مسیر تأیید</button>
+                </form>
+                <form method="post" action="/Workflow/SaveTransition" class="transition-form">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="stepId" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" />
+                    <label>برگشت → <select name="toStepId"><option value="">وضعیت برگشت</option>@foreach (var s in selected.Steps.Where(x=>x.Id!=step.Id).OrderBy(x=>x.SortOrder)){<option value="@s.Id">@(s.SortOrder + " - " + s.Title)</option>}</select></label>
+                    <input type="hidden" name="action" value="Return" /><button class="btn btn-outline btn-sm" type="submit">ذخیره مسیر برگشت</button>
+                </form>
+                <form method="post" action="/Workflow/DeleteStep" class="inline" onsubmit="return confirm('این مرحله حذف شود؟');">
+                    @Html.AntiForgeryToken()<input type="hidden" name="id" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" /><button class="btn btn-outline btn-sm danger" type="submit">حذف</button>
+                </form>
+            </div>
+        </div>
+    }
+    <hr />
+    <h3>افزودن مرحله</h3>
+    <form method="post" action="/Workflow/SaveStep" class="form-stack">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="WorkflowDefinitionId" value="@selected.Id" />
+        <div class="grid-2"><label>کد مرحله<input name="Code" required placeholder="Supervisor" /></label><label>عنوان مرحله<input name="Title" required placeholder="بررسی سرپرست" /></label><label>ترتیب<input name="SortOrder" type="number" value="10" /></label><label>جایگاه سازمانی<select name="OrganizationNodeId" required><option value="">انتخاب جایگاه</option>@foreach (var p in Model.Positions){<option value="@p.Id">@p.Title — @p.RankType</option>}</select></label><label>نحوه تخصیص<select name="AssignmentMode"><option value="Any">هر یک از متصدیان جایگاه</option><option value="All">همه متصدیان جایگاه</option></select></label><label class="toggle-card compact-toggle"><span class="toggle-text"><strong>مرحله نهایی</strong></span><span class="switch-control"><input type="checkbox" name="IsFinalStep" value="true" /><span class="switch-slider"></span></span></label></div>
+        <div class="actions"><label class="check-chip"><input type="checkbox" name="AllowApprove" value="true" checked /> تأیید</label><label class="check-chip"><input type="checkbox" name="AllowReject" value="true" checked /> رد</label><label class="check-chip"><input type="checkbox" name="AllowReturn" value="true" checked /> برگشت</label><label class="check-chip"><input type="checkbox" name="RequireCommentOnReject" value="true" checked /> توضیح رد اجباری</label><label class="check-chip"><input type="checkbox" name="RequireCommentOnReturn" value="true" /> توضیح برگشت اجباری</label></div>
+        <button class="btn btn-main" type="submit">افزودن مرحله</button>
+    </form>
+}
+</section>
+</div>

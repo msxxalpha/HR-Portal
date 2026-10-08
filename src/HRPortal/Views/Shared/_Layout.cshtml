@@ -54,9 +54,15 @@
                 @if (Can("Organization.View")) { <a href="/Organization"><span class="nav-icon">⌘</span>ساختار سازمانی</a> }
             }
 
+            @if (Can("Reports.View"))
+            {
+                <div class="nav-caption">گزارش‌ها</div>
+                <a href="/Reports"><span class="nav-icon">▥</span>گزارش‌ها</a>
+            }
+
             @if (Can("Payroll.View") || Can("PersonnelOrder.View"))
             {
-                <div class="nav-caption">گزارش‌ها و خدمات</div>
+                <div class="nav-caption">خدمات کارکنان</div>
                 @if (Can("Payroll.View")) { <a href="/Payroll/Payslip"><span class="nav-icon">▥</span>فیش حقوقی</a> }
                 @if (Can("PersonnelOrder.View")) { <a href="/PersonnelOrder"><span class="nav-icon">▤</span>حکم کارگزینی</a> }
             }

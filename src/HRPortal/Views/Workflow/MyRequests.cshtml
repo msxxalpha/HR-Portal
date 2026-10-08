@@ -1,0 +1,49 @@
+@model List<HRPortal.Models.WorkflowInboxRow>
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "درخواست‌های من";
+}
+<div class="page-head">
+    <div><h1>درخواست‌های من</h1><p>پیگیری وضعیت درخواست‌هایی که توسط شما ثبت شده‌اند.</p></div>
+    <a class="btn btn-main" href="/">بازگشت به داشبورد</a>
+</div>
+<section class="card">
+    <div class="section-head"><div><h3>فهرست درخواست‌ها</h3><span class="muted">@Model.Count درخواست</span></div></div>
+    @if (Model.Count == 0)
+    {
+        <div class="empty">هنوز درخواستی از طرف شما در گردش کار ثبت نشده است.</div>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>گردش کار</th><th>نوع/شناسه</th><th>مرحله جاری</th><th>وضعیت</th><th>تاریخ ثبت</th><th>عملیات</th></tr></thead>
+                <tbody>
+                @foreach (var item in Model)
+                {
+                    var statusTitle = item.Status switch
+                    {
+                        "Approved" => "تأیید نهایی",
+                        "Rejected" => "رد شده",
+                        "Returned" => "برگشت داده شده",
+                        _ => "در حال گردش"
+                    };
+                    <tr>
+                        <td><strong>@item.WorkflowTitle</strong></td>
+                        <td>@item.EntityType #@item.EntityId</td>
+                        <td>@item.StepTitle</td>
+                        <td><span class="badge @(item.Status == "Approved" ? "" : "badge-info")">@statusTitle</span></td>
+                        <td>@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                        <td>
+                            @if (item.TaskId > 0)
+                            {
+                                <a class="btn btn-outline btn-sm" href="/Workflow/Task/@item.TaskId">مشاهده گردش</a>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

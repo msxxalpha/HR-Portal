@@ -56,20 +56,21 @@ public class WorkflowController(
         if (task is null) return NotFound();
 
         ViewBag.History = await workflow.GetHistoryAsync(task.WorkflowInstanceId);
+        ViewBag.FieldGroups = await workflow.GetTaskFieldGroupsAsync(id, employeeId);
         return View(task);
     }
 
     [HttpPost]
     [Authorize(Policy = "Workflow.Inbox")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Act(int id, string action, string? comment)
+    public async Task<IActionResult> Act(int id, string action, string? comment, Dictionary<string, string?>? values)
     {
         if (!int.TryParse(User.FindFirst("EmployeeId")?.Value, out var employeeId))
             return Forbid();
 
         try
         {
-            await workflow.CompleteTaskAsync(id, employeeId, action, comment);
+            await workflow.CompleteTaskAsync(id, employeeId, action, comment, values);
             TempData["Success"] = "اقدام گردش کار با موفقیت ثبت شد.";
         }
         catch (Exception ex)
@@ -129,6 +130,31 @@ public class WorkflowController(
         try { await workflow.SaveStepAsync(model); TempData["Success"] = "مرحله ذخیره شد."; }
         catch (Exception ex) { TempData["Error"] = ex.Message; }
         return RedirectToAction(nameof(Manage), new { id = model.WorkflowDefinitionId });
+    }
+
+    [HttpPost]
+    [Authorize(Policy = "Workflow.Manage")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveStepField(WorkflowStepFieldEditModel model)
+    {
+        try
+        {
+            await workflow.SaveStepFieldAsync(model);
+            TempData["Success"] = "فیلد مرحله ذخیره شد.";
+        }
+        catch (Exception ex) { TempData["Error"] = ex.Message; }
+        var step = await db.WorkflowSteps.AsNoTracking().FirstOrDefaultAsync(x => x.Id == model.WorkflowStepId);
+        return RedirectToAction(nameof(Manage), new { id = step?.WorkflowDefinitionId });
+    }
+
+    [HttpPost]
+    [Authorize(Policy = "Workflow.Manage")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteStepField(int id, int definitionId)
+    {
+        try { await workflow.DeleteStepFieldAsync(id); TempData["Success"] = "فیلد حذف شد."; }
+        catch (Exception ex) { TempData["Error"] = ex.Message; }
+        return RedirectToAction(nameof(Manage), new { id = definitionId });
     }
 
     [HttpPost]

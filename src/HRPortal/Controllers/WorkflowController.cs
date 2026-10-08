@@ -71,14 +71,17 @@ public class WorkflowController(
         try
         {
             await workflow.CompleteTaskAsync(id, employeeId, action, comment, values);
-            TempData["Success"] = "اقدام گردش کار با موفقیت ثبت شد.";
+            TempData["Success"] = action == "SaveDraft" ? "پیش‌نویس مرحله ذخیره شد." : "اقدام گردش کار با موفقیت ثبت شد.";
         }
         catch (Exception ex)
         {
             TempData["Error"] = ex.Message;
+            return RedirectToAction(nameof(Task), new { id });
         }
 
-        return RedirectToAction(nameof(Inbox));
+        return action == "SaveDraft"
+            ? RedirectToAction(nameof(Task), new { id })
+            : RedirectToAction(nameof(Inbox));
     }
 
     [HttpGet]

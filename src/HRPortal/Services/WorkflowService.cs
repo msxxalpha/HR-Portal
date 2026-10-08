@@ -359,9 +359,19 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         }
         else if (action == "Reject")
         {
-            instance.Status = "Rejected";
-            instance.CurrentStepId = null;
-            instance.CompletedAt = DateTime.UtcNow;
+            var next = await ResolveTransitionAsync(task.WorkflowStepId, "Reject", instance.WorkflowDefinition.Steps);
+            if (next is null)
+            {
+                instance.Status = "Rejected";
+                instance.CurrentStepId = null;
+                instance.CompletedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                instance.CurrentStepId = next.Id;
+                instance.Status = "InProgress";
+                await CreateTasksAsync(instance, next, CancellationToken.None);
+            }
         }
         else
         {
@@ -448,9 +458,18 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         var transition = await db.WorkflowTransitions.AsNoTracking()
             .FirstOrDefaultAsync(x => x.WorkflowStepId == stepId && x.Action == action);
 
-        return transition?.ToStepId is int id
-            ? steps.FirstOrDefault(x => x.Id == id)
-            : steps.OrderBy(x => x.SortOrder).FirstOrDefault(x => x.SortOrder > steps.First(s => s.Id == stepId).SortOrder);
+        if (transition?.ToStepId is int id)
+            return steps.FirstOrDefault(x => x.Id == id);
+
+        if (action == "Approve")
+        {
+            var current = steps.FirstOrDefault(x => x.Id == stepId);
+            return current is null
+                ? null
+                : steps.OrderBy(x => x.SortOrder).FirstOrDefault(x => x.SortOrder > current.SortOrder);
+        }
+
+        return null;
     }
 
     private int? ResolveEmployeePosition(int employeeId, int? preferredPositionId)

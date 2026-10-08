@@ -10,6 +10,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         await db.WorkflowDefinitions
             .Include(x => x.Steps)
             .ThenInclude(x => x.OrganizationNode)
+            .Include(x => x.Steps)
+            .ThenInclude(x => x.Fields)
             .OrderBy(x => x.Title)
             .ToListAsync();
 
@@ -17,6 +19,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         await db.WorkflowDefinitions
             .Include(x => x.Steps)
             .ThenInclude(x => x.OrganizationNode)
+            .Include(x => x.Steps)
+            .ThenInclude(x => x.Fields)
             .Include(x => x.Steps)
             .ThenInclude(x => x.OutgoingTransitions)
             .ThenInclude(x => x.ToStep)

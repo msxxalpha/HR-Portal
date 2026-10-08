@@ -76,6 +76,61 @@ else
                     @Html.AntiForgeryToken()<input type="hidden" name="id" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" /><button class="btn btn-outline btn-sm danger" type="submit">حذف</button>
                 </form>
             </div>
+            <div class="workflow-stage-fields">
+                <h4>فیلدهای فرم این مرحله</h4>
+                <p class="muted">این فیلدها هنگام رسیدن درخواست به این مرحله قابل ورود هستند و در مراحل بعدی فقط خوانده می‌شوند.</p>
+                @foreach (var field in step.Fields.OrderBy(x => x.SortOrder))
+                {
+                    <form method="post" action="/Workflow/SaveStepField" class="form-stack workflow-field-editor">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="Id" value="@field.Id" />
+                        <input type="hidden" name="WorkflowStepId" value="@step.Id" />
+                        <div class="grid-2">
+                            <label>کد فیلد<input name="Code" value="@field.Code" required maxlength="100" /></label>
+                            <label>عنوان نمایشی<input name="Title" value="@field.Title" required maxlength="200" /></label>
+                            <label>نوع فیلد<select name="FieldType">
+                                <option value="Text" selected="@(field.FieldType == "Text")">متن کوتاه</option>
+                                <option value="TextArea" selected="@(field.FieldType == "TextArea")">متن چندخطی</option>
+                                <option value="Number" selected="@(field.FieldType == "Number")">عدد</option>
+                                <option value="Date" selected="@(field.FieldType == "Date")">تاریخ</option>
+                                <option value="Select" selected="@(field.FieldType == "Select")">انتخاب از فهرست</option>
+                                <option value="Checkbox" selected="@(field.FieldType == "Checkbox")">بله/خیر</option>
+                            </select></label>
+                            <label>ترتیب نمایش<input name="SortOrder" type="number" value="@field.SortOrder" /></label>
+                            <label>حداکثر طول<input name="MaxLength" type="number" min="1" max="4000" value="@field.MaxLength" /></label>
+                            <label class="check-chip"><input type="checkbox" name="IsRequired" value="true" checked="@field.IsRequired" /> تکمیل این فیلد اجباری است</label>
+                        </div>
+                        <label>گزینه‌ها (هر گزینه در یک خط؛ مخصوص نوع انتخابی)<textarea name="Options" rows="3">@field.Options</textarea></label>
+                        <label>راهنمای ورود اطلاعات<textarea name="HelpText" rows="2">@field.HelpText</textarea></label>
+                        <div class="actions"><button class="btn btn-outline btn-sm" type="submit">ذخیره فیلد</button></div>
+                    </form>
+                    <form method="post" action="/Workflow/DeleteStepField" class="inline" onsubmit="return confirm('این فیلد حذف شود؟');">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@field.Id" />
+                        <input type="hidden" name="definitionId" value="@selected.Id" />
+                        <button class="btn btn-outline btn-sm danger" type="submit">حذف فیلد @field.Title</button>
+                    </form>
+                }
+                <details>
+                    <summary>افزودن فیلد جدید</summary>
+                    <form method="post" action="/Workflow/SaveStepField" class="form-stack">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="Id" value="0" />
+                        <input type="hidden" name="WorkflowStepId" value="@step.Id" />
+                        <div class="grid-2">
+                            <label>کد فیلد<input name="Code" required maxlength="100" placeholder="technicalComment" /></label>
+                            <label>عنوان نمایشی<input name="Title" required maxlength="200" placeholder="نظر کارشناسی" /></label>
+                            <label>نوع فیلد<select name="FieldType"><option value="Text">متن کوتاه</option><option value="TextArea">متن چندخطی</option><option value="Number">عدد</option><option value="Date">تاریخ</option><option value="Select">انتخاب از فهرست</option><option value="Checkbox">بله/خیر</option></select></label>
+                            <label>ترتیب نمایش<input name="SortOrder" type="number" value="10" /></label>
+                            <label>حداکثر طول<input name="MaxLength" type="number" min="1" max="4000" /></label>
+                            <label class="check-chip"><input type="checkbox" name="IsRequired" value="true" /> تکمیل این فیلد اجباری است</label>
+                        </div>
+                        <label>گزینه‌ها (هر گزینه در یک خط؛ مخصوص نوع انتخابی)<textarea name="Options" rows="3"></textarea></label>
+                        <label>راهنمای ورود اطلاعات<textarea name="HelpText" rows="2"></textarea></label>
+                        <button class="btn btn-main btn-sm" type="submit">افزودن فیلد</button>
+                    </form>
+                </details>
+            </div>
         </div>
     }
     <hr />

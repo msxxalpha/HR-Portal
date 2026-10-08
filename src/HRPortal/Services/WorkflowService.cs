@@ -276,8 +276,9 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             var value = field.FieldType == "Checkbox"
                 ? (string.Equals(raw, "true", StringComparison.OrdinalIgnoreCase) || raw == "on" ? "true" : "false")
                 : raw?.Trim();
-            if (validateRequired && field.IsRequired && string.IsNullOrWhiteSpace(value))
-                throw new InvalidOperationException($"تکمیل فیلد «{field.Title}» الزامی است.");
+            if (validateRequired && field.IsRequired &&
+                (string.IsNullOrWhiteSpace(value) || (field.FieldType == "Checkbox" && value != "true")))
+                throw new InvalidOperationException($"تکمیل صحیح فیلد «{field.Title}» الزامی است.");
             if (value is { Length: > 4000 })
                 throw new InvalidOperationException($"مقدار فیلد «{field.Title}» بیش از حد مجاز است.");
             if (!string.IsNullOrEmpty(value))
@@ -500,25 +501,26 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             Comment = comment?.Trim()
         });
 
-        foreach (var sibling in instance.Tasks.Where(x => x.WorkflowStepId == task.WorkflowStepId && x.Id != task.Id && x.Status == "Pending"))
-        {
-            sibling.Status = "Superseded";
-            sibling.CompletedAt = DateTime.UtcNow;
-            sibling.Action = action;
-        }
+        var pendingSiblings = instance.Tasks
+            .Where(x => x.WorkflowStepId == task.WorkflowStepId && x.Id != task.Id && x.Status == "Pending")
+            .ToList();
 
-        var hasPendingSiblings = instance.Tasks.Any(x =>
-            x.WorkflowStepId == task.WorkflowStepId &&
-            x.Id != task.Id &&
-            x.Status == "Pending");
-
-        if (task.WorkflowStep.AssignmentMode == "All" && hasPendingSiblings)
+        // In All mode, each approver must complete their own task. A rejection/return
+        // resolves the stage immediately; otherwise only the last approval advances it.
+        if (task.WorkflowStep.AssignmentMode == "All" && action == "Approve" && pendingSiblings.Count > 0)
         {
             instance.Status = "InProgress";
             await db.SaveChangesAsync();
             await transaction.CommitAsync();
             await audit.WriteAsync("اقدام مرحله گردش کار", nameof(WorkflowTask), task.Id.ToString(), action);
             return;
+        }
+
+        foreach (var sibling in pendingSiblings)
+        {
+            sibling.Status = "Superseded";
+            sibling.CompletedAt = DateTime.UtcNow;
+            sibling.Action = action;
         }
 
         if (action == "Approve")

@@ -6,6 +6,8 @@
     var history = ViewBag.History as List<WorkflowHistory> ?? [];
     var groups = ViewBag.FieldGroups as List<WorkflowTaskFieldGroup> ?? [];
 }
+@if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
+@if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
 <div class="page-head">
     <div><h1>@Model.WorkflowStep.Title</h1><p>@Model.WorkflowInstance.WorkflowDefinition.Title — درخواست @Model.WorkflowInstance.EntityType #@Model.WorkflowInstance.EntityId</p></div>
     <a class="btn btn-outline" href="/Workflow/Inbox">بازگشت به کارتابل</a>
@@ -28,7 +30,7 @@
 {
     <section class="card form-stack">
         <div class="section-head"><div><h3>اطلاعات فرم</h3><p class="muted">اطلاعات مراحل قبلی فقط برای مشاهده است؛ فقط فیلدهای مرحله جاری قابل ویرایش هستند.</p></div></div>
-        <form method="post" action="/Workflow/Act" class="form-stack">
+        <form method="post" action="/Workflow/Act" class="form-stack" novalidate>
             @Html.AntiForgeryToken()
             <input type="hidden" name="id" value="@Model.Id" />
             @foreach (var group in groups)
@@ -91,6 +93,7 @@
                     <textarea name="comment" rows="4" placeholder="در صورت نیاز توضیح خود را ثبت کنید."></textarea>
                 </label>
                 <div class="actions">
+                    <button class="btn btn-outline" name="action" value="SaveDraft" type="submit">ذخیره پیش‌نویس</button>
                     @if (Model.WorkflowStep.AllowReturn) { <button class="btn btn-outline" name="action" value="Return" type="submit">برگشت</button> }
                     @if (Model.WorkflowStep.AllowReject) { <button class="btn danger" name="action" value="Reject" type="submit">رد درخواست</button> }
                     @if (Model.WorkflowStep.AllowApprove) { <button class="btn btn-main" name="action" value="Approve" type="submit">ذخیره اطلاعات و تأیید</button> }
@@ -108,6 +111,7 @@ else
             <input type="hidden" name="id" value="@Model.Id" />
             <label>توضیحات<textarea name="comment" rows="5" placeholder="در صورت نیاز توضیح خود را ثبت کنید."></textarea></label>
             <div class="actions">
+                <button class="btn btn-outline" name="action" value="SaveDraft" type="submit">ذخیره پیش‌نویس</button>
                 @if (Model.WorkflowStep.AllowReturn) { <button class="btn btn-outline" name="action" value="Return" type="submit">برگشت</button> }
                 @if (Model.WorkflowStep.AllowReject) { <button class="btn danger" name="action" value="Reject" type="submit">رد درخواست</button> }
                 @if (Model.WorkflowStep.AllowApprove) { <button class="btn btn-main" name="action" value="Approve" type="submit">تأیید</button> }

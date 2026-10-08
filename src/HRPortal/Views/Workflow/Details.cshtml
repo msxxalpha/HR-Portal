@@ -1,0 +1,43 @@
+@model HRPortal.Models.WorkflowInstance
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "جزئیات گردش کار";
+    var history = ViewBag.History as List<HRPortal.Models.WorkflowHistory> ?? [];
+    var statusTitle = Model.Status switch
+    {
+        "Approved" => "تأیید نهایی",
+        "Rejected" => "رد شده",
+        "Returned" => "برگشت داده شده",
+        _ => "در حال گردش"
+    };
+}
+<div class="page-head">
+    <div><h1>@Model.WorkflowDefinition.Title</h1><p>@Model.EntityType #@Model.EntityId</p></div>
+    <a class="btn btn-outline" href="/Workflow/MyRequests">بازگشت به درخواست‌های من</a>
+</div>
+<section class="workflow-detail-grid">
+    <div class="card">
+        <div class="section-head"><h3>وضعیت درخواست</h3></div>
+        <dl class="detail-list">
+            <dt>گردش کار</dt><dd>@Model.WorkflowDefinition.Title</dd>
+            <dt>نوع فرم</dt><dd>@Model.EntityType</dd>
+            <dt>شناسه</dt><dd>@Model.EntityId</dd>
+            <dt>وضعیت</dt><dd><span class="badge">@statusTitle</span></dd>
+            <dt>مرحله جاری</dt><dd>@(Model.CurrentStep?.Title ?? "پایان گردش")</dd>
+            <dt>جایگاه مرحله</dt><dd>@(Model.CurrentStep?.OrganizationNode?.Title ?? "—")</dd>
+            <dt>شروع</dt><dd>@Model.StartedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</dd>
+        </dl>
+    </div>
+    <div class="card">
+        <div class="section-head"><h3>تاریخچه</h3></div>
+        <div class="workflow-history">
+        @foreach (var item in history)
+        {
+            <div class="workflow-history-item">
+                <div><strong>@item.Action</strong><span>@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span></div>
+                <p>@(item.ActorEmployee == null ? "سیستم" : item.ActorEmployee.FirstName + " " + item.ActorEmployee.LastName) — @(item.Comment ?? "بدون توضیح")</p>
+            </div>
+        }
+        </div>
+    </div>
+</section>

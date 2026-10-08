@@ -215,7 +215,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.Property(x => x.FieldTitle).HasMaxLength(200).IsRequired();
             e.Property(x => x.FieldType).HasMaxLength(30).IsRequired();
             e.Property(x => x.Value).HasMaxLength(4000);
-            e.HasIndex(x => new { x.WorkflowInstanceId, x.WorkflowStepFieldId }).IsUnique();
+            e.HasIndex(x => new { x.WorkflowInstanceId, x.WorkflowStepFieldId });
             e.HasOne(x => x.WorkflowInstance).WithMany().HasForeignKey(x => x.WorkflowInstanceId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.WorkflowStep).WithMany().HasForeignKey(x => x.WorkflowStepId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.WorkflowStepField).WithMany().HasForeignKey(x => x.WorkflowStepFieldId).OnDelete(DeleteBehavior.Restrict);

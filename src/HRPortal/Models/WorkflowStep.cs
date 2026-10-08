@@ -19,4 +19,5 @@ public class WorkflowStep
     public WorkflowDefinition WorkflowDefinition { get; set; } = null!;
     public OrganizationNode? OrganizationNode { get; set; }
     public ICollection<WorkflowTransition> OutgoingTransitions { get; set; } = new List<WorkflowTransition>();
+    public ICollection<WorkflowStepField> Fields { get; set; } = new List<WorkflowStepField>();
 }

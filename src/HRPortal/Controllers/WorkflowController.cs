@@ -23,6 +23,30 @@ public class WorkflowController(
 
     [HttpGet]
     [Authorize(Policy = "Workflow.Inbox")]
+    public async Task<IActionResult> MyRequests()
+    {
+        if (!int.TryParse(User.FindFirst("EmployeeId")?.Value, out var employeeId))
+            return View(new List<WorkflowInboxRow>());
+
+        return View(await workflow.GetMyRequestsAsync(employeeId));
+    }
+
+    [HttpGet]
+    [Authorize(Policy = "Workflow.Inbox")]
+    public async Task<IActionResult> Details(int id)
+    {
+        if (!int.TryParse(User.FindFirst("EmployeeId")?.Value, out var employeeId))
+            return Forbid();
+
+        var instance = await workflow.GetInstanceAsync(id, employeeId);
+        if (instance is null) return NotFound();
+
+        ViewBag.History = await workflow.GetHistoryAsync(id);
+        return View(instance);
+    }
+
+    [HttpGet]
+    [Authorize(Policy = "Workflow.Inbox")]
     public async Task<IActionResult> Task(int id)
     {
         if (!int.TryParse(User.FindFirst("EmployeeId")?.Value, out var employeeId))

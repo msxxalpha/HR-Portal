@@ -208,6 +208,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .OrderBy(x => x.SortOrder).ThenBy(x => x.Id).ToListAsync();
         var values = await db.WorkflowFieldValues.AsNoTracking()
             .Where(x => x.WorkflowInstanceId == task.WorkflowInstanceId)
+            .OrderByDescending(x => x.UpdatedAt).ThenByDescending(x => x.Id)
             .ToListAsync();
         var groups = new List<WorkflowTaskFieldGroup>();
         foreach (var step in steps)
@@ -296,24 +297,20 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                     throw new InvalidOperationException($"گزینه انتخاب‌شده برای فیلد «{field.Title}» معتبر نیست.");
             }
 
-            var existing = await db.WorkflowFieldValues.FirstOrDefaultAsync(
-                x => x.WorkflowInstanceId == task.WorkflowInstanceId && x.WorkflowStepFieldId == field.Id, cancellationToken);
-            if (existing is null)
+            // Append a value snapshot rather than overwrite it. This preserves the
+            // data entered before a return/rework cycle for later audit.
+            db.WorkflowFieldValues.Add(new WorkflowFieldValue
             {
-                existing = new WorkflowFieldValue
-                {
-                    WorkflowInstanceId = task.WorkflowInstanceId,
-                    WorkflowStepId = task.WorkflowStepId,
-                    WorkflowStepFieldId = field.Id,
-                    FieldCode = field.Code,
-                    FieldTitle = field.Title,
-                    FieldType = field.FieldType
-                };
-                db.WorkflowFieldValues.Add(existing);
-            }
-            existing.Value = value;
-            existing.UpdatedByEmployeeId = actorEmployeeId;
-            existing.UpdatedAt = DateTime.UtcNow;
+                WorkflowInstanceId = task.WorkflowInstanceId,
+                WorkflowStepId = task.WorkflowStepId,
+                WorkflowStepFieldId = field.Id,
+                FieldCode = field.Code,
+                FieldTitle = field.Title,
+                FieldType = field.FieldType,
+                Value = value,
+                UpdatedByEmployeeId = actorEmployeeId,
+                UpdatedAt = DateTime.UtcNow
+            });
         }
     }
 
@@ -481,6 +478,25 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .FirstAsync(x => x.Id == task.WorkflowInstanceId);
 
         await using var transaction = await db.Database.BeginTransactionAsync();
+        if (action == "SaveDraft")
+        {
+            await SaveTaskFieldValuesAsync(task, actorEmployeeId, values, false, CancellationToken.None);
+            db.WorkflowHistory.Add(new WorkflowHistory
+            {
+                WorkflowInstanceId = instance.Id,
+                WorkflowStepId = task.WorkflowStepId,
+                FromStatus = instance.Status,
+                ToStatus = instance.Status,
+                Action = "SaveDraft",
+                ActorEmployeeId = actorEmployeeId,
+                ActorPositionId = ResolveEmployeePosition(actorEmployeeId, task.AssignedPositionId),
+                Comment = comment?.Trim()
+            });
+            await db.SaveChangesAsync();
+            await transaction.CommitAsync();
+            await audit.WriteAsync("ذخیره پیش‌نویس فرم گردش کار", nameof(WorkflowTask), task.Id.ToString(), "SaveDraft");
+            return;
+        }
         await SaveTaskFieldValuesAsync(task, actorEmployeeId, values, action == "Approve", CancellationToken.None);
         var previousStatus = instance.Status;
         task.Status = "Completed";
@@ -666,6 +682,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         "approve" or "تایید" or "تأیید" => "Approve",
         "reject" or "رد" => "Reject",
         "return" or "برگشت" => "Return",
+        "savedraft" or "ذخیره پیش‌نویس" or "ذخیره پیش نویس" => "SaveDraft",
         _ => throw new InvalidOperationException("عملیات گردش کار نامعتبر است.")
     };
 
@@ -674,6 +691,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         "Approve" => "تأیید",
         "Reject" => "رد",
         "Return" => "برگشت",
+        "SaveDraft" => "ذخیره پیش‌نویس",
         _ => action
     };
 }

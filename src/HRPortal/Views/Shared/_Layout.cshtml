@@ -32,61 +32,55 @@
 
         <nav class="nav">
             <div class="nav-caption">داشبورد</div>
-            <a href="/">داشبورد</a>
+            <a href="/"><span class="nav-icon">⌂</span>داشبورد</a>
 
-            @if (Can("Employees.View") || Can("Settings.View"))
+            @if (Can("Workflow.Inbox"))
+            {
+                <div class="nav-caption">درخواست‌ها</div>
+                <a href="/Workflow/MyRequests"><span class="nav-icon">▤</span>درخواست‌های من</a>
+                <a href="/Workflow/Inbox" class="nav-emphasis"><span class="nav-icon">▣</span>کارتابل <span class="nav-badge">•</span></a>
+            }
+
+            @if (Can("Announcements.Manage"))
+            {
+                <div class="nav-caption">اطلاعیه‌ها</div>
+                <a href="/Announcements"><span class="nav-icon">⚑</span>اطلاعیه‌ها</a>
+            }
+
+            @if (Can("Employees.View") || Can("Organization.View"))
             {
                 <div class="nav-caption">اطلاعات پایه</div>
-                @if (Can("Employees.View"))
-                {
-                    <a href="/Employees">مدیریت کارکنان</a>
-                }
-                @if (Can("Settings.View"))
-                {
-                    <a href="/SystemSettings#announcement-categories">دسته‌بندی اطلاعیه‌ها</a>
-                }
+                @if (Can("Employees.View")) { <a href="/Employees"><span class="nav-icon">♙</span>کارکنان</a> }
+                @if (Can("Organization.View")) { <a href="/Organization"><span class="nav-icon">⌘</span>ساختار سازمانی</a> }
             }
-            @if (Can("Organization.View"))
+
+            @if (Can("Payroll.View") || Can("PersonnelOrder.View"))
             {
-                <div class="nav-caption">ساختار سازمانی</div>
-                <a href="/Organization">ساختار سازمانی</a>
+                <div class="nav-caption">گزارش‌ها و خدمات</div>
+                @if (Can("Payroll.View")) { <a href="/Payroll/Payslip"><span class="nav-icon">▥</span>فیش حقوقی</a> }
+                @if (Can("PersonnelOrder.View")) { <a href="/PersonnelOrder"><span class="nav-icon">▤</span>حکم کارگزینی</a> }
             }
-            @if (Can("Users.Manage") || Can("Roles.Manage") || Can("Announcements.Manage"))
+
+            @if (Can("Users.Manage") || Can("Roles.Manage") || Can("Workflow.Manage") || Can("Settings.View"))
             {
-                <div class="nav-caption">مدیریت سامانه</div>
-                @if (Can("Users.Manage") || Can("Roles.Manage"))
-                {
-                    <a href="/Users">مدیریت کاربران و نقش‌ها</a>
-                }
-                @if (Can("Announcements.Manage"))
-                {
-                    <a href="/Announcements">مدیریت اطلاعیه‌ها</a>
-                }
+                <div class="nav-caption">تنظیمات و مدیریت</div>
+                @if (Can("Users.Manage") || Can("Roles.Manage")) { <a href="/Users"><span class="nav-icon">♟</span>کاربران و نقش‌ها</a> }
+                @if (Can("Workflow.Manage")) { <a href="/Workflow/Manage"><span class="nav-icon">⇄</span>مدیریت گردش کار</a> }
+                @if (Can("Settings.View")) { <a href="/SystemSettings"><span class="nav-icon">⚙</span>تنظیمات سامانه</a> }
             }
+
+            <div class="nav-caption">پشتیبانی</div>
+            <a href="/Support"><span class="nav-icon">?</span>راهنما و پشتیبانی</a>
+
             @if (isAdmin)
             {
-                <div class="nav-caption">حساب مدیر</div>
-                <a href="/Account/ChangePassword">تغییر رمز مدیر</a>
+                <div class="nav-caption">حساب کاربری</div>
+                <a href="/Account/ChangePassword"><span class="nav-icon">⌁</span>تغییر رمز مدیر</a>
             }
             else if (User.HasClaim("UserType", "Employee"))
             {
                 <div class="nav-caption">حساب کاربری</div>
-                <a href="/Account/PersonalPassword">رمز عبور شخصی</a>
-            }
-            @if (Can("Settings.View"))
-            {
-                <div class="nav-caption">تنظیمات سامانه</div>
-                <a href="/SystemSettings">تنظیمات سامانه</a>
-            }
-
-            @if (Can("Payroll.View"))
-            {
-                <div class="nav-caption">خدمات کارکنان</div>
-                <a href="/Payroll/Payslip">فیش حقوقی</a>
-                @if (Can("PersonnelOrder.View"))
-                {
-                    <a href="/PersonnelOrder">حکم کارگزینی</a>
-                }
+                <a href="/Account/PersonalPassword"><span class="nav-icon">⌁</span>رمز عبور شخصی</a>
             }
         </nav>
 

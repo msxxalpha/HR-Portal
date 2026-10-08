@@ -30,6 +30,8 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
     public DbSet<WorkflowInstance> WorkflowInstances => Set<WorkflowInstance>();
     public DbSet<WorkflowTask> WorkflowTasks => Set<WorkflowTask>();
     public DbSet<WorkflowHistory> WorkflowHistory => Set<WorkflowHistory>();
+    public DbSet<WorkflowStepField> WorkflowStepFields => Set<WorkflowStepField>();
+    public DbSet<WorkflowFieldValue> WorkflowFieldValues => Set<WorkflowFieldValue>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -194,6 +196,30 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.HasOne(x => x.WorkflowStep).WithMany().HasForeignKey(x => x.WorkflowStepId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.ActorEmployee).WithMany().HasForeignKey(x => x.ActorEmployeeId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(x => x.ActorPosition).WithMany().HasForeignKey(x => x.ActorPositionId).OnDelete(DeleteBehavior.SetNull);
+        });
+        modelBuilder.Entity<WorkflowStepField>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Code).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Title).HasMaxLength(200).IsRequired();
+            e.Property(x => x.FieldType).HasMaxLength(30).IsRequired();
+            e.Property(x => x.Options).HasMaxLength(4000);
+            e.Property(x => x.HelpText).HasMaxLength(1000);
+            e.HasIndex(x => new { x.WorkflowStepId, x.Code }).IsUnique();
+            e.HasOne(x => x.WorkflowStep).WithMany().HasForeignKey(x => x.WorkflowStepId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<WorkflowFieldValue>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.FieldCode).HasMaxLength(100).IsRequired();
+            e.Property(x => x.FieldTitle).HasMaxLength(200).IsRequired();
+            e.Property(x => x.FieldType).HasMaxLength(30).IsRequired();
+            e.Property(x => x.Value).HasMaxLength(4000);
+            e.HasIndex(x => new { x.WorkflowInstanceId, x.WorkflowStepFieldId }).IsUnique();
+            e.HasOne(x => x.WorkflowInstance).WithMany().HasForeignKey(x => x.WorkflowInstanceId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.WorkflowStep).WithMany().HasForeignKey(x => x.WorkflowStepId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.WorkflowStepField).WithMany().HasForeignKey(x => x.WorkflowStepFieldId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.UpdatedByEmployee).WithMany().HasForeignKey(x => x.UpdatedByEmployeeId).OnDelete(DeleteBehavior.SetNull);
         });
         modelBuilder.Entity<EmployeeRole>(e =>
         {

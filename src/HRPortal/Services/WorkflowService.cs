@@ -227,6 +227,37 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .ToListAsync();
     }
 
+    public async Task<List<WorkflowInboxRow>> GetMyRequestsAsync(int employeeId)
+    {
+        return await db.WorkflowInstances
+            .AsNoTracking()
+            .Include(x => x.WorkflowDefinition)
+            .Include(x => x.CurrentStep).ThenInclude(x => x.OrganizationNode)
+            .Where(x => x.RequesterEmployeeId == employeeId)
+            .OrderByDescending(x => x.StartedAt)
+            .Select(x => new WorkflowInboxRow
+            {
+                WorkflowInstanceId = x.Id,
+                WorkflowTitle = x.WorkflowDefinition.Title,
+                EntityType = x.EntityType,
+                EntityId = x.EntityId,
+                StepTitle = x.CurrentStep == null ? "پایان گردش" : x.CurrentStep.Title,
+                PositionTitle = x.CurrentStep == null || x.CurrentStep.OrganizationNode == null ? "" : x.CurrentStep.OrganizationNode.Title,
+                Status = x.Status,
+                CreatedAt = x.StartedAt
+            })
+            .ToListAsync();
+    }
+
+    public async Task<WorkflowInstance?> GetInstanceAsync(int id, int employeeId)
+    {
+        return await db.WorkflowInstances
+            .Include(x => x.WorkflowDefinition)
+            .Include(x => x.RequesterEmployee)
+            .Include(x => x.CurrentStep).ThenInclude(x => x.OrganizationNode)
+            .FirstOrDefaultAsync(x => x.Id == id && x.RequesterEmployeeId == employeeId);
+    }
+
     public async Task<List<WorkflowHistory>> GetHistoryAsync(int instanceId) =>
         await db.WorkflowHistory
             .AsNoTracking()

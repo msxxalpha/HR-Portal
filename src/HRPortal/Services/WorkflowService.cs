@@ -140,6 +140,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
     {
         var step = await db.WorkflowSteps.FindAsync(id);
         if (step is null) return;
+        if (await db.WorkflowFieldValues.AnyAsync(x => x.WorkflowStepId == id))
+            throw new InvalidOperationException("این مرحله در درخواست‌های ثبت‌شده اطلاعات دارد و برای حفظ سوابق قابل حذف نیست.");
         db.WorkflowSteps.Remove(step);
         await db.SaveChangesAsync();
     }
@@ -213,11 +215,12 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         var groups = new List<WorkflowTaskFieldGroup>();
         foreach (var step in steps)
         {
-            var stepFields = fields.Where(x => x.WorkflowStepId == step.Id).ToList();
-            if (stepFields.Count == 0) continue;
-            var hasSavedValue = stepFields.Any(f => values.Any(v => v.WorkflowStepFieldId == f.Id));
+            var allStepFields = fields.Where(x => x.WorkflowStepId == step.Id).ToList();
             var isCurrent = step.Id == task.WorkflowStepId;
-            if (!isCurrent && !hasSavedValue) continue;
+            var stepFields = isCurrent
+                ? allStepFields
+                : allStepFields.Where(f => values.Any(v => v.WorkflowStepFieldId == f.Id)).ToList();
+            if (stepFields.Count == 0) continue;
             groups.Add(new WorkflowTaskFieldGroup
             {
                 WorkflowStepId = step.Id,

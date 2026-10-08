@@ -206,7 +206,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.Property(x => x.Options).HasMaxLength(4000);
             e.Property(x => x.HelpText).HasMaxLength(1000);
             e.HasIndex(x => new { x.WorkflowStepId, x.Code }).IsUnique();
-            e.HasOne(x => x.WorkflowStep).WithMany().HasForeignKey(x => x.WorkflowStepId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.WorkflowStep).WithMany(x => x.Fields).HasForeignKey(x => x.WorkflowStepId).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<WorkflowFieldValue>(e =>
         {

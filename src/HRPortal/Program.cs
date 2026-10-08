@@ -186,6 +186,11 @@ app.MapControllerRoute(
     defaults: new { controller = "Payroll" });
 
 app.MapControllerRoute(
+    name: "support",
+    pattern: "Support/{action=Index}/{id?}",
+    defaults: new { controller = "Support" });
+
+app.MapControllerRoute(
     name: "settings",
     pattern: "SystemSettings/{action=Index}/{id?}",
     defaults: new { controller = "SystemSettings" });

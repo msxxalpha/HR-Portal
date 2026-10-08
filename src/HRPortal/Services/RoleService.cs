@@ -24,6 +24,7 @@ public class RoleService(HRPortalDbContext db)
         ("Settings.Edit", "ویرایش تنظیمات سامانه", "مدیریت سامانه"),
         ("Payroll.View", "مشاهده فیش حقوقی", "خدمات کارکنان"),
         ("PersonnelOrder.View", "مشاهده حکم کارگزینی", "خدمات کارکنان"),
+        ("Reports.View", "مشاهده گزارش‌ها", "گزارش‌ها"),
         ("InputQueries.View", "مشاهده کوئری‌های ورودی", "مدیریت سامانه"),
         ("InputQueries.Manage", "مدیریت کوئری‌های ورودی", "مدیریت سامانه"),
         ("Users.Manage", "مدیریت کاربران", "مدیریت کاربران"),
@@ -53,8 +54,15 @@ public class RoleService(HRPortalDbContext db)
         await EnsureRoleAsync("EMPLOYEE", "کاربر کارکنان", "نقش پیش‌فرض کارکنان برای استفاده از خدمات پرسنلی",
             ["Payroll.View", "PersonnelOrder.View", "Workflow.Inbox"]);
         var defaultRoleId = await db.Roles.Where(x => x.Code == "EMPLOYEE").Select(x => x.Id).SingleAsync();
-        var assignedEmployees = await db.EmployeeRoles.Select(x => x.EmployeeId).Distinct().ToListAsync();
-        var employeesWithoutRole = await db.Employees.Where(x => x.IsSystemUser && !assignedEmployees.Contains(x.Id)).Select(x => x.Id).ToListAsync();
+        var assignedEmployees = await db.EmployeeRoles
+            .Where(x => x.Role.Code == "EMPLOYEE")
+            .Select(x => x.EmployeeId)
+            .Distinct()
+            .ToListAsync();
+        var employeesWithoutRole = await db.Employees
+            .Where(x => !assignedEmployees.Contains(x.Id))
+            .Select(x => x.Id)
+            .ToListAsync();
         foreach (var employeeId in employeesWithoutRole)
             db.EmployeeRoles.Add(new EmployeeRole { EmployeeId = employeeId, RoleId = defaultRoleId });
         if (employeesWithoutRole.Count > 0)

@@ -8,6 +8,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 {
     public async Task<List<WorkflowDefinition>> GetDefinitionsAsync() =>
         await db.WorkflowDefinitions
+            .Where(x => !x.IsRuntimeInstance)
             .Include(x => x.Steps)
             .ThenInclude(x => x.OrganizationNode)
             .Include(x => x.Steps)
@@ -24,19 +25,19 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .Include(x => x.Steps)
             .ThenInclude(x => x.OutgoingTransitions)
             .ThenInclude(x => x.ToStep)
-            .FirstOrDefaultAsync(x => x.Id == id);
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsRuntimeInstance);
 
     public async Task<WorkflowDefinition?> GetByCodeAsync(string code) =>
         await db.WorkflowDefinitions
             .Include(x => x.Steps.OrderBy(s => s.SortOrder))
-            .Where(x => x.Code == code && x.IsActive).OrderByDescending(x => x.Version).FirstOrDefaultAsync();
+            .Where(x => x.Code == code && x.IsActive && !x.IsRuntimeInstance).OrderByDescending(x => x.Version).FirstOrDefaultAsync();
 
     public async Task<int> SaveDefinitionAsync(WorkflowDefinitionEditModel model)
     {
         var code = model.Code.Trim();
         if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(model.Title))
             throw new InvalidOperationException("کد و عنوان گردش کار الزامی است.");
-        if (model.Id == 0 && await db.WorkflowDefinitions.AnyAsync(x => x.Code == code))
+        if (model.Id == 0 && await db.WorkflowDefinitions.AnyAsync(x => x.Code == code && !x.IsRuntimeInstance))
             throw new InvalidOperationException("کد گردش کار قبلاً استفاده شده است.");
 
         WorkflowDefinition entity;
@@ -48,6 +49,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         else
         {
             var current = await db.WorkflowDefinitions
+                .Where(x => !x.IsRuntimeInstance)
                 .Include(x => x.Steps).ThenInclude(x => x.Fields)
                 .Include(x => x.Steps).ThenInclude(x => x.OutgoingTransitions)
                 .FirstOrDefaultAsync(x => x.Id == model.Id)
@@ -57,7 +59,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             {
                 current.IsActive = false;
                 current.UpdatedAt = DateTime.UtcNow;
-                var maxVersion = await db.WorkflowDefinitions.Where(x => x.Code == code)
+                var maxVersion = await db.WorkflowDefinitions.Where(x => x.Code == code && !x.IsRuntimeInstance)
                     .Select(x => (int?)x.Version).MaxAsync() ?? 1;
                 entity = new WorkflowDefinition
                 {
@@ -75,7 +77,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                     {
                         WorkflowDefinitionId = entity.Id, Code = source.Code, Title = source.Title,
                         SortOrder = source.SortOrder, AssignmentType = source.AssignmentType,
-                        OrganizationNodeId = source.OrganizationNodeId, AssignmentMode = source.AssignmentMode,
+                        HierarchyStopRankType = source.HierarchyStopRankType, OrganizationNodeId = source.OrganizationNodeId, AssignmentMode = source.AssignmentMode,
                         AllowApprove = source.AllowApprove, AllowReject = source.AllowReject, AllowReturn = source.AllowReturn,
                         RequireCommentOnReject = source.RequireCommentOnReject,
                         RequireCommentOnReturn = source.RequireCommentOnReturn, IsFinalStep = source.IsFinalStep
@@ -111,7 +113,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             else
             {
                 entity = current;
-                var otherMax = await db.WorkflowDefinitions.Where(x => x.Code == code && x.Id != current.Id)
+                var otherMax = await db.WorkflowDefinitions.Where(x => x.Code == code && x.Id != current.Id && !x.IsRuntimeInstance)
                     .Select(x => (int?)x.Version).MaxAsync() ?? 0;
                 entity.Version = Math.Max(entity.Version, otherMax + 1);
             }
@@ -139,6 +141,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .Include(x => x.Steps).ThenInclude(x => x.OutgoingTransitions)
             .FirstOrDefaultAsync(x => x.Id == id);
         if (definition is null) return;
+        if (definition.IsRuntimeInstance)
+            throw new InvalidOperationException("نسخه اجرایی گردش کار مستقیماً قابل حذف نیست.");
         if (await db.WorkflowInstances.AnyAsync(x => x.WorkflowDefinitionId == id) ||
             await db.WorkflowTasks.AnyAsync(x => x.WorkflowStep.WorkflowDefinitionId == id) ||
             await db.WorkflowHistory.AnyAsync(x => x.WorkflowStep != null && x.WorkflowStep.WorkflowDefinitionId == id) ||
@@ -156,6 +160,11 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         if (string.IsNullOrWhiteSpace(model.Code) || string.IsNullOrWhiteSpace(model.Title))
             throw new InvalidOperationException("کد و عنوان مرحله الزامی است.");
 
+        var assignmentType = model.AssignmentType == "Hierarchy" ? "Hierarchy" : "Position";
+        if (assignmentType == "Position" && !model.OrganizationNodeId.HasValue)
+            throw new InvalidOperationException("برای مرحله جایگاه ثابت، انتخاب جایگاه سازمانی الزامی است.");
+        if (assignmentType == "Hierarchy" && model.HierarchyStopRankType is not ("معاونت" or "مدیریت" or "ریاست" or "سرپرستی"))
+            throw new InvalidOperationException("رده توقف مسیر پویا معتبر نیست.");
         if (model.OrganizationNodeId.HasValue &&
             !await db.OrganizationNodes.AnyAsync(x => x.Id == model.OrganizationNodeId.Value && x.IsActive))
             throw new InvalidOperationException("جایگاه سازمانی انتخاب‌شده معتبر یا فعال نیست.");
@@ -181,8 +190,9 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         entity.Code = model.Code.Trim();
         entity.Title = model.Title.Trim();
         entity.SortOrder = model.SortOrder;
-        entity.AssignmentType = "Position";
-        entity.OrganizationNodeId = model.OrganizationNodeId;
+        entity.AssignmentType = assignmentType;
+        entity.HierarchyStopRankType = model.HierarchyStopRankType;
+        entity.OrganizationNodeId = assignmentType == "Position" ? model.OrganizationNodeId : null;
         entity.AssignmentMode = model.AssignmentMode is "All" ? "All" : "Any";
         entity.AllowApprove = model.AllowApprove;
         entity.AllowReject = model.AllowReject;
@@ -410,16 +420,26 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         string entityType,
         string entityId,
         int requesterEmployeeId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        int? subjectEmployeeId = null)
     {
         var definition = await db.WorkflowDefinitions
-            .Include(x => x.Steps.OrderBy(s => s.SortOrder))
-            .Where(x => x.Code == definitionCode && x.IsActive).OrderByDescending(x => x.Version).FirstOrDefaultAsync(cancellationToken)
+            .Include(x => x.Steps.OrderBy(s => s.SortOrder)).ThenInclude(x => x.Fields)
+            .Include(x => x.Steps).ThenInclude(x => x.OutgoingTransitions)
+            .Where(x => x.Code == definitionCode && x.IsActive && !x.IsRuntimeInstance)
+            .OrderByDescending(x => x.Version).FirstOrDefaultAsync(cancellationToken)
             ?? throw new InvalidOperationException("گردش کار فعال با این کد یافت نشد.");
 
         var requester = await db.Employees.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == requesterEmployeeId && x.Status == "فعال", cancellationToken)
             ?? throw new InvalidOperationException("کارمند درخواست‌کننده یافت نشد.");
+
+        if (definition.Steps.Any(x => x.AssignmentType == "Hierarchy"))
+        {
+            if (!subjectEmployeeId.HasValue)
+                throw new InvalidOperationException("برای شروع گردش کار جایگاه‌محور، انتخاب کارمند موضوع درخواست الزامی است.");
+            definition = await BuildRuntimeDefinitionAsync(definition, subjectEmployeeId.Value, cancellationToken);
+        }
 
         var first = definition.Steps.OrderBy(x => x.SortOrder).FirstOrDefault()
             ?? throw new InvalidOperationException("گردش کار حداقل باید یک مرحله داشته باشد.");
@@ -453,6 +473,195 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         await audit.WriteAsync("شروع گردش کار", nameof(WorkflowInstance), instance.Id.ToString(), definition.Title);
         return instance;
     }
+
+    private async Task<WorkflowDefinition> BuildRuntimeDefinitionAsync(
+        WorkflowDefinition source, int subjectEmployeeId, CancellationToken cancellationToken)
+    {
+        var hierarchyTemplates = source.Steps.Where(x => x.AssignmentType == "Hierarchy").ToList();
+        if (hierarchyTemplates.Count != 1)
+            throw new InvalidOperationException("هر گردش کار می‌تواند دقیقاً یک مرحله زنجیره جایگاه‌های سازمانی داشته باشد.");
+
+        var template = hierarchyTemplates[0];
+        var route = await BuildHierarchyRouteAsync(subjectEmployeeId, template.HierarchyStopRankType, cancellationToken);
+        if (route.Count == 0)
+            throw new InvalidOperationException("برای کارمند انتخاب‌شده مسیر سازمانی پویا پیدا نشد.");
+
+        var runtime = new WorkflowDefinition
+        {
+            Code = $"__runtime_{source.Id}_{Guid.NewGuid():N}",
+            Title = source.Title,
+            Description = source.Description,
+            IsActive = false,
+            IsRuntimeInstance = true,
+            SourceDefinitionId = source.Id,
+            Version = 1,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        db.WorkflowDefinitions.Add(runtime);
+        await db.SaveChangesAsync(cancellationToken);
+
+        var map = new Dictionary<int, List<WorkflowStep>>();
+        var allRuntimeSteps = new List<WorkflowStep>();
+        var order = 10;
+        foreach (var original in source.Steps.OrderBy(x => x.SortOrder))
+        {
+            var clones = new List<WorkflowStep>();
+            if (original.AssignmentType == "Hierarchy")
+            {
+                for (var i = 0; i < route.Count; i++)
+                {
+                    var position = route[i];
+                    clones.Add(CloneStep(original, runtime.Id, $"{TrimCode(original.Code, 75)}_H{i + 1}",
+                        $"{original.Title} — {position.Title}", order, position.Id, false));
+                    order += 10;
+                }
+            }
+            else
+            {
+                clones.Add(CloneStep(original, runtime.Id, original.Code, original.Title, order,
+                    original.OrganizationNodeId, original.IsFinalStep));
+                order += 10;
+            }
+
+            map[original.Id] = clones;
+            allRuntimeSteps.AddRange(clones);
+        }
+
+        await db.WorkflowSteps.AddRangeAsync(allRuntimeSteps, cancellationToken);
+        await db.SaveChangesAsync(cancellationToken);
+
+        foreach (var original in source.Steps)
+        {
+            foreach (var clone in map[original.Id])
+            {
+                foreach (var field in original.Fields.OrderBy(x => x.SortOrder))
+                {
+                    db.WorkflowStepFields.Add(new WorkflowStepField
+                    {
+                        WorkflowStepId = clone.Id,
+                        Code = field.Code,
+                        Title = field.Title,
+                        FieldType = field.FieldType,
+                        Options = field.Options,
+                        HelpText = field.HelpText,
+                        SortOrder = field.SortOrder,
+                        IsRequired = field.IsRequired,
+                        MaxLength = field.MaxLength
+                    });
+                }
+            }
+
+            foreach (var clone in map[original.Id])
+            {
+                var isHierarchyClone = original.AssignmentType == "Hierarchy";
+                var cloneIndex = map[original.Id].IndexOf(clone);
+                foreach (var transition in original.OutgoingTransitions)
+                {
+                    int? targetId;
+                    if (isHierarchyClone && transition.Action == "Approve" && cloneIndex < map[original.Id].Count - 1)
+                    {
+                        targetId = map[original.Id][cloneIndex + 1].Id;
+                    }
+                    else
+                    {
+                        targetId = transition.ToStepId.HasValue && map.TryGetValue(transition.ToStepId.Value, out var targets)
+                            ? targets.FirstOrDefault()?.Id
+                            : null;
+                    }
+
+                    db.WorkflowTransitions.Add(new WorkflowTransition
+                    {
+                        WorkflowStepId = clone.Id,
+                        ToStepId = targetId,
+                        Action = transition.Action,
+                        Title = transition.Title
+                    });
+                }
+            }
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        runtime.Steps = allRuntimeSteps;
+        return runtime;
+    }
+
+    private async Task<List<OrganizationNode>> BuildHierarchyRouteAsync(
+        int subjectEmployeeId, string stopRankType, CancellationToken cancellationToken)
+    {
+        var employee = await db.Employees.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == subjectEmployeeId && x.Status == "فعال", cancellationToken)
+            ?? throw new InvalidOperationException("کارمند موضوع گردش کار یافت نشد.");
+
+        var assignedPositionId = employee.OrganizationSectionId
+            ?? employee.OrganizationDepartmentId
+            ?? employee.OrganizationUnitId;
+        if (!assignedPositionId.HasValue)
+            throw new InvalidOperationException("برای کارمند انتخاب‌شده جایگاه سازمانی ثبت نشده است.");
+
+        var oldPosition = await db.OrganizationNodes.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == assignedPositionId.Value, cancellationToken)
+            ?? throw new InvalidOperationException("جایگاه فعلی کارمند یافت نشد.");
+
+        var revision = await db.OrganizationStructureRevisions.AsNoTracking()
+            .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
+            .OrderByDescending(x => x.EffectiveDate).ThenByDescending(x => x.Id)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new InvalidOperationException("نسخه نهایی فعال ساختار سازمانی یافت نشد.");
+
+        var nodes = await db.OrganizationNodes.AsNoTracking()
+            .Where(x => x.OrganizationStructureRevisionId == revision.Id && x.IsActive)
+            .ToListAsync(cancellationToken);
+        var byId = nodes.ToDictionary(x => x.Id);
+        var current = nodes.FirstOrDefault(x => x.Code == oldPosition.Code)
+            ?? throw new InvalidOperationException("جایگاه کارمند در نسخه فعال ساختار سازمانی یافت نشد.");
+
+        if (!current.ParentId.HasValue)
+            throw new InvalidOperationException("جایگاه کارمند والد سازمانی ندارد؛ مسیر بالادستی ساخته نشد.");
+
+        var route = new List<OrganizationNode>();
+        var stopFound = false;
+        var guard = 0;
+        current = byId.GetValueOrDefault(current.ParentId.Value)!;
+        while (current is not null && guard++ < 1000)
+        {
+            route.Add(current);
+            if (current.RankType == stopRankType)
+            {
+                stopFound = true;
+                break;
+            }
+            current = current.ParentId.HasValue ? byId.GetValueOrDefault(current.ParentId.Value) : null;
+        }
+
+        if (!stopFound)
+            throw new InvalidOperationException($"در زنجیره بالادستی کارمند، رده توقف «{stopRankType}» پیدا نشد؛ ساختار سازمانی یا تنظیم مرحله را بررسی کنید.");
+
+        return route;
+    }
+
+    private static WorkflowStep CloneStep(
+        WorkflowStep source, int runtimeDefinitionId, string code, string title,
+        int sortOrder, int? organizationNodeId, bool isFinalStep) => new()
+    {
+        WorkflowDefinitionId = runtimeDefinitionId,
+        Code = code.Length > 100 ? code[..100] : code,
+        Title = title.Length > 200 ? title[..200] : title,
+        SortOrder = sortOrder,
+        AssignmentType = "Position",
+        HierarchyStopRankType = source.HierarchyStopRankType,
+        OrganizationNodeId = organizationNodeId,
+        AssignmentMode = source.AssignmentMode,
+        AllowApprove = source.AllowApprove,
+        AllowReject = source.AllowReject,
+        AllowReturn = source.AllowReturn,
+        RequireCommentOnReject = source.RequireCommentOnReject,
+        RequireCommentOnReturn = source.RequireCommentOnReturn,
+        IsFinalStep = isFinalStep
+    };
+
+    private static string TrimCode(string code, int maxLength) =>
+        code.Length <= maxLength ? code : code[..maxLength];
 
     public async Task<List<WorkflowInboxRow>> GetInboxAsync(int employeeId, string? status = null)
     {

@@ -331,6 +331,77 @@ public class OrganizationController(
         return Json(new { success = true });
     }
 
+    [HttpPost, Authorize(Policy = "Organization.Delete"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteDraft(int revisionId)
+    {
+        if (!User.HasClaim("IsAdmin", "1"))
+        {
+            return Forbid();
+        }
+
+        var revision = await db.OrganizationStructureRevisions
+            .FirstOrDefaultAsync(x => x.Id == revisionId);
+        if (revision is null)
+        {
+            TempData["Error"] = "نسخه ساختار یافت نشد.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        if (revision.IsFinalized)
+        {
+            TempData["Error"] = "حذف کامل فقط برای نسخه پیشنویس مجاز است؛ نسخه نهایی قابل حذف نیست.";
+            return RedirectToAction(nameof(Index), new { revisionId });
+        }
+
+        var nodeIds = await db.OrganizationNodes
+            .Where(x => x.OrganizationStructureRevisionId == revisionId)
+            .Select(x => x.Id)
+            .ToListAsync();
+
+        if (nodeIds.Count > 0 &&
+            (await db.Employees.AnyAsync(e =>
+                (e.OrganizationUnitId.HasValue && nodeIds.Contains(e.OrganizationUnitId.Value)) ||
+                (e.OrganizationDepartmentId.HasValue && nodeIds.Contains(e.OrganizationDepartmentId.Value)) ||
+                (e.OrganizationSectionId.HasValue && nodeIds.Contains(e.OrganizationSectionId.Value))) ||
+             await db.WorkflowSteps.AnyAsync(x => x.OrganizationNodeId.HasValue && nodeIds.Contains(x.OrganizationNodeId.Value)) ||
+             await db.WorkflowTasks.AnyAsync(x => x.AssignedPositionId.HasValue && nodeIds.Contains(x.AssignedPositionId.Value)) ||
+             await db.WorkflowHistory.AnyAsync(x => x.ActorPositionId.HasValue && nodeIds.Contains(x.ActorPositionId.Value))))
+        {
+            TempData["Error"] = "این پیش‌نویس به کارکنان یا سوابق گردش کار ارجاع دارد و برای جلوگیری از شکستن ارجاعات حذف نشد.";
+            return RedirectToAction(nameof(Index), new { revisionId });
+        }
+
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        db.OrganizationChanges.RemoveRange(
+            db.OrganizationChanges.Where(x => x.OrganizationStructureRevisionId == revisionId));
+        await db.SaveChangesAsync();
+
+        var remainingNodes = await db.OrganizationNodes
+            .Where(x => x.OrganizationStructureRevisionId == revisionId)
+            .ToListAsync();
+        while (remainingNodes.Count > 0)
+        {
+            var parentIdsWithChildren = remainingNodes
+                .Where(x => x.ParentId.HasValue)
+                .Select(x => x.ParentId!.Value)
+                .ToHashSet();
+            var leaves = remainingNodes.Where(x => !parentIdsWithChildren.Contains(x.Id)).ToList();
+            if (leaves.Count == 0)
+                throw new InvalidOperationException("ساختار پیش‌نویس دارای چرخه است و حذف ایمن انجام نشد.");
+            db.OrganizationNodes.RemoveRange(leaves);
+            await db.SaveChangesAsync();
+            var removedIds = leaves.Select(x => x.Id).ToHashSet();
+            remainingNodes.RemoveAll(x => removedIds.Contains(x.Id));
+        }
+
+        db.OrganizationStructureRevisions.Remove(revision);
+        await db.SaveChangesAsync();
+        await transaction.CommitAsync();
+
+        TempData["Success"] = "پیش‌نویس ساختار سازمانی به‌همراه تمام گره‌ها و تاریخچه تغییرات آن حذف شد.";
+        return RedirectToAction(nameof(Index));
+    }
+
     [HttpPost, Authorize(Policy = "Organization.Finalize"), ValidateAntiForgeryToken]
     public async Task<IActionResult> Finalize(int revisionId)
     {
@@ -378,7 +449,10 @@ public class OrganizationController(
         await db.Employees.AnyAsync(e =>
             e.OrganizationUnitId == id ||
             e.OrganizationDepartmentId == id ||
-            e.OrganizationSectionId == id);
+            e.OrganizationSectionId == id) ||
+        await db.WorkflowSteps.AnyAsync(x => x.OrganizationNodeId == id) ||
+        await db.WorkflowTasks.AnyAsync(x => x.AssignedPositionId == id) ||
+        await db.WorkflowHistory.AnyAsync(x => x.ActorPositionId == id);
 
     private async Task<bool> WouldCreateCycleAsync(int id, int newParentId)
     {

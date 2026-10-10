@@ -15,7 +15,8 @@ public class Employee
     public int? OrganizationDepartmentId { get; set; }
     public int? OrganizationSectionId { get; set; }
     public string? PositionTitle { get; set; }
-    public string? EmploymentType { get; set; }
+    public string? EmploymentType { get; set; } = "قراردادی";
+    public DateTime? ContractEndDate { get; set; } = new System.Globalization.PersianCalendar().ToDateTime(1405, 12, 29, 0, 0, 0, 0);
     public string? Email { get; set; }
     public string? FatherName { get; set; }
     public string Status { get; set; } = "فعال"; public bool IsSystemUser { get; set; } = true; [MaxLength(1000)] public string? PersonalPasswordHash { get; set; } public bool IsSystemAdministrator { get; set; }

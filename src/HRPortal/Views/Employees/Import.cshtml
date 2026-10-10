@@ -2,7 +2,7 @@
     Layout = "~/Views/Shared/_Layout.cshtml";
     ViewData["Title"] = "ورود کارکنان از اکسل";
 }
-<div class="page-head"><div><h1>ورود کارکنان از اکسل</h1><p>ستون‌های اجباری: شماره پرسنلی، شناسه، کد ملی، نام، نام خانوادگی، موبایل، جنسیت. کد واحد/اداره/بخش اختیاری است. قالب فایل استاندارد را از همین صفحه دریافت کنید.</p></div><a class="btn btn-outline" href="/Employees">بازگشت</a></div>
+<div class="page-head"><div><h1>ورود کارکنان از اکسل</h1><p>ستون‌های اجباری: شماره پرسنلی، شناسه، کد ملی، نام، نام خانوادگی، موبایل و جنسیت. ستون‌های نوع استخدام و تاریخ پایان قرارداد نیز در فایل پشتیبانی می‌شوند. برای نوع استخدام مقدار «قراردادی» یا «غیرقراردادی» درج کنید؛ تاریخ قرارداد به‌صورت شمسی مانند ۱۴۰۵/۱۲/۲۹ است. اگر کارمند با شماره پرسنلی، شناسه یا کد ملی در سامانه وجود داشته باشد، اطلاعات همان کارمند به‌روزرسانی می‌شود؛ رمز عبور و سوابق سامانه تغییر نمی‌کنند. کد واحد/اداره/بخش اختیاری است.</p></div><a class="btn btn-outline" href="/Employees">بازگشت</a></div>
 @if(ViewBag.Success!=null){<div class="alert success">@ViewBag.Success</div>}
 @if(ViewBag.Errors is IEnumerable<string> es && es.Any()){<div class="alert error"><strong>خطاها:</strong><ul>@foreach(var x in es){<li>@x</li>}</ul></div>}
 <div class="card">

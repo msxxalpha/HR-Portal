@@ -6,6 +6,7 @@
     var revisionId = (int?)ViewBag.RevisionId ?? 0;
     var treeJson = (string?)ViewBag.TreeJson ?? "[]";
     var companyName = (string?)ViewBag.CompanyName ?? "شرکت";
+    var isAdmin = User.HasClaim("IsAdmin", "1");
 }
 <div class="page-head">
     <div>
@@ -13,6 +14,14 @@
         <p>مدیریت ساختار به‌صورت درختی، بازنگری، افزودن، ویرایش، حذف و جابجایی نودها</p>
     </div>
     <div class="actions">
+        @if (editable && isAdmin)
+        {
+            <form method="post" action="/Organization/DeleteDraft" onsubmit="return confirm('تمام گره‌ها و تاریخچه این پیش‌نویس به‌طور کامل حذف شود؟ این عملیات قابل بازگشت نیست.');">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="revisionId" value="@revisionId" />
+                <button class="btn btn-outline danger" type="submit">حذف کامل پیش‌نویس</button>
+            </form>
+        }
         @if (editable)
         {
             <form method="post" action="/Organization/Finalize">

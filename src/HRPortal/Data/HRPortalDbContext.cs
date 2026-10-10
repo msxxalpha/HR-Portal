@@ -24,6 +24,14 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
     public DbSet<EmployeeRole> EmployeeRoles => Set<EmployeeRole>();
     public DbSet<AnnouncementCategory> AnnouncementCategories => Set<AnnouncementCategory>();
     public DbSet<Announcement> Announcements => Set<Announcement>();
+    public DbSet<WorkflowDefinition> WorkflowDefinitions => Set<WorkflowDefinition>();
+    public DbSet<WorkflowStep> WorkflowSteps => Set<WorkflowStep>();
+    public DbSet<WorkflowTransition> WorkflowTransitions => Set<WorkflowTransition>();
+    public DbSet<WorkflowInstance> WorkflowInstances => Set<WorkflowInstance>();
+    public DbSet<WorkflowTask> WorkflowTasks => Set<WorkflowTask>();
+    public DbSet<WorkflowHistory> WorkflowHistory => Set<WorkflowHistory>();
+    public DbSet<WorkflowStepField> WorkflowStepFields => Set<WorkflowStepField>();
+    public DbSet<WorkflowFieldValue> WorkflowFieldValues => Set<WorkflowFieldValue>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -33,6 +41,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.PersonnelNumber).IsUnique();
             e.Property(x => x.PersonalPasswordHash).HasMaxLength(1000);
+            e.Property(x => x.ContractEndDate).HasColumnType("date");
             e.HasIndex(x => x.NationalId).IsUnique();
             e.HasIndex(x => x.Identifier)
                 .IsUnique()
@@ -137,6 +146,84 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
                 .HasForeignKey(x => x.CategoryId)
                 .IsRequired()
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<WorkflowDefinition>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Code).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Title).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(1000);
+            e.HasIndex(x => new { x.Code, x.Version }).IsUnique();
+            e.Property(x => x.IsRuntimeInstance).HasDefaultValue(false);
+            e.Property(x => x.SourceDefinitionId);
+        });
+        modelBuilder.Entity<WorkflowStep>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Code).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Title).HasMaxLength(200).IsRequired();
+            e.HasIndex(x => new { x.WorkflowDefinitionId, x.SortOrder });
+            e.Property(x => x.HierarchyStopRankType).HasMaxLength(30).HasDefaultValue("معاونت");
+            e.HasOne(x => x.WorkflowDefinition).WithMany(x => x.Steps).HasForeignKey(x => x.WorkflowDefinitionId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.OrganizationNode).WithMany().HasForeignKey(x => x.OrganizationNodeId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<WorkflowTransition>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.WorkflowStepId, x.Action }).IsUnique();
+            e.HasOne(x => x.WorkflowStep).WithMany(x => x.OutgoingTransitions).HasForeignKey(x => x.WorkflowStepId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.ToStep).WithMany().HasForeignKey(x => x.ToStepId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<WorkflowInstance>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.EntityType, x.EntityId });
+            e.HasOne(x => x.WorkflowDefinition).WithMany().HasForeignKey(x => x.WorkflowDefinitionId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.RequesterEmployee).WithMany().HasForeignKey(x => x.RequesterEmployeeId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.CurrentStep).WithMany().HasForeignKey(x => x.CurrentStepId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<WorkflowTask>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.AssignedEmployeeId, x.Status, x.CreatedAt });
+            e.HasIndex(x => new { x.AssignedPositionId, x.Status, x.CreatedAt });
+            e.HasOne(x => x.WorkflowInstance).WithMany(x => x.Tasks).HasForeignKey(x => x.WorkflowInstanceId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.WorkflowStep).WithMany().HasForeignKey(x => x.WorkflowStepId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.AssignedPosition).WithMany().HasForeignKey(x => x.AssignedPositionId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.AssignedEmployee).WithMany().HasForeignKey(x => x.AssignedEmployeeId).OnDelete(DeleteBehavior.SetNull);
+        });
+        modelBuilder.Entity<WorkflowHistory>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.WorkflowInstanceId, x.CreatedAt });
+            e.HasOne(x => x.WorkflowInstance).WithMany(x => x.History).HasForeignKey(x => x.WorkflowInstanceId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.WorkflowStep).WithMany().HasForeignKey(x => x.WorkflowStepId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.ActorEmployee).WithMany().HasForeignKey(x => x.ActorEmployeeId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(x => x.ActorPosition).WithMany().HasForeignKey(x => x.ActorPositionId).OnDelete(DeleteBehavior.SetNull);
+        });
+        modelBuilder.Entity<WorkflowStepField>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Code).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Title).HasMaxLength(200).IsRequired();
+            e.Property(x => x.FieldType).HasMaxLength(30).IsRequired();
+            e.Property(x => x.Options).HasMaxLength(4000);
+            e.Property(x => x.HelpText).HasMaxLength(1000);
+            e.HasIndex(x => new { x.WorkflowStepId, x.Code }).IsUnique();
+            e.HasOne(x => x.WorkflowStep).WithMany(x => x.Fields).HasForeignKey(x => x.WorkflowStepId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<WorkflowFieldValue>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.FieldCode).HasMaxLength(100).IsRequired();
+            e.Property(x => x.FieldTitle).HasMaxLength(200).IsRequired();
+            e.Property(x => x.FieldType).HasMaxLength(30).IsRequired();
+            e.Property(x => x.Value).HasMaxLength(4000);
+            e.HasIndex(x => new { x.WorkflowInstanceId, x.WorkflowStepFieldId });
+            e.HasOne(x => x.WorkflowInstance).WithMany().HasForeignKey(x => x.WorkflowInstanceId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.WorkflowStep).WithMany().HasForeignKey(x => x.WorkflowStepId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.WorkflowStepField).WithMany().HasForeignKey(x => x.WorkflowStepFieldId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.UpdatedByEmployee).WithMany().HasForeignKey(x => x.UpdatedByEmployeeId).OnDelete(DeleteBehavior.SetNull);
         });
         modelBuilder.Entity<EmployeeRole>(e =>
         {

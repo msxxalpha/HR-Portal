@@ -53,7 +53,15 @@
             <label>نام پدر<input name="FatherName" value="@Model.Employee.FatherName" /></label>
             <label>ایمیل<input name="Email" value="@Model.Employee.Email" type="email" /></label>
             <label>سمت<input name="PositionTitle" value="@Model.Employee.PositionTitle" /></label>
-            <label>نوع استخدام<input name="EmploymentType" value="@Model.Employee.EmploymentType" /></label>
+            <label class="inline-check">غیرقراردادی
+                <input type="checkbox" id="isNonContractual" name="isNonContractual" value="true" checked="@(Model.Employee.EmploymentType == "غیرقراردادی")" />
+            </label>
+            <label>تاریخ پایان قرارداد
+                <input type="text" id="contractEndDatePersian" name="contractEndDatePersian"
+                       value="@(Model.Employee.ContractEndDate.HasValue ? HRPortal.Services.PersianDateService.Format(Model.Employee.ContractEndDate.Value) : "")"
+                       data-jdp data-jdp-only-date autocomplete="off" placeholder="۱۴۰۵/۱۲/۲۹"
+                       disabled="@(Model.Employee.EmploymentType == "غیرقراردادی")" />
+            </label>
             <label>وضعیت
                 <select name="Status">
                     @if (Model.Employee.Status != "غیرفعال")
@@ -137,6 +145,17 @@
 @section Scripts {
 <script>
 (function(){
+    const nonContractual = document.getElementById('isNonContractual');
+    const contractEndDate = document.getElementById('contractEndDatePersian');
+    function syncEmploymentType() {
+        const isNonContract = nonContractual.checked;
+        contractEndDate.disabled = isNonContract;
+        if (isNonContract) contractEndDate.value = '';
+        else if (!contractEndDate.value) contractEndDate.value = '۱۴۰۵/۱۲/۲۹';
+    }
+    nonContractual.addEventListener('change', syncEmploymentType);
+    syncEmploymentType();
+
     const unit = document.getElementById('unitSelect');
     const department = document.getElementById('departmentSelect');
     const section = document.getElementById('sectionSelect');
@@ -177,4 +196,6 @@
     refresh();
 })();
 </script>
+<script src="https://unpkg.com/@majidh1/jalalidatepicker/dist/jalalidatepicker.min.js"></script>
+<script>if (window.jalaliDatepicker) window.jalaliDatepicker.startWatch({ time: false, autoShow: true, autoHide: true, hideAfterChange: true, persianDigits: true });</script>
 }

@@ -214,3 +214,52 @@
 .announcement-meta{border-top:1px solid #edf1f3;margin-top:12px;padding-top:9px;color:var(--muted);font-size:8px}
 @media(max-width:950px){.announcement-management-grid,.category-management-grid{grid-template-columns:1fr}.announcement-dashboard-list{grid-template-columns:1fr}}
 @media(max-width:700px){.announcement-options{grid-template-columns:1fr}.report-toolbar{flex-direction:column;align-items:stretch}.report-toolbar .actions{width:100%}.report-toolbar .btn{flex:1}}
+
+/* Workflow and categorized navigation */
+.nav-caption{letter-spacing:.1px}
+.nav a{display:flex;align-items:center;gap:9px}
+.nav-icon{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border-radius:7px;background:rgba(255,255,255,.08);color:#d9e7ef;font-size:12px;flex:0 0 22px}
+.nav a:hover .nav-icon,.nav a.nav-emphasis .nav-icon{background:rgba(255,255,255,.16)}
+.nav-emphasis{background:rgba(255,255,255,.09)}
+.nav-badge{margin-right:auto;width:17px;height:17px;display:inline-grid;place-items:center;border-radius:50%;background:#e85b5b;color:#fff;font-size:9px}
+.workflow-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:18px}
+.workflow-inbox-card{overflow:hidden}
+.workflow-detail-grid{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:18px}
+.detail-list{display:grid;grid-template-columns:150px 1fr;gap:10px 16px;margin:0}
+.detail-list dt{color:var(--muted);font-size:10px}.detail-list dd{margin:0;color:var(--navy);font-size:11px;font-weight:600}
+.workflow-history{display:grid;gap:11px}
+.workflow-history-item{padding:12px;border:1px solid var(--line);border-radius:10px;background:#fafcfd}
+.workflow-history-item>div{display:flex;justify-content:space-between;gap:10px}
+.workflow-history-item strong{color:var(--navy);font-size:11px}.workflow-history-item span{color:var(--muted);font-size:9px}
+.workflow-history-item p{margin:6px 0 0;color:#52616d;font-size:10px;line-height:1.8}
+.workflow-management-grid{display:grid;grid-template-columns:minmax(260px,.65fr) minmax(0,1.8fr);gap:18px;align-items:start}
+.workflow-definition-item{display:flex;flex-direction:column;gap:4px;text-decoration:none;padding:12px;border:1px solid transparent;border-radius:10px;margin-bottom:6px}
+.workflow-definition-item:hover,.workflow-definition-item.selected{background:#f2f6f8;border-color:#d7e2e8}
+.workflow-definition-item strong{font-size:11px;color:var(--navy)}.workflow-definition-item span{font-size:9px;color:var(--muted)}
+.workflow-step-card{border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px;background:#fbfcfd}
+.workflow-step-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.workflow-step-head strong{color:var(--navy);font-size:12px}.workflow-step-head span{color:var(--muted);font-size:9px}
+.workflow-step-actions{display:flex;flex-wrap:wrap;gap:9px;align-items:end}
+.transition-form{display:flex;gap:7px;align-items:end;background:#fff;border:1px solid #e8edf0;border-radius:9px;padding:8px}
+.transition-form label{min-width:210px}
+.support-card{max-width:760px;text-align:center;margin:0 auto}
+.support-icon{width:64px;height:64px;border-radius:18px;background:#edf3f6;color:var(--navy);display:grid;place-items:center;margin:0 auto 15px;font-size:26px;font-weight:800}
+.badge-info{background:#eaf2fb;color:#2d628e}
+@media(max-width:950px){.workflow-management-grid,.workflow-detail-grid{grid-template-columns:1fr}.workflow-stats{grid-template-columns:1fr}.transition-form{width:100%;flex-wrap:wrap}.transition-form label{flex:1;min-width:180px}}
+
+/* Sidebar accordion navigation */
+.sidebar{overflow-y:auto;overflow-x:hidden;padding-bottom:72px}
+.nav{padding-top:10px;padding-bottom:14px}
+.nav-dashboard{display:block;text-decoration:none;color:#fff;padding:12px;border-radius:9px;font-size:12px;margin-bottom:7px;background:rgba(255,255,255,.06)}
+.nav-group{margin:4px 0;border-radius:10px;overflow:hidden}
+.nav-group>summary{list-style:none;display:flex;align-items:center;gap:9px;cursor:pointer;color:#e8f0f5;padding:11px 12px;border-radius:9px;font-size:12px;user-select:none}
+.nav-group>summary::-webkit-details-marker{display:none}
+.nav-group>summary::after{content:"";width:7px;height:7px;border-left:1.5px solid #9fb4c1;border-bottom:1.5px solid #9fb4c1;transform:rotate(45deg);margin-right:auto;margin-top:-4px;transition:transform .15s}
+.nav-group[open]>summary::after{transform:rotate(-45deg);margin-top:4px}
+.nav-group>summary:hover,.nav-group[open]>summary{background:rgba(255,255,255,.08)}
+.nav-group .nav-icon{width:18px;display:inline-flex;justify-content:center;color:#b8ccd8}
+.nav-submenu{padding:2px 0 7px}
+.nav-submenu a{display:block;text-decoration:none;color:#d7e3ea;padding:9px 18px 9px 10px;margin:2px 5px 2px 0;border-right:2px solid rgba(255,255,255,.18);border-radius:0 6px 6px 0;font-size:11px}
+.nav-submenu a:hover{background:rgba(255,255,255,.08);border-right-color:#fff}
+@media(max-width:900px){.sidebar{width:235px;flex-basis:235px}.content{padding:18px}}
+@media(max-width:680px){.app-shell{display:block}.sidebar{position:relative;width:100%;height:auto;min-height:0;flex-basis:auto;max-height:55vh}.sidebar-foot{display:none}.brand{padding-bottom:14px}.topbar{padding:14px 18px}.content{padding:14px}}

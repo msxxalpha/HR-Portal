@@ -1,0 +1,133 @@
+@model HRPortal.Models.WorkflowTask
+@using HRPortal.Models
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "اقدام در گردش کار";
+    var history = ViewBag.History as List<WorkflowHistory> ?? [];
+    var groups = ViewBag.FieldGroups as List<WorkflowTaskFieldGroup> ?? [];
+}
+@if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
+@if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
+<div class="page-head">
+    <div><h1>@Model.WorkflowStep.Title</h1><p>@Model.WorkflowInstance.WorkflowDefinition.Title — درخواست @Model.WorkflowInstance.EntityType #@Model.WorkflowInstance.EntityId</p></div>
+    <a class="btn btn-outline" href="/Workflow/Inbox">بازگشت به کارتابل</a>
+</div>
+<section class="workflow-detail-grid">
+    <div class="card">
+        <div class="section-head"><h3>مشخصات درخواست</h3></div>
+        <dl class="detail-list">
+            <dt>درخواست‌کننده</dt><dd>@Model.WorkflowInstance.RequesterEmployee.FirstName @Model.WorkflowInstance.RequesterEmployee.LastName</dd>
+            <dt>شماره پرسنلی</dt><dd>@Model.WorkflowInstance.RequesterEmployee.PersonnelNumber</dd>
+            <dt>نوع فرم</dt><dd>@Model.WorkflowInstance.EntityType</dd>
+            <dt>شناسه درخواست</dt><dd>@Model.WorkflowInstance.EntityId</dd>
+            <dt>مرحله جاری</dt><dd>@Model.WorkflowStep.Title</dd>
+            <dt>جایگاه سازمانی مسئول</dt><dd>@Model.AssignedPosition?.Title</dd>
+        </dl>
+    </div>
+</section>
+
+@if (groups.Count > 0)
+{
+    <section class="card form-stack">
+        <div class="section-head"><div><h3>اطلاعات فرم</h3><p class="muted">اطلاعات مراحل قبلی فقط برای مشاهده است؛ فقط فیلدهای مرحله جاری قابل ویرایش هستند.</p></div></div>
+        <form method="post" action="/Workflow/Act" class="form-stack" novalidate>
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@Model.Id" />
+            @foreach (var group in groups)
+            {
+                <section class="card">
+                    <div class="section-head"><h3>@group.StepTitle</h3><span class="badge">@(group.IsCurrentStep ? "مرحله جاری" : "فقط خواندنی")</span></div>
+                    <div class="grid-2">
+                    @foreach (var field in group.Fields)
+                    {
+                        <div class="form-field">
+                            <label for="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)">@field.Title @(group.IsCurrentStep && field.IsRequired ? "*" : "")</label>
+                            @if (!group.IsCurrentStep)
+                            {
+                                <div class="readonly-field" id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)">
+                                    @if (field.FieldType == "Checkbox")
+                                    {
+                                        @(field.Value == "true" ? "بله" : "خیر")
+                                    }
+                                    else
+                                    {
+                                        @(string.IsNullOrWhiteSpace(field.Value) ? "—" : field.Value)
+                                    }
+                                </div>
+                            }
+                            else if (field.FieldType == "TextArea")
+                            {
+                                <textarea id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="values[@field.Code]" rows="3" maxlength="@(field.MaxLength ?? 4000)" required="@field.IsRequired">@field.Value</textarea>
+                            }
+                            else if (field.FieldType == "Select")
+                            {
+                                <select id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="values[@field.Code]" required="@field.IsRequired">
+                                    <option value="">انتخاب کنید</option>
+                                    @foreach (var option in (field.Options ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                                    {
+                                        <option value="@option" selected="@(field.Value == option)">@option</option>
+                                    }
+                                </select>
+                            }
+                            else if (field.FieldType == "Checkbox")
+                            {
+                                <input type="checkbox" id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="values[@field.Code]" value="true" checked="@(field.Value == "true")" />
+                            }
+                            else
+                            {
+                                var inputType = field.FieldType == "Number" ? "number" : field.FieldType == "Date" ? "date" : "text";
+                                <input id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="values[@field.Code]" type="@inputType" value="@field.Value" maxlength="@(field.MaxLength ?? 4000)" required="@field.IsRequired" />
+                            }
+                            @if (!string.IsNullOrWhiteSpace(field.HelpText))
+                            {
+                                <small class="muted">@field.HelpText</small>
+                            }
+                        </div>
+                    }
+                    </div>
+                </section>
+            }
+            <section class="card">
+                <div class="section-head"><h3>اقدام و توضیحات</h3></div>
+                <label>توضیحات
+                    <textarea name="comment" rows="4" placeholder="در صورت نیاز توضیح خود را ثبت کنید."></textarea>
+                </label>
+                <div class="actions">
+                    <button class="btn btn-outline" name="action" value="SaveDraft" type="submit">ذخیره پیش‌نویس</button>
+                    @if (Model.WorkflowStep.AllowReturn) { <button class="btn btn-outline" name="action" value="Return" type="submit">برگشت</button> }
+                    @if (Model.WorkflowStep.AllowReject) { <button class="btn danger" name="action" value="Reject" type="submit">رد درخواست</button> }
+                    @if (Model.WorkflowStep.AllowApprove) { <button class="btn btn-main" name="action" value="Approve" type="submit">ذخیره اطلاعات و تأیید</button> }
+                </div>
+            </section>
+        </form>
+    </section>
+}
+else
+{
+    <section class="card">
+        <div class="section-head"><h3>اقدام</h3></div>
+        <form method="post" action="/Workflow/Act" class="form-stack">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@Model.Id" />
+            <label>توضیحات<textarea name="comment" rows="5" placeholder="در صورت نیاز توضیح خود را ثبت کنید."></textarea></label>
+            <div class="actions">
+                <button class="btn btn-outline" name="action" value="SaveDraft" type="submit">ذخیره پیش‌نویس</button>
+                @if (Model.WorkflowStep.AllowReturn) { <button class="btn btn-outline" name="action" value="Return" type="submit">برگشت</button> }
+                @if (Model.WorkflowStep.AllowReject) { <button class="btn danger" name="action" value="Reject" type="submit">رد درخواست</button> }
+                @if (Model.WorkflowStep.AllowApprove) { <button class="btn btn-main" name="action" value="Approve" type="submit">تأیید</button> }
+            </div>
+        </form>
+    </section>
+}
+<section class="card">
+    <div class="section-head"><h3>تاریخچه گردش کار</h3></div>
+    <div class="workflow-history">
+    @foreach (var item in history)
+    {
+        <div class="workflow-history-item">
+            <div><strong>@item.Action</strong><span>@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span></div>
+            <p>@(item.ActorEmployee == null ? "سیستم" : item.ActorEmployee.FirstName + " " + item.ActorEmployee.LastName) — @(item.Comment ?? "بدون توضیح")</p>
+        </div>
+    }
+    </div>
+</section>

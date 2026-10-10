@@ -31,62 +31,60 @@
         </div>
 
         <nav class="nav">
-            <div class="nav-caption">داشبورد</div>
-            <a href="/">داشبورد</a>
-
-            @if (Can("Employees.View") || Can("Settings.View"))
-            {
-                <div class="nav-caption">اطلاعات پایه</div>
-                @if (Can("Employees.View"))
-                {
-                    <a href="/Employees">مدیریت کارکنان</a>
-                }
-                @if (Can("Settings.View"))
-                {
-                    <a href="/SystemSettings#announcement-categories">دسته‌بندی اطلاعیه‌ها</a>
-                }
+            <a class="nav-dashboard" href="/"><span class="nav-icon">⌂</span>داشبورد</a>
+            @if (Can("Workflow.Inbox")) {
+                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Workflow") ? "open" : null)">
+                    <summary><span class="nav-icon">▤</span>درخواست‌ها</summary><div class="nav-submenu">
+                        <a href="/Workflow/MyRequests">درخواست‌های من</a><a href="/Workflow/Inbox">کارتابل</a>
+                    </div>
+                </details>
             }
-            @if (Can("Organization.View"))
-            {
-                <div class="nav-caption">ساختار سازمانی</div>
-                <a href="/Organization">ساختار سازمانی</a>
+            @if (Can("Announcements.Manage")) {
+                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Announcements") ? "open" : null)">
+                    <summary><span class="nav-icon">⚑</span>اطلاعیه‌ها</summary><div class="nav-submenu"><a href="/Announcements">اطلاعیه‌ها</a></div>
+                </details>
             }
-            @if (Can("Users.Manage") || Can("Roles.Manage") || Can("Announcements.Manage"))
-            {
-                <div class="nav-caption">مدیریت سامانه</div>
-                @if (Can("Users.Manage") || Can("Roles.Manage"))
-                {
-                    <a href="/Users">مدیریت کاربران و نقش‌ها</a>
-                }
-                @if (Can("Announcements.Manage"))
-                {
-                    <a href="/Announcements">مدیریت اطلاعیه‌ها</a>
-                }
+            @if (Can("Employees.View") || Can("Organization.View")) {
+                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Employees") || Context.Request.Path.StartsWithSegments("/Organization") ? "open" : null)">
+                    <summary><span class="nav-icon">♙</span>اطلاعات پایه</summary><div class="nav-submenu">
+                        @if (Can("Employees.View")) { <a href="/Employees">کارکنان</a> }
+                        @if (Can("Organization.View")) { <a href="/Organization">ساختار سازمانی</a> }
+                    </div>
+                </details>
             }
-            @if (isAdmin)
-            {
-                <div class="nav-caption">حساب مدیر</div>
-                <a href="/Account/ChangePassword">تغییر رمز مدیر</a>
+            @if (Can("Reports.View")) {
+                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Reports") ? "open" : null)">
+                    <summary><span class="nav-icon">▥</span>گزارش‌ها</summary><div class="nav-submenu"><a href="/Reports">گزارش‌ها</a></div>
+                </details>
             }
-            else if (User.HasClaim("UserType", "Employee"))
-            {
-                <div class="nav-caption">حساب کاربری</div>
-                <a href="/Account/PersonalPassword">رمز عبور شخصی</a>
+            @if (Can("Payroll.View") || Can("PersonnelOrder.View")) {
+                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Payroll") || Context.Request.Path.StartsWithSegments("/PersonnelOrder") ? "open" : null)">
+                    <summary><span class="nav-icon">▥</span>خدمات کارکنان</summary><div class="nav-submenu">
+                        @if (Can("Payroll.View")) { <a href="/Payroll/Payslip">فیش حقوقی</a> }
+                        @if (Can("PersonnelOrder.View")) { <a href="/PersonnelOrder">حکم کارگزینی</a> }
+                    </div>
+                </details>
             }
-            @if (Can("Settings.View"))
-            {
-                <div class="nav-caption">تنظیمات سامانه</div>
-                <a href="/SystemSettings">تنظیمات سامانه</a>
+            @if (Can("Users.Manage") || Can("Roles.Manage") || Can("Workflow.Manage") || Can("Settings.View")) {
+                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Users") || Context.Request.Path.StartsWithSegments("/Workflow/Manage") || Context.Request.Path.StartsWithSegments("/SystemSettings") ? "open" : null)">
+                    <summary><span class="nav-icon">⚙</span>تنظیمات و مدیریت</summary><div class="nav-submenu">
+                        @if (Can("Users.Manage") || Can("Roles.Manage")) { <a href="/Users">کاربران و نقش‌ها</a> }
+                        @if (Can("Workflow.Manage")) { <a href="/Workflow/Manage">مدیریت گردش کار</a> }
+                        @if (Can("Settings.View")) { <a href="/SystemSettings">تنظیمات سامانه</a> }
+                    </div>
+                </details>
             }
-
-            @if (Can("Payroll.View"))
-            {
-                <div class="nav-caption">خدمات کارکنان</div>
-                <a href="/Payroll/Payslip">فیش حقوقی</a>
-                @if (Can("PersonnelOrder.View"))
-                {
-                    <a href="/PersonnelOrder">حکم کارگزینی</a>
-                }
+            <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Support") ? "open" : null)">
+                <summary><span class="nav-icon">?</span>پشتیبانی</summary><div class="nav-submenu"><a href="/Support">راهنما و پشتیبانی</a></div>
+            </details>
+            @if (isAdmin) {
+                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Account") ? "open" : null)">
+                    <summary><span class="nav-icon">⌁</span>حساب کاربری</summary><div class="nav-submenu"><a href="/Account/ChangePassword">تغییر رمز مدیر</a></div>
+                </details>
+            } else if (User.HasClaim("UserType", "Employee")) {
+                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Account") ? "open" : null)">
+                    <summary><span class="nav-icon">⌁</span>حساب کاربری</summary><div class="nav-submenu"><a href="/Account/PersonalPassword">رمز عبور شخصی</a></div>
+                </details>
             }
         </nav>
 

@@ -1,0 +1,50 @@
+@model List<HRPortal.Models.WorkflowInboxRow>
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "کارتابل من";
+}
+<div class="page-head">
+    <div>
+        <h1>کارتابل من</h1>
+        <p>درخواست‌هایی که بر اساس جایگاه سازمانی شما برای اقدام در اختیار شما قرار گرفته‌اند.</p>
+    </div>
+</div>
+@if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
+@if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
+
+<div class="workflow-stats">
+    <div class="stat"><span>در انتظار اقدام</span><strong>@Model.Count(x => x.Status == "Pending")</strong></div>
+    <div class="stat"><span>درخواست‌های امروز</span><strong>@Model.Count(x => x.CreatedAt.Date == DateTime.UtcNow.Date)</strong></div>
+    <div class="stat"><span>انواع گردش کار</span><strong>@Model.Select(x => x.WorkflowTitle).Distinct().Count()</strong></div>
+</div>
+
+<section class="card workflow-inbox-card">
+    <div class="section-head">
+        <div><h3>درخواست‌های منتظر اقدام</h3><span class="muted">@Model.Count مورد در کارتابل شماست.</span></div>
+    </div>
+    @if (Model.Count == 0)
+    {
+        <div class="empty">در حال حاضر موردی برای اقدام وجود ندارد.</div>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>عنوان/نوع درخواست</th><th>درخواست‌کننده</th><th>مرحله</th><th>جایگاه مسئول</th><th>تاریخ</th><th>عملیات</th></tr></thead>
+                <tbody>
+                @foreach (var item in Model)
+                {
+                    <tr>
+                        <td><strong>@item.WorkflowTitle</strong><div class="muted">@item.EntityType #@item.EntityId</div></td>
+                        <td>@item.RequesterName<div class="muted">@item.RequesterPersonnelNumber</div></td>
+                        <td><span class="badge badge-info">@item.StepTitle</span></td>
+                        <td>@item.PositionTitle</td>
+                        <td>@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                        <td><a class="btn btn-main btn-sm" href="/Workflow/Task/@item.TaskId">مشاهده و اقدام</a></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

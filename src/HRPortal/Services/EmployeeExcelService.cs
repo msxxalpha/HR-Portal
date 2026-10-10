@@ -114,7 +114,7 @@ public class EmployeeExcelService(HRPortalDbContext db)
                 string.Equals(e.PersonnelNumber, personnelNumber, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(e.Identifier, identifier, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(e.NationalId, nationalId, StringComparison.OrdinalIgnoreCase))
-                .DistinctBy(e => e.Id).ToList();
+                .Distinct().ToList();
 
             if (matches.Count > 1)
             {
@@ -123,7 +123,7 @@ public class EmployeeExcelService(HRPortalDbContext db)
             }
 
             var target = matches.SingleOrDefault();
-            var identityConflict = employees.Any(e => (target == null || e.Id != target.Id) &&
+            var identityConflict = employees.Any(e => (target == null || !ReferenceEquals(e, target)) &&
                 (string.Equals(e.PersonnelNumber, personnelNumber, StringComparison.OrdinalIgnoreCase) ||
                  string.Equals(e.Identifier, identifier, StringComparison.OrdinalIgnoreCase) ||
                  string.Equals(e.NationalId, nationalId, StringComparison.OrdinalIgnoreCase)));

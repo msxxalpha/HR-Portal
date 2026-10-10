@@ -133,10 +133,10 @@ BEGIN
 END;
 
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowDefinitions_Code' AND object_id=OBJECT_ID(N'dbo.WorkflowDefinitions'))
-    CREATE UNIQUE INDEX [IX_WorkflowDefinitions_Code] ON [dbo.WorkflowDefinitions]([Code]);
+    EXEC sys.sp_executesql N'CREATE UNIQUE INDEX [IX_WorkflowDefinitions_Code] ON [dbo].[WorkflowDefinitions]([Code]);';
 
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowSteps_Definition_Sort' AND object_id=OBJECT_ID(N'dbo.WorkflowSteps'))
-    CREATE INDEX [IX_WorkflowSteps_Definition_Sort] ON [dbo.WorkflowSteps]([WorkflowDefinitionId],[SortOrder]);
+    EXEC sys.sp_executesql N'CREATE INDEX [IX_WorkflowSteps_Definition_Sort] ON [dbo].[WorkflowSteps]([WorkflowDefinitionId],[SortOrder]);';
 
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowTransitions_Step_Action' AND object_id=OBJECT_ID(N'dbo.WorkflowTransitions'))
     EXEC sys.sp_executesql N'CREATE UNIQUE INDEX [IX_WorkflowTransitions_Step_Action] ON [dbo].[WorkflowTransitions]([WorkflowStepId],[Action]);';

@@ -123,7 +123,7 @@ public class EmployeeExcelService(HRPortalDbContext db)
             }
 
             var target = matches.SingleOrDefault();
-            var identityConflict = employees.Any(e => (target == null || !ReferenceEquals(e, target)) &&
+            var identityConflict = employees.Any(e => (target == null || !object.ReferenceEquals(e, target)) &&
                 (string.Equals(e.PersonnelNumber, personnelNumber, StringComparison.OrdinalIgnoreCase) ||
                  string.Equals(e.Identifier, identifier, StringComparison.OrdinalIgnoreCase) ||
                  string.Equals(e.NationalId, nationalId, StringComparison.OrdinalIgnoreCase)));

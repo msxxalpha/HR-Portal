@@ -139,28 +139,28 @@ IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowSteps_Definition
     CREATE INDEX [IX_WorkflowSteps_Definition_Sort] ON [dbo.WorkflowSteps]([WorkflowDefinitionId],[SortOrder]);
 
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowTransitions_Step_Action' AND object_id=OBJECT_ID(N'dbo.WorkflowTransitions'))
-    CREATE UNIQUE INDEX [IX_WorkflowTransitions_Step_Action] ON [dbo].[WorkflowTransitions]([WorkflowStepId],[Action]);
+    EXEC sys.sp_executesql N'CREATE UNIQUE INDEX [IX_WorkflowTransitions_Step_Action] ON [dbo].[WorkflowTransitions]([WorkflowStepId],[Action]);';
 
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowInstances_Entity' AND object_id=OBJECT_ID(N'dbo.WorkflowInstances'))
-    CREATE INDEX [IX_WorkflowInstances_Entity] ON [dbo].[WorkflowInstances]([EntityType],[EntityId]);
+    EXEC sys.sp_executesql N'CREATE INDEX [IX_WorkflowInstances_Entity] ON [dbo].[WorkflowInstances]([EntityType],[EntityId]);';
 
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowTasks_Inbox' AND object_id=OBJECT_ID(N'dbo.WorkflowTasks'))
-    CREATE INDEX [IX_WorkflowTasks_Inbox] ON [dbo].[WorkflowTasks]([AssignedEmployeeId],[Status],[CreatedAt]);
+    EXEC sys.sp_executesql N'CREATE INDEX [IX_WorkflowTasks_Inbox] ON [dbo].[WorkflowTasks]([AssignedEmployeeId],[Status],[CreatedAt]);';
 
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowTasks_PositionInbox' AND object_id=OBJECT_ID(N'dbo.WorkflowTasks'))
-    CREATE INDEX [IX_WorkflowTasks_PositionInbox] ON [dbo].[WorkflowTasks]([AssignedPositionId],[Status],[CreatedAt]);
+    EXEC sys.sp_executesql N'CREATE INDEX [IX_WorkflowTasks_PositionInbox] ON [dbo].[WorkflowTasks]([AssignedPositionId],[Status],[CreatedAt]);';
 
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowHistory_Instance_Created' AND object_id=OBJECT_ID(N'dbo.WorkflowHistory'))
-    CREATE INDEX [IX_WorkflowHistory_Instance_Created] ON [dbo].[WorkflowHistory]([WorkflowInstanceId],[CreatedAt]);
+    EXEC sys.sp_executesql N'CREATE INDEX [IX_WorkflowHistory_Instance_Created] ON [dbo].[WorkflowHistory]([WorkflowInstanceId],[CreatedAt]);';
 
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowStepFields_Step_Code' AND object_id=OBJECT_ID(N'dbo.WorkflowStepFields'))
-    CREATE UNIQUE INDEX [IX_WorkflowStepFields_Step_Code] ON [dbo].[WorkflowStepFields]([WorkflowStepId],[Code]);
+    EXEC sys.sp_executesql N'CREATE UNIQUE INDEX [IX_WorkflowStepFields_Step_Code] ON [dbo].[WorkflowStepFields]([WorkflowStepId],[Code]);';
 
 IF EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowFieldValues_Instance_Field' AND object_id=OBJECT_ID(N'dbo.WorkflowFieldValues') AND is_unique=1)
     DROP INDEX [IX_WorkflowFieldValues_Instance_Field] ON [dbo].[WorkflowFieldValues];
 
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowFieldValues_Instance_Field' AND object_id=OBJECT_ID(N'dbo.WorkflowFieldValues'))
-    CREATE INDEX [IX_WorkflowFieldValues_Instance_Field] ON [dbo].[WorkflowFieldValues]([WorkflowInstanceId],[WorkflowStepFieldId],[UpdatedAt]);
+    EXEC sys.sp_executesql N'CREATE INDEX [IX_WorkflowFieldValues_Instance_Field] ON [dbo].[WorkflowFieldValues]([WorkflowInstanceId],[WorkflowStepFieldId],[UpdatedAt]);';
 
 IF OBJECT_ID(N'dbo.WorkflowSteps', N'U') IS NOT NULL
 AND OBJECT_ID(N'dbo.WorkflowDefinitions', N'U') IS NOT NULL

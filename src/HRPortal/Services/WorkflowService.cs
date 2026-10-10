@@ -55,7 +55,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 .FirstOrDefaultAsync(x => x.Id == model.Id)
                 ?? throw new InvalidOperationException("گردش کار یافت نشد.");
 
-            if (await db.WorkflowInstances.AnyAsync(x => x.WorkflowDefinitionId == current.Id))
+            if (await db.WorkflowInstances.AnyAsync(x => x.WorkflowDefinitionId == current.Id || x.WorkflowDefinition.SourceDefinitionId == current.Id))
             {
                 current.IsActive = false;
                 current.UpdatedAt = DateTime.UtcNow;
@@ -143,7 +143,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         if (definition is null) return;
         if (definition.IsRuntimeInstance)
             throw new InvalidOperationException("نسخه اجرایی گردش کار مستقیماً قابل حذف نیست.");
-        if (await db.WorkflowInstances.AnyAsync(x => x.WorkflowDefinitionId == id) ||
+        if (await db.WorkflowInstances.AnyAsync(x => x.WorkflowDefinitionId == id || x.WorkflowDefinition.SourceDefinitionId == id) ||
             await db.WorkflowTasks.AnyAsync(x => x.WorkflowStep.WorkflowDefinitionId == id) ||
             await db.WorkflowHistory.AnyAsync(x => x.WorkflowStep != null && x.WorkflowStep.WorkflowDefinitionId == id) ||
             await db.WorkflowFieldValues.AnyAsync(x => x.WorkflowStepField.WorkflowStep.WorkflowDefinitionId == id))

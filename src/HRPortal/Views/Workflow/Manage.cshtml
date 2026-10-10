@@ -38,7 +38,13 @@
 }
 else
 {
-    <div class="section-head"><div><h3>@selected.Title</h3><span class="muted">@selected.Code · نسخه @selected.Version</span></div></div>
+    <div class="section-head"><div><h3>@selected.Title</h3><span class="muted">@selected.Code · نسخه @selected.Version</span></div>
+        <form method="post" action="/Workflow/DeleteDefinition" onsubmit="return confirm('این گردش کار فقط در صورت استفاده‌نشدن حذف می‌شود. ادامه می‌دهید؟');">
+            @Html.AntiForgeryToken()<input type="hidden" name="id" value="@selected.Id" />
+            <button class="btn btn-outline btn-sm danger" type="submit">حذف گردش کار</button>
+        </form>
+    </div>
+    <div class="alert info">اگر گردش کار قبلاً در درخواست‌ها استفاده شده باشد، ابتدا «ذخیره مشخصات» را بزنید تا نسخه جدید و مستقل ساخته شود؛ سپس مراحل و فیلدهای نسخه جدید را ویرایش کنید. نسخه‌های قدیمی و سوابقشان تغییر نمی‌کنند.</div>
     <form method="post" action="/Workflow/SaveDefinition" class="form-stack workflow-definition-edit">
         @Html.AntiForgeryToken()
         <input type="hidden" name="Id" value="@selected.Id" />

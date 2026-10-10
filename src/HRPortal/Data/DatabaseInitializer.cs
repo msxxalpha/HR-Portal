@@ -463,6 +463,7 @@ IF COL_LENGTH(N'dbo.SmsSettings', N'TestRecipient') IS NULL ALTER TABLE [dbo].[S
 
 IF COL_LENGTH(N'dbo.Employees', N'Identifier') IS NULL ALTER TABLE [dbo].[Employees] ADD [Identifier] nvarchar(100) NOT NULL CONSTRAINT [DF_Employees_Identifier] DEFAULT N'';
 IF COL_LENGTH(N'dbo.Employees', N'PersonalPasswordHash') IS NULL ALTER TABLE [dbo].[Employees] ADD [PersonalPasswordHash] nvarchar(1000) NULL;
+IF COL_LENGTH(N'dbo.Employees', N'ContractEndDate') IS NULL ALTER TABLE [dbo].[Employees] ADD [ContractEndDate] date NULL CONSTRAINT [DF_Employees_ContractEndDate] DEFAULT ('2027-03-20');
 
 IF COL_LENGTH(N'PayrollReportSettings', N'Enabled') IS NULL ALTER TABLE [PayrollReportSettings] ADD [Enabled] bit NOT NULL CONSTRAINT [DF_PayrollReportSettings_Enabled] DEFAULT 1;
 IF COL_LENGTH(N'PayrollReportSettings', N'ReportUrl') IS NULL ALTER TABLE [PayrollReportSettings] ADD [ReportUrl] nvarchar(2000) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportUrl] DEFAULT N'';
@@ -566,6 +567,7 @@ BEGIN
         [OrganizationSectionId] int NULL,
         [PositionTitle] nvarchar(300) NULL,
         [EmploymentType] nvarchar(100) NULL,
+        [ContractEndDate] date NULL CONSTRAINT [DF_Employees_ContractEndDate] DEFAULT ('2027-03-20'),
         [Email] nvarchar(200) NULL,
         [FatherName] nvarchar(100) NULL,
         [Status] nvarchar(50) NOT NULL CONSTRAINT [DF_Employees_Status] DEFAULT N'فعال',

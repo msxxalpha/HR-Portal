@@ -29,15 +29,14 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
     public async Task<WorkflowDefinition?> GetByCodeAsync(string code) =>
         await db.WorkflowDefinitions
             .Include(x => x.Steps.OrderBy(s => s.SortOrder))
-            .FirstOrDefaultAsync(x => x.Code == code && x.IsActive);
+            .Where(x => x.Code == code && x.IsActive).OrderByDescending(x => x.Version).FirstOrDefaultAsync();
 
-    public async Task SaveDefinitionAsync(WorkflowDefinitionEditModel model)
+    public async Task<int> SaveDefinitionAsync(WorkflowDefinitionEditModel model)
     {
         var code = model.Code.Trim();
         if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(model.Title))
             throw new InvalidOperationException("کد و عنوان گردش کار الزامی است.");
-
-        if (await db.WorkflowDefinitions.AnyAsync(x => x.Code == code && x.Id != model.Id))
+        if (model.Id == 0 && await db.WorkflowDefinitions.AnyAsync(x => x.Code == code))
             throw new InvalidOperationException("کد گردش کار قبلاً استفاده شده است.");
 
         WorkflowDefinition entity;
@@ -48,9 +47,74 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         }
         else
         {
-            entity = await db.WorkflowDefinitions.FindAsync(model.Id)
+            var current = await db.WorkflowDefinitions
+                .Include(x => x.Steps).ThenInclude(x => x.Fields)
+                .Include(x => x.Steps).ThenInclude(x => x.OutgoingTransitions)
+                .FirstOrDefaultAsync(x => x.Id == model.Id)
                 ?? throw new InvalidOperationException("گردش کار یافت نشد.");
-            entity.Version++;
+
+            if (await db.WorkflowInstances.AnyAsync(x => x.WorkflowDefinitionId == current.Id))
+            {
+                current.IsActive = false;
+                current.UpdatedAt = DateTime.UtcNow;
+                var maxVersion = await db.WorkflowDefinitions.Where(x => x.Code == code)
+                    .Select(x => (int?)x.Version).MaxAsync() ?? 1;
+                entity = new WorkflowDefinition
+                {
+                    Code = code, Title = model.Title.Trim(), Description = model.Description?.Trim(),
+                    IsActive = model.IsActive, Version = maxVersion + 1,
+                    CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+                };
+                db.WorkflowDefinitions.Add(entity);
+                await db.SaveChangesAsync();
+
+                var stepMap = new Dictionary<int, WorkflowStep>();
+                foreach (var source in current.Steps.OrderBy(x => x.SortOrder))
+                {
+                    var copy = new WorkflowStep
+                    {
+                        WorkflowDefinitionId = entity.Id, Code = source.Code, Title = source.Title,
+                        SortOrder = source.SortOrder, AssignmentType = source.AssignmentType,
+                        OrganizationNodeId = source.OrganizationNodeId, AssignmentMode = source.AssignmentMode,
+                        AllowApprove = source.AllowApprove, AllowReject = source.AllowReject, AllowReturn = source.AllowReturn,
+                        RequireCommentOnReject = source.RequireCommentOnReject,
+                        RequireCommentOnReturn = source.RequireCommentOnReturn, IsFinalStep = source.IsFinalStep
+                    };
+                    db.WorkflowSteps.Add(copy);
+                    stepMap[source.Id] = copy;
+                }
+                await db.SaveChangesAsync();
+
+                foreach (var source in current.Steps)
+                foreach (var field in source.Fields)
+                {
+                    db.WorkflowStepFields.Add(new WorkflowStepField
+                    {
+                        WorkflowStepId = stepMap[source.Id].Id, Code = field.Code, Title = field.Title,
+                        FieldType = field.FieldType, Options = field.Options, HelpText = field.HelpText,
+                        SortOrder = field.SortOrder, IsRequired = field.IsRequired, MaxLength = field.MaxLength
+                    });
+                }
+                foreach (var source in current.Steps)
+                foreach (var transition in source.OutgoingTransitions)
+                {
+                    db.WorkflowTransitions.Add(new WorkflowTransition
+                    {
+                        WorkflowStepId = stepMap[source.Id].Id,
+                        ToStepId = transition.ToStepId.HasValue && stepMap.TryGetValue(transition.ToStepId.Value, out var target)
+                            ? target.Id : null,
+                        Action = transition.Action, Title = transition.Title
+                    });
+                }
+                await db.SaveChangesAsync();
+            }
+            else
+            {
+                entity = current;
+                var otherMax = await db.WorkflowDefinitions.Where(x => x.Code == code && x.Id != current.Id)
+                    .Select(x => (int?)x.Version).MaxAsync() ?? 0;
+                entity.Version = Math.Max(entity.Version, otherMax + 1);
+            }
         }
 
         entity.Code = code;
@@ -58,6 +122,29 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         entity.Description = model.Description?.Trim();
         entity.IsActive = model.IsActive;
         entity.UpdatedAt = DateTime.UtcNow;
+        if (entity.IsActive)
+        {
+            var otherActive = await db.WorkflowDefinitions
+                .Where(x => x.Code == code && x.Id != entity.Id && x.IsActive).ToListAsync();
+            foreach (var older in otherActive) older.IsActive = false;
+        }
+        await db.SaveChangesAsync();
+        return entity.Id;
+    }
+
+    public async Task DeleteDefinitionAsync(int id)
+    {
+        var definition = await db.WorkflowDefinitions
+            .Include(x => x.Steps).ThenInclude(x => x.Fields)
+            .Include(x => x.Steps).ThenInclude(x => x.OutgoingTransitions)
+            .FirstOrDefaultAsync(x => x.Id == id);
+        if (definition is null) return;
+        if (await db.WorkflowInstances.AnyAsync(x => x.WorkflowDefinitionId == id) ||
+            await db.WorkflowTasks.AnyAsync(x => x.WorkflowStep.WorkflowDefinitionId == id) ||
+            await db.WorkflowHistory.AnyAsync(x => x.WorkflowStep != null && x.WorkflowStep.WorkflowDefinitionId == id) ||
+            await db.WorkflowFieldValues.AnyAsync(x => x.WorkflowStepField.WorkflowStep.WorkflowDefinitionId == id))
+            throw new InvalidOperationException("این گردش کار در درخواست‌ها یا سوابق استفاده شده است و قابل حذف نیست. فقط گردش کارهای استفاده‌نشده قابل حذف هستند.");
+        db.WorkflowDefinitions.Remove(definition);
         await db.SaveChangesAsync();
     }
 
@@ -327,7 +414,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
     {
         var definition = await db.WorkflowDefinitions
             .Include(x => x.Steps.OrderBy(s => s.SortOrder))
-            .FirstOrDefaultAsync(x => x.Code == definitionCode && x.IsActive, cancellationToken)
+            .Where(x => x.Code == definitionCode && x.IsActive).OrderByDescending(x => x.Version).FirstOrDefaultAsync(cancellationToken)
             ?? throw new InvalidOperationException("گردش کار فعال با این کد یافت نشد.");
 
         var requester = await db.Employees.AsNoTracking()

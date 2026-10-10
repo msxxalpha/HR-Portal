@@ -16,6 +16,8 @@ BEGIN
         [Description] nvarchar(1000) NULL,
         [IsActive] bit NOT NULL CONSTRAINT [DF_WorkflowDefinitions_IsActive] DEFAULT 1,
         [Version] int NOT NULL CONSTRAINT [DF_WorkflowDefinitions_Version] DEFAULT 1,
+        [IsRuntimeInstance] bit NOT NULL CONSTRAINT [DF_WorkflowDefinitions_IsRuntimeInstance] DEFAULT 0,
+        [SourceDefinitionId] int NULL,
         [CreatedAt] datetime2 NOT NULL CONSTRAINT [DF_WorkflowDefinitions_CreatedAt] DEFAULT SYSUTCDATETIME(),
         [UpdatedAt] datetime2 NOT NULL CONSTRAINT [DF_WorkflowDefinitions_UpdatedAt] DEFAULT SYSUTCDATETIME()
     );
@@ -30,6 +32,7 @@ BEGIN
         [Title] nvarchar(200) NOT NULL,
         [SortOrder] int NOT NULL CONSTRAINT [DF_WorkflowSteps_SortOrder] DEFAULT 0,
         [AssignmentType] nvarchar(30) NOT NULL CONSTRAINT [DF_WorkflowSteps_AssignmentType] DEFAULT N'Position',
+        [HierarchyStopRankType] nvarchar(30) NOT NULL CONSTRAINT [DF_WorkflowSteps_HierarchyStopRankType] DEFAULT N'معاونت',
         [OrganizationNodeId] int NULL,
         [AssignmentMode] nvarchar(20) NOT NULL CONSTRAINT [DF_WorkflowSteps_AssignmentMode] DEFAULT N'Any',
         [AllowApprove] bit NOT NULL CONSTRAINT [DF_WorkflowSteps_AllowApprove] DEFAULT 1,
@@ -131,6 +134,10 @@ BEGIN
         [UpdatedAt] datetime2 NOT NULL CONSTRAINT [DF_WorkflowFieldValues_UpdatedAt] DEFAULT SYSUTCDATETIME()
     );
 END;
+
+IF COL_LENGTH(N'dbo.WorkflowDefinitions', N'IsRuntimeInstance') IS NULL ALTER TABLE [dbo].[WorkflowDefinitions] ADD [IsRuntimeInstance] bit NOT NULL CONSTRAINT [DF_WorkflowDefinitions_IsRuntimeInstance] DEFAULT 0;
+IF COL_LENGTH(N'dbo.WorkflowDefinitions', N'SourceDefinitionId') IS NULL ALTER TABLE [dbo].[WorkflowDefinitions] ADD [SourceDefinitionId] int NULL;
+IF COL_LENGTH(N'dbo.WorkflowSteps', N'HierarchyStopRankType') IS NULL ALTER TABLE [dbo].[WorkflowSteps] ADD [HierarchyStopRankType] nvarchar(30) NOT NULL CONSTRAINT [DF_WorkflowSteps_HierarchyStopRankType] DEFAULT N'معاونت';
 
 IF EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowDefinitions_Code' AND object_id=OBJECT_ID(N'dbo.WorkflowDefinitions'))
     DROP INDEX [IX_WorkflowDefinitions_Code] ON [dbo].[WorkflowDefinitions];

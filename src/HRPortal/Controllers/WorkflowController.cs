@@ -120,9 +120,20 @@ public class WorkflowController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SaveDefinition(WorkflowDefinitionEditModel model)
     {
-        try { await workflow.SaveDefinitionAsync(model); TempData["Success"] = "تعریف گردش کار ذخیره شد."; }
+        var selectedId = model.Id;
+        try { selectedId = await workflow.SaveDefinitionAsync(model); TempData["Success"] = "تعریف گردش کار ذخیره شد. نسخه‌های استفاده‌شده حفظ شدند."; }
         catch (Exception ex) { TempData["Error"] = ex.Message; }
-        return RedirectToAction(nameof(Manage), new { id = model.Id > 0 ? model.Id : (int?)null });
+        return RedirectToAction(nameof(Manage), new { id = selectedId > 0 ? selectedId : (int?)null });
+    }
+
+    [HttpPost]
+    [Authorize(Policy = "Workflow.Manage")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteDefinition(int id)
+    {
+        try { await workflow.DeleteDefinitionAsync(id); TempData["Success"] = "گردش کار استفاده‌نشده حذف شد."; }
+        catch (Exception ex) { TempData["Error"] = ex.Message; }
+        return RedirectToAction(nameof(Manage));
     }
 
     [HttpPost]

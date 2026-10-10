@@ -156,6 +156,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
     {
         var definition = await db.WorkflowDefinitions.FindAsync(model.WorkflowDefinitionId)
             ?? throw new InvalidOperationException("گردش کار یافت نشد.");
+        if (definition.IsRuntimeInstance)
+            throw new InvalidOperationException("نسخه اجرایی یک درخواست قابل ویرایش نیست.");
 
         if (string.IsNullOrWhiteSpace(model.Code) || string.IsNullOrWhiteSpace(model.Title))
             throw new InvalidOperationException("کد و عنوان مرحله الزامی است.");

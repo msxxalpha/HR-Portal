@@ -154,6 +154,8 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.Property(x => x.Title).HasMaxLength(200).IsRequired();
             e.Property(x => x.Description).HasMaxLength(1000);
             e.HasIndex(x => new { x.Code, x.Version }).IsUnique();
+            e.Property(x => x.IsRuntimeInstance).HasDefaultValue(false);
+            e.Property(x => x.SourceDefinitionId);
         });
         modelBuilder.Entity<WorkflowStep>(e =>
         {
@@ -161,6 +163,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.Property(x => x.Code).HasMaxLength(100).IsRequired();
             e.Property(x => x.Title).HasMaxLength(200).IsRequired();
             e.HasIndex(x => new { x.WorkflowDefinitionId, x.SortOrder });
+            e.Property(x => x.HierarchyStopRankType).HasMaxLength(30).HasDefaultValue("معاونت");
             e.HasOne(x => x.WorkflowDefinition).WithMany(x => x.Steps).HasForeignKey(x => x.WorkflowDefinitionId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.OrganizationNode).WithMany().HasForeignKey(x => x.OrganizationNodeId).OnDelete(DeleteBehavior.Restrict);
         });

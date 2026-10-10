@@ -41,6 +41,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.PersonnelNumber).IsUnique();
             e.Property(x => x.PersonalPasswordHash).HasMaxLength(1000);
+            e.Property(x => x.ContractEndDate).HasColumnType("date");
             e.HasIndex(x => x.NationalId).IsUnique();
             e.HasIndex(x => x.Identifier)
                 .IsUnique()

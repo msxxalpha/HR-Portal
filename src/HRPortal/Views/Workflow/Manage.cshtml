@@ -16,7 +16,7 @@
     @foreach (var item in Model.Definitions)
     {
         <a class="workflow-definition-item @(selected?.Id == item.Id ? "selected" : "")" href="/Workflow/Manage?id=@item.Id">
-            <strong>@item.Title</strong><span>@item.Code · @item.Steps.Count مرحله · @(item.IsActive ? "فعال" : "غیرفعال")</span>
+            <strong>@item.Title</strong><span>@item.Code · نسخه @item.Version · @item.Steps.Count مرحله · @(item.IsActive ? "فعال" : "غیرفعال")</span>
         </a>
     }
     <hr />

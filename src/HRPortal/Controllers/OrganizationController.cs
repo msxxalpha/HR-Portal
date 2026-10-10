@@ -398,8 +398,6 @@ public class OrganizationController(
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
 
-        await service.RevisionsAsync();
-        await settings.GetAsync();
         TempData["Success"] = "پیش‌نویس ساختار سازمانی به‌همراه تمام گره‌ها و تاریخچه تغییرات آن حذف شد.";
         return RedirectToAction(nameof(Index));
     }

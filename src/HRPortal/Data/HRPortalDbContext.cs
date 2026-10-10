@@ -152,7 +152,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.Property(x => x.Code).HasMaxLength(100).IsRequired();
             e.Property(x => x.Title).HasMaxLength(200).IsRequired();
             e.Property(x => x.Description).HasMaxLength(1000);
-            e.HasIndex(x => x.Code).IsUnique();
+            e.HasIndex(x => new { x.Code, x.Version }).IsUnique();
         });
         modelBuilder.Entity<WorkflowStep>(e =>
         {

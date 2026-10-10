@@ -7,6 +7,7 @@
 <div class="page-head">
     <div><h1>مدیریت گردش کار</h1><p>تعریف گردش کار و تخصیص مراحل به جایگاه‌های ساختار سازمانی.</p></div>
 </div>
+<div class="note">برای مسیر پویا، یک مرحله از نوع «زنجیره جایگاه‌های بالاتر از کارمند» تعریف کنید. هنگام شروع درخواست باید شناسه کارمند موضوع درخواست به موتور گردش کار داده شود؛ مسیر در همان درخواست به مراحل مستقل تبدیل و ذخیره می‌شود. مراحل ثابت بعد از آن را با ترتیب بالاتر تعریف کنید.</div>
 @if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
 @if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
 
@@ -151,3 +152,16 @@ else
 }
 </section>
 </div>
+
+@section Scripts {
+<script>
+(function(){
+ const type=document.getElementById('assignmentType');
+ if(!type)return;
+ const fixed=document.getElementById('fixedPositionField');
+ const stop=document.getElementById('hierarchyStopField');
+ function sync(){const dynamic=type.value==='Hierarchy';fixed.style.display=dynamic?'none':'';stop.style.display=dynamic?'':'none';}
+ type.addEventListener('change',sync);sync();
+})();
+</script>
+}

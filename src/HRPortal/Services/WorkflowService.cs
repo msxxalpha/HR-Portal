@@ -616,7 +616,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .Where(x => x.OrganizationStructureRevisionId == revision.Id && x.IsActive)
             .ToListAsync(cancellationToken);
         var byId = nodes.ToDictionary(x => x.Id);
-        var current = nodes.FirstOrDefault(x => x.Code == oldPosition.Code)
+        OrganizationNode? current = nodes.FirstOrDefault(x => x.Code == oldPosition.Code)
             ?? throw new InvalidOperationException("جایگاه کارمند در نسخه فعال ساختار سازمانی یافت نشد.");
 
         if (!current.ParentId.HasValue)

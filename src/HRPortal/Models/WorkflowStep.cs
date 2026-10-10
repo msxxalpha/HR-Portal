@@ -8,6 +8,7 @@ public class WorkflowStep
     public string Title { get; set; } = "";
     public int SortOrder { get; set; }
     public string AssignmentType { get; set; } = "Position";
+    public string HierarchyStopRankType { get; set; } = "معاونت";
     public int? OrganizationNodeId { get; set; }
     public string AssignmentMode { get; set; } = "Any";
     public bool AllowApprove { get; set; } = true;

@@ -54,10 +54,11 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         View("Form", await BuildFormVmAsync(new Employee()));
 
     [HttpPost, Authorize(Policy = "Employees.Create"), ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(Employee employee)
+    public async Task<IActionResult> Create(Employee employee, bool isNonContractual = false, string? contractEndDatePersian = null)
     {
         ClearGeneratedRequiredErrors();
         NormalizeEmployee(employee);
+        ApplyEmploymentDetails(employee, isNonContractual, contractEndDatePersian);
         ValidateEmployee(employee);
         await ValidateOrganizationAssignmentsAsync(employee);
 
@@ -100,10 +101,11 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
     }
 
     [HttpPost, Authorize(Policy = "Employees.Edit"), ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(Employee employee)
+    public async Task<IActionResult> Edit(Employee employee, bool isNonContractual = false, string? contractEndDatePersian = null)
     {
         ClearGeneratedRequiredErrors();
         NormalizeEmployee(employee);
+        ApplyEmploymentDetails(employee, isNonContractual, contractEndDatePersian);
         ValidateEmployee(employee);
         await ValidateOrganizationAssignmentsAsync(employee);
 
@@ -359,6 +361,35 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         employee.PositionTitle = employee.PositionTitle?.Trim();
         employee.EmploymentType = employee.EmploymentType?.Trim();
         employee.Email = employee.Email?.Trim();
+    }
+
+    private void ApplyEmploymentDetails(Employee employee, bool isNonContractual, string? contractEndDatePersian)
+    {
+        if (isNonContractual)
+        {
+            employee.EmploymentType = "غیرقراردادی";
+            employee.ContractEndDate = null;
+            ModelState.Remove(nameof(Employee.ContractEndDate));
+            ModelState.Remove("contractEndDatePersian");
+            return;
+        }
+
+        employee.EmploymentType = "قراردادی";
+        if (string.IsNullOrWhiteSpace(contractEndDatePersian))
+        {
+            employee.ContractEndDate ??= new System.Globalization.PersianCalendar().ToDateTime(1405, 12, 29, 0, 0, 0, 0);
+            return;
+        }
+
+        if (PersianDateService.TryParse(contractEndDatePersian, out var parsed))
+        {
+            employee.ContractEndDate = parsed.Date;
+            ModelState.Remove("contractEndDatePersian");
+        }
+        else
+        {
+            ModelState.AddModelError("contractEndDatePersian", "تاریخ پایان قرارداد را با تقویم شمسی وارد کنید.");
+        }
     }
 
     private async Task ValidateOrganizationAssignmentsAsync(Employee employee)

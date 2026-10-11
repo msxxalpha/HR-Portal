@@ -8,7 +8,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 {
     public async Task<List<WorkflowDefinition>> GetDefinitionsAsync() =>
         await db.WorkflowDefinitions
-            .Where(x => !x.IsRuntimeInstance)
+            .Where(x => !x.IsRuntimeInstance && !x.Code.StartsWith("__internal_contractrenewal_"))
             .Include(x => x.Steps)
             .ThenInclude(x => x.OrganizationNode)
             .Include(x => x.Steps)
@@ -25,7 +25,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .Include(x => x.Steps)
             .ThenInclude(x => x.OutgoingTransitions)
             .ThenInclude(x => x.ToStep)
-            .FirstOrDefaultAsync(x => x.Id == id && !x.IsRuntimeInstance);
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsRuntimeInstance && !x.Code.StartsWith("__internal_contractrenewal_"));
 
     public async Task<WorkflowDefinition?> GetByCodeAsync(string code) =>
         await db.WorkflowDefinitions
@@ -77,7 +77,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                     {
                         WorkflowDefinitionId = entity.Id, Code = source.Code, Title = source.Title,
                         SortOrder = source.SortOrder, AssignmentType = source.AssignmentType,
-                        HierarchyStopRankType = source.HierarchyStopRankType, OrganizationNodeId = source.OrganizationNodeId, AssignmentMode = source.AssignmentMode,
+                        HierarchyStopRankType = source.HierarchyStopRankType, OrganizationNodeId = source.OrganizationNodeId, AssignedEmployeeId = source.AssignedEmployeeId, AssignmentMode = source.AssignmentMode,
                         AllowApprove = source.AllowApprove, AllowReject = source.AllowReject, AllowReturn = source.AllowReturn,
                         RequireCommentOnReject = source.RequireCommentOnReject,
                         RequireCommentOnReturn = source.RequireCommentOnReturn, IsFinalStep = source.IsFinalStep
@@ -166,9 +166,11 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         var assignmentType = model.AssignmentType == "Hierarchy" ? "Hierarchy" : "Position";
         if (assignmentType == "Position" && !model.OrganizationNodeId.HasValue)
             throw new InvalidOperationException("برای مرحله جایگاه ثابت، انتخاب جایگاه سازمانی الزامی است.");
-        if (assignmentType == "Hierarchy" && model.HierarchyStopRankType is not ("معاونت" or "مدیریت" or "ریاست" or "سرپرستی"))
+        if (assignmentType == "Hierarchy" && model.HierarchyStopRankType is not ("معاونت" or "مدیریت" or "ریاست" or "سرپرستی" or "مدیرعامل"))
             throw new InvalidOperationException("رده توقف مسیر پویا معتبر نیست.");
-        if (model.OrganizationNodeId.HasValue &&
+        if (assignmentType == "Employee" && (!model.AssignedEmployeeId.HasValue || !await db.Employees.AnyAsync(x => x.Id == model.AssignedEmployeeId.Value && x.Status == "فعال")))
+            throw new InvalidOperationException("برای مرحله اختصاص‌یافته به کارمند، انتخاب کارمند فعال الزامی است.");
+        if (assignmentType == "Position" && model.OrganizationNodeId.HasValue &&
             !await db.OrganizationNodes.AnyAsync(x => x.Id == model.OrganizationNodeId.Value && x.IsActive))
             throw new InvalidOperationException("جایگاه سازمانی انتخاب‌شده معتبر یا فعال نیست.");
 
@@ -196,6 +198,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         entity.AssignmentType = assignmentType;
         entity.HierarchyStopRankType = model.HierarchyStopRankType;
         entity.OrganizationNodeId = assignmentType == "Position" ? model.OrganizationNodeId : null;
+        entity.AssignedEmployeeId = assignmentType == "Employee" ? model.AssignedEmployeeId : null;
         entity.AssignmentMode = model.AssignmentMode is "All" ? "All" : "Any";
         entity.AllowApprove = model.AllowApprove;
         entity.AllowReject = model.AllowReject;
@@ -516,14 +519,14 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 {
                     var position = route[i];
                     clones.Add(CloneStep(original, runtime.Id, $"{TrimCode(original.Code, 75)}_H{i + 1}",
-                        $"{original.Title} — {position.Title}", order, position.Id, false));
+                        $"{original.Title} — {position.Title}", order, position.Id, false, "Position"));
                     order += 10;
                 }
             }
             else
             {
                 clones.Add(CloneStep(original, runtime.Id, original.Code, original.Title, order,
-                    original.OrganizationNodeId, original.IsFinalStep));
+                    original.OrganizationNodeId, original.IsFinalStep, original.AssignmentType, original.AssignedEmployeeId));
                 order += 10;
             }
 
@@ -629,7 +632,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         while (current is not null && guard++ < 1000)
         {
             route.Add(current);
-            if (current.RankType == stopRankType)
+            if ((stopRankType == "مدیرعامل" && !current.ParentId.HasValue) ||
+                (stopRankType != "مدیرعامل" && current.RankType == stopRankType))
             {
                 stopFound = true;
                 break;
@@ -645,15 +649,16 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
     private static WorkflowStep CloneStep(
         WorkflowStep source, int runtimeDefinitionId, string code, string title,
-        int sortOrder, int? organizationNodeId, bool isFinalStep) => new()
+        int sortOrder, int? organizationNodeId, bool isFinalStep, string assignmentType = "Position", int? assignedEmployeeId = null) => new()
     {
         WorkflowDefinitionId = runtimeDefinitionId,
         Code = code.Length > 100 ? code[..100] : code,
         Title = title.Length > 200 ? title[..200] : title,
         SortOrder = sortOrder,
-        AssignmentType = "Position",
+        AssignmentType = assignmentType,
         HierarchyStopRankType = source.HierarchyStopRankType,
         OrganizationNodeId = organizationNodeId,
+        AssignedEmployeeId = assignedEmployeeId,
         AssignmentMode = source.AssignmentMode,
         AllowApprove = source.AllowApprove,
         AllowReject = source.AllowReject,
@@ -897,6 +902,22 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
     private async Task CreateTasksAsync(WorkflowInstance instance, WorkflowStep step, CancellationToken cancellationToken)
     {
+        if (step.AssignmentType == "Employee")
+        {
+            if (!step.AssignedEmployeeId.HasValue ||
+                !await db.Employees.AnyAsync(x => x.Id == step.AssignedEmployeeId.Value && x.Status == "فعال", cancellationToken))
+                throw new InvalidOperationException($"برای مرحله «{step.Title}» کارمند فعال تعیین نشده است.");
+
+            db.WorkflowTasks.Add(new WorkflowTask
+            {
+                WorkflowInstanceId = instance.Id,
+                WorkflowStepId = step.Id,
+                AssignedEmployeeId = step.AssignedEmployeeId
+            });
+            await db.SaveChangesAsync(cancellationToken);
+            return;
+        }
+
         if (!step.OrganizationNodeId.HasValue)
             throw new InvalidOperationException($"برای مرحله «{step.Title}» جایگاه سازمانی تعیین نشده است.");
 

@@ -59,6 +59,9 @@ public class ContractRenewalTaskController(
 
         try
         {
+            if (comment is { Length: > 3000 })
+                throw new InvalidOperationException("توضیحات هر مرحله حداکثر می‌تواند ۳۰۰۰ نویسه باشد.");
+
             if (stageKind == "Evaluation")
             {
                 var currentRows = await db.EmployeePerformanceEvaluationScores

@@ -136,6 +136,19 @@ public class OrganizationService(HRPortalDbContext db, AuditService audit)
         revision.IsFinalized = true;
         revision.FinalizedAt = DateTime.UtcNow;
 
+        // If the CEO position exists in the new finalized revision, carry forward the single
+        // active holder's assignment from an older cloned version to the new CEO node.
+        var newCeoNode = revision.Nodes.FirstOrDefault(x => x.RankType == "مدیرعامل" && x.IsActive);
+        if (newCeoNode is not null)
+        {
+            var oldCeoAssignments = await db.Employees
+                .Where(e => e.OrganizationPositionId.HasValue &&
+                    db.OrganizationNodes.Any(n => n.Id == e.OrganizationPositionId.Value && n.RankType == "مدیرعامل"))
+                .ToListAsync();
+            foreach (var employee in oldCeoAssignments)
+                employee.OrganizationPositionId = newCeoNode.Id;
+        }
+
         await db.SaveChangesAsync();
 
         await audit.WriteAsync(

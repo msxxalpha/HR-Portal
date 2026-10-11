@@ -1,0 +1,220 @@
+@model HRPortal.Models.ContractRenewalStageViewModel
+@using HRPortal.Services
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "اقدام در تمدید قرارداد";
+    var r = Model.Request;
+    var editingScores = Model.StageKind == "Evaluation";
+    var viewingAllScores = Model.StageKind is "Security" or "HumanResources" or "CEO";
+    var suggested = Model.SuggestedContractMonths ?? 0;
+    string score(decimal? value) => value.HasValue ? value.Value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) : "—";
+    string faDate(DateTime? value) => value.HasValue ? PersianDateService.Format(value.Value) : "سابقه‌ای ثبت نشده است";
+    string securityDecisionTitle(string? value) => value switch
+    {
+        "ApproveFull" => "موافقت با تمدید قرارداد",
+        "ApproveOneMonth" => "موافقت با تمدید یک‌ماهه قرارداد",
+        "Reject" => "عدم موافقت با تمدید قرارداد",
+        _ => "ثبت نشده"
+    };
+}
+@if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
+@if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
+
+<div class="page-head">
+    <div>
+        <h1>@Model.Task.WorkflowStep.Title</h1>
+        <p>درخواست @r.RequestCode — @r.EmployeeNameSnapshot — شماره پرسنلی @r.PersonnelNumberSnapshot</p>
+    </div>
+    <a class="btn btn-outline" href="/Workflow/Inbox">بازگشت به کارتابل</a>
+</div>
+
+<section class="contract-stage-summary">
+    <div><span>وضعیت درخواست</span><strong>@r.Status</strong></div>
+    <div><span>جایگاه / مرحله جاری</span><strong>@(Model.Task.AssignedPosition?.Title ?? Model.Task.WorkflowStep.Title)</strong></div>
+    <div><span>تاریخ ثبت</span><strong>@PersianDateService.Format(r.CreatedAt)</strong></div>
+    @if (viewingAllScores)
+    {
+        <div><span>امتیاز نهایی ارزشیابی</span><strong>@score(r.FinalEvaluationScore) از ۱۰۰</strong></div>
+    }
+    @if (Model.StageKind == "HumanResources")
+    {
+        <div><span>مدت پیشنهادی بر اساس امتیاز</span><strong>@suggested ماه</strong></div>
+    }
+</section>
+
+<section class="card">
+    <div class="section-head"><div><h3>اطلاعات اولیه کارمند</h3><span class="muted">اطلاعات ثبت‌شده توسط کارگزینی؛ این مرحله فقط خواندنی است.</span></div></div>
+    <div class="contract-preview-grid">
+        <div><span>نام و نام خانوادگی</span><strong>@r.EmployeeNameSnapshot</strong></div>
+        <div><span>شماره پرسنلی</span><strong>@r.PersonnelNumberSnapshot</strong></div>
+        <div><span>واحد سازمانی</span><strong>@r.OrganizationUnitSnapshot</strong></div>
+        <div><span>سمت / پست سازمانی</span><strong>@r.PositionTitleSnapshot</strong></div>
+        <div><span>تاریخ پایان قرارداد قبلی</span><strong>@faDate(r.PreviousContractEndDate)</strong></div>
+        <div><span>سوابق تمدید سه دوره گذشته (ماه)</span><strong>@r.PreviousExtensionMonths1 / @r.PreviousExtensionMonths2 / @r.PreviousExtensionMonths3</strong></div>
+        <div><span>اخطار کتبی انضباطی</span><strong>@(r.HasDisciplinaryWarnings ? $"بله، {r.DisciplinaryWarningCount} نوبت" : "خیر")</strong></div>
+        <div><span>مصوبه کمیته انضباطی</span><strong>@(r.HasDisciplinaryCommitteeResolution ? $"بله، {r.DisciplinaryCommitteeResolutionCount} مورد" : "خیر")</strong></div>
+        <div><span>مرخصی بدون حقوق</span><strong>@(r.HasUnpaidLeave ? $"{r.UnpaidLeaveDays} روز" : "ندارد")</strong></div>
+        <div><span>مرخصی بیماری</span><strong>@(r.HasSickLeave ? $"{r.SickLeaveDays} روز" : "ندارد")</strong></div>
+        <div><span>مرخصی حادثه</span><strong>@(r.HasAccidentLeave ? $"{r.AccidentLeaveDays} روز" : "ندارد")</strong></div>
+        <div><span>سوابق تشویق</span><strong>@(r.HasCommendations ? $"{r.CommendationCount} نوبت" : "ندارد")</strong></div>
+        <div><span>امتیاز آخرین دوره پیشین</span><strong>@score(r.PreviousPeriodScore1)@(r.PreviousPeriodScore1FromHistory ? " (سامانه)" : " (ورود دستی)")</strong></div>
+        <div><span>امتیاز دوره قبل از آن</span><strong>@score(r.PreviousPeriodScore2)@(r.PreviousPeriodScore2FromHistory ? " (سامانه)" : " (ورود دستی)")</strong></div>
+    </div>
+</section>
+
+@if (editingScores)
+{
+    <section class="card">
+        <div class="section-head">
+            <div><h3>امتیازهای مرحله قبلی</h3><span class="muted">فقط امتیازهای ارزیاب بلافاصله قبل از شما نمایش داده می‌شوند.</span></div>
+            @if (Model.PreviousStageScoreTotal.HasValue) { <span class="badge">مجموع مرحله قبل: @score(Model.PreviousStageScoreTotal) از @score(Model.CurrentQuestionCeilingTotal)</span> }
+        </div>
+        @if (Model.PreviousStageScores.Count == 0)
+        {
+            <div class="empty">این نخستین مرحله ارزیابی در مسیر این کارمند است؛ مرحله قبلی برای نمایش وجود ندارد.</div>
+        }
+        else
+        {
+            <div class="table-wrap"><table>
+                <thead><tr><th>پرسش</th><th>سقف امتیاز</th><th>امتیاز ارزیاب مرحله قبل</th></tr></thead>
+                <tbody>
+                @foreach (var s in Model.PreviousStageScores)
+                {
+                    <tr><td>@s.QuestionTextSnapshot</td><td>@score(s.MaxScoreSnapshot)</td><td>@score(s.Score)</td></tr>
+                }
+                </tbody>
+            </table></div>
+        }
+    </section>
+
+    <section class="card">
+        <div class="section-head"><div><h3>امتیازدهی شما</h3><span class="muted">برای هر پرسش امتیازی بین صفر و سقف امتیاز ثبت کنید. مجموع سقف پرسش‌ها ۱۰۰ است.</span></div><span class="badge">مرحله جاری</span></div>
+        <form method="post" action="/ContractRenewalTask/Submit" class="form-stack">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@Model.Task.Id" />
+            <div class="table-wrap"><table>
+                <thead><tr><th>پرسش</th><th>راهنمای امتیازدهی</th><th>سقف امتیاز</th><th>امتیاز شما</th></tr></thead>
+                <tbody>
+                @foreach (var s in Model.CurrentScores)
+                {
+                    <tr>
+                        <td>@s.QuestionTextSnapshot</td>
+                        <td class="contract-score-guidance">@s.ScoringGuidanceSnapshot</td>
+                        <td>@score(s.MaxScoreSnapshot)</td>
+                        <td><input class="contract-score-input" type="number" name="scores[@s.Id]" min="0" max="@score(s.MaxScoreSnapshot)" step="0.01" required value="@(s.Score.HasValue ? score(s.Score) : "")" /></td>
+                    </tr>
+                }
+                </tbody>
+                <tfoot><tr><th colspan="2">مجموع سقف امتیاز</th><th>@score(Model.CurrentQuestionCeilingTotal)</th><th>مجموع کسب‌شده توسط شما</th></tr></tfoot>
+            </table></div>
+            <label>توضیحات کلی این مرحله (مستقل از پرسش‌ها)
+                <textarea name="comment" rows="4" maxlength="3000" placeholder="توضیح کلی درباره عملکرد کارمند، مستندات یا ملاحظات مرتبط با امتیازدهی"></textarea>
+            </label>
+            <div class="actions"><button class="btn btn-main" type="submit">ثبت امتیازها و ارجاع به جایگاه بعدی</button></div>
+        </form>
+    </section>
+}
+
+@if (viewingAllScores)
+{
+    <section class="card">
+        <div class="section-head"><div><h3>نتایج کامل ارزشیابی سازمانی</h3><span class="muted">اطلاعات ارزیاب‌ها فقط خواندنی است؛ امتیاز نهایی برابر امتیاز آخرین جایگاه پیش از مدیرعامل است.</span></div></div>
+        @if (Model.AllScoreStages.Count == 0)
+        {
+            <div class="empty">هنوز نتایج مرحله‌ای برای نمایش وجود ندارد.</div>
+        }
+        else
+        {
+            @foreach (var stage in Model.AllScoreStages)
+            {
+                <div class="contract-score-stage">
+                    <div class="section-head"><h4>@stage.StageTitle</h4><span class="badge">مجموع: @score(stage.ScoreTotal) از ۱۰۰</span></div>
+                    <div class="table-wrap"><table>
+                        <thead><tr><th>پرسش</th><th>سقف</th><th>امتیاز</th></tr></thead>
+                        <tbody>@foreach (var s in stage.Scores) { <tr><td>@s.QuestionTextSnapshot</td><td>@score(s.MaxScoreSnapshot)</td><td>@score(s.Score)</td></tr> }</tbody>
+                    </table></div>
+                </div>
+            }
+        }
+    </section>
+}
+
+@if (Model.StageKind == "Security")
+{
+    <section class="card">
+        <div class="section-head"><div><h3>اظهارنظر مدیر حراست</h3><span class="muted">نظر شما ثبت می‌شود و همراه پرونده به مدیر منابع انسانی می‌رود.</span></div></div>
+        <form method="post" action="/ContractRenewalTask/Submit" class="form-stack">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@Model.Task.Id" />
+            <label>نظر حراست *
+                <select name="securityDecision" required>
+                    <option value="">انتخاب کنید</option>
+                    <option value="ApproveFull">با تمدید قرارداد کارمند موافقم</option>
+                    <option value="ApproveOneMonth">با تمدید قرارداد کارمند به مدت یک ماه موافقم</option>
+                    <option value="Reject">با تمدید قرارداد کارمند موافق نیستم</option>
+                </select>
+            </label>
+            <label>توضیحات حراست
+                <textarea name="comment" rows="4" maxlength="3000" placeholder="توضیحات و ملاحظات حراست"></textarea>
+            </label>
+            <div class="actions"><button class="btn btn-main" type="submit">ثبت و تأیید اظهارنظر حراست</button></div>
+        </form>
+    </section>
+}
+
+@if (Model.StageKind is "HumanResources" or "CEO")
+{
+    <section class="card">
+        <div class="section-head"><div><h3>خلاصه اظهارنظرهای پیشین</h3><span class="muted">اطلاعات این مراحل برای مشاهده است.</span></div></div>
+        <div class="contract-preview-grid">
+            <div><span>نظر حراست</span><strong>@securityDecisionTitle(r.SecurityDecision)</strong></div>
+            <div><span>توضیحات حراست</span><strong>@(string.IsNullOrWhiteSpace(r.SecurityComment) ? "ثبت نشده" : r.SecurityComment)</strong></div>
+            @if (Model.StageKind == "CEO")
+            {
+                <div><span>مدت پیشنهادی منابع انسانی</span><strong>@(r.HrProposedContractMonths?.ToString() ?? "ثبت نشده") ماه</strong></div>
+                <div><span>توضیحات منابع انسانی</span><strong>@(string.IsNullOrWhiteSpace(r.HrComment) ? "ثبت نشده" : r.HrComment)</strong></div>
+            }
+        </div>
+    </section>
+}
+
+@if (Model.StageKind == "HumanResources")
+{
+    <section class="card">
+        <div class="section-head"><div><h3>پیشنهاد مدت قرارداد</h3><span class="muted">مدت پیشنهادی از روی امتیاز نهایی محاسبه شده و قابل ویرایش است.</span></div></div>
+        <div class="contract-score-summary">
+            <div><span>امتیاز نهایی آخرین ارزیاب سازمانی</span><div class="contract-score-value">@score(r.FinalEvaluationScore) <small>از ۱۰۰</small></div></div>
+            <div><span>مدت پیشنهادی اولیه سیستم</span><div class="contract-score-value">@suggested <small>ماه</small></div></div>
+        </div>
+        <div class="note">قاعده پیشنهادی فعلی: کمتر از ۳۰ = صفر ماه؛ ۳۰ تا ۳۵ = یک ماه؛ ۳۶ تا ۵۲ = سه ماه؛ ۵۳ تا ۷۰ = شش ماه؛ ۷۱ تا ۸۷ = نه ماه؛ ۸۸ تا ۱۰۰ = دوازده ماه. امتیازهای ۳۰ و ۸۸ برای جلوگیری از بازه خالی به‌ترتیب در گروه یک‌ماهه و دوازده‌ماهه قرار گرفته‌اند.</div>
+        <form method="post" action="/ContractRenewalTask/Submit" class="form-stack">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@Model.Task.Id" />
+            <label>مدت پیشنهادی تمدید قرارداد (ماه) *
+                <input type="number" name="contractMonths" min="0" max="12" step="1" required value="@suggested" />
+            </label>
+            <label>توضیحات مدیر منابع انسانی و خدمات پشتیبانی
+                <textarea name="comment" rows="4" maxlength="3000" placeholder="دلایل پیشنهاد مدت قرارداد و ملاحظات منابع انسانی"></textarea>
+            </label>
+            <div class="actions"><button class="btn btn-main" type="submit">ثبت پیشنهاد و ارجاع به مدیرعامل</button></div>
+        </form>
+    </section>
+}
+
+@if (Model.StageKind == "CEO")
+{
+    <section class="card">
+        <div class="section-head"><div><h3>تصمیم نهایی مدیرعامل</h3><span class="muted">مدت پیشنهادی منابع انسانی قابل تغییر است؛ تأیید شما فرایند را نهایی می‌کند.</span></div></div>
+        <form method="post" action="/ContractRenewalTask/Submit" class="form-stack">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@Model.Task.Id" />
+            <label>مدت نهایی قرارداد (ماه) *
+                <input type="number" name="contractMonths" min="0" max="12" step="1" required value="@(r.HrProposedContractMonths ?? suggested)" />
+            </label>
+            <label>توضیحات نهایی مدیرعامل
+                <textarea name="comment" rows="4" maxlength="3000" placeholder="توضیحات یا دلایل تغییر مدت پیشنهادی در صورت نیاز"></textarea>
+            </label>
+            <div class="actions"><button class="btn btn-main" type="submit">تأیید نهایی و تکمیل فرایند</button></div>
+        </form>
+    </section>
+}

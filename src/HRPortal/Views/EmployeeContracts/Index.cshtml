@@ -1,0 +1,25 @@
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "مدیریت قراردادهای کارکنان";
+}
+<div class="page-head">
+    <div>
+        <h1>مدیریت قراردادهای کارکنان</h1>
+        <p>مدیریت اطلاعات پایه و دسترسی به فرایندهای مرتبط با قرارداد کارکنان</p>
+    </div>
+</div>
+
+<div class="contract-module-grid">
+    <a class="contract-module-card" href="/EmployeeContracts/BasicInformation">
+        <span class="contract-module-icon">۱</span>
+        <h3>اطلاعات پایه ماژول مدیریت قراردادها</h3>
+        <p>تعریف و نگهداری پرسش‌های ارزشیابی عملکرد کارکنان، سقف امتیاز و راهنمای امتیازدهی.</p>
+        <span class="contract-module-link">ورود به اطلاعات پایه ←</span>
+    </a>
+    <a class="contract-module-card" href="/EmployeeContracts/Renewal">
+        <span class="contract-module-icon">۲</span>
+        <h3>تمدید قرارداد</h3>
+        <p>محل ورود به فرایند تمدید قرارداد کارکنان؛ فرم و گردش کار پس از تکمیل جزئیات کسب‌وکار پیاده‌سازی می‌شوند.</p>
+        <span class="contract-module-link">مشاهده صفحه تمدید قرارداد ←</span>
+    </a>
+</div>

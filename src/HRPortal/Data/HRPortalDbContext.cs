@@ -53,6 +53,8 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.HasOne(x => x.OrganizationUnit).WithMany().HasForeignKey(x => x.OrganizationUnitId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.OrganizationDepartment).WithMany().HasForeignKey(x => x.OrganizationDepartmentId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.OrganizationSection).WithMany().HasForeignKey(x => x.OrganizationSectionId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.OrganizationPosition).WithMany().HasForeignKey(x => x.OrganizationPositionId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => x.OrganizationPositionId);
         });
         modelBuilder.Entity<OrganizationStructureRevision>(e =>
         {
@@ -63,6 +65,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.OrganizationStructureRevisionId, x.Code }).IsUnique();
+            e.HasIndex(x => x.OrganizationStructureRevisionId).IsUnique().HasFilter("[RankType] = N'مدیرعامل'");
             e.HasOne(x => x.Revision).WithMany(x => x.Nodes).HasForeignKey(x => x.OrganizationStructureRevisionId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.Parent).WithMany(x => x.Children).HasForeignKey(x => x.ParentId).OnDelete(DeleteBehavior.Restrict);
         });

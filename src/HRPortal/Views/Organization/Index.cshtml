@@ -234,7 +234,8 @@
     }
 
     function getRankChildren(parentRank) {
-        if (!parentRank) return ["معاونت", "مدیریت"];
+        if (!parentRank) return ["مدیرعامل", "معاونت", "مدیریت"];
+        if (parentRank === "مدیرعامل") return ["معاونت"];
         if (parentRank === "معاونت") return ["مدیریت"];
         if (parentRank === "مدیریت") return ["ریاست"];
         if (parentRank === "ریاست") return ["سرپرستی"];

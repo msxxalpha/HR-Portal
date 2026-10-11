@@ -96,7 +96,7 @@ public class ContractRenewalWorkflowService(HRPortalDbContext db, WorkflowServic
                 AssignmentType = "Position",
                 OrganizationNodeId = settings.SecurityPositionId,
                 AllowApprove = true,
-                AllowReject = false,
+                AllowReject = true,
                 AllowReturn = false,
                 RequireCommentOnReject = false,
                 IsFinalStep = false

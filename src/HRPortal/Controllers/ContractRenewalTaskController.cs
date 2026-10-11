@@ -108,8 +108,9 @@ public class ContractRenewalTaskController(
                 throw new InvalidOperationException("نوع مرحله گردش کار معتبر نیست.");
             }
 
-            // Complete the workflow task only after the posted business values have passed validation.
-            await workflow.CompleteTaskAsync(id, employeeId, "Approve", comment);
+            // Security's negative decision is a real workflow rejection, not an approval.
+            var workflowAction = stageKind == "Security" && securityDecision == "Reject" ? "Reject" : "Approve";
+            await workflow.CompleteTaskAsync(id, employeeId, workflowAction, comment);
 
             if (stageKind == "Evaluation" && isLastEvaluationStage)
             {
@@ -124,7 +125,15 @@ public class ContractRenewalTaskController(
             {
                 request.SecurityDecision = securityDecision;
                 request.SecurityComment = comment?.Trim();
-                request.Status = "در انتظار مدیر منابع انسانی و خدمات پشتیبانی";
+                if (securityDecision == "Reject")
+                {
+                    request.Status = "تمدید قرارداد تأیید نشد";
+                    request.CompletedAt = DateTime.UtcNow;
+                }
+                else
+                {
+                    request.Status = "در انتظار مدیر منابع انسانی و خدمات پشتیبانی";
+                }
             }
             else if (stageKind == "HumanResources")
             {
@@ -178,6 +187,10 @@ public class ContractRenewalTaskController(
             ? new List<EmployeePerformanceEvaluationScore>()
             : allScores.Where(x => x.WorkflowStepId == previousStep.Id).OrderBy(x => x.Id).ToList();
 
+        var completedStageTasks = await db.WorkflowTasks.AsNoTracking()
+            .Where(x => x.WorkflowInstanceId == task.WorkflowInstanceId && x.Status == "Completed")
+            .OrderByDescending(x => x.CompletedAt).ThenByDescending(x => x.Id)
+            .ToListAsync();
         var groups = new List<ContractRenewalScoreStageGroup>();
         foreach (var stage in evaluationSteps)
         {
@@ -188,6 +201,7 @@ public class ContractRenewalTaskController(
                 StageTitle = stage.Title,
                 PositionTitle = stage.OrganizationNode?.Title ?? stage.Title,
                 ScoreTotal = rows.Sum(x => x.Score ?? 0m),
+                Comment = completedStageTasks.FirstOrDefault(x => x.WorkflowStepId == stage.Id)?.Comment,
                 Scores = rows
             });
         }

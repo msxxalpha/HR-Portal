@@ -137,6 +137,18 @@
                 </select>
             </label>
         </div>
+        <div class="grid-2">
+            <label>جایگاه سازمانی ویژه (مدیرعامل)
+                <select name="OrganizationPositionId">
+                    <option value="">بدون جایگاه ویژه</option>
+                    @foreach (var n in Model.SpecialPositions)
+                    {
+                        <option value="@n.Id" selected="@(Model.Employee.OrganizationPositionId == n.Id)">@n.Title (@n.Code)</option>
+                    }
+                </select>
+                <small class="muted">این گزینه فقط برای تعیین مدیرعامل استفاده می‌شود. در میان کارکنان فعال، این رده فقط به یک نفر قابل اختصاص است.</small>
+            </label>
+        </div>
     </div>
 
     <div class="form-actions"><button class="btn btn-main" type="submit">@(edit ? "ذخیره تغییرات" : "ثبت کارمند")</button></div>

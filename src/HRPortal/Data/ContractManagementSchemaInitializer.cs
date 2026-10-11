@@ -59,7 +59,7 @@ BEGIN
         [EmployeeId] int NOT NULL,
         [CreatedByEmployeeId] int NULL,
         [WorkflowInstanceId] int NULL,
-        [Status] nvarchar(40) NOT NULL,
+        [Status] nvarchar(100) NOT NULL,
         [EmployeeNameSnapshot] nvarchar(200) NOT NULL,
         [PersonnelNumberSnapshot] nvarchar(50) NOT NULL,
         [OrganizationUnitSnapshot] nvarchar(200) NOT NULL,
@@ -95,6 +95,11 @@ BEGIN
         [CompletedAt] datetime2 NULL
     );
 END;
+
+IF OBJECT_ID(N'dbo.ContractRenewalRequests', N'U') IS NOT NULL
+AND COL_LENGTH(N'dbo.ContractRenewalRequests', N'Status') IS NOT NULL
+AND COL_LENGTH(N'dbo.ContractRenewalRequests', N'Status') < 200
+    ALTER TABLE [dbo].[ContractRenewalRequests] ALTER COLUMN [Status] nvarchar(100) NOT NULL;
 
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_ContractRenewalRequests_RequestCode' AND object_id=OBJECT_ID(N'dbo.ContractRenewalRequests'))
     CREATE UNIQUE INDEX [IX_ContractRenewalRequests_RequestCode] ON [dbo].[ContractRenewalRequests]([RequestCode]);

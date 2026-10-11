@@ -370,7 +370,8 @@ public class OrganizationController(
             (await db.Employees.AnyAsync(e =>
                 (e.OrganizationUnitId.HasValue && nodeIds.Contains(e.OrganizationUnitId.Value)) ||
                 (e.OrganizationDepartmentId.HasValue && nodeIds.Contains(e.OrganizationDepartmentId.Value)) ||
-                (e.OrganizationSectionId.HasValue && nodeIds.Contains(e.OrganizationSectionId.Value))) ||
+                (e.OrganizationSectionId.HasValue && nodeIds.Contains(e.OrganizationSectionId.Value)) ||
+                (e.OrganizationPositionId.HasValue && nodeIds.Contains(e.OrganizationPositionId.Value))) ||
              await db.WorkflowSteps.AnyAsync(x => x.OrganizationNodeId.HasValue && nodeIds.Contains(x.OrganizationNodeId.Value)) ||
              await db.WorkflowTasks.AnyAsync(x => x.AssignedPositionId.HasValue && nodeIds.Contains(x.AssignedPositionId.Value)) ||
              await db.WorkflowHistory.AnyAsync(x => x.ActorPositionId.HasValue && nodeIds.Contains(x.ActorPositionId.Value))))

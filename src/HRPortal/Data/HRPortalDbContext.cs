@@ -34,6 +34,8 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
     public DbSet<WorkflowFieldValue> WorkflowFieldValues => Set<WorkflowFieldValue>();
     public DbSet<EmployeePerformanceEvaluationQuestion> EmployeePerformanceEvaluationQuestions => Set<EmployeePerformanceEvaluationQuestion>();
     public DbSet<EmployeePerformanceEvaluationScore> EmployeePerformanceEvaluationScores => Set<EmployeePerformanceEvaluationScore>();
+    public DbSet<ContractRenewalRequest> ContractRenewalRequests => Set<ContractRenewalRequest>();
+    public DbSet<ContractRenewalWorkflowSettings> ContractRenewalWorkflowSettings => Set<ContractRenewalWorkflowSettings>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -166,6 +168,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.Property(x => x.Title).HasMaxLength(200).IsRequired();
             e.HasIndex(x => new { x.WorkflowDefinitionId, x.SortOrder });
             e.Property(x => x.HierarchyStopRankType).HasMaxLength(30).HasDefaultValue("معاونت");
+            e.HasOne<Employee>().WithMany().HasForeignKey(x => x.AssignedEmployeeId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.WorkflowDefinition).WithMany(x => x.Steps).HasForeignKey(x => x.WorkflowDefinitionId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.OrganizationNode).WithMany().HasForeignKey(x => x.OrganizationNodeId).OnDelete(DeleteBehavior.Restrict);
         });
@@ -247,6 +250,34 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.HasOne(x => x.WorkflowInstance).WithMany().HasForeignKey(x => x.WorkflowInstanceId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.WorkflowStep).WithMany().HasForeignKey(x => x.WorkflowStepId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.EvaluatorEmployee).WithMany().HasForeignKey(x => x.EvaluatorEmployeeId).OnDelete(DeleteBehavior.SetNull);
+        });
+        modelBuilder.Entity<ContractRenewalRequest>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.RequestCode).HasMaxLength(40).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(40).IsRequired();
+            e.Property(x => x.EmployeeNameSnapshot).HasMaxLength(200).IsRequired();
+            e.Property(x => x.PersonnelNumberSnapshot).HasMaxLength(50).IsRequired();
+            e.Property(x => x.OrganizationUnitSnapshot).HasMaxLength(200).IsRequired();
+            e.Property(x => x.PositionTitleSnapshot).HasMaxLength(300).IsRequired();
+            e.Property(x => x.PreviousPeriodScore1).HasPrecision(5, 2);
+            e.Property(x => x.PreviousPeriodScore2).HasPrecision(5, 2);
+            e.Property(x => x.FinalEvaluationScore).HasPrecision(5, 2);
+            e.Property(x => x.SecurityDecision).HasMaxLength(30);
+            e.HasIndex(x => new { x.EmployeeId, x.CreatedAt });
+            e.HasIndex(x => new { x.Status, x.CreatedAt });
+            e.HasIndex(x => x.RequestCode).IsUnique();
+            e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.CreatedByEmployee).WithMany().HasForeignKey(x => x.CreatedByEmployeeId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(x => x.WorkflowInstance).WithMany().HasForeignKey(x => x.WorkflowInstanceId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<ContractRenewalWorkflowSettings>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedNever();
+            e.HasOne(x => x.SecurityPosition).WithMany().HasForeignKey(x => x.SecurityPositionId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.HumanResourcesPosition).WithMany().HasForeignKey(x => x.HumanResourcesPositionId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.CeoEmployee).WithMany().HasForeignKey(x => x.CeoEmployeeId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<EmployeeRole>(e =>
         {

@@ -91,7 +91,6 @@ public class ContractRenewalTaskController(
                     .AnyAsync(x => x.WorkflowDefinitionId == task.WorkflowInstance.WorkflowDefinitionId &&
                         x.Code.StartsWith("Evaluation_H") && x.SortOrder > task.WorkflowStep.SortOrder);
                 isLastEvaluationStage = !laterStages;
-                await db.SaveChangesAsync();
             }
             else if (stageKind == "Security")
             {
@@ -108,10 +107,7 @@ public class ContractRenewalTaskController(
                 throw new InvalidOperationException("نوع مرحله گردش کار معتبر نیست.");
             }
 
-            // Security's negative decision is a real workflow rejection, not an approval.
-            var workflowAction = stageKind == "Security" && securityDecision == "Reject" ? "Reject" : "Approve";
-            await workflow.CompleteTaskAsync(id, employeeId, workflowAction, comment);
-
+            // Keep business data and workflow transition in the same WorkflowService transaction.
             if (stageKind == "Evaluation" && isLastEvaluationStage)
             {
                 request.FinalEvaluationScore = completedEvaluationScore;
@@ -149,7 +145,9 @@ public class ContractRenewalTaskController(
                 request.CompletedAt = DateTime.UtcNow;
             }
 
-            await db.SaveChangesAsync();
+            // Security's negative decision is a real workflow rejection, not an approval.
+            var workflowAction = stageKind == "Security" && securityDecision == "Reject" ? "Reject" : "Approve";
+            await workflow.CompleteTaskAsync(id, employeeId, workflowAction, comment);
             await audit.WriteAsync("ثبت مرحله ارزشیابی تمدید قرارداد", nameof(ContractRenewalRequest),
                 request.Id.ToString(), $"{task.WorkflowStep.Title} | {stageKind}");
             TempData["Success"] = stageKind == "CEO"

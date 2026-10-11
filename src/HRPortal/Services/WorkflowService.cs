@@ -163,7 +163,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         if (string.IsNullOrWhiteSpace(model.Code) || string.IsNullOrWhiteSpace(model.Title))
             throw new InvalidOperationException("کد و عنوان مرحله الزامی است.");
 
-        var assignmentType = model.AssignmentType == "Hierarchy" ? "Hierarchy" : "Position";
+        var assignmentType = model.AssignmentType is "Hierarchy" or "Employee" ? model.AssignmentType : "Position";
         if (assignmentType == "Position" && !model.OrganizationNodeId.HasValue)
             throw new InvalidOperationException("برای مرحله جایگاه ثابت، انتخاب جایگاه سازمانی الزامی است.");
         if (assignmentType == "Hierarchy" && model.HierarchyStopRankType is not ("معاونت" or "مدیریت" or "ریاست" or "سرپرستی" or "مدیرعامل"))

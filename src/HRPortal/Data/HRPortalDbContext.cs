@@ -32,6 +32,8 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
     public DbSet<WorkflowHistory> WorkflowHistory => Set<WorkflowHistory>();
     public DbSet<WorkflowStepField> WorkflowStepFields => Set<WorkflowStepField>();
     public DbSet<WorkflowFieldValue> WorkflowFieldValues => Set<WorkflowFieldValue>();
+    public DbSet<EmployeePerformanceEvaluationQuestion> EmployeePerformanceEvaluationQuestions => Set<EmployeePerformanceEvaluationQuestion>();
+    public DbSet<EmployeePerformanceEvaluationScore> EmployeePerformanceEvaluationScores => Set<EmployeePerformanceEvaluationScore>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -224,6 +226,27 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.HasOne(x => x.WorkflowStep).WithMany().HasForeignKey(x => x.WorkflowStepId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.WorkflowStepField).WithMany().HasForeignKey(x => x.WorkflowStepFieldId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.UpdatedByEmployee).WithMany().HasForeignKey(x => x.UpdatedByEmployeeId).OnDelete(DeleteBehavior.SetNull);
+        });
+        modelBuilder.Entity<EmployeePerformanceEvaluationQuestion>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.QuestionText).HasMaxLength(1000).IsRequired();
+            e.Property(x => x.MaxScore).HasPrecision(5, 2);
+            e.Property(x => x.ScoringGuidance).HasMaxLength(4000).IsRequired();
+            e.HasIndex(x => new { x.IsActive, x.SortOrder, x.Id });
+        });
+        modelBuilder.Entity<EmployeePerformanceEvaluationScore>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Score).HasPrecision(5, 2);
+            e.Property(x => x.MaxScoreSnapshot).HasPrecision(5, 2);
+            e.Property(x => x.QuestionTextSnapshot).HasMaxLength(1000).IsRequired();
+            e.Property(x => x.ScoringGuidanceSnapshot).HasMaxLength(4000).IsRequired();
+            e.HasIndex(x => new { x.QuestionId, x.WorkflowInstanceId });
+            e.HasOne(x => x.Question).WithMany().HasForeignKey(x => x.QuestionId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.WorkflowInstance).WithMany().HasForeignKey(x => x.WorkflowInstanceId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.WorkflowStep).WithMany().HasForeignKey(x => x.WorkflowStepId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.EvaluatorEmployee).WithMany().HasForeignKey(x => x.EvaluatorEmployeeId).OnDelete(DeleteBehavior.SetNull);
         });
         modelBuilder.Entity<EmployeeRole>(e =>
         {

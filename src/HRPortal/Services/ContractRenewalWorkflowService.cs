@@ -35,9 +35,19 @@ public class ContractRenewalWorkflowService(HRPortalDbContext db, WorkflowServic
                 x.OrganizationStructureRevisionId == revision.Id && x.IsActive, cancellationToken))
             throw new InvalidOperationException("جایگاه مدیر منابع انسانی و خدمات پشتیبانی را در تنظیمات گردش کار انتخاب کنید.");
 
-        if (!settings.CeoEmployeeId.HasValue ||
-            !await db.Employees.AnyAsync(x => x.Id == settings.CeoEmployeeId.Value && x.Status == "فعال", cancellationToken))
-            throw new InvalidOperationException("کارمند مدیرعامل را در تنظیمات گردش کار انتخاب کنید.");
+        var ceoNodes = await db.OrganizationNodes.AsNoTracking()
+            .Where(x => x.OrganizationStructureRevisionId == revision.Id && x.IsActive && x.RankType == "مدیرعامل")
+            .ToListAsync(cancellationToken);
+        if (ceoNodes.Count != 1)
+            throw new InvalidOperationException("در آخرین نسخه نهایی ساختار سازمانی باید دقیقاً یک گره فعال با رده مدیرعامل وجود داشته باشد.");
+
+        var ceoEmployees = await db.Employees.AsNoTracking()
+            .Where(x => x.Status == "فعال" && x.OrganizationPositionId == ceoNodes[0].Id)
+            .ToListAsync(cancellationToken);
+        if (ceoEmployees.Count != 1)
+            throw new InvalidOperationException("باید دقیقاً یک کارمند فعال به جایگاه مدیرعامل در نسخه نهایی ساختار سازمانی متصل باشد.");
+
+        var ceoEmployeeId = ceoEmployees[0].Id;
 
         var questions = await db.EmployeePerformanceEvaluationQuestions
             .AsNoTracking()
@@ -112,7 +122,7 @@ public class ContractRenewalWorkflowService(HRPortalDbContext db, WorkflowServic
                 Title = "تصمیم نهایی مدیرعامل",
                 SortOrder = 1020,
                 AssignmentType = "Employee",
-                AssignedEmployeeId = settings.CeoEmployeeId,
+                AssignedEmployeeId = ceoEmployeeId,
                 AllowApprove = true,
                 AllowReject = false,
                 AllowReturn = true,

@@ -34,6 +34,7 @@ BEGIN
         [AssignmentType] nvarchar(30) NOT NULL CONSTRAINT [DF_WorkflowSteps_AssignmentType] DEFAULT N'Position',
         [HierarchyStopRankType] nvarchar(30) NOT NULL CONSTRAINT [DF_WorkflowSteps_HierarchyStopRankType] DEFAULT N'معاونت',
         [OrganizationNodeId] int NULL,
+        [AssignedEmployeeId] int NULL,
         [AssignmentMode] nvarchar(20) NOT NULL CONSTRAINT [DF_WorkflowSteps_AssignmentMode] DEFAULT N'Any',
         [AllowApprove] bit NOT NULL CONSTRAINT [DF_WorkflowSteps_AllowApprove] DEFAULT 1,
         [AllowReject] bit NOT NULL CONSTRAINT [DF_WorkflowSteps_AllowReject] DEFAULT 1,
@@ -138,6 +139,7 @@ END;
 IF COL_LENGTH(N'dbo.WorkflowDefinitions', N'IsRuntimeInstance') IS NULL ALTER TABLE [dbo].[WorkflowDefinitions] ADD [IsRuntimeInstance] bit NOT NULL CONSTRAINT [DF_WorkflowDefinitions_IsRuntimeInstance] DEFAULT 0;
 IF COL_LENGTH(N'dbo.WorkflowDefinitions', N'SourceDefinitionId') IS NULL ALTER TABLE [dbo].[WorkflowDefinitions] ADD [SourceDefinitionId] int NULL;
 IF COL_LENGTH(N'dbo.WorkflowSteps', N'HierarchyStopRankType') IS NULL ALTER TABLE [dbo].[WorkflowSteps] ADD [HierarchyStopRankType] nvarchar(30) NOT NULL CONSTRAINT [DF_WorkflowSteps_HierarchyStopRankType] DEFAULT N'معاونت';
+IF OBJECT_ID(N'dbo.WorkflowSteps', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.WorkflowSteps', N'AssignedEmployeeId') IS NULL ALTER TABLE [dbo].[WorkflowSteps] ADD [AssignedEmployeeId] int NULL;
 
 IF EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowDefinitions_Code' AND object_id=OBJECT_ID(N'dbo.WorkflowDefinitions'))
     DROP INDEX [IX_WorkflowDefinitions_Code] ON [dbo].[WorkflowDefinitions];
@@ -170,6 +172,12 @@ IF EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowFieldValues_Instance
 
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowFieldValues_Instance_Field' AND object_id=OBJECT_ID(N'dbo.WorkflowFieldValues'))
     EXEC sys.sp_executesql N'CREATE INDEX [IX_WorkflowFieldValues_Instance_Field] ON [dbo].[WorkflowFieldValues]([WorkflowInstanceId],[WorkflowStepFieldId],[UpdatedAt]);';
+
+IF OBJECT_ID(N'dbo.WorkflowSteps', N'U') IS NOT NULL
+AND OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL
+AND NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name=N'FK_WorkflowSteps_AssignedEmployee')
+    ALTER TABLE [dbo].[WorkflowSteps] ADD CONSTRAINT [FK_WorkflowSteps_AssignedEmployee]
+    FOREIGN KEY([AssignedEmployeeId]) REFERENCES [dbo].[Employees]([Id]) ON DELETE NO ACTION;
 
 IF OBJECT_ID(N'dbo.WorkflowSteps', N'U') IS NOT NULL
 AND OBJECT_ID(N'dbo.WorkflowDefinitions', N'U') IS NOT NULL

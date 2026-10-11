@@ -162,7 +162,7 @@
         <div class="section-head"><div><h3>۲. پیش‌نمایش نهایی درخواست</h3><span class="muted">اطلاعات زیر بازبینی شود؛ با تأیید، رکورد درخواست ساخته و گردش کار آغاز می‌شود.</span></div></div>
         <div class="contract-preview-grid">
             <div><span>کارمند</span><strong>@employee.FirstName @employee.LastName (@employee.PersonnelNumber)</strong></div>
-            <div><span>واحد / سمت</span><strong>@(employee.OrganizationUnit?.Title ?? "—") / @(employee.PositionTitle ?? "—")</strong></div>
+            <div><span>واحد / سمت</span><strong>@(employee.OrganizationUnit?.Title ?? "—") / @(employee.OrganizationPosition?.Title ?? employee.PositionTitle ?? "—")</strong></div>
             <div><span>تاریخ پایان قرارداد قبلی</span><strong>@faDate(employee.ContractEndDate)</strong></div>
             <div><span>سوابق تمدید (ماه)</span><strong>@Model.PreviousExtensionMonths1 / @Model.PreviousExtensionMonths2 / @Model.PreviousExtensionMonths3</strong></div>
             <div><span>اخطار کتبی</span><strong>@(Model.HasDisciplinaryWarnings ? $"بله، {Model.DisciplinaryWarningCount} نوبت" : "خیر")</strong></div>

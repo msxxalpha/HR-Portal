@@ -29,5 +29,8 @@ public class ContractRenewalIntakeViewModel
     public List<decimal> PreviousScoresFound { get; set; } = [];
     public List<EmployeePerformanceEvaluationQuestion> ActiveQuestions { get; set; } = [];
     public decimal ActiveQuestionsTotal { get; set; }
+    public List<ContractRenewalRequest> RecentRequests { get; set; } = [];
+    public bool WorkflowSettingsReady { get; set; }
+    public bool QuestionsReady { get; set; }
     public string? ErrorMessage { get; set; }
 }

@@ -277,7 +277,7 @@ public class EmployeeContractsController(
             EmployeeNameSnapshot = $"{employee.FirstName} {employee.LastName}".Trim(),
             PersonnelNumberSnapshot = employee.PersonnelNumber,
             OrganizationUnitSnapshot = employee.OrganizationUnit?.Title ?? "",
-            PositionTitleSnapshot = employee.PositionTitle ?? "",
+            PositionTitleSnapshot = employee.OrganizationPosition?.Title ?? employee.PositionTitle ?? "",
             PreviousContractEndDate = employee.ContractEndDate,
             PreviousExtensionMonths1 = model.PreviousExtensionMonths1,
             PreviousExtensionMonths2 = model.PreviousExtensionMonths2,
@@ -337,6 +337,7 @@ public class EmployeeContractsController(
             .Include(x => x.OrganizationUnit)
             .Include(x => x.OrganizationDepartment)
             .Include(x => x.OrganizationSection)
+            .Include(x => x.OrganizationPosition)
             .Where(x => x.Status == "فعال")
             .OrderBy(x => x.LastName).ThenBy(x => x.FirstName)
             .ToListAsync();

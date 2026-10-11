@@ -764,6 +764,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .Include(x => x.WorkflowInstance).ThenInclude(x => x.WorkflowDefinition)
             .Include(x => x.WorkflowInstance).ThenInclude(x => x.RequesterEmployee)
             .Include(x => x.WorkflowStep).ThenInclude(x => x.OrganizationNode)
+            .Include(x => x.AssignedPosition)
             .FirstOrDefaultAsync(x => x.Id == id && x.Status == "Pending" &&
                 (x.AssignedEmployeeId == employeeId ||
                  (x.AssignedEmployeeId == null && x.AssignedPositionId.HasValue &&

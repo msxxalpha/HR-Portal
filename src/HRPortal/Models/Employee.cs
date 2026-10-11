@@ -14,6 +14,7 @@ public class Employee
     public int? OrganizationUnitId { get; set; }
     public int? OrganizationDepartmentId { get; set; }
     public int? OrganizationSectionId { get; set; }
+    public int? OrganizationPositionId { get; set; }
     public string? PositionTitle { get; set; }
     public string? EmploymentType { get; set; } = "قراردادی";
     public DateTime? ContractEndDate { get; set; } = new System.Globalization.PersianCalendar().ToDateTime(1405, 12, 29, 0, 0, 0, 0);
@@ -24,4 +25,5 @@ public class Employee
     public OrganizationNode? OrganizationUnit { get; set; }
     public OrganizationNode? OrganizationDepartment { get; set; }
     public OrganizationNode? OrganizationSection { get; set; }
+    public OrganizationNode? OrganizationPosition { get; set; }
 }

@@ -9,7 +9,7 @@ public class ContractRenewalRequest
     public int EmployeeId { get; set; }
     public int? CreatedByEmployeeId { get; set; }
     public int? WorkflowInstanceId { get; set; }
-    [MaxLength(40)] public string Status { get; set; } = "Submitted";
+    [MaxLength(100)] public string Status { get; set; } = "Submitted";
 
     [MaxLength(200)] public string EmployeeNameSnapshot { get; set; } = "";
     [MaxLength(50)] public string PersonnelNumberSnapshot { get; set; } = "";

@@ -146,6 +146,10 @@ public class OrganizationController(
         if (validation is not null)
             return Json(new { success = false, message = validation });
 
+        if (rankType == "مدیرعامل" &&
+            await db.OrganizationNodes.AnyAsync(x => x.OrganizationStructureRevisionId == revisionId && x.RankType == "مدیرعامل"))
+            return Json(new { success = false, message = "در هر نسخه ساختار سازمانی فقط یک گره با رده مدیرعامل مجاز است." });
+
         code = code.Trim();
         title = title.Trim();
 
@@ -225,6 +229,10 @@ public class OrganizationController(
         var validation = await ValidateNodeParentAsync(node.OrganizationStructureRevisionId, node.ParentId, rankType);
         if (validation is not null)
             return Json(new { success = false, message = validation });
+
+        if (rankType == "مدیرعامل" &&
+            await db.OrganizationNodes.AnyAsync(x => x.Id != id && x.OrganizationStructureRevisionId == node.OrganizationStructureRevisionId && x.RankType == "مدیرعامل"))
+            return Json(new { success = false, message = "در هر نسخه ساختار سازمانی فقط یک گره با رده مدیرعامل مجاز است." });
 
         if (await db.OrganizationNodes.AnyAsync(x =>
                 x.Id != id &&
@@ -449,7 +457,8 @@ public class OrganizationController(
         await db.Employees.AnyAsync(e =>
             e.OrganizationUnitId == id ||
             e.OrganizationDepartmentId == id ||
-            e.OrganizationSectionId == id) ||
+            e.OrganizationSectionId == id ||
+            e.OrganizationPositionId == id) ||
         await db.WorkflowSteps.AnyAsync(x => x.OrganizationNodeId == id) ||
         await db.WorkflowTasks.AnyAsync(x => x.AssignedPositionId == id) ||
         await db.WorkflowHistory.AnyAsync(x => x.ActorPositionId == id);

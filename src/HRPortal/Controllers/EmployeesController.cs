@@ -16,6 +16,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
             .Include(x => x.OrganizationUnit)
             .Include(x => x.OrganizationDepartment)
             .Include(x => x.OrganizationSection)
+            .Include(x => x.OrganizationPosition)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(q))
@@ -30,7 +31,8 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
                 x.Status.Contains(q) ||
                 (x.OrganizationUnit != null && x.OrganizationUnit.Title.Contains(q)) ||
                 (x.OrganizationDepartment != null && x.OrganizationDepartment.Title.Contains(q)) ||
-                (x.OrganizationSection != null && x.OrganizationSection.Title.Contains(q)));
+                (x.OrganizationSection != null && x.OrganizationSection.Title.Contains(q)) ||
+                (x.OrganizationPosition != null && x.OrganizationPosition.Title.Contains(q)));
 
         if (!string.IsNullOrWhiteSpace(status))
             query = query.Where(x => x.Status == status);
@@ -422,6 +424,25 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
                 (section is null || section.ParentId != employee.OrganizationDepartmentId.Value))
                 ModelState.AddModelError("OrganizationSectionId", "بخش انتخاب‌شده زیرمجموعه اداره انتخاب‌شده نیست.");
         }
+
+        if (employee.OrganizationPositionId.HasValue)
+        {
+            var position = await db.OrganizationNodes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == employee.OrganizationPositionId.Value &&
+                    x.IsActive && x.RankType == "مدیرعامل");
+            if (position is null)
+            {
+                ModelState.AddModelError("OrganizationPositionId", "جایگاه ویژه باید یک جایگاه فعال با رده مدیرعامل باشد.");
+            }
+            else if (employee.Status == "فعال" && await db.Employees.AnyAsync(other =>
+                other.Id != employee.Id && other.Status == "فعال" &&
+                other.OrganizationPositionId.HasValue &&
+                db.OrganizationNodes.Any(node => node.Id == other.OrganizationPositionId.Value &&
+                    node.RankType == "مدیرعامل")))
+            {
+                ModelState.AddModelError("OrganizationPositionId", "در میان کارکنان فعال، فقط یک نفر می‌تواند رده مدیرعامل داشته باشد.");
+            }
+        }
     }
 
     private void ValidateEmployee(Employee employee)
@@ -457,12 +478,22 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
                 .ThenBy(x => x.Title)
                 .ToListAsync();
 
+        var ceoNodes = nodes.Where(x => x.RankType == "مدیرعامل").ToList();
+        if (employee.OrganizationPositionId.HasValue &&
+            ceoNodes.All(x => x.Id != employee.OrganizationPositionId.Value))
+        {
+            var existingPosition = await db.OrganizationNodes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == employee.OrganizationPositionId.Value && x.RankType == "مدیرعامل");
+            if (existingPosition is not null) ceoNodes.Add(existingPosition);
+        }
+
         return new FormVm
         {
             Employee = employee,
             Units = nodes.Where(x => x.RankType == "مدیریت").ToList(),
             Departments = nodes.Where(x => x.RankType == "ریاست").ToList(),
-            Sections = nodes.Where(x => x.RankType == "سرپرستی").ToList()
+            Sections = nodes.Where(x => x.RankType == "سرپرستی").ToList(),
+            SpecialPositions = ceoNodes
         };
     }
 
@@ -472,5 +503,6 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         public List<OrganizationNode> Units { get; set; } = [];
         public List<OrganizationNode> Departments { get; set; } = [];
         public List<OrganizationNode> Sections { get; set; } = [];
+        public List<OrganizationNode> SpecialPositions { get; set; } = [];
     }
 }

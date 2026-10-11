@@ -11,6 +11,7 @@ public class ContractRenewalStageViewModel
     public List<ContractRenewalScoreStageGroup> AllScoreStages { get; set; } = [];
     public decimal CurrentQuestionCeilingTotal { get; set; }
     public decimal? PreviousStageScoreTotal { get; set; }
+    public string? PreviousStageComment { get; set; }
     public int? SuggestedContractMonths { get; set; }
 }
 public class ContractRenewalScoreStageGroup

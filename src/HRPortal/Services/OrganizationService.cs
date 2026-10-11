@@ -148,20 +148,21 @@ public class OrganizationService(HRPortalDbContext db, AuditService audit)
     public static string? ValidateHierarchy(
         string parentRank, string childRank, bool isRoot)
     {
-        if (childRank is not ("معاونت" or "مدیریت" or "ریاست" or "سرپرستی"))
+        if (childRank is not ("مدیرعامل" or "معاونت" or "مدیریت" or "ریاست" or "سرپرستی"))
             return "رده سازمانی معتبر نیست.";
 
         if (isRoot)
-            return childRank is "معاونت" or "مدیریت"
+            return childRank is "مدیرعامل" or "معاونت" or "مدیریت"
                 ? null
-                : "در ریشه درخت فقط رده معاونت یا مدیریت مجاز است.";
+                : "در ریشه درخت فقط رده مدیرعامل، معاونت یا مدیریت مجاز است.";
 
         return parentRank switch
         {
+            "مدیرعامل" when childRank == "معاونت" => null,
             "معاونت" when childRank == "مدیریت" => null,
             "مدیریت" when childRank == "ریاست" => null,
             "ریاست" when childRank == "سرپرستی" => null,
-            _ => "ترتیب رده سازمانی نامعتبر است. ترتیب مجاز: معاونت ← مدیریت ← ریاست ← سرپرستی."
+            _ => "ترتیب رده سازمانی نامعتبر است. ترتیب پیشنهادی: مدیرعامل ← معاونت ← مدیریت ← ریاست ← سرپرستی."
         };
     }
 }

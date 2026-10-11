@@ -219,6 +219,9 @@ public class ContractRenewalTaskController(
             PreviousStageScoreTotal = previousScores.Count > 0 && previousScores.All(x => x.Score.HasValue)
                 ? previousScores.Sum(x => x.Score!.Value)
                 : null,
+            PreviousStageComment = previousStep is null
+                ? null
+                : completedStageTasks.FirstOrDefault(x => x.WorkflowStepId == previousStep.Id)?.Comment,
             SuggestedContractMonths = ContractRenewalWorkflowService.SuggestedContractMonths(request.FinalEvaluationScore)
         };
     }

@@ -311,3 +311,33 @@
 .contract-renewal-placeholder p{font-size:12px;line-height:2.2;color:var(--muted);max-width:700px;margin:0 auto 20px}
 @media(max-width:1150px){.contract-management-grid{grid-template-columns:1fr}}
 @media(max-width:720px){.contract-module-grid{grid-template-columns:1fr}.contract-score-summary{align-items:flex-start;flex-direction:column}.contract-score-progress{width:100%;max-width:none}.contract-tabs{overflow-x:auto}.contract-tab{white-space:nowrap}}
+
+
+/* Contract renewal intake and dedicated stage forms */
+.contract-readiness-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:16px 0}
+.contract-readiness-item{border:1px solid var(--line);border-radius:10px;padding:13px;background:#fbfcfd}
+.contract-readiness-item strong,.contract-readiness-item span{display:block}
+.contract-readiness-item strong{font-size:12px;color:var(--navy);margin-bottom:5px}
+.contract-readiness-item span{font-size:10px;line-height:1.9;color:var(--muted)}
+.contract-employee-summary,.contract-stage-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}
+.contract-employee-summary>div,.contract-stage-summary>div{border:1px solid var(--line);border-radius:10px;padding:13px;background:#fff;min-width:0}
+.contract-employee-summary span,.contract-stage-summary span,.contract-preview-grid span{display:block;color:var(--muted);font-size:10px;margin-bottom:6px}
+.contract-employee-summary strong,.contract-stage-summary strong,.contract-preview-grid strong{display:block;color:var(--navy);font-size:11px;line-height:1.9;overflow-wrap:anywhere}
+.contract-preview-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.contract-preview-grid>div{padding:12px;border:1px solid var(--line);border-radius:9px;background:#fbfcfd;min-width:0}
+.contract-preview-card{margin-top:18px}
+.contract-form-subhead{font-size:13px;color:var(--navy);margin:22px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.contract-conditional-field{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border:1px solid var(--line);border-radius:9px;padding:12px;margin:8px 0}
+.contract-check-label{display:flex;align-items:center;gap:9px;font-size:11px;line-height:1.8}
+.contract-check-label input{flex:0 0 auto}
+.conditional-count{min-width:130px}
+.conditional-count label{font-size:10px}
+.contract-confirm-form{margin-top:18px}
+.contract-stage-summary{grid-template-columns:repeat(4,minmax(0,1fr))}
+.contract-score-stage{border:1px solid var(--line);border-radius:11px;padding:14px;margin:12px 0;background:#fbfcfd}
+.contract-score-stage h4{margin:0}
+.contract-score-guidance{min-width:240px;max-width:520px;white-space:pre-line;line-height:1.9;font-size:10px}
+.contract-score-input{min-width:90px;max-width:130px}
+.note{padding:12px 14px;border-right:3px solid var(--navy2);background:#f4f7f9;border-radius:8px;color:#52616d;font-size:10px;line-height:2;margin:12px 0}
+@media(max-width:900px){.contract-readiness-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.contract-employee-summary,.contract-stage-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.contract-preview-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.contract-readiness-grid,.contract-employee-summary,.contract-stage-summary,.contract-preview-grid{grid-template-columns:1fr}.contract-conditional-field{flex-direction:column}.conditional-count{width:100%}.contract-score-guidance{min-width:170px}}

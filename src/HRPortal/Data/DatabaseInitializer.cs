@@ -15,6 +15,7 @@ public static class DatabaseInitializer
         await EnsureRoleTablesAsync(db);
         await EnsureReportAndAnnouncementSchemaAsync(db);
         await WorkflowSchemaInitializer.InitializeAsync(db);
+        await ContractManagementSchemaInitializer.InitializeAsync(db);
 
         if (!await db.SystemSettings.AnyAsync())
             db.SystemSettings.Add(new SystemSettings { OrganizationName = "شرکت کمک فنرسازی ایندامین سایپا", ApplicationName = "پورتال جامع منابع انسانی" });

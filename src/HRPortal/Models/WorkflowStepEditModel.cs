@@ -8,6 +8,7 @@ public class WorkflowStepEditModel
     public string Title { get; set; } = "";
     public int SortOrder { get; set; }
     public int? OrganizationNodeId { get; set; }
+    public int? AssignedEmployeeId { get; set; }
     public string AssignmentType { get; set; } = "Position";
     public string HierarchyStopRankType { get; set; } = "معاونت";
     public string AssignmentMode { get; set; } = "Any";

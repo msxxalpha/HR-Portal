@@ -1,18 +1,260 @@
+@model HRPortal.Models.ContractRenewalIntakeViewModel
+@using HRPortal.Services
 @{
     Layout = "~/Views/Shared/_Layout.cshtml";
-    ViewData["Title"] = "تمدید قرارداد";
+    ViewData["Title"] = "ارزشیابی عملکرد و تمدید قرارداد";
+    var employee = Model.SelectedEmployee;
+    string score(decimal value) => value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+    string faDate(DateTime? d) => d.HasValue ? PersianDateService.Format(d.Value) : "سابقه‌ای ثبت نشده است";
 }
 <div class="page-head">
     <div>
-        <h1>تمدید قرارداد</h1>
-        <p>ورود به فرایند تمدید قرارداد کارکنان</p>
+        <h1>ارزشیابی عملکرد و تمدید قرارداد</h1>
+        <p>ثبت سوابق کارمند، بازبینی اطلاعات و شروع گردش خودکار ارزشیابی</p>
     </div>
     <a class="btn btn-outline" href="/EmployeeContracts">بازگشت به مدیریت قراردادهای کارکنان</a>
 </div>
 
-<div class="card contract-renewal-placeholder">
-    <div class="contract-module-icon">۲</div>
-    <h3>صفحه تمدید قرارداد ایجاد شده است</h3>
-    <p>این صفحه فعلاً محل استقرار فرم تمدید قرارداد خواهد بود. طبق درخواست، فرم ارزشیابی و گردش کار اجرایی هنوز ساخته نشده‌اند؛ ابتدا باید جزئیات فیلدها، قواعد امتیازدهی، مسیر پویای سازمانی، مراحل ثابت و تصمیم نهایی مشخص شود.</p>
-    <a class="btn btn-main" href="/EmployeeContracts/BasicInformation">مدیریت پرسش‌های ارزشیابی عملکرد</a>
+@if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
+@if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage)) { <div class="alert error">@Model.ErrorMessage</div> }
+
+<div class="contract-readiness-grid">
+    <div class="contract-readiness-item @(Model.QuestionsReady ? "ready" : "not-ready")">
+        <strong>پرسش‌های امتیازدهی</strong>
+        <span>مجموع سقف امتیاز فعال: @score(Model.ActiveQuestionsTotal) از ۱۰۰</span>
+        <small>@(Model.QuestionsReady ? "آماده شروع" : "تا رسیدن مجموع سقف امتیاز به ۱۰۰، شروع گردش مجاز نیست.")</small>
+    </div>
+    <div class="contract-readiness-item @(Model.WorkflowSettingsReady ? "ready" : "not-ready")">
+        <strong>مراحل ثابت گردش کار</strong>
+        <span>حراست، منابع انسانی و مدیرعامل</span>
+        <small>@(Model.WorkflowSettingsReady ? "تنظیم شده" : "مدیر سامانه باید مراحل ثابت را تنظیم کند.")</small>
+        @if (User.HasClaim("IsAdmin", "1") && !Model.WorkflowSettingsReady)
+        {
+            <a href="/EmployeeContracts/WorkflowSettings">رفتن به تنظیم مراحل ثابت</a>
+        }
+    </div>
 </div>
+
+@if (!ViewData.ModelState.IsValid)
+{
+    <div class="alert error">
+        @foreach (var error in ViewData.ModelState.Values.SelectMany(x => x.Errors))
+        {
+            <div>@error.ErrorMessage</div>
+        }
+    </div>
+}
+
+<section class="card">
+    <div class="section-head">
+        <div><h3>۱. انتخاب کارمند و تکمیل اطلاعات اولیه</h3><span class="muted">اطلاعات تا زمانی که پیش‌نمایش را تأیید نکنید، به گردش کار ارسال نمی‌شود.</span></div>
+    </div>
+    <form method="post" action="/EmployeeContracts/Preview" class="form-stack" id="renewalIntakeForm">
+        @Html.AntiForgeryToken()
+        <div class="grid-2">
+            <label>کارمند *
+                <select name="EmployeeId" id="employeeSelect" required>
+                    <option value="">انتخاب کارمند</option>
+                    @foreach (var e in Model.Employees)
+                    {
+                        var displayName = $"{e.FirstName} {e.LastName}".Trim();
+                        <option value="@e.Id"
+                                selected="@(Model.EmployeeId == e.Id)"
+                                data-name="@displayName"
+                                data-personnel="@e.PersonnelNumber"
+                                data-unit="@(e.OrganizationUnit?.Title ?? "—")"
+                                data-position="@(e.PositionTitle ?? "—")"
+                                data-contract-end="@faDate(e.ContractEndDate)"
+                                data-employment-type="@(e.EmploymentType ?? "قراردادی")">@displayName — @e.PersonnelNumber</option>
+                    }
+                </select>
+            </label>
+        </div>
+
+        <div class="contract-employee-summary" id="employeeSummary">
+            <div><span>نام و نام خانوادگی</span><strong id="employeeName">@((employee is null) ? "—" : $"{employee.FirstName} {employee.LastName}")</strong></div>
+            <div><span>شماره پرسنلی</span><strong id="employeePersonnel">@((employee?.PersonnelNumber) ?? "—")</strong></div>
+            <div><span>واحد سازمانی</span><strong id="employeeUnit">@(employee?.OrganizationUnit?.Title ?? "—")</strong></div>
+            <div><span>سمت / پست سازمانی</span><strong id="employeePosition">@(employee?.PositionTitle ?? "—")</strong></div>
+            <div><span>تاریخ پایان قرارداد قبلی</span><strong id="employeeContractEnd">@faDate(employee?.ContractEndDate)</strong></div>
+        </div>
+        <div class="note">فقط کارکنان قراردادی قابل انتخاب برای تمدید هستند. تاریخ پایان قرارداد از پرونده پرسنلی خوانده می‌شود و در این مرحله قابل تغییر نیست.</div>
+
+        <h3 class="contract-form-subhead">سوابق سه دوره قبلی قرارداد (ماه)</h3>
+        <div class="grid-3">
+            <label>مدت دوره قبلی اول (ماه) *<input name="PreviousExtensionMonths1" type="number" min="0" max="120" required value="@Model.PreviousExtensionMonths1" /></label>
+            <label>مدت دوره قبلی دوم (ماه) *<input name="PreviousExtensionMonths2" type="number" min="0" max="120" required value="@Model.PreviousExtensionMonths2" /></label>
+            <label>مدت دوره قبلی سوم (ماه) *<input name="PreviousExtensionMonths3" type="number" min="0" max="120" required value="@Model.PreviousExtensionMonths3" /></label>
+        </div>
+
+        <h3 class="contract-form-subhead">سوابق انضباطی و حضور</h3>
+        <div class="grid-2">
+            <div class="contract-conditional-field">
+                <label class="contract-check-label"><input type="checkbox" name="HasDisciplinaryWarnings" value="true" data-toggle-target="warningCountGroup" checked="@Model.HasDisciplinaryWarnings" /> سابقه اخطار کتبی بابت تأخیر ورود/خروج یا غیبت دارد؟</label>
+                <div id="warningCountGroup" class="conditional-count"><label>تعداد نوبت<input name="DisciplinaryWarningCount" type="number" min="0" max="100000" value="@Model.DisciplinaryWarningCount" /></label></div>
+            </div>
+            <div class="contract-conditional-field">
+                <label class="contract-check-label"><input type="checkbox" name="HasDisciplinaryCommitteeResolution" value="true" data-toggle-target="committeeCountGroup" checked="@Model.HasDisciplinaryCommitteeResolution" /> مصوبه کمیته انضباطی در پرونده دارد؟</label>
+                <div id="committeeCountGroup" class="conditional-count"><label>تعداد مصوبه<input name="DisciplinaryCommitteeResolutionCount" type="number" min="0" max="100000" value="@Model.DisciplinaryCommitteeResolutionCount" /></label></div>
+            </div>
+        </div>
+
+        <h3 class="contract-form-subhead">سوابق مرخصی</h3>
+        <div class="grid-2">
+            <div class="contract-conditional-field">
+                <label class="contract-check-label"><input type="checkbox" name="HasUnpaidLeave" value="true" data-toggle-target="unpaidLeaveGroup" checked="@Model.HasUnpaidLeave" /> مرخصی بدون حقوق داشته است؟</label>
+                <div id="unpaidLeaveGroup" class="conditional-count"><label>تعداد روز<input name="UnpaidLeaveDays" type="number" min="0" max="100000" value="@Model.UnpaidLeaveDays" /></label></div>
+            </div>
+            <div class="contract-conditional-field">
+                <label class="contract-check-label"><input type="checkbox" name="HasSickLeave" value="true" data-toggle-target="sickLeaveGroup" checked="@Model.HasSickLeave" /> مرخصی بیماری داشته است؟</label>
+                <div id="sickLeaveGroup" class="conditional-count"><label>تعداد روز<input name="SickLeaveDays" type="number" min="0" max="100000" value="@Model.SickLeaveDays" /></label></div>
+            </div>
+            <div class="contract-conditional-field">
+                <label class="contract-check-label"><input type="checkbox" name="HasAccidentLeave" value="true" data-toggle-target="accidentLeaveGroup" checked="@Model.HasAccidentLeave" /> مرخصی حادثه داشته است؟</label>
+                <div id="accidentLeaveGroup" class="conditional-count"><label>تعداد روز<input name="AccidentLeaveDays" type="number" min="0" max="100000" value="@Model.AccidentLeaveDays" /></label></div>
+            </div>
+        </div>
+
+        <h3 class="contract-form-subhead">سوابق تشویق</h3>
+        <div class="contract-conditional-field">
+            <label class="contract-check-label"><input type="checkbox" name="HasCommendations" value="true" data-toggle-target="commendationCountGroup" checked="@Model.HasCommendations" /> سابقه تشویق مستند در پرونده پرسنلی دارد؟</label>
+            <div id="commendationCountGroup" class="conditional-count"><label>تعداد نوبت<input name="CommendationCount" type="number" min="0" max="100000" value="@Model.CommendationCount" /></label></div>
+        </div>
+
+        <h3 class="contract-form-subhead">امتیاز ارزشیابی دو دوره پیشین (از ۱۰۰)</h3>
+        <div class="grid-2">
+            <label>امتیاز آخرین دوره پیشین
+                @if (Model.PreviousPeriodScore1FromHistory)
+                {
+                    <input type="number" value="@score(Model.PreviousPeriodScore1)" readonly />
+                    <input type="hidden" name="PreviousPeriodScore1" value="@score(Model.PreviousPeriodScore1)" />
+                    <small class="muted">از آخرین ارزشیابی تکمیل‌شده در سامانه خوانده شده است.</small>
+                }
+                else
+                {
+                    <input name="PreviousPeriodScore1" type="number" min="0" max="100" step="0.01" required value="@score(Model.PreviousPeriodScore1)" />
+                    <small class="muted">سابقه‌ای در سامانه نیست؛ امتیاز را از مستندات وارد کنید.</small>
+                }
+            </label>
+            <label>امتیاز دوره قبل از آن
+                @if (Model.PreviousPeriodScore2FromHistory)
+                {
+                    <input type="number" value="@score(Model.PreviousPeriodScore2)" readonly />
+                    <input type="hidden" name="PreviousPeriodScore2" value="@score(Model.PreviousPeriodScore2)" />
+                    <small class="muted">از دومین ارزشیابی تکمیل‌شده اخیر در سامانه خوانده شده است.</small>
+                }
+                else
+                {
+                    <input name="PreviousPeriodScore2" type="number" min="0" max="100" step="0.01" required value="@score(Model.PreviousPeriodScore2)" />
+                    <small class="muted">سابقه‌ای در سامانه نیست؛ امتیاز را از مستندات وارد کنید.</small>
+                }
+            </label>
+        </div>
+
+        <div class="actions"><button type="submit" class="btn btn-main">نمایش پیش‌نمایش</button></div>
+    </form>
+</section>
+
+@if (Model.ShowPreview && employee is not null)
+{
+    <section class="card contract-preview-card">
+        <div class="section-head"><div><h3>۲. پیش‌نمایش نهایی درخواست</h3><span class="muted">اطلاعات زیر بازبینی شود؛ با تأیید، رکورد درخواست ساخته و گردش کار آغاز می‌شود.</span></div></div>
+        <div class="contract-preview-grid">
+            <div><span>کارمند</span><strong>@employee.FirstName @employee.LastName (@employee.PersonnelNumber)</strong></div>
+            <div><span>واحد / سمت</span><strong>@(employee.OrganizationUnit?.Title ?? "—") / @(employee.PositionTitle ?? "—")</strong></div>
+            <div><span>تاریخ پایان قرارداد قبلی</span><strong>@faDate(employee.ContractEndDate)</strong></div>
+            <div><span>سوابق تمدید (ماه)</span><strong>@Model.PreviousExtensionMonths1 / @Model.PreviousExtensionMonths2 / @Model.PreviousExtensionMonths3</strong></div>
+            <div><span>اخطار کتبی</span><strong>@(Model.HasDisciplinaryWarnings ? $"بله، {Model.DisciplinaryWarningCount} نوبت" : "خیر")</strong></div>
+            <div><span>مصوبه کمیته انضباطی</span><strong>@(Model.HasDisciplinaryCommitteeResolution ? $"بله، {Model.DisciplinaryCommitteeResolutionCount} مورد" : "خیر")</strong></div>
+            <div><span>مرخصی بدون حقوق</span><strong>@(Model.HasUnpaidLeave ? $"{Model.UnpaidLeaveDays} روز" : "ندارد")</strong></div>
+            <div><span>مرخصی بیماری</span><strong>@(Model.HasSickLeave ? $"{Model.SickLeaveDays} روز" : "ندارد")</strong></div>
+            <div><span>مرخصی حادثه</span><strong>@(Model.HasAccidentLeave ? $"{Model.AccidentLeaveDays} روز" : "ندارد")</strong></div>
+            <div><span>تشویق</span><strong>@(Model.HasCommendations ? $"{Model.CommendationCount} نوبت" : "ندارد")</strong></div>
+            <div><span>امتیازهای دو دوره پیشین</span><strong>@score(Model.PreviousPeriodScore1) / @score(Model.PreviousPeriodScore2)</strong></div>
+        </div>
+        <div class="note">پس از تأیید، وظایف ارزشیابی با آخرین ساختار تأییدشده سازمانی ساخته می‌شوند. هر ارزیاب فقط امتیاز مرحله بلافاصله قبل از خود را مشاهده خواهد کرد.</div>
+        <form method="post" action="/EmployeeContracts/Submit" class="actions contract-confirm-form">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="EmployeeId" value="@Model.EmployeeId" />
+            <input type="hidden" name="PreviousExtensionMonths1" value="@Model.PreviousExtensionMonths1" />
+            <input type="hidden" name="PreviousExtensionMonths2" value="@Model.PreviousExtensionMonths2" />
+            <input type="hidden" name="PreviousExtensionMonths3" value="@Model.PreviousExtensionMonths3" />
+            <input type="hidden" name="HasDisciplinaryWarnings" value="@Model.HasDisciplinaryWarnings.ToString().ToLowerInvariant()" />
+            <input type="hidden" name="DisciplinaryWarningCount" value="@Model.DisciplinaryWarningCount" />
+            <input type="hidden" name="HasDisciplinaryCommitteeResolution" value="@Model.HasDisciplinaryCommitteeResolution.ToString().ToLowerInvariant()" />
+            <input type="hidden" name="DisciplinaryCommitteeResolutionCount" value="@Model.DisciplinaryCommitteeResolutionCount" />
+            <input type="hidden" name="HasUnpaidLeave" value="@Model.HasUnpaidLeave.ToString().ToLowerInvariant()" />
+            <input type="hidden" name="UnpaidLeaveDays" value="@Model.UnpaidLeaveDays" />
+            <input type="hidden" name="HasSickLeave" value="@Model.HasSickLeave.ToString().ToLowerInvariant()" />
+            <input type="hidden" name="SickLeaveDays" value="@Model.SickLeaveDays" />
+            <input type="hidden" name="HasAccidentLeave" value="@Model.HasAccidentLeave.ToString().ToLowerInvariant()" />
+            <input type="hidden" name="AccidentLeaveDays" value="@Model.AccidentLeaveDays" />
+            <input type="hidden" name="HasCommendations" value="@Model.HasCommendations.ToString().ToLowerInvariant()" />
+            <input type="hidden" name="CommendationCount" value="@Model.CommendationCount" />
+            <input type="hidden" name="PreviousPeriodScore1" value="@score(Model.PreviousPeriodScore1)" />
+            <input type="hidden" name="PreviousPeriodScore2" value="@score(Model.PreviousPeriodScore2)" />
+            <button type="submit" class="btn btn-main">تأیید نهایی اطلاعات و شروع گردش کار</button>
+            <a href="/EmployeeContracts/Renewal?employeeId=@Model.EmployeeId" class="btn btn-outline">بازگشت و اصلاح اطلاعات</a>
+        </form>
+    </section>
+}
+
+<section class="card">
+    <div class="section-head"><div><h3>درخواست‌های اخیر تمدید قرارداد</h3><span class="muted">برای مشاهده وضعیت و تاریخچه، از کارتابل گردش کار استفاده کنید.</span></div><a class="btn btn-outline" href="/Workflow/MyRequests">درخواست‌های من</a></div>
+    @if (Model.RecentRequests.Count == 0)
+    {
+        <div class="empty">درخواستی ثبت نشده است.</div>
+    }
+    else
+    {
+        <div class="table-wrap"><table>
+            <thead><tr><th>کد درخواست</th><th>کارمند</th><th>شماره پرسنلی</th><th>تاریخ ثبت</th><th>امتیاز نهایی</th><th>مدت نهایی (ماه)</th><th>وضعیت</th></tr></thead>
+            <tbody>
+            @foreach (var r in Model.RecentRequests)
+            {
+                <tr><td>@r.RequestCode</td><td>@r.EmployeeNameSnapshot</td><td>@r.PersonnelNumberSnapshot</td><td>@PersianDateService.Format(r.CreatedAt)</td><td>@(r.FinalEvaluationScore.HasValue ? score(r.FinalEvaluationScore.Value) : "—")</td><td>@(r.FinalContractMonths?.ToString() ?? "—")</td><td>@r.Status</td></tr>
+            }
+            </tbody>
+        </table></div>
+    }
+</section>
+
+@section Scripts {
+<script>
+(function () {
+    const select = document.getElementById('employeeSelect');
+    const name = document.getElementById('employeeName');
+    const personnel = document.getElementById('employeePersonnel');
+    const unit = document.getElementById('employeeUnit');
+    const position = document.getElementById('employeePosition');
+    const contractEnd = document.getElementById('employeeContractEnd');
+    function updateEmployeeSummary() {
+        const option = select?.selectedOptions?.[0];
+        const hasValue = !!option && !!option.value;
+        name.textContent = hasValue ? option.dataset.name : '—';
+        personnel.textContent = hasValue ? option.dataset.personnel : '—';
+        unit.textContent = hasValue ? option.dataset.unit : '—';
+        position.textContent = hasValue ? option.dataset.position : '—';
+        contractEnd.textContent = hasValue ? option.dataset.contractEnd : '—';
+    }
+    select?.addEventListener('change', updateEmployeeSummary);
+    updateEmployeeSummary();
+
+    document.querySelectorAll('[data-toggle-target]').forEach(function (checkbox) {
+        const group = document.getElementById(checkbox.dataset.toggleTarget);
+        const input = group?.querySelector('input');
+        function sync() {
+            if (!group) return;
+            group.style.display = checkbox.checked ? '' : 'none';
+            if (input) {
+                input.disabled = !checkbox.checked;
+                if (!checkbox.checked) input.value = '0';
+            }
+        }
+        checkbox.addEventListener('change', sync);
+        sync();
+    });
+})();
+</script>
+}

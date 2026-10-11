@@ -72,6 +72,7 @@ builder.Services.AddScoped<EmployeeExcelService>();
 builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<RoleService>();
 builder.Services.AddScoped<WorkflowService>();
+builder.Services.AddScoped<ContractRenewalWorkflowService>();
 builder.Services.AddScoped<ISmsService, ConfigurableSmsService>();
 
 builder.Services

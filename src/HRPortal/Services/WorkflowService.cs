@@ -599,7 +599,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .FirstOrDefaultAsync(x => x.Id == subjectEmployeeId && x.Status == "فعال", cancellationToken)
             ?? throw new InvalidOperationException("کارمند موضوع گردش کار یافت نشد.");
 
-        var assignedPositionId = employee.OrganizationSectionId
+        var assignedPositionId = employee.OrganizationPositionId
+            ?? employee.OrganizationSectionId
             ?? employee.OrganizationDepartmentId
             ?? employee.OrganizationUnitId;
         if (!assignedPositionId.HasValue)
@@ -691,7 +692,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                           db.Employees.Any(e => e.Id == employeeId && e.Status == "فعال" &&
                               (e.OrganizationUnitId == x.AssignedPositionId ||
                                e.OrganizationDepartmentId == x.AssignedPositionId ||
-                               e.OrganizationSectionId == x.AssignedPositionId)))));
+                               e.OrganizationSectionId == x.AssignedPositionId ||
+                               e.OrganizationPositionId == x.AssignedPositionId)))));
 
         if (!string.IsNullOrWhiteSpace(status))
             query = query.Where(x => x.Status == status);
@@ -768,7 +770,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                   db.Employees.Any(e => e.Id == employeeId && e.Status == "فعال" &&
                       (e.OrganizationUnitId == x.AssignedPositionId ||
                        e.OrganizationDepartmentId == x.AssignedPositionId ||
-                       e.OrganizationSectionId == x.AssignedPositionId)))));
+                       e.OrganizationSectionId == x.AssignedPositionId ||
+                       e.OrganizationPositionId == x.AssignedPositionId)))));
 
     public async Task CompleteTaskAsync(int taskId, int actorEmployeeId, string action, string? comment, IDictionary<string, string?>? values = null)
     {
@@ -954,7 +957,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .Where(e => e.Status == "فعال" &&
                 (e.OrganizationUnitId == positionId ||
                  e.OrganizationDepartmentId == positionId ||
-                 e.OrganizationSectionId == positionId))
+                 e.OrganizationSectionId == positionId ||
+                 e.OrganizationPositionId == positionId))
             .OrderBy(e => e.Id)
             .ToListAsync(cancellationToken);
 

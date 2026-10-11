@@ -628,12 +628,19 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         var route = new List<OrganizationNode>();
         var stopFound = false;
         var guard = 0;
-        current = byId.GetValueOrDefault(current.ParentId.Value)!;
+        current = byId.GetValueOrDefault(current.ParentId.Value);
         while (current is not null && guard++ < 1000)
         {
+            // When the desired stop is CEO, include every parent below CEO but do not
+            // create an evaluation task for the CEO position itself.
+            if (stopRankType == "مدیرعامل" && current.RankType == "مدیرعامل")
+            {
+                stopFound = true;
+                break;
+            }
+
             route.Add(current);
-            if ((stopRankType == "مدیرعامل" && !current.ParentId.HasValue) ||
-                (stopRankType != "مدیرعامل" && current.RankType == stopRankType))
+            if (stopRankType != "مدیرعامل" && current.RankType == stopRankType)
             {
                 stopFound = true;
                 break;

@@ -25,15 +25,31 @@ public class ContractRenewalWorkflowService(HRPortalDbContext db, WorkflowServic
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new InvalidOperationException("نسخه نهایی فعال ساختار سازمانی یافت نشد.");
 
-        if (!settings.SecurityPositionId.HasValue ||
-            !await db.OrganizationNodes.AnyAsync(x => x.Id == settings.SecurityPositionId.Value &&
-                x.OrganizationStructureRevisionId == revision.Id && x.IsActive, cancellationToken))
-            throw new InvalidOperationException("جایگاه مدیر حراست را در تنظیمات گردش کار انتخاب کنید.");
+        // Settings may reference nodes from an older finalized revision. Resolve their stable
+        // codes into the currently effective revision so a new org revision does not break routing.
+        var configuredSecurity = settings.SecurityPositionId.HasValue
+            ? await db.OrganizationNodes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == settings.SecurityPositionId.Value, cancellationToken)
+            : null;
+        var securityPosition = configuredSecurity is null
+            ? null
+            : await db.OrganizationNodes.AsNoTracking().FirstOrDefaultAsync(x =>
+                x.OrganizationStructureRevisionId == revision.Id && x.Code == configuredSecurity.Code && x.IsActive,
+                cancellationToken);
+        if (securityPosition is null)
+            throw new InvalidOperationException("جایگاه مدیر حراست را در تنظیمات گردش کار انتخاب کنید؛ جایگاه ذخیره‌شده در نسخه فعال ساختار یافت نشد.");
 
-        if (!settings.HumanResourcesPositionId.HasValue ||
-            !await db.OrganizationNodes.AnyAsync(x => x.Id == settings.HumanResourcesPositionId.Value &&
-                x.OrganizationStructureRevisionId == revision.Id && x.IsActive, cancellationToken))
-            throw new InvalidOperationException("جایگاه مدیر منابع انسانی و خدمات پشتیبانی را در تنظیمات گردش کار انتخاب کنید.");
+        var configuredHr = settings.HumanResourcesPositionId.HasValue
+            ? await db.OrganizationNodes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == settings.HumanResourcesPositionId.Value, cancellationToken)
+            : null;
+        var humanResourcesPosition = configuredHr is null
+            ? null
+            : await db.OrganizationNodes.AsNoTracking().FirstOrDefaultAsync(x =>
+                x.OrganizationStructureRevisionId == revision.Id && x.Code == configuredHr.Code && x.IsActive,
+                cancellationToken);
+        if (humanResourcesPosition is null)
+            throw new InvalidOperationException("جایگاه مدیر منابع انسانی و خدمات پشتیبانی را در تنظیمات گردش کار انتخاب کنید؛ جایگاه ذخیره‌شده در نسخه فعال ساختار یافت نشد.");
 
         var ceoNodes = await db.OrganizationNodes.AsNoTracking()
             .Where(x => x.OrganizationStructureRevisionId == revision.Id && x.IsActive && x.RankType == "مدیرعامل")
@@ -94,7 +110,7 @@ public class ContractRenewalWorkflowService(HRPortalDbContext db, WorkflowServic
                 Title = "اظهارنظر مدیر حراست",
                 SortOrder = 1000,
                 AssignmentType = "Position",
-                OrganizationNodeId = settings.SecurityPositionId,
+                OrganizationNodeId = securityPosition.Id,
                 AllowApprove = true,
                 AllowReject = true,
                 AllowReturn = false,
@@ -108,7 +124,7 @@ public class ContractRenewalWorkflowService(HRPortalDbContext db, WorkflowServic
                 Title = "تعیین پیشنهاد مدت قرارداد - مدیر منابع انسانی و خدمات پشتیبانی",
                 SortOrder = 1010,
                 AssignmentType = "Position",
-                OrganizationNodeId = settings.HumanResourcesPositionId,
+                OrganizationNodeId = humanResourcesPosition.Id,
                 AllowApprove = true,
                 AllowReject = false,
                 AllowReturn = true,

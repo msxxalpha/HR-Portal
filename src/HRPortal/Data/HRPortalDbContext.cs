@@ -65,7 +65,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.OrganizationStructureRevisionId, x.Code }).IsUnique();
-            e.HasIndex(x => x.OrganizationStructureRevisionId).IsUnique().HasFilter("[RankType] = N'مدیرعامل'");
+            e.HasIndex(x => x.OrganizationStructureRevisionId).HasDatabaseName("UX_OrganizationNodes_OneCEOPerRevision").IsUnique().HasFilter("[RankType] = N'مدیرعامل'");
             e.HasOne(x => x.Revision).WithMany(x => x.Nodes).HasForeignKey(x => x.OrganizationStructureRevisionId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.Parent).WithMany(x => x.Children).HasForeignKey(x => x.ParentId).OnDelete(DeleteBehavior.Restrict);
         });

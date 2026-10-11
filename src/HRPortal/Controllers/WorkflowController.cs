@@ -54,6 +54,8 @@ public class WorkflowController(
 
         var task = await workflow.GetTaskAsync(id, employeeId);
         if (task is null) return NotFound();
+        if (task.WorkflowInstance.EntityType == ContractRenewalWorkflowService.WorkflowEntityType)
+            return RedirectToAction("Details", "ContractRenewalTask", new { id });
 
         ViewBag.History = await workflow.GetHistoryAsync(task.WorkflowInstanceId);
         ViewBag.FieldGroups = await workflow.GetTaskFieldGroupsAsync(id, employeeId);

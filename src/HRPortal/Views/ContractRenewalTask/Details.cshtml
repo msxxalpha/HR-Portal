@@ -84,6 +84,10 @@
                 }
                 </tbody>
             </table></div>
+            @if (!string.IsNullOrWhiteSpace(Model.PreviousStageComment))
+            {
+                <div class="note"><strong>توضیحات ارزیاب مرحله قبل:</strong> @Model.PreviousStageComment</div>
+            }
         }
     </section>
 
@@ -133,6 +137,10 @@
                         <thead><tr><th>پرسش</th><th>سقف</th><th>امتیاز</th></tr></thead>
                         <tbody>@foreach (var s in stage.Scores) { <tr><td>@s.QuestionTextSnapshot</td><td>@score(s.MaxScoreSnapshot)</td><td>@score(s.Score)</td></tr> }</tbody>
                     </table></div>
+                    @if (!string.IsNullOrWhiteSpace(stage.Comment))
+                    {
+                        <div class="note"><strong>توضیحات این مرحله:</strong> @stage.Comment</div>
+                    }
                 </div>
             }
         }

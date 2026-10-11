@@ -468,6 +468,7 @@ IF COL_LENGTH(N'dbo.SmsSettings', N'TestRecipient') IS NULL ALTER TABLE [dbo].[S
 IF COL_LENGTH(N'dbo.Employees', N'Identifier') IS NULL ALTER TABLE [dbo].[Employees] ADD [Identifier] nvarchar(100) NOT NULL CONSTRAINT [DF_Employees_Identifier] DEFAULT N'';
 IF COL_LENGTH(N'dbo.Employees', N'PersonalPasswordHash') IS NULL ALTER TABLE [dbo].[Employees] ADD [PersonalPasswordHash] nvarchar(1000) NULL;
 IF OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.Employees', N'ContractEndDate') IS NULL ALTER TABLE [dbo].[Employees] ADD [ContractEndDate] date NULL CONSTRAINT [DF_Employees_ContractEndDate] DEFAULT ('2027-03-20');
+IF OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.Employees', N'OrganizationPositionId') IS NULL ALTER TABLE [dbo].[Employees] ADD [OrganizationPositionId] int NULL;
 
 IF COL_LENGTH(N'PayrollReportSettings', N'Enabled') IS NULL ALTER TABLE [PayrollReportSettings] ADD [Enabled] bit NOT NULL CONSTRAINT [DF_PayrollReportSettings_Enabled] DEFAULT 1;
 IF COL_LENGTH(N'PayrollReportSettings', N'ReportUrl') IS NULL ALTER TABLE [PayrollReportSettings] ADD [ReportUrl] nvarchar(2000) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportUrl] DEFAULT N'';
@@ -569,6 +570,7 @@ BEGIN
         [OrganizationUnitId] int NULL,
         [OrganizationDepartmentId] int NULL,
         [OrganizationSectionId] int NULL,
+        [OrganizationPositionId] int NULL,
         [PositionTitle] nvarchar(300) NULL,
         [EmploymentType] nvarchar(100) NULL,
         [ContractEndDate] date NULL CONSTRAINT [DF_Employees_ContractEndDate] DEFAULT ('2027-03-20'),
@@ -808,8 +810,40 @@ IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_OrganizationStructureRev
     CREATE UNIQUE INDEX [IX_OrganizationStructureRevisions_RevisionCode] ON [dbo].[OrganizationStructureRevisions]([RevisionCode]);
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_OrganizationNodes_Revision_Code' AND object_id=OBJECT_ID(N'dbo.OrganizationNodes'))
     CREATE UNIQUE INDEX [IX_OrganizationNodes_Revision_Code] ON [dbo].[OrganizationNodes]([OrganizationStructureRevisionId],[Code]);
+IF OBJECT_ID(N'dbo.OrganizationNodes', N'U') IS NOT NULL
+AND NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'UX_OrganizationNodes_OneCEOPerRevision' AND object_id=OBJECT_ID(N'dbo.OrganizationNodes'))
+    CREATE UNIQUE INDEX [UX_OrganizationNodes_OneCEOPerRevision] ON [dbo].[OrganizationNodes]([OrganizationStructureRevisionId]) WHERE [RankType] = N'مدیرعامل';
+
+IF OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL
+AND OBJECT_ID(N'dbo.OrganizationNodes', N'U') IS NOT NULL
+AND NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name=N'FK_Employees_OrganizationPosition')
+    ALTER TABLE [dbo].[Employees] ADD CONSTRAINT [FK_Employees_OrganizationPosition]
+    FOREIGN KEY([OrganizationPositionId]) REFERENCES [dbo].[OrganizationNodes]([Id]) ON DELETE NO ACTION;
+
+IF OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL
+AND NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_Employees_OrganizationPositionId' AND object_id=OBJECT_ID(N'dbo.Employees'))
+    CREATE INDEX [IX_Employees_OrganizationPositionId] ON [dbo].[Employees]([OrganizationPositionId]);
+
+
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_AuditLogs_CreatedAt' AND object_id=OBJECT_ID(N'dbo.AuditLogs'))
     CREATE INDEX [IX_AuditLogs_CreatedAt] ON [dbo].[AuditLogs]([CreatedAt]);";
         await db.Database.ExecuteSqlRawAsync(sql);
+        await db.Database.ExecuteSqlRawAsync(@"
+EXEC(N'CREATE OR ALTER TRIGGER [dbo].[TR_Employees_OnlyOneActiveCEO]
+ON [dbo].[Employees]
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF (
+        SELECT COUNT_BIG(*)
+        FROM [dbo].[Employees] e
+        INNER JOIN [dbo].[OrganizationNodes] n ON n.[Id] = e.[OrganizationPositionId]
+        WHERE e.[Status] = N''فعال'' AND n.[RankType] = N''مدیرعامل''
+    ) > 1
+    BEGIN
+        THROW 51001, N''در میان کارکنان فعال، فقط یک نفر می‌تواند رده مدیرعامل داشته باشد.'', 1;
+    END
+END;');
     }
 }

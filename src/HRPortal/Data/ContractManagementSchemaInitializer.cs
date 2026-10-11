@@ -29,13 +29,16 @@ BEGIN
         [WorkflowInstanceId] int NOT NULL,
         [WorkflowStepId] int NOT NULL,
         [EvaluatorEmployeeId] int NULL,
-        [Score] decimal(5,2) NOT NULL,
+        [Score] decimal(5,2) NULL,
         [MaxScoreSnapshot] decimal(5,2) NOT NULL,
         [QuestionTextSnapshot] nvarchar(1000) NOT NULL,
         [ScoringGuidanceSnapshot] nvarchar(4000) NOT NULL,
         [CreatedAt] datetime2 NOT NULL CONSTRAINT [DF_EmployeePerformanceEvaluationScores_CreatedAt] DEFAULT SYSUTCDATETIME()
     );
 END;
+
+IF OBJECT_ID(N'dbo.EmployeePerformanceEvaluationScores', N'U') IS NOT NULL AND COLUMNPROPERTY(OBJECT_ID(N'dbo.EmployeePerformanceEvaluationScores'), N'Score', 'AllowsNull') = 0
+    ALTER TABLE [dbo].[EmployeePerformanceEvaluationScores] ALTER COLUMN [Score] decimal(5,2) NULL;
 
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_EmployeePerformanceEvaluationQuestions_Active_Order' AND object_id=OBJECT_ID(N'dbo.EmployeePerformanceEvaluationQuestions'))
     CREATE INDEX [IX_EmployeePerformanceEvaluationQuestions_Active_Order] ON [dbo].[EmployeePerformanceEvaluationQuestions]([IsActive],[SortOrder],[Id]);

@@ -17,6 +17,9 @@ public static class DatabaseInitializer
         await WorkflowSchemaInitializer.InitializeAsync(db);
         await ContractManagementSchemaInitializer.InitializeAsync(db);
 
+        if (!await db.ContractRenewalWorkflowSettings.AnyAsync())
+            db.ContractRenewalWorkflowSettings.Add(new ContractRenewalWorkflowSettings { Id = 1 });
+
         if (!await db.SystemSettings.AnyAsync())
             db.SystemSettings.Add(new SystemSettings { OrganizationName = "شرکت کمک فنرسازی ایندامین سایپا", ApplicationName = "پورتال جامع منابع انسانی" });
 

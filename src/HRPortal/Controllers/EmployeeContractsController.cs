@@ -42,6 +42,8 @@ public class EmployeeContractsController(
 
         if (input.MaxScore <= 0 || input.MaxScore > 100)
             ModelState.AddModelError(nameof(input.MaxScore), "سقف امتیاز باید بیشتر از صفر و حداکثر ۱۰۰ باشد.");
+        if (input.MaxScore != decimal.Round(input.MaxScore, 2))
+            ModelState.AddModelError(nameof(input.MaxScore), "سقف امتیاز حداکثر می‌تواند دو رقم اعشار داشته باشد.");
 
         var activeTotalWithoutCurrent = await db.EmployeePerformanceEvaluationQuestions
             .Where(x => x.IsActive && x.Id != input.Id)

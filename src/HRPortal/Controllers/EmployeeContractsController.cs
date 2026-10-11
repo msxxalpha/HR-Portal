@@ -7,13 +7,18 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HRPortal.Controllers;
 
-[Authorize(Policy = "AdminOnly")]
+[Authorize]
 public class EmployeeContractsController(
     HRPortalDbContext db,
-    AuditService audit) : Controller
+    EmployeeExcelService excel,
+    AuditService audit,
+    RoleService roles,
+    ContractRenewalWorkflowService renewalWorkflow) : Controller
 {
+    [Authorize(Policy = "ContractRenewal.Manage")]
     public IActionResult Index() => View();
 
+    [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> BasicInformation(int? editId)
     {
         EmployeePerformanceEvaluationQuestion? editing = null;
@@ -25,7 +30,7 @@ public class EmployeeContractsController(
         return View(await BuildBasicInfoViewModelAsync(editing));
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "AdminOnly"), ValidateAntiForgeryToken]
     public async Task<IActionResult> SaveQuestion(EmployeePerformanceEvaluationQuestion input)
     {
         input.QuestionText = input.QuestionText?.Trim() ?? "";
@@ -36,10 +41,13 @@ public class EmployeeContractsController(
         {
             existing = await db.EmployeePerformanceEvaluationQuestions
                 .FirstOrDefaultAsync(x => x.Id == input.Id);
-            if (existing is null)
-                return NotFound();
+            if (existing is null) return NotFound();
         }
 
+        if (string.IsNullOrWhiteSpace(input.QuestionText))
+            ModelState.AddModelError(nameof(input.QuestionText), "متن پرسش الزامی است.");
+        if (string.IsNullOrWhiteSpace(input.ScoringGuidance))
+            ModelState.AddModelError(nameof(input.ScoringGuidance), "راهنمای امتیازدهی الزامی است.");
         if (input.MaxScore <= 0 || input.MaxScore > 100)
             ModelState.AddModelError(nameof(input.MaxScore), "سقف امتیاز باید بیشتر از صفر و حداکثر ۱۰۰ باشد.");
         if (input.MaxScore != decimal.Round(input.MaxScore, 2))
@@ -84,13 +92,11 @@ public class EmployeeContractsController(
         return RedirectToAction(nameof(BasicInformation));
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "AdminOnly"), ValidateAntiForgeryToken]
     public async Task<IActionResult> ToggleQuestion(int id)
     {
-        var question = await db.EmployeePerformanceEvaluationQuestions
-            .FirstOrDefaultAsync(x => x.Id == id);
-        if (question is null)
-            return NotFound();
+        var question = await db.EmployeePerformanceEvaluationQuestions.FirstOrDefaultAsync(x => x.Id == id);
+        if (question is null) return NotFound();
 
         if (!question.IsActive)
         {
@@ -100,7 +106,7 @@ public class EmployeeContractsController(
 
             if (activeTotal + question.MaxScore > 100m)
             {
-                TempData["Error"] = $"فعال‌سازی این پرسش باعث می‌شود مجموع سقف امتیاز از ۱۰۰ بیشتر شود (مجموع جدید: {activeTotal + question.MaxScore:0.##}). ابتدا سقف سایر پرسش‌های فعال را اصلاح کنید.";
+                TempData["Error"] = $"فعال‌سازی این پرسش باعث می‌شود مجموع سقف امتیاز از ۱۰۰ بیشتر شود (مجموع جدید: {activeTotal + question.MaxScore:0.##}).";
                 return RedirectToAction(nameof(BasicInformation));
             }
         }
@@ -118,42 +124,313 @@ public class EmployeeContractsController(
         return RedirectToAction(nameof(BasicInformation));
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "AdminOnly"), ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteQuestion(int id)
     {
-        var question = await db.EmployeePerformanceEvaluationQuestions
-            .FirstOrDefaultAsync(x => x.Id == id);
-        if (question is null)
-            return NotFound();
+        var question = await db.EmployeePerformanceEvaluationQuestions.FirstOrDefaultAsync(x => x.Id == id);
+        if (question is null) return NotFound();
 
         if (await db.EmployeePerformanceEvaluationScores.AnyAsync(x => x.QuestionId == id))
         {
-            TempData["Error"] = "این پرسش در یک ارزشیابی استفاده شده است و حذف آن برای حفظ سوابق مجاز نیست. می‌توانید آن را غیرفعال کنید.";
+            TempData["Error"] = "این پرسش در یک درخواست ارزشیابی استفاده شده است و برای حفظ سوابق قابل حذف نیست؛ آن را غیرفعال کنید.";
             return RedirectToAction(nameof(BasicInformation));
         }
 
         db.EmployeePerformanceEvaluationQuestions.Remove(question);
         await db.SaveChangesAsync();
-        await audit.WriteAsync(
-            "حذف پرسش ارزشیابی عملکرد",
-            nameof(EmployeePerformanceEvaluationQuestion),
-            id.ToString(),
-            question.QuestionText);
-
+        await audit.WriteAsync("حذف پرسش ارزشیابی عملکرد", nameof(EmployeePerformanceEvaluationQuestion), id.ToString(), question.QuestionText);
         TempData["Success"] = "پرسش حذف شد.";
         return RedirectToAction(nameof(BasicInformation));
     }
 
-    public IActionResult Renewal() => View();
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> WorkflowSettings()
+    {
+        var current = await CurrentRevisionAsync();
+        var settings = await db.ContractRenewalWorkflowSettings.FirstOrDefaultAsync(x => x.Id == 1)
+            ?? new ContractRenewalWorkflowSettings { Id = 1 };
+
+        var vm = new ContractRenewalWorkflowSettingsViewModel
+        {
+            Settings = settings,
+            Positions = current is null ? [] : await db.OrganizationNodes.AsNoTracking()
+                .Where(x => x.OrganizationStructureRevisionId == current.Id && x.IsActive)
+                .OrderBy(x => x.RankType).ThenBy(x => x.Title).ToListAsync(),
+            ActiveEmployees = await db.Employees.AsNoTracking()
+                .Where(x => x.Status == "فعال")
+                .OrderBy(x => x.LastName).ThenBy(x => x.FirstName).ToListAsync()
+        };
+        return View(vm);
+    }
+
+    [HttpPost, Authorize(Policy = "AdminOnly"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveWorkflowSettings(int? securityPositionId, int? humanResourcesPositionId, int? ceoEmployeeId)
+    {
+        var current = await CurrentRevisionAsync();
+        if (current is null)
+        {
+            TempData["Error"] = "ابتدا آخرین نسخه ساختار سازمانی را نهایی کنید.";
+            return RedirectToAction(nameof(WorkflowSettings));
+        }
+
+        var nodes = await db.OrganizationNodes
+            .Where(x => x.OrganizationStructureRevisionId == current.Id && x.IsActive)
+            .ToListAsync();
+        if (!securityPositionId.HasValue || !nodes.Any(x => x.Id == securityPositionId.Value))
+            ModelState.AddModelError(nameof(securityPositionId), "جایگاه فعال مدیر حراست را انتخاب کنید.");
+        if (!humanResourcesPositionId.HasValue || !nodes.Any(x => x.Id == humanResourcesPositionId.Value))
+            ModelState.AddModelError(nameof(humanResourcesPositionId), "جایگاه فعال مدیر منابع انسانی و خدمات پشتیبانی را انتخاب کنید.");
+        if (!ceoEmployeeId.HasValue || !await db.Employees.AnyAsync(x => x.Id == ceoEmployeeId.Value && x.Status == "فعال"))
+            ModelState.AddModelError(nameof(ceoEmployeeId), "کارمند فعال مدیرعامل را انتخاب کنید.");
+
+        if (!ModelState.IsValid)
+        {
+            var vm = new ContractRenewalWorkflowSettingsViewModel
+            {
+                Settings = new ContractRenewalWorkflowSettings
+                {
+                    SecurityPositionId = securityPositionId,
+                    HumanResourcesPositionId = humanResourcesPositionId,
+                    CeoEmployeeId = ceoEmployeeId
+                },
+                Positions = nodes.OrderBy(x => x.RankType).ThenBy(x => x.Title).ToList(),
+                ActiveEmployees = await db.Employees.AsNoTracking().Where(x => x.Status == "فعال")
+                    .OrderBy(x => x.LastName).ThenBy(x => x.FirstName).ToListAsync()
+            };
+            return View("WorkflowSettings", vm);
+        }
+
+        var settings = await db.ContractRenewalWorkflowSettings.FirstOrDefaultAsync(x => x.Id == 1);
+        if (settings is null)
+        {
+            settings = new ContractRenewalWorkflowSettings { Id = 1 };
+            db.ContractRenewalWorkflowSettings.Add(settings);
+        }
+        settings.SecurityPositionId = securityPositionId;
+        settings.HumanResourcesPositionId = humanResourcesPositionId;
+        settings.CeoEmployeeId = ceoEmployeeId;
+        settings.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        await audit.WriteAsync("تنظیم مراحل ثابت تمدید قرارداد", nameof(ContractRenewalWorkflowSettings), "1");
+        TempData["Success"] = "تنظیم مراحل ثابت گردش تمدید قرارداد ذخیره شد.";
+        return RedirectToAction(nameof(WorkflowSettings));
+    }
+
+    [Authorize(Policy = "ContractRenewal.Manage")]
+    public async Task<IActionResult> Renewal(int? employeeId = null)
+    {
+        var model = await BuildIntakeViewModelAsync(new ContractRenewalIntakeViewModel { EmployeeId = employeeId ?? 0 }, false);
+        return View(model);
+    }
+
+    [HttpPost, Authorize(Policy = "ContractRenewal.Manage"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> Preview(ContractRenewalIntakeViewModel input)
+    {
+        var model = await BuildIntakeViewModelAsync(input, true);
+        ValidateIntake(model);
+        model.ShowPreview = ModelState.IsValid;
+        return View("Renewal", model);
+    }
+
+    [HttpPost, Authorize(Policy = "ContractRenewal.Manage"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> Submit(ContractRenewalIntakeViewModel input)
+    {
+        if (!int.TryParse(User.FindFirst("EmployeeId")?.Value, out var requesterEmployeeId))
+        {
+            TempData["Error"] = "برای ثبت درخواست، ورود با حساب کاربری متصل به پرونده پرسنلی لازم است.";
+            return RedirectToAction(nameof(Renewal));
+        }
+
+        var model = await BuildIntakeViewModelAsync(input, true);
+        ValidateIntake(model);
+        if (!ModelState.IsValid)
+        {
+            model.ShowPreview = true;
+            return View("Renewal", model);
+        }
+
+        var employee = model.SelectedEmployee!;
+        var request = new ContractRenewalRequest
+        {
+            RequestCode = "TEMP-" + Guid.NewGuid().ToString("N")[..20],
+            EmployeeId = employee.Id,
+            CreatedByEmployeeId = requesterEmployeeId,
+            Status = "در حال شروع",
+            EmployeeNameSnapshot = $"{employee.FirstName} {employee.LastName}".Trim(),
+            PersonnelNumberSnapshot = employee.PersonnelNumber,
+            OrganizationUnitSnapshot = employee.OrganizationUnit?.Title ?? "",
+            PositionTitleSnapshot = employee.PositionTitle ?? "",
+            PreviousContractEndDate = employee.ContractEndDate,
+            PreviousExtensionMonths1 = model.PreviousExtensionMonths1,
+            PreviousExtensionMonths2 = model.PreviousExtensionMonths2,
+            PreviousExtensionMonths3 = model.PreviousExtensionMonths3,
+            HasDisciplinaryWarnings = model.HasDisciplinaryWarnings,
+            DisciplinaryWarningCount = model.HasDisciplinaryWarnings ? model.DisciplinaryWarningCount : 0,
+            HasDisciplinaryCommitteeResolution = model.HasDisciplinaryCommitteeResolution,
+            DisciplinaryCommitteeResolutionCount = model.HasDisciplinaryCommitteeResolution ? model.DisciplinaryCommitteeResolutionCount : 0,
+            HasUnpaidLeave = model.HasUnpaidLeave,
+            UnpaidLeaveDays = model.HasUnpaidLeave ? model.UnpaidLeaveDays : 0,
+            HasSickLeave = model.HasSickLeave,
+            SickLeaveDays = model.HasSickLeave ? model.SickLeaveDays : 0,
+            HasAccidentLeave = model.HasAccidentLeave,
+            AccidentLeaveDays = model.HasAccidentLeave ? model.AccidentLeaveDays : 0,
+            HasCommendations = model.HasCommendations,
+            CommendationCount = model.HasCommendations ? model.CommendationCount : 0,
+            PreviousPeriodScore1 = model.PreviousPeriodScore1,
+            PreviousPeriodScore2 = model.PreviousPeriodScore2,
+            PreviousPeriodScore1FromHistory = model.PreviousPeriodScore1FromHistory,
+            PreviousPeriodScore2FromHistory = model.PreviousPeriodScore2FromHistory,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        try
+        {
+            db.ContractRenewalRequests.Add(request);
+            await db.SaveChangesAsync();
+            request.RequestCode = $"CR-{DateTime.UtcNow:yyMMdd}-{request.Id:000000}";
+            await db.SaveChangesAsync();
+
+            var instance = await renewalWorkflow.StartAsync(request, requesterEmployeeId);
+            request.WorkflowInstanceId = instance.Id;
+            request.Status = "در حال ارزیابی سازمانی";
+            await db.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            await audit.WriteAsync("ثبت و شروع ارزشیابی تمدید قرارداد", nameof(ContractRenewalRequest),
+                request.Id.ToString(), request.RequestCode);
+            TempData["Success"] = $"درخواست {request.RequestCode} ثبت شد و برای ارزشیابی به زنجیره جایگاه‌های سازمانی ارجاع شد.";
+            return RedirectToAction(nameof(Renewal));
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            db.ChangeTracker.Clear();
+            model.ErrorMessage = ex.Message;
+            model.ShowPreview = true;
+            return View("Renewal", model);
+        }
+    }
+
+    private async Task<ContractRenewalIntakeViewModel> BuildIntakeViewModelAsync(
+        ContractRenewalIntakeViewModel input, bool includeRecentRequests)
+    {
+        var employees = await db.Employees.AsNoTracking()
+            .Include(x => x.OrganizationUnit)
+            .Include(x => x.OrganizationDepartment)
+            .Include(x => x.OrganizationSection)
+            .Where(x => x.Status == "فعال")
+            .OrderBy(x => x.LastName).ThenBy(x => x.FirstName)
+            .ToListAsync();
+
+        input.Employees = employees;
+        input.SelectedEmployee = employees.FirstOrDefault(x => x.Id == input.EmployeeId);
+        input.ActiveQuestions = await db.EmployeePerformanceEvaluationQuestions.AsNoTracking()
+            .Where(x => x.IsActive).OrderBy(x => x.SortOrder).ThenBy(x => x.Id).ToListAsync();
+        input.ActiveQuestionsTotal = input.ActiveQuestions.Sum(x => x.MaxScore);
+        input.QuestionsReady = input.ActiveQuestions.Count > 0 && input.ActiveQuestionsTotal == 100m;
+
+        var current = await CurrentRevisionAsync();
+        var config = await db.ContractRenewalWorkflowSettings.AsNoTracking().FirstOrDefaultAsync(x => x.Id == 1);
+        input.WorkflowSettingsReady = current is not null && config?.SecurityPositionId is int securityId &&
+            config.HumanResourcesPositionId is int hrId && config.CeoEmployeeId is int ceoId &&
+            await db.OrganizationNodes.AnyAsync(x => x.Id == securityId && x.OrganizationStructureRevisionId == current.Id && x.IsActive) &&
+            await db.OrganizationNodes.AnyAsync(x => x.Id == hrId && x.OrganizationStructureRevisionId == current.Id && x.IsActive) &&
+            await db.Employees.AnyAsync(x => x.Id == ceoId && x.Status == "فعال");
+
+        if (input.SelectedEmployee is not null)
+        {
+            var priorScores = await db.ContractRenewalRequests.AsNoTracking()
+                .Where(x => x.EmployeeId == input.EmployeeId && x.Status == "تکمیل شده" && x.FinalEvaluationScore.HasValue)
+                .OrderByDescending(x => x.CompletedAt).ThenByDescending(x => x.Id)
+                .Select(x => x.FinalEvaluationScore!.Value)
+                .Take(2)
+                .ToListAsync();
+
+            input.PreviousScoresFound = priorScores;
+            input.PreviousPeriodScore1FromHistory = priorScores.Count >= 1;
+            input.PreviousPeriodScore2FromHistory = priorScores.Count >= 2;
+            if (priorScores.Count >= 1) input.PreviousPeriodScore1 = priorScores[0];
+            if (priorScores.Count >= 2) input.PreviousPeriodScore2 = priorScores[1];
+        }
+        else
+        {
+            input.PreviousScoresFound = [];
+            input.PreviousPeriodScore1FromHistory = false;
+            input.PreviousPeriodScore2FromHistory = false;
+        }
+
+        if (includeRecentRequests)
+        {
+            var recent = db.ContractRenewalRequests.AsNoTracking()
+                .Include(x => x.Employee)
+                .OrderByDescending(x => x.CreatedAt);
+            if (!User.HasClaim("IsAdmin", "1"))
+            {
+                if (int.TryParse(User.FindFirst("EmployeeId")?.Value, out var currentEmployeeId))
+                    input.RecentRequests = await recent.Where(x => x.CreatedByEmployeeId == currentEmployeeId).Take(20).ToListAsync();
+                else
+                    input.RecentRequests = [];
+            }
+            else
+            {
+                input.RecentRequests = await recent.Take(20).ToListAsync();
+            }
+        }
+
+        return input;
+    }
+
+    private void ValidateIntake(ContractRenewalIntakeViewModel model)
+    {
+        if (model.SelectedEmployee is null)
+            ModelState.AddModelError(nameof(model.EmployeeId), "یک کارمند فعال انتخاب کنید.");
+        else if (model.SelectedEmployee.EmploymentType == "غیرقراردادی" || model.SelectedEmployee.EmploymentType == "غیر قراردادی")
+            ModelState.AddModelError(nameof(model.EmployeeId), "برای کارمند غیرقراردادی درخواست تمدید قرارداد ثبت نمی‌شود.");
+
+        if (model.PreviousExtensionMonths1 is < 0 or > 120 ||
+            model.PreviousExtensionMonths2 is < 0 or > 120 ||
+            model.PreviousExtensionMonths3 is < 0 or > 120)
+            ModelState.AddModelError("", "مدت تمدیدهای قبلی باید عددی بین صفر تا ۱۲۰ ماه باشد.");
+
+        ValidateCount(model.HasDisciplinaryWarnings, model.DisciplinaryWarningCount, nameof(model.DisciplinaryWarningCount), "تعداد اخطارهای انضباطی");
+        ValidateCount(model.HasDisciplinaryCommitteeResolution, model.DisciplinaryCommitteeResolutionCount, nameof(model.DisciplinaryCommitteeResolutionCount), "تعداد مصوبه‌های کمیته انضباطی");
+        ValidateCount(model.HasUnpaidLeave, model.UnpaidLeaveDays, nameof(model.UnpaidLeaveDays), "روزهای مرخصی بدون حقوق");
+        ValidateCount(model.HasSickLeave, model.SickLeaveDays, nameof(model.SickLeaveDays), "روزهای مرخصی بیماری");
+        ValidateCount(model.HasAccidentLeave, model.AccidentLeaveDays, nameof(model.AccidentLeaveDays), "روزهای مرخصی حادثه");
+        ValidateCount(model.HasCommendations, model.CommendationCount, nameof(model.CommendationCount), "تعداد تشویق‌ها");
+
+        if (model.PreviousPeriodScore1 is < 0 or > 100 || model.PreviousPeriodScore2 is < 0 or > 100)
+            ModelState.AddModelError("", "امتیازهای دوره‌های پیشین باید بین صفر تا ۱۰۰ باشند.");
+        if (model.PreviousPeriodScore1 != decimal.Round(model.PreviousPeriodScore1, 2) ||
+            model.PreviousPeriodScore2 != decimal.Round(model.PreviousPeriodScore2, 2))
+            ModelState.AddModelError("", "امتیازهای دوره‌های پیشین حداکثر دو رقم اعشار دارند.");
+
+        if (!model.QuestionsReady)
+            ModelState.AddModelError("", "مجموع سقف امتیاز پرسش‌های فعال باید دقیقاً ۱۰۰ باشد.");
+        if (!model.WorkflowSettingsReady)
+            ModelState.AddModelError("", "تنظیم جایگاه حراست، منابع انسانی و مدیرعامل یا نسخه نهایی ساختار سازمانی کامل نیست.");
+    }
+
+    private void ValidateCount(bool hasRecord, int count, string key, string title)
+    {
+        if (count < 0 || count > 100000)
+            ModelState.AddModelError(key, $"{title} باید عددی معتبر و نامنفی باشد.");
+        else if (hasRecord && count == 0)
+            ModelState.AddModelError(key, $"در صورت انتخاب وجود سابقه، {title} باید بیشتر از صفر باشد.");
+    }
+
+    private async Task<HRPortal.Models.OrganizationStructureRevision?> CurrentRevisionAsync() =>
+        await db.OrganizationStructureRevisions.AsNoTracking()
+            .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
+            .OrderByDescending(x => x.EffectiveDate).ThenByDescending(x => x.Id)
+            .FirstOrDefaultAsync();
 
     private async Task<ContractManagementBasicInfoViewModel> BuildBasicInfoViewModelAsync(
         EmployeePerformanceEvaluationQuestion? editingQuestion = null)
     {
-        var questions = await db.EmployeePerformanceEvaluationQuestions
-            .AsNoTracking()
-            .OrderBy(x => x.SortOrder)
-            .ThenBy(x => x.Id)
-            .ToListAsync();
+        var questions = await db.EmployeePerformanceEvaluationQuestions.AsNoTracking()
+            .OrderBy(x => x.SortOrder).ThenBy(x => x.Id).ToListAsync();
 
         return new ContractManagementBasicInfoViewModel
         {

@@ -154,7 +154,9 @@ public class ContractRenewalTaskController(
                 request.Id.ToString(), $"{task.WorkflowStep.Title} | {stageKind}");
             TempData["Success"] = stageKind == "CEO"
                 ? $"درخواست {request.RequestCode} با تأیید مدیرعامل تکمیل شد."
-                : "اطلاعات مرحله جاری ذخیره و درخواست به مرحله بعد ارجاع شد.";
+                : stageKind == "Security" && securityDecision == "Reject"
+                    ? $"درخواست {request.RequestCode} با تصمیم عدم موافقت حراست خاتمه یافت."
+                    : "اطلاعات مرحله جاری ذخیره و درخواست به مرحله بعد ارجاع شد.";
             return RedirectToAction("Inbox", "Workflow");
         }
         catch (Exception ex)

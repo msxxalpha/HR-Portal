@@ -177,20 +177,6 @@ public class EmployeeContractsController(
 
         if (!ModelState.IsValid)
         {
-            var vm = new ContractRenewalWorkflowSettingsViewModel
-            {
-                Settings = new ContractRenewalWorkflowSettings
-                {
-                    SecurityPositionId = securityPositionId,
-                    HumanResourcesPositionId = humanResourcesPositionId,
-                    CeoEmployeeId = ceoEmployees.Count == 1 ? ceoEmployees[0].Id : null
-                },
-                Positions = nodes.OrderBy(x => x.RankType).ThenBy(x => x.Title).ToList(),
-                ActiveEmployees = await db.Employees.AsNoTracking().Where(x => x.Status == "فعال")
-                    .OrderBy(x => x.LastName).ThenBy(x => x.FirstName).ToListAsync(),
-                ChiefExecutiveEmployee = ceoEmployees.Count == 1 ? ceoEmployees[0] : null,
-                ErrorMessage = ceoEmployees.Count == 1 ? null : "تخصیص مدیرعامل به یک کارمند فعال را در فرم کارکنان انجام دهید."
-            };
             var basicInfo = await BuildBasicInfoViewModelAsync();
             basicInfo.WorkflowSettings = await BuildWorkflowSettingsViewModelAsync();
             basicInfo.WorkflowSettings.Settings.SecurityPositionId = securityPositionId;

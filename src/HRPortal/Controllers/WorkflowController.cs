@@ -100,6 +100,9 @@ public class WorkflowController(
             Definitions = await workflow.GetDefinitionsAsync(),
             SelectedDefinition = id.HasValue ? await workflow.GetDefinitionAsync(id.Value) : null,
             Positions = await GetCurrentPositionsAsync(),
+            AvailableForms = await db.SystemFormDefinitions.AsNoTracking()
+                .Where(x => x.IsActive && x.ImplementationType == "GenericWorkflow")
+                .OrderBy(x => x.Title).ToListAsync(),
             RankTitles = await db.OrganizationRankDefinitions.AsNoTracking()
                 .OrderBy(x => x.SortOrder).ThenBy(x => x.Title)
                 .Select(x => x.Title).ToListAsync()

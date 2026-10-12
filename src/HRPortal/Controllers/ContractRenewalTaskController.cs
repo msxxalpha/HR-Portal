@@ -59,8 +59,8 @@ public class ContractRenewalTaskController(
 
         try
         {
-            if (comment is { Length: > 3000 })
-                throw new InvalidOperationException("توضیحات هر مرحله حداکثر می‌تواند ۳۰۰۰ نویسه باشد.");
+            if (comment is { Length: > 2000 })
+                throw new InvalidOperationException("توضیحات هر مرحله حداکثر می‌تواند ۲۰۰۰ نویسه باشد؛ این محدودیت برای حفظ کامل سابقه پایگاه داده اعمال می‌شود.");
 
             if (stageKind == "Evaluation")
             {

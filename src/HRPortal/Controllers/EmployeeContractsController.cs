@@ -866,7 +866,7 @@ public class EmployeeContractsController(
         return await db.ContractRenewalRequests.AsNoTracking().AnyAsync(x =>
             x.EmployeeId == employeeId &&
             x.PreviousContractEndDate.HasValue &&
-            x.PreviousContractEndDate.Value == targetDate &&
+            x.PreviousContractEndDate.Value.Date == targetDate &&
             x.Status != "حذف شده" &&
             x.Status != "متوقف شده" &&
             (x.WorkflowInstance == null || x.WorkflowInstance.Status != "Cancelled"));
@@ -889,7 +889,7 @@ public class EmployeeContractsController(
         request.EmployeeNameSnapshot = $"{employee.FirstName} {employee.LastName}".Trim();
         request.PersonnelNumberSnapshot = employee.PersonnelNumber;
         request.OrganizationUnitSnapshot = employee.OrganizationUnit?.Title ?? "";
-        request.PositionTitleSnapshot = employee.OrganizationPosition?.Title ?? employee.PositionTitle ?? "";
+        request.PositionTitleSnapshot = employee.PositionTitle ?? employee.OrganizationPosition?.Title ?? "";
         request.PreviousContractEndDate = employee.ContractEndDate;
         request.PreviousExtensionMonths1 = model.PreviousExtensionMonths1;
         request.PreviousExtensionMonths2 = model.PreviousExtensionMonths2;

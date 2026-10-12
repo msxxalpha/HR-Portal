@@ -99,7 +99,10 @@ public class WorkflowController(
         {
             Definitions = await workflow.GetDefinitionsAsync(),
             SelectedDefinition = id.HasValue ? await workflow.GetDefinitionAsync(id.Value) : null,
-            Positions = await GetCurrentPositionsAsync()
+            Positions = await GetCurrentPositionsAsync(),
+            RankTitles = await db.OrganizationRankDefinitions.AsNoTracking()
+                .OrderBy(x => x.SortOrder).ThenBy(x => x.Title)
+                .Select(x => x.Title).ToListAsync()
         };
         return View(model);
     }

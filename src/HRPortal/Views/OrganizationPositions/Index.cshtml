@@ -1,0 +1,84 @@
+@model List<HRPortal.Models.OrganizationPositionDefinition>
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "مدیریت پست‌های سازمانی";
+    var edit = ViewBag.EditPosition as HRPortal.Models.OrganizationPositionDefinition;
+    string q = ViewBag.Q as string ?? "";
+    string status = ViewBag.Status as string ?? "";
+    string family = ViewBag.JobFamily as string ?? "";
+    string sort = ViewBag.Sort as string ?? "Code";
+    string dir = ViewBag.Dir as string ?? "asc";
+    int page = (int)(ViewBag.Page ?? 1);
+    int pageSize = (int)(ViewBag.PageSize ?? 25);
+    int totalPages = (int)(ViewBag.TotalPages ?? 1);
+    int totalCount = (int)(ViewBag.TotalCount ?? 0);
+    var families = ViewBag.JobFamilies as List<string> ?? new List<string>();
+}
+<div class="page-head">
+    <div><h1>مدیریت پست‌های سازمانی</h1><p>تعریف پست‌ها و استفاده از عناوین فعال در فرم کارکنان؛ پست‌های تخصیص‌یافته قابل حذف نیستند.</p></div>
+    <div class="actions">
+        <a class="btn btn-outline" href="/SystemSettings#organization-ranks">بازگشت به اطلاعات پایه سامانه</a>
+        <a class="btn btn-outline" href="/OrganizationPositions/Import">ورود از Excel</a>
+        <a class="btn btn-outline" href="/OrganizationPositions/Template">دریافت قالب و راهنمای Excel</a>
+    </div>
+</div>
+@if (TempData["Success"] is string success) { <div class="alert success">@success</div> }
+@if (TempData["Error"] is string error) { <div class="alert error">@error</div> }
+
+<section class="card">
+    <div class="section-head"><div><h3>@(edit is null ? "تعریف پست جدید" : "ویرایش پست")</h3><span class="muted">کد و عنوان یکتا هستند. غیرفعال‌سازی، سابقه پست‌های قبلی را حذف نمی‌کند.</span></div>
+        @if (edit is not null) { <a class="btn btn-outline" href="/OrganizationPositions">لغو ویرایش</a> }
+    </div>
+    <form method="post" action="/OrganizationPositions/Save" class="grid-3">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="id" value="@(edit?.Id ?? 0)" />
+        <label>کد پست *<input name="code" maxlength="50" required value="@(edit?.Code ?? "")" placeholder="مثلاً POS-001" /></label>
+        <label>عنوان پست *<input name="title" maxlength="150" required value="@(edit?.Title ?? "")" placeholder="عنوان قابل انتخاب برای کارکنان" /></label>
+        <label>گروه شغلی<input name="jobFamily" maxlength="100" value="@(edit?.JobFamily ?? "")" placeholder="مثلاً منابع انسانی" /></label>
+        <label>رده / گرید<input name="grade" maxlength="50" value="@(edit?.Grade ?? "")" /></label>
+        <label>ترتیب نمایش<input name="sortOrder" type="number" value="@(edit?.SortOrder ?? 10)" /></label>
+        <label class="inline-check"><span>پست فعال باشد</span><input type="checkbox" name="isActive" value="true" checked="@(edit?.IsActive ?? true)" /><input type="hidden" name="isActive" value="false" /></label>
+        <label class="wide">توضیحات<textarea name="description" rows="2" maxlength="1000">@(edit?.Description ?? "")</textarea></label>
+        <div class="form-actions"><button class="btn btn-main" type="submit">@(edit is null ? "ثبت پست" : "ذخیره تغییرات")</button></div>
+    </form>
+</section>
+
+<section class="card">
+    <div class="section-head"><div><h3>فهرست پست‌ها</h3><span class="muted">@(totalCount.ToString("N0")) پست مطابق فیلترها</span></div>
+        <a class="btn btn-outline" href="/OrganizationPositions/Export?q=@Uri.EscapeDataString(q)&status=@Uri.EscapeDataString(status)&jobFamily=@Uri.EscapeDataString(family)">خروجی Excel</a>
+    </div>
+    <form method="get" action="/OrganizationPositions" class="contract-request-list-filters">
+        <label>جست‌وجو<input name="q" value="@q" placeholder="کد، عنوان، گروه شغلی، گرید یا توضیحات" /></label>
+        <label>وضعیت<select name="status"><option value="">همه وضعیت‌ها</option><option value="active" selected="@(status == "active")">فعال</option><option value="inactive" selected="@(status == "inactive")">غیرفعال</option></select></label>
+        <label>گروه شغلی<select name="jobFamily"><option value="">همه گروه‌ها</option>@foreach (var f in families) { <option value="@f" selected="@(family == f)">@f</option> }</select></label>
+        <label>تعداد در صفحه<select name="pageSize"><option value="25" selected="@(pageSize == 25)">۲۵</option><option value="50" selected="@(pageSize == 50)">۵۰</option><option value="75" selected="@(pageSize == 75)">۷۵</option><option value="100" selected="@(pageSize == 100)">۱۰۰</option></select></label>
+        <button class="btn btn-main" type="submit">اعمال فیلتر</button><a class="btn btn-outline" href="/OrganizationPositions">پاک‌کردن</a>
+    </form>
+    <div class="table-wrap"><table>
+        <thead><tr><th><a href="?q=@Uri.EscapeDataString(q)&status=@status&jobFamily=@Uri.EscapeDataString(family)&sort=Code&dir=@(sort == "Code" && dir == "asc" ? "desc" : "asc")&pageSize=@pageSize">کد</a></th><th><a href="?q=@Uri.EscapeDataString(q)&status=@status&jobFamily=@Uri.EscapeDataString(family)&sort=Title&dir=@(sort == "Title" && dir == "asc" ? "desc" : "asc")&pageSize=@pageSize">عنوان</a></th><th>گروه شغلی</th><th>گرید</th><th>ترتیب</th><th>وضعیت</th><th>تاریخ ویرایش</th><th>عملیات</th></tr></thead>
+        <tbody>
+        @if (Model.Count == 0) { <tr><td colspan="8" class="empty">پستی مطابق فیلترها پیدا نشد.</td></tr> }
+        @foreach (var p in Model) {
+            <tr>
+                <td>@p.Code</td><td><strong>@p.Title</strong><div class="muted">@p.Description</div></td><td>@(p.JobFamily ?? "—")</td><td>@(p.Grade ?? "—")</td><td>@p.SortOrder</td>
+                <td><span class="status-pill @(p.IsActive ? "status-approved" : "status-cancelled")">@(p.IsActive ? "فعال" : "غیرفعال")</span></td>
+                <td>@p.UpdatedAt.ToLocalTime().ToString("yyyy/MM/dd")</td>
+                <td><div class="actions">
+                    <a class="btn btn-sm btn-outline" href="/OrganizationPositions?editId=@p.Id">ویرایش</a>
+                    @if (User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Settings.Edit")) {
+                        <form method="post" action="/OrganizationPositions/ToggleStatus" class="inline-filter-form">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@p.Id" /><button class="btn btn-sm btn-outline" type="submit">@(p.IsActive ? "غیرفعال‌کردن" : "فعال‌کردن")</button></form>
+                        <form method="post" action="/OrganizationPositions/Delete" class="inline-filter-form">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@p.Id" /><button class="btn btn-sm btn-outline danger" type="submit" onclick="return confirm('فقط پست‌های استفاده‌نشده قابل حذف هستند. ادامه می‌دهید؟')">حذف</button></form>
+                    }
+                </div></td>
+            </tr>
+        }
+        </tbody>
+    </table></div>
+    <div class="pager">
+        <span>صفحه @page از @totalPages</span>
+        <div class="actions">
+            @if (page > 1) { <a class="btn btn-outline" href="?q=@Uri.EscapeDataString(q)&status=@status&jobFamily=@Uri.EscapeDataString(family)&sort=@sort&dir=@dir&pageSize=@pageSize&page=@(page - 1)">قبلی</a> }
+            @if (page < totalPages) { <a class="btn btn-outline" href="?q=@Uri.EscapeDataString(q)&status=@status&jobFamily=@Uri.EscapeDataString(family)&sort=@sort&dir=@dir&pageSize=@pageSize&page=@(page + 1)">بعدی</a> }
+        </div>
+    </div>
+</section>

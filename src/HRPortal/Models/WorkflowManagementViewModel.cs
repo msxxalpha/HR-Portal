@@ -6,4 +6,5 @@ public class WorkflowManagementViewModel
     public WorkflowDefinition? SelectedDefinition { get; set; }
     public List<OrganizationNode> Positions { get; set; } = [];
     public List<string> RankTitles { get; set; } = [];
+    public List<SystemFormDefinition> AvailableForms { get; set; } = [];
 }

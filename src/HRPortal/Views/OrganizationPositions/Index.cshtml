@@ -26,7 +26,9 @@
 @if (TempData["Success"] is string success) { <div class="alert success">@success</div> }
 @if (TempData["Error"] is string error) { <div class="alert error">@error</div> }
 
-@if (canEdit)\n{\n<section class="card">
+@if (canEdit)
+{
+<section class="card">
     <div class="section-head"><div><h3>@(edit is null ? "تعریف پست جدید" : "ویرایش پست")</h3><span class="muted">کد و عنوان یکتا هستند. غیرفعال‌سازی، سابقه پست‌های قبلی را حذف نمی‌کند.</span></div>
         @if (edit is not null) { <a class="btn btn-outline" href="/OrganizationPositions">لغو ویرایش</a> }
     </div>

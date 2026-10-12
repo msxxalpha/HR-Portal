@@ -8,7 +8,7 @@
     string family = ViewBag.JobFamily as string ?? "";
     string sort = ViewBag.Sort as string ?? "Code";
     string dir = ViewBag.Dir as string ?? "asc";
-    int page = (int)(ViewBag.Page ?? 1);
+    int currentPage = (int)(ViewBag.Page ?? 1);
     int pageSize = (int)(ViewBag.PageSize ?? 25);
     int totalPages = (int)(ViewBag.TotalPages ?? 1);
     int totalCount = (int)(ViewBag.TotalCount ?? 0);
@@ -75,10 +75,10 @@
         </tbody>
     </table></div>
     <div class="pager">
-        <span>صفحه @page از @totalPages</span>
+        <span>صفحه @currentPage از @totalPages</span>
         <div class="actions">
-            @if (page > 1) { <a class="btn btn-outline" href="?q=@Uri.EscapeDataString(q)&status=@status&jobFamily=@Uri.EscapeDataString(family)&sort=@sort&dir=@dir&pageSize=@pageSize&page=@(page - 1)">قبلی</a> }
-            @if (page < totalPages) { <a class="btn btn-outline" href="?q=@Uri.EscapeDataString(q)&status=@status&jobFamily=@Uri.EscapeDataString(family)&sort=@sort&dir=@dir&pageSize=@pageSize&page=@(page + 1)">بعدی</a> }
+            @if (currentPage > 1) { <a class="btn btn-outline" href="?q=@Uri.EscapeDataString(q)&status=@status&jobFamily=@Uri.EscapeDataString(family)&sort=@sort&dir=@dir&pageSize=@pageSize&page=@(currentPage - 1)">قبلی</a> }
+            @if (currentPage < totalPages) { <a class="btn btn-outline" href="?q=@Uri.EscapeDataString(q)&status=@status&jobFamily=@Uri.EscapeDataString(family)&sort=@sort&dir=@dir&pageSize=@pageSize&page=@(currentPage + 1)">بعدی</a> }
         </div>
     </div>
 </section>

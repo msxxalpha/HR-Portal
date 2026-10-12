@@ -425,7 +425,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                     throw new InvalidOperationException($"مقدار فیلد «{field.Title}» باید عددی باشد.");
                 if (field.FieldType == "Date" && !DateOnly.TryParseExact(value, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out _))
                     throw new InvalidOperationException($"تاریخ فیلد «{field.Title}» معتبر نیست.");
-                if (field.FieldType == "Select" && !(field.Options ?? "").Split('\\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Contains(value))
+                if (field.FieldType == "Select" && !(field.Options ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Contains(value))
                     throw new InvalidOperationException($"گزینه انتخاب‌شده برای فیلد «{field.Title}» معتبر نیست.");
             }
             db.WorkflowFieldValues.Add(new WorkflowFieldValue

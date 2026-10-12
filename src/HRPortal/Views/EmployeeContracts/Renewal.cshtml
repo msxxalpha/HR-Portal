@@ -55,8 +55,9 @@
         <input type="hidden" name="RequestId" value="@Model.RequestId" />
         <input type="hidden" name="IsEditMode" value="@Model.IsEditMode.ToString().ToLowerInvariant()" />
         <div class="grid-2">
-            <label>جست‌وجوی کارمند بر اساس نام، شماره پرسنلی یا واحد
+            <label hidden="@(Model.IsEditMode ? "hidden" : null)">جست‌وجوی کارمند بر اساس نام، شماره پرسنلی یا واحد
                 <input type="search" id="employeeFilter" placeholder="بخشی از نام، شماره پرسنلی یا واحد را وارد کنید" autocomplete="off" />
+                <small id="employeeFilterCount" class="muted">همه کارکنان نمایش داده می‌شوند</small>
             </label>
             <label>کارمند *@(Model.IsEditMode ? " (در درخواست موجود قابل تغییر نیست)" : "")
                 @if (Model.IsEditMode) { <input type="hidden" name="EmployeeId" value="@Model.EmployeeId" /> }
@@ -209,7 +210,7 @@
 }
 
 <section class="card">
-    <div class="section-head"><div><h3>درخواست‌های اخیر تمدید قرارداد</h3><span class="muted">برای مشاهده وضعیت و تاریخچه، از کارتابل گردش کار استفاده کنید.</span></div><a class="btn btn-outline" href="/Workflow/MyRequests">درخواست‌های من</a></div>
+    <div class="section-head"><div><h3>درخواست‌های اخیر تمدید قرارداد</h3><span class="muted">برای فهرست کامل، آخرین وضعیت و عملیات مجاز، وارد فهرست درخواست‌ها شوید.</span></div><div class="actions"><a class="btn btn-outline" href="/Workflow/MyRequests">درخواست‌های من</a><a class="btn btn-outline" href="/EmployeeContracts/Requests">فهرست همه درخواست‌ها</a></div></div>
     @if (Model.RecentRequests.Count == 0)
     {
         <div class="empty">درخواستی ثبت نشده است.</div>

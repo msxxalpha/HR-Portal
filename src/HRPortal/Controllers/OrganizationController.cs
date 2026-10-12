@@ -51,6 +51,10 @@ public class OrganizationController(
             revisions = await service.RevisionsAsync();
 
         ViewBag.CompanyName = (await settings.GetAsync()).System.OrganizationName;
+        var organizationRankTitles = await db.OrganizationRankDefinitions.AsNoTracking()
+            .OrderBy(x => x.SortOrder).ThenBy(x => x.Title)
+            .Select(x => x.Title).ToListAsync();
+        ViewBag.OrganizationRankJson = JsonSerializer.Serialize(organizationRankTitles);
         ViewBag.Revisions = revisions;
         ViewBag.IsEditable = revision is not null && !revision.IsFinalized && canEditStructure;
         ViewBag.CanCreate = User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Organization.Create");
@@ -441,17 +445,19 @@ public class OrganizationController(
 
     private async Task<string?> ValidateNodeParentAsync(int revisionId, int? parentId, string childRank)
     {
-        if (parentId is null)
-            return OrganizationService.ValidateHierarchy("", childRank, true);
+        if (string.IsNullOrWhiteSpace(childRank) ||
+            !await db.OrganizationRankDefinitions.AnyAsync(x => x.Title == childRank))
+            return "رده انتخاب‌شده در اطلاعات پایه سامانه وجود ندارد؛ ابتدا رده را تعریف کنید.";
 
-        var parent = await db.OrganizationNodes
-            .AsNoTracking()
+        if (parentId is null) return null;
+
+        var parent = await db.OrganizationNodes.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == parentId && x.OrganizationStructureRevisionId == revisionId);
-
         if (parent is null)
-            return "والد انتخاب‌شده یافت نشد.";
+            return "والد انتخاب‌شده یافت نشد یا متعلق به نسخه دیگری از ساختار است.";
 
-        return OrganizationService.ValidateHierarchy(parent.RankType, childRank, false);
+        // Master-data ranks are deliberately not filtered or constrained by parent rank.
+        return null;
     }
 
     private async Task<bool> IsNodeUsedAsync(int id) =>

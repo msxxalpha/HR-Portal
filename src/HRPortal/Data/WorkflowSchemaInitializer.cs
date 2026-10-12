@@ -7,6 +7,20 @@ public static class WorkflowSchemaInitializer
     public static async Task InitializeAsync(HRPortalDbContext db)
     {
         const string sql = @"
+IF OBJECT_ID(N'dbo.SystemFormDefinitions', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[SystemFormDefinitions](
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_SystemFormDefinitions] PRIMARY KEY,
+        [Code] nvarchar(100) NOT NULL,
+        [Title] nvarchar(200) NOT NULL,
+        [ImplementationType] nvarchar(30) NOT NULL CONSTRAINT [DF_SystemFormDefinitions_ImplementationType] DEFAULT N'Standalone',
+        [IsActive] bit NOT NULL CONSTRAINT [DF_SystemFormDefinitions_IsActive] DEFAULT 1,
+        [Description] nvarchar(1000) NULL,
+        [CreatedAt] datetime2 NOT NULL CONSTRAINT [DF_SystemFormDefinitions_CreatedAt] DEFAULT SYSUTCDATETIME(),
+        [UpdatedAt] datetime2 NOT NULL CONSTRAINT [DF_SystemFormDefinitions_UpdatedAt] DEFAULT SYSUTCDATETIME()
+    );
+END;
+
 IF OBJECT_ID(N'dbo.WorkflowDefinitions', N'U') IS NULL
 BEGIN
     CREATE TABLE [dbo].[WorkflowDefinitions](
@@ -14,6 +28,7 @@ BEGIN
         [Code] nvarchar(100) NOT NULL,
         [Title] nvarchar(200) NOT NULL,
         [Description] nvarchar(1000) NULL,
+        [FormCode] nvarchar(100) NULL,
         [IsActive] bit NOT NULL CONSTRAINT [DF_WorkflowDefinitions_IsActive] DEFAULT 1,
         [Version] int NOT NULL CONSTRAINT [DF_WorkflowDefinitions_Version] DEFAULT 1,
         [IsRuntimeInstance] bit NOT NULL CONSTRAINT [DF_WorkflowDefinitions_IsRuntimeInstance] DEFAULT 0,
@@ -41,7 +56,9 @@ BEGIN
         [AllowReturn] bit NOT NULL CONSTRAINT [DF_WorkflowSteps_AllowReturn] DEFAULT 1,
         [RequireCommentOnReject] bit NOT NULL CONSTRAINT [DF_WorkflowSteps_RequireCommentOnReject] DEFAULT 1,
         [RequireCommentOnReturn] bit NOT NULL CONSTRAINT [DF_WorkflowSteps_RequireCommentOnReturn] DEFAULT 0,
-        [IsFinalStep] bit NOT NULL CONSTRAINT [DF_WorkflowSteps_IsFinalStep] DEFAULT 0
+        [IsFinalStep] bit NOT NULL CONSTRAINT [DF_WorkflowSteps_IsFinalStep] DEFAULT 0,
+        [AllowEditPreviousData] bit NOT NULL CONSTRAINT [DF_WorkflowSteps_AllowEditPreviousData] DEFAULT 0,
+        [RequireNotes] bit NOT NULL CONSTRAINT [DF_WorkflowSteps_RequireNotes] DEFAULT 0
     );
 END;
 
@@ -136,10 +153,21 @@ BEGIN
     );
 END;
 
+IF COL_LENGTH(N'dbo.WorkflowDefinitions', N'FormCode') IS NULL ALTER TABLE [dbo].[WorkflowDefinitions] ADD [FormCode] nvarchar(100) NULL;
+IF COL_LENGTH(N'dbo.WorkflowSteps', N'AllowEditPreviousData') IS NULL ALTER TABLE [dbo].[WorkflowSteps] ADD [AllowEditPreviousData] bit NOT NULL CONSTRAINT [DF_WorkflowSteps_AllowEditPreviousData] DEFAULT 0;
+IF COL_LENGTH(N'dbo.WorkflowSteps', N'RequireNotes') IS NULL ALTER TABLE [dbo].[WorkflowSteps] ADD [RequireNotes] bit NOT NULL CONSTRAINT [DF_WorkflowSteps_RequireNotes] DEFAULT 0;
+
 IF COL_LENGTH(N'dbo.WorkflowDefinitions', N'IsRuntimeInstance') IS NULL ALTER TABLE [dbo].[WorkflowDefinitions] ADD [IsRuntimeInstance] bit NOT NULL CONSTRAINT [DF_WorkflowDefinitions_IsRuntimeInstance] DEFAULT 0;
 IF COL_LENGTH(N'dbo.WorkflowDefinitions', N'SourceDefinitionId') IS NULL ALTER TABLE [dbo].[WorkflowDefinitions] ADD [SourceDefinitionId] int NULL;
 IF COL_LENGTH(N'dbo.WorkflowSteps', N'HierarchyStopRankType') IS NULL ALTER TABLE [dbo].[WorkflowSteps] ADD [HierarchyStopRankType] nvarchar(30) NOT NULL CONSTRAINT [DF_WorkflowSteps_HierarchyStopRankType] DEFAULT N'معاونت';
 IF OBJECT_ID(N'dbo.WorkflowSteps', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.WorkflowSteps', N'AssignedEmployeeId') IS NULL ALTER TABLE [dbo].[WorkflowSteps] ADD [AssignedEmployeeId] int NULL;
+
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'UX_SystemFormDefinitions_Code' AND object_id=OBJECT_ID(N'dbo.SystemFormDefinitions'))
+    EXEC sys.sp_executesql N'CREATE UNIQUE INDEX [UX_SystemFormDefinitions_Code] ON [dbo].[SystemFormDefinitions]([Code]);';
+
+IF NOT EXISTS(SELECT 1 FROM [dbo].[SystemFormDefinitions] WHERE [Code]=N'contract-renewal-evaluation')
+    INSERT INTO [dbo].[SystemFormDefinitions]([Code],[Title],[ImplementationType],[IsActive],[Description])
+    VALUES(N'contract-renewal-evaluation',N'ارزشیابی و تمدید قرارداد',N'Custom',1,N'فرم اختصاصی با گردش کار مستقل؛ از موتور گردش کار عمومی استفاده نمی‌کند.');
 
 IF EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowDefinitions_Code' AND object_id=OBJECT_ID(N'dbo.WorkflowDefinitions'))
     DROP INDEX [IX_WorkflowDefinitions_Code] ON [dbo].[WorkflowDefinitions];

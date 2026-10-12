@@ -7,4 +7,5 @@ public class ContractManagementBasicInfoViewModel
     public decimal ActiveMaxScoreTotal { get; set; }
     public int ActiveQuestionCount { get; set; }
     public string? ValidationMessage { get; set; }
+    public ContractRenewalWorkflowSettingsViewModel WorkflowSettings { get; set; } = new();
 }

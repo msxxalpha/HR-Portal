@@ -18,6 +18,110 @@ public class EmployeeContractsController(
     [Authorize(Policy = "ContractRenewal.Manage")]
     public IActionResult Index() => View();
 
+    [Authorize(Policy = "ContractRenewal.Manage")]
+    public async Task<IActionResult> Dashboard()
+    {
+        var today = DateTime.Today;
+        var limit = today.AddDays(30);
+        var employees = await db.Employees.AsNoTracking()
+            .Include(x => x.OrganizationUnit)
+            .Include(x => x.OrganizationDepartment)
+            .Include(x => x.OrganizationSection)
+            .Where(x => x.Status == "فعال" &&
+                x.EmploymentType != "غیرقراردادی" && x.EmploymentType != "غیر قراردادی" &&
+                x.ContractEndDate.HasValue && x.ContractEndDate.Value <= limit)
+            .OrderBy(x => x.ContractEndDate).ThenBy(x => x.LastName).ThenBy(x => x.FirstName)
+            .ToListAsync();
+
+        var requests = await db.ContractRenewalRequests.AsNoTracking()
+            .Include(x => x.WorkflowInstance)
+            .Where(x => x.Status != "حذف شده")
+            .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+            .ToListAsync();
+
+        var rows = new List<ContractRenewalExpiryRow>();
+        foreach (var employee in employees)
+        {
+            var endDate = employee.ContractEndDate!.Value.Date;
+            var matching = requests.Where(x => x.EmployeeId == employee.Id &&
+                x.PreviousContractEndDate.HasValue && x.PreviousContractEndDate.Value.Date == endDate).ToList();
+            var blockingRequest = matching.FirstOrDefault(x =>
+                x.Status != "متوقف شده" &&
+                x.WorkflowInstance?.Status != "Cancelled");
+            rows.Add(new ContractRenewalExpiryRow
+            {
+                EmployeeId = employee.Id,
+                FullName = $"{employee.FirstName} {employee.LastName}".Trim(),
+                PersonnelNumber = employee.PersonnelNumber,
+                OrganizationUnit = employee.OrganizationSection?.Title ??
+                    employee.OrganizationDepartment?.Title ?? employee.OrganizationUnit?.Title ?? "—",
+                PositionTitle = employee.PositionTitle ?? "—",
+                ContractEndDate = endDate,
+                DaysRemaining = (endDate - today).Days,
+                LatestRequest = matching.FirstOrDefault(),
+                CanStartRequest = blockingRequest is null
+            });
+        }
+
+        var currentRequests = requests.Where(x => x.Status != "حذف شده").ToList();
+        bool isInProgress(ContractRenewalRequest request) =>
+            request.WorkflowInstance?.Status == "InProgress" ||
+            request.Status is "در حال شروع" or "در حال ارزیابی سازمانی";
+        bool isCompleted(ContractRenewalRequest request) =>
+            request.Status == "تکمیل شده" || request.WorkflowInstance?.Status == "Approved";
+        bool isStopped(ContractRenewalRequest request) =>
+            request.Status == "متوقف شده" || request.WorkflowInstance?.Status == "Cancelled";
+        var inProgress = currentRequests.Count(isInProgress);
+        var completed = currentRequests.Count(isCompleted);
+        var stopped = currentRequests.Count(isStopped);
+        var other = Math.Max(0, currentRequests.Count - inProgress - completed - stopped);
+
+        var persian = new System.Globalization.PersianCalendar();
+        var monthStart = new DateTime(today.Year, today.Month, 1).AddMonths(-5);
+        var monthly = currentRequests
+            .Where(x => x.CreatedAt.ToLocalTime().Date >= monthStart && x.CreatedAt.ToLocalTime().Date <= today)
+            .GroupBy(x =>
+            {
+                var date = x.CreatedAt.ToLocalTime();
+                return (persian.GetYear(date), persian.GetMonth(date));
+            })
+            .ToDictionary(g => g.Key, g => g.Count());
+        var months = new List<ContractRenewalDashboardBucket>();
+        for (var i = 5; i >= 0; i--)
+        {
+            var month = new DateTime(today.Year, today.Month, 1).AddMonths(-i);
+            var key = (persian.GetYear(month), persian.GetMonth(month));
+            months.Add(new ContractRenewalDashboardBucket
+            {
+                Label = $"{key.Item1}/{key.Item2:00}",
+                Count = monthly.TryGetValue(key, out var count) ? count : 0
+            });
+        }
+
+        return View(new ContractRenewalDashboardViewModel
+        {
+            Today = today,
+            ExpiringEmployeeCount = rows.Count,
+            TotalRequests = currentRequests.Count,
+            InProgressRequests = inProgress,
+            CompletedRequests = completed,
+            StoppedRequests = stopped,
+            NeedsAttentionRequests = other,
+            AverageCompletedScore = currentRequests.Where(isCompleted)
+                .Where(x => x.FinalEvaluationScore.HasValue)
+                .Select(x => (decimal?)x.FinalEvaluationScore!.Value).Average(),
+            ExpiringEmployees = rows,
+            StatusBuckets =
+            [
+                new ContractRenewalDashboardBucket { Label = "در جریان", Count = inProgress },
+                new ContractRenewalDashboardBucket { Label = "تکمیل‌شده", Count = completed },
+                new ContractRenewalDashboardBucket { Label = "متوقف‌شده", Count = stopped },
+                new ContractRenewalDashboardBucket { Label = "سایر وضعیت‌ها", Count = other }
+            ],
+            MonthlyBuckets = months
+        });
+    }
+
     [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> BasicInformation(int? editId)
     {
@@ -220,6 +324,16 @@ public class EmployeeContractsController(
     [Authorize(Policy = "ContractRenewal.Manage")]
     public async Task<IActionResult> Renewal(int? employeeId = null)
     {
+        if (employeeId.HasValue)
+        {
+            var employee = await db.Employees.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == employeeId.Value && x.Status == "فعال");
+            if (employee is not null && await HasExistingRenewalForPeriodAsync(employee.Id, employee.ContractEndDate))
+            {
+                TempData["Error"] = "برای تاریخ پایان قرارداد فعلی این کارمند، درخواست تمدید ثبت‌شده، در جریان یا نهایی وجود دارد؛ درخواست تکراری ایجاد نمی‌شود.";
+                return RedirectToAction(nameof(Dashboard));
+            }
+        }
         var model = await BuildIntakeViewModelAsync(new ContractRenewalIntakeViewModel { EmployeeId = employeeId ?? 0 }, true);
         return View(model);
     }
@@ -291,6 +405,13 @@ public class EmployeeContractsController(
         }
 
         var employee = model.SelectedEmployee!;
+        if (await HasExistingRenewalForPeriodAsync(employee.Id, employee.ContractEndDate))
+        {
+            model.ErrorMessage = "برای تاریخ پایان قرارداد فعلی این کارمند، درخواست تمدید ثبت‌شده، در جریان یا نهایی وجود دارد. برای جلوگیری از درخواست تکراری، ابتدا فهرست درخواست‌ها را بررسی کنید.";
+            model.ShowPreview = true;
+            return View("Renewal", model);
+        }
+
         var request = new ContractRenewalRequest
         {
             RequestCode = "TEMP-" + Guid.NewGuid().ToString("N")[..20],
@@ -737,6 +858,19 @@ public class EmployeeContractsController(
 
     private int? GetCurrentEmployeeId() =>
         int.TryParse(User.FindFirst("EmployeeId")?.Value, out var id) ? id : null;
+
+    private async Task<bool> HasExistingRenewalForPeriodAsync(int employeeId, DateTime? contractEndDate)
+    {
+        if (!contractEndDate.HasValue) return false;
+        var targetDate = contractEndDate.Value.Date;
+        return await db.ContractRenewalRequests.AsNoTracking().AnyAsync(x =>
+            x.EmployeeId == employeeId &&
+            x.PreviousContractEndDate.HasValue &&
+            x.PreviousContractEndDate.Value == targetDate &&
+            x.Status != "حذف شده" &&
+            x.Status != "متوقف شده" &&
+            (x.WorkflowInstance == null || x.WorkflowInstance.Status != "Cancelled"));
+    }
 
     private async Task<bool> HasEvaluationActivityAsync(int workflowInstanceId)
     {

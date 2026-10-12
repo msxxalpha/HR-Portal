@@ -13,19 +13,20 @@
     int totalPages = (int)(ViewBag.TotalPages ?? 1);
     int totalCount = (int)(ViewBag.TotalCount ?? 0);
     var families = ViewBag.JobFamilies as List<string> ?? new List<string>();
+    bool canEdit = User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Settings.Edit");
 }
 <div class="page-head">
     <div><h1>مدیریت پست‌های سازمانی</h1><p>تعریف پست‌ها و استفاده از عناوین فعال در فرم کارکنان؛ پست‌های تخصیص‌یافته قابل حذف نیستند.</p></div>
     <div class="actions">
         <a class="btn btn-outline" href="/SystemSettings#organization-ranks">بازگشت به اطلاعات پایه سامانه</a>
-        <a class="btn btn-outline" href="/OrganizationPositions/Import">ورود از Excel</a>
+        @if (canEdit) { <a class="btn btn-outline" href="/OrganizationPositions/Import">ورود از Excel</a> }
         <a class="btn btn-outline" href="/OrganizationPositions/Template">دریافت قالب و راهنمای Excel</a>
     </div>
 </div>
 @if (TempData["Success"] is string success) { <div class="alert success">@success</div> }
 @if (TempData["Error"] is string error) { <div class="alert error">@error</div> }
 
-<section class="card">
+@if (canEdit)\n{\n<section class="card">
     <div class="section-head"><div><h3>@(edit is null ? "تعریف پست جدید" : "ویرایش پست")</h3><span class="muted">کد و عنوان یکتا هستند. غیرفعال‌سازی، سابقه پست‌های قبلی را حذف نمی‌کند.</span></div>
         @if (edit is not null) { <a class="btn btn-outline" href="/OrganizationPositions">لغو ویرایش</a> }
     </div>
@@ -41,7 +42,7 @@
         <label class="wide">توضیحات<textarea name="description" rows="2" maxlength="1000">@(edit?.Description ?? "")</textarea></label>
         <div class="form-actions"><button class="btn btn-main" type="submit">@(edit is null ? "ثبت پست" : "ذخیره تغییرات")</button></div>
     </form>
-</section>
+</section>\n}\n
 
 <section class="card">
     <div class="section-head"><div><h3>فهرست پست‌ها</h3><span class="muted">@(totalCount.ToString("N0")) پست مطابق فیلترها</span></div>
@@ -64,7 +65,7 @@
                 <td><span class="status-pill @(p.IsActive ? "status-approved" : "status-cancelled")">@(p.IsActive ? "فعال" : "غیرفعال")</span></td>
                 <td>@p.UpdatedAt.ToLocalTime().ToString("yyyy/MM/dd")</td>
                 <td><div class="actions">
-                    <a class="btn btn-sm btn-outline" href="/OrganizationPositions?editId=@p.Id">ویرایش</a>
+                    @if (canEdit) { <a class="btn btn-sm btn-outline" href="/OrganizationPositions?editId=@p.Id">ویرایش</a> }
                     @if (User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Settings.Edit")) {
                         <form method="post" action="/OrganizationPositions/ToggleStatus" class="inline-filter-form">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@p.Id" /><button class="btn btn-sm btn-outline" type="submit">@(p.IsActive ? "غیرفعال‌کردن" : "فعال‌کردن")</button></form>
                         <form method="post" action="/OrganizationPositions/Delete" class="inline-filter-form">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@p.Id" /><button class="btn btn-sm btn-outline danger" type="submit" onclick="return confirm('فقط پست‌های استفاده‌نشده قابل حذف هستند. ادامه می‌دهید؟')">حذف</button></form>

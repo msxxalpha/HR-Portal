@@ -238,6 +238,7 @@ public class OrganizationPositionsController(HRPortalDbContext db, AuditService 
             var lastRow = ws.LastRowUsed()?.RowNumber() ?? 1;
             var byCode = await db.OrganizationPositionDefinitions.ToDictionaryAsync(x => x.Code, StringComparer.OrdinalIgnoreCase);
             var seenCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seenTitles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             for (var row = 2; row <= lastRow; row++)
             {
                 string Cell(int col) => ws.Cell(row, col).GetString().Trim();
@@ -257,6 +258,11 @@ public class OrganizationPositionsController(HRPortalDbContext db, AuditService 
                 if (!seenCodes.Add(code))
                 {
                     errors.Add($"ردیف {row}: کد «{code}» در فایل تکراری است.");
+                    continue;
+                }
+                if (!seenTitles.Add(title))
+                {
+                    errors.Add($"ردیف {row}: عنوان «{title}» در فایل تکراری است.");
                     continue;
                 }
                 byCode.TryGetValue(code, out var position);

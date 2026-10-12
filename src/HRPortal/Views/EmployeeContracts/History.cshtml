@@ -5,11 +5,19 @@
     Layout = "~/Views/Shared/_Layout.cshtml";
     var request = ViewBag.Request as ContractRenewalRequest;
     ViewData["Title"] = "سوابق درخواست تمدید قرارداد";
+    var workflowHistory = ViewBag.WorkflowHistory as List<WorkflowHistory> ?? [];
     string actionTitle(string action) => action switch
     {
         "BeforeEdit" => "نسخه قبل از ویرایش",
         "BeforeDelete" => "نسخه قبل از حذف نرم",
         "BeforeStop" => "نسخه قبل از توقف",
+        "Approve" => "تأیید مرحله",
+        "Reject" => "رد مرحله",
+        "Return" => "برگشت مرحله",
+        "Stop" => "توقف گردش",
+        "Delete" => "حذف نرم درخواست",
+        "EditIntake" => "ویرایش اطلاعات اولیه",
+        "Submit" => "ثبت درخواست",
         _ => action
     };
 }
@@ -28,6 +36,33 @@
         <div><span>تاریخ ثبت اولیه</span><strong>@(request is null ? "—" : PersianDateService.Format(request.CreatedAt))</strong></div>
         <div><span>تعداد نسخه‌های بایگانی‌شده</span><strong>@Model.Count</strong></div>
     </div>
+    <h3 class="contract-form-subhead">تاریخچه اقدامات گردش کار</h3>
+    @if (workflowHistory.Count == 0)
+    {
+        <div class="empty">تاریخچه اقدامی برای این درخواست ثبت نشده است.</div>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>زمان</th><th>مرحله</th><th>اقدام</th><th>کاربر / جایگاه</th><th>وضعیت قبلی / جدید</th><th>توضیحات</th></tr></thead>
+                <tbody>
+                @foreach (var eventRow in workflowHistory)
+                {
+                    <tr>
+                        <td>@PersianDateService.Format(eventRow.CreatedAt)</td>
+                        <td>@(eventRow.WorkflowStep?.Title ?? "—")</td>
+                        <td>@actionTitle(eventRow.Action)</td>
+                        <td>@(eventRow.ActorEmployee is null ? "کاربر سیستمی / بدون پرونده" : $"{eventRow.ActorEmployee.FirstName} {eventRow.ActorEmployee.LastName}") / @(eventRow.ActorPosition?.Title ?? "—")</td>
+                        <td>@eventRow.FromStatus / @eventRow.ToStatus</td>
+                        <td>@(string.IsNullOrWhiteSpace(eventRow.Comment) ? "—" : eventRow.Comment)</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+    <h3 class="contract-form-subhead">نسخه‌های پیشین اطلاعات درخواست</h3>
     @if (Model.Count == 0)
     {
         <div class="empty">هنوز نسخه‌ای از اطلاعات اولیه بایگانی نشده است. پیش از ویرایش، حذف نرم یا توقف، نسخه پیشین به‌صورت خودکار ثبت می‌شود.</div>

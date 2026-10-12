@@ -15,6 +15,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
     public DbSet<OrganizationStructureRevision> OrganizationStructureRevisions => Set<OrganizationStructureRevision>();
     public DbSet<OrganizationNode> OrganizationNodes => Set<OrganizationNode>();
     public DbSet<OrganizationRankDefinition> OrganizationRankDefinitions => Set<OrganizationRankDefinition>();
+    public DbSet<OrganizationPositionDefinition> OrganizationPositionDefinitions => Set<OrganizationPositionDefinition>();
     public DbSet<OrganizationChange> OrganizationChanges => Set<OrganizationChange>();
     public DbSet<OtpChallenge> OtpChallenges => Set<OtpChallenge>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
@@ -68,6 +69,18 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.HasKey(x => x.Id);
             e.Property(x => x.Title).HasMaxLength(100).IsRequired();
             e.HasIndex(x => x.Title).IsUnique().HasDatabaseName("UX_OrganizationRankDefinitions_Title");
+        });
+        modelBuilder.Entity<OrganizationPositionDefinition>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Code).HasMaxLength(50).IsRequired();
+            e.Property(x => x.Title).HasMaxLength(150).IsRequired();
+            e.Property(x => x.JobFamily).HasMaxLength(100);
+            e.Property(x => x.Grade).HasMaxLength(50);
+            e.Property(x => x.Description).HasMaxLength(1000);
+            e.HasIndex(x => x.Code).IsUnique().HasDatabaseName("UX_OrganizationPositionDefinitions_Code");
+            e.HasIndex(x => x.Title).IsUnique().HasDatabaseName("UX_OrganizationPositionDefinitions_Title");
+            e.HasIndex(x => new { x.IsActive, x.SortOrder, x.Title });
         });
         modelBuilder.Entity<OrganizationNode>(e =>
         {

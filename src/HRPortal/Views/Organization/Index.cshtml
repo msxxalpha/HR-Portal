@@ -160,8 +160,9 @@
                     <label>عنوان گره *
                         <input id="nodeTitle" required />
                     </label>
-                    <label>کد *
-                        <input id="nodeCode" required />
+                    <label>کد * <span class="muted">(پیشنهاد خودکار؛ قابل ویرایش)</span>
+                        <input id="nodeCode" maxlength="100" required autocomplete="off" />
+                        <small class="muted">برای گره جدید کد یکتا خودکار پیشنهاد می‌شود؛ پیش از ذخیره می‌توانید آن را تغییر دهید.</small>
                     </label>
                     <label>رده *
                         <select id="nodeRank" required></select>
@@ -420,6 +421,18 @@
         menu.classList.add("hidden");
     }
 
+    function nextNodeCode() {
+        const usedCodes = new Set(Array.from(dataById.values())
+            .map(function (node) { return String(node.code || "").trim().toLocaleUpperCase(); }));
+        let number = 1;
+        let candidate;
+        do {
+            candidate = "ORG-" + String(number).padStart(3, "0");
+            number++;
+        } while (usedCodes.has(candidate.toLocaleUpperCase()));
+        return candidate;
+    }
+
     function openNodeModal(mode, nodeId) {
         hideContextMenu();
         showNodeError("");
@@ -435,7 +448,7 @@
         document.getElementById("nodeParentId").value = actualParentId;
 
         document.getElementById("nodeTitle").value = isEdit ? node.title : "";
-        document.getElementById("nodeCode").value = isEdit ? node.code : "";
+        document.getElementById("nodeCode").value = isEdit ? node.code : nextNodeCode();
         document.getElementById("nodeSortOrder").value = isEdit ? Number(node.sortOrder || 0) : 0;
         document.getElementById("nodeActive").checked = isEdit ? !!node.isActive : true;
         document.getElementById("nodeNotes").value = isEdit ? (node.notes || "") : "";
@@ -522,8 +535,8 @@
             values.parentId = document.getElementById("nodeParentId").value;
         }
 
-        if (!values.code || !values.title || !values.rankType) {
-            showNodeError("کد، عنوان و رده الزامی است.");
+        if (!values.title || !values.rankType) {
+            showNodeError("عنوان و رده الزامی است. کد به‌صورت خودکار پیشنهاد می‌شود و قابل ویرایش است.");
             return;
         }
 

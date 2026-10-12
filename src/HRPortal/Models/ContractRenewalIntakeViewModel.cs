@@ -2,6 +2,8 @@ namespace HRPortal.Models;
 
 public class ContractRenewalIntakeViewModel
 {
+    public int RequestId { get; set; }
+    public bool IsEditMode { get; set; }
     public int EmployeeId { get; set; }
     public int PreviousExtensionMonths1 { get; set; }
     public int PreviousExtensionMonths2 { get; set; }

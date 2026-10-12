@@ -18,6 +18,8 @@ public class WorkflowStep
     public bool RequireCommentOnReject { get; set; } = true;
     public bool RequireCommentOnReturn { get; set; } = false;
     public bool IsFinalStep { get; set; }
+    public bool AllowEditPreviousData { get; set; }
+    public bool RequireNotes { get; set; }
     public WorkflowDefinition WorkflowDefinition { get; set; } = null!;
     public OrganizationNode? OrganizationNode { get; set; }
     public ICollection<WorkflowTransition> OutgoingTransitions { get; set; } = new List<WorkflowTransition>();

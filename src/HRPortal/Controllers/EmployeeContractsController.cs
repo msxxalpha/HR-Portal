@@ -427,6 +427,7 @@ public class EmployeeContractsController(
         if (!ModelState.IsValid)
             return View("Renewal", model);
 
+        await PreserveRequestRevisionAsync(request, "BeforeEdit");
         ApplyIntakeToRequest(request, model, model.SelectedEmployee!);
         db.WorkflowHistory.Add(new WorkflowHistory
         {
@@ -462,6 +463,7 @@ public class EmployeeContractsController(
         await using var transaction = await db.Database.BeginTransactionAsync();
         var instance = request.WorkflowInstance;
         var previousStatus = instance.Status;
+        await PreserveRequestRevisionAsync(request, "BeforeDelete");
         request.Status = "حذف شده";
         request.CompletedAt = DateTime.UtcNow;
         instance.Status = "Cancelled";
@@ -513,6 +515,7 @@ public class EmployeeContractsController(
         await using var transaction = await db.Database.BeginTransactionAsync();
         var instance = request.WorkflowInstance;
         var previousStatus = instance.Status;
+        await PreserveRequestRevisionAsync(request, "BeforeStop");
         request.Status = "متوقف شده";
         request.CompletedAt = DateTime.UtcNow;
         instance.Status = "Cancelled";
@@ -541,6 +544,67 @@ public class EmployeeContractsController(
             request.Id.ToString(), request.RequestCode);
         TempData["Success"] = $"گردش درخواست {request.RequestCode} متوقف شد؛ امتیازها و تاریخچه حفظ شدند.";
         return RedirectToAction(nameof(Requests));
+    }
+
+    private async Task PreserveRequestRevisionAsync(ContractRenewalRequest request, string action)
+    {
+        var nextRevision = (await db.ContractRenewalRequestRevisions
+            .Where(x => x.ContractRenewalRequestId == request.Id)
+            .Select(x => (int?)x.RevisionNumber)
+            .MaxAsync() ?? 0) + 1;
+
+        var snapshot = new
+        {
+            request.Id,
+            request.RequestCode,
+            request.EmployeeId,
+            request.CreatedByEmployeeId,
+            request.WorkflowInstanceId,
+            request.Status,
+            request.EmployeeNameSnapshot,
+            request.PersonnelNumberSnapshot,
+            request.OrganizationUnitSnapshot,
+            request.PositionTitleSnapshot,
+            request.PreviousContractEndDate,
+            request.PreviousExtensionMonths1,
+            request.PreviousExtensionMonths2,
+            request.PreviousExtensionMonths3,
+            request.HasDisciplinaryWarnings,
+            request.DisciplinaryWarningCount,
+            request.HasDisciplinaryCommitteeResolution,
+            request.DisciplinaryCommitteeResolutionCount,
+            request.HasUnpaidLeave,
+            request.UnpaidLeaveDays,
+            request.HasSickLeave,
+            request.SickLeaveDays,
+            request.HasAccidentLeave,
+            request.AccidentLeaveDays,
+            request.HasCommendations,
+            request.CommendationCount,
+            request.PreviousPeriodScore1,
+            request.PreviousPeriodScore2,
+            request.PreviousPeriodScore1FromHistory,
+            request.PreviousPeriodScore2FromHistory,
+            request.FinalEvaluationScore,
+            request.SecurityDecision,
+            request.SecurityComment,
+            request.HrProposedContractMonths,
+            request.HrComment,
+            request.FinalContractMonths,
+            request.CeoComment,
+            request.CreatedAt,
+            request.CompletedAt
+        };
+
+        db.ContractRenewalRequestRevisions.Add(new ContractRenewalRequestRevision
+        {
+            ContractRenewalRequestId = request.Id,
+            RevisionNumber = nextRevision,
+            Action = action,
+            SnapshotJson = System.Text.Json.JsonSerializer.Serialize(snapshot),
+            ChangedByEmployeeId = GetCurrentEmployeeId(),
+            CreatedAt = DateTime.UtcNow
+        });
     }
 
     private int? GetCurrentEmployeeId() =>
@@ -675,7 +739,7 @@ public class EmployeeContractsController(
     {
         if (model.SelectedEmployee is null)
             ModelState.AddModelError(nameof(model.EmployeeId), "یک کارمند فعال انتخاب کنید.");
-        else if (model.SelectedEmployee.EmploymentType == "غیرقراردادی" || model.SelectedEmployee.EmploymentType == "غیر قراردادی")
+        else if (!model.IsEditMode && (model.SelectedEmployee.EmploymentType == "غیرقراردادی" || model.SelectedEmployee.EmploymentType == "غیر قراردادی"))
             ModelState.AddModelError(nameof(model.EmployeeId), "برای کارمند غیرقراردادی درخواست تمدید قرارداد ثبت نمی‌شود.");
 
         if (model.PreviousExtensionMonths1 is < 0 or > 120 ||
@@ -696,10 +760,13 @@ public class EmployeeContractsController(
             model.PreviousPeriodScore2 != decimal.Round(model.PreviousPeriodScore2, 2))
             ModelState.AddModelError("", "امتیازهای دوره‌های پیشین حداکثر دو رقم اعشار دارند.");
 
-        if (!model.QuestionsReady)
-            ModelState.AddModelError("", "مجموع سقف امتیاز پرسش‌های فعال باید دقیقاً ۱۰۰ باشد.");
-        if (!model.WorkflowSettingsReady)
-            ModelState.AddModelError("", "تنظیم جایگاه حراست، منابع انسانی و مدیرعامل یا نسخه نهایی ساختار سازمانی کامل نیست.");
+        if (!model.IsEditMode)
+        {
+            if (!model.QuestionsReady)
+                ModelState.AddModelError("", "مجموع سقف امتیاز پرسش‌های فعال باید دقیقاً ۱۰۰ باشد.");
+            if (!model.WorkflowSettingsReady)
+                ModelState.AddModelError("", "تنظیم جایگاه حراست، منابع انسانی و مدیرعامل یا نسخه نهایی ساختار سازمانی کامل نیست.");
+        }
     }
 
     private void ValidateCount(bool hasRecord, int count, string key, string title)

@@ -14,6 +14,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<OrganizationStructureRevision> OrganizationStructureRevisions => Set<OrganizationStructureRevision>();
     public DbSet<OrganizationNode> OrganizationNodes => Set<OrganizationNode>();
+    public DbSet<OrganizationRankDefinition> OrganizationRankDefinitions => Set<OrganizationRankDefinition>();
     public DbSet<OrganizationChange> OrganizationChanges => Set<OrganizationChange>();
     public DbSet<OtpChallenge> OtpChallenges => Set<OtpChallenge>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
@@ -60,6 +61,12 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.RevisionCode).IsUnique();
+        });
+        modelBuilder.Entity<OrganizationRankDefinition>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Title).HasMaxLength(100).IsRequired();
+            e.HasIndex(x => x.Title).IsUnique().HasDatabaseName("UX_OrganizationRankDefinitions_Title");
         });
         modelBuilder.Entity<OrganizationNode>(e =>
         {

@@ -52,7 +52,21 @@
             </label>
             <label>نام پدر<input name="FatherName" value="@Model.Employee.FatherName" /></label>
             <label>ایمیل<input name="Email" value="@Model.Employee.Email" type="email" /></label>
-            <label>سمت<input name="PositionTitle" value="@Model.Employee.PositionTitle" /></label>
+            <label>سمت / پست سازمانی
+                <input type="search" id="positionFilter" placeholder="جست‌وجوی کد یا عنوان پست..." autocomplete="off" />
+                <select name="PositionTitle" id="positionSelect">
+                    <option value="">بدون سمت مشخص‌شده</option>
+                    @foreach (var p in Model.Positions)
+                    {
+                        <option value="@p.Title" data-active="@p.IsActive.ToString().ToLowerInvariant()"
+                                data-search="@($"{p.Code} {p.Title} {p.JobFamily} {p.Grade}")"
+                                selected="@(Model.Employee.PositionTitle == p.Title)">
+                            @p.Title (@p.Code)@(p.IsActive ? "" : " - غیرفعال / عنوان قبلی")
+                        </option>
+                    }
+                </select>
+                <small class="muted">برای تخصیص یا تغییر سمت، یک پست فعال انتخاب کنید. سمت‌های غیرفعال فقط برای حفظ اطلاعات قبلی نمایش داده می‌شوند.</small>
+            </label>
             <label class="inline-check">غیرقراردادی
                 <input type="checkbox" id="isNonContractual" name="isNonContractual" value="true" checked="@(Model.Employee.EmploymentType == "غیرقراردادی")" />
             </label>
@@ -167,6 +181,17 @@
     }
     nonContractual.addEventListener('change', syncEmploymentType);
     syncEmploymentType();
+
+    const positionFilter = document.getElementById('positionFilter');
+    const positionSelect = document.getElementById('positionSelect');
+    positionFilter.addEventListener('input', function () {
+        const term = this.value.trim().toLocaleLowerCase();
+        Array.from(positionSelect.options).forEach(function (opt, index) {
+            if (index === 0) { opt.hidden = false; return; }
+            const haystack = (opt.dataset.search || opt.textContent || '').toLocaleLowerCase();
+            opt.hidden = !!term && !haystack.includes(term);
+        });
+    });
 
     const unit = document.getElementById('unitSelect');
     const department = document.getElementById('departmentSelect');

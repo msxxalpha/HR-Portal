@@ -1,0 +1,49 @@
+@model List<HRPortal.Models.ContractRenewalRequestRevision>
+@using HRPortal.Models
+@using HRPortal.Services
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var request = ViewBag.Request as ContractRenewalRequest;
+    ViewData["Title"] = "سوابق درخواست تمدید قرارداد";
+    string actionTitle(string action) => action switch
+    {
+        "BeforeEdit" => "نسخه قبل از ویرایش",
+        "BeforeDelete" => "نسخه قبل از حذف نرم",
+        "BeforeStop" => "نسخه قبل از توقف",
+        _ => action
+    };
+}
+<div class="page-head">
+    <div>
+        <h1>سوابق درخواست تمدید قرارداد</h1>
+        <p>@request?.RequestCode — @request?.EmployeeNameSnapshot — شماره پرسنلی @request?.PersonnelNumberSnapshot</p>
+    </div>
+    <a class="btn btn-outline" href="/EmployeeContracts/Requests">بازگشت به فهرست درخواست‌ها</a>
+</div>
+
+@if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
+<section class="card">
+    <div class="contract-preview-grid">
+        <div><span>آخرین وضعیت</span><strong>@request?.Status</strong></div>
+        <div><span>تاریخ ثبت اولیه</span><strong>@(request is null ? "—" : PersianDateService.Format(request.CreatedAt))</strong></div>
+        <div><span>تعداد نسخه‌های بایگانی‌شده</span><strong>@Model.Count</strong></div>
+    </div>
+    @if (Model.Count == 0)
+    {
+        <div class="empty">هنوز نسخه‌ای از اطلاعات اولیه بایگانی نشده است. پیش از ویرایش، حذف نرم یا توقف، نسخه پیشین به‌صورت خودکار ثبت می‌شود.</div>
+    }
+    else
+    {
+        @foreach (var revision in Model)
+        {
+            <details class="contract-request-revision">
+                <summary>
+                    <strong>نسخه @revision.RevisionNumber — @actionTitle(revision.Action)</strong>
+                    <span class="muted">@PersianDateService.Format(revision.CreatedAt)</span>
+                </summary>
+                <div class="note">این نسخه فقط برای مشاهده است؛ هیچ داده‌ای از سوابق درخواست حذف نشده است.</div>
+                <pre dir="ltr" class="contract-snapshot-json">@revision.SnapshotJson</pre>
+            </details>
+        }
+    }
+</section>

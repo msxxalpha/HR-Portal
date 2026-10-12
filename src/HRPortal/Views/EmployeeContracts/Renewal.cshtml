@@ -255,7 +255,7 @@
         let visible = 0;
         Array.from(select.options).forEach(function (option) {
             if (!option.value) { option.hidden = false; return; }
-            const text = [option.dataset.name, option.dataset.personnel, option.dataset.unit]
+            const text = [option.dataset.name, option.dataset.personnel, option.dataset.unit, option.dataset.position]
                 .filter(Boolean).join(" ").toLocaleLowerCase();
             const match = !query || text.includes(query);
             option.hidden = !match;

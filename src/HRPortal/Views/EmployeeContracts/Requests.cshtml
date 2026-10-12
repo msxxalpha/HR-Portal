@@ -53,6 +53,7 @@
                         <td>@(r.FinalContractMonths.HasValue ? $"{r.FinalContractMonths.Value} ماه" : "—")</td>
                         <td>
                             <div class="contract-row-actions">
+                                <a class="btn btn-outline btn-sm" href="/EmployeeContracts/History?id=@r.Id">سوابق</a>
                                 @if (row.CanEditOrDelete)
                                 {
                                     <a class="btn btn-outline btn-sm" href="/EmployeeContracts/Edit?id=@r.Id">ویرایش</a>

@@ -5,6 +5,7 @@
     var editing = Model.EditingQuestion.Id > 0;
     var total = Model.ActiveMaxScoreTotal;
     var totalCss = total == 100m ? "score-total-complete" : "score-total-incomplete";
+    var activeTab = (string?)ViewBag.ActiveTab ?? "questions";
 }
 <div class="page-head">
     <div>
@@ -18,9 +19,11 @@
 @if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
 
 <div class="contract-tabs" role="tablist" aria-label="اطلاعات پایه قراردادها">
-    <a class="contract-tab active" href="/EmployeeContracts/BasicInformation" role="tab" aria-selected="true">پرسش‌های ارزشیابی عملکرد کارکنان</a>
+    <a class="contract-tab @(activeTab == "questions" ? "active" : "")" href="#questions" data-contract-tab="questions" role="tab" aria-selected="@(activeTab == "questions" ? "true" : "false")">پرسش‌های ارزشیابی عملکرد کارکنان</a>
+    <a class="contract-tab @(activeTab == "workflow-settings" ? "active" : "")" href="#workflow-settings" data-contract-tab="workflow-settings" role="tab" aria-selected="@(activeTab == "workflow-settings" ? "true" : "false")">تنظیم مراحل ثابت گردش تمدید قرارداد</a>
 </div>
 
+<section id="questions" class="contract-tab-panel @(activeTab == "questions" ? "active" : "")">
 <div class="card contract-score-summary">
     <div>
         <span class="muted">مجموع سقف امتیاز پرسش‌های فعال</span>
@@ -160,3 +163,37 @@
         }
     </section>
 </div>
+</section>
+
+@await Html.PartialAsync("_WorkflowSettingsTab", Model.WorkflowSettings)
+
+@section Scripts {
+<script>
+(function () {
+    function activate(id, updateHash) {
+        const target = document.getElementById(id);
+        if (!target || !document.querySelector('[data-contract-tab="' + id + '"]')) return;
+        document.querySelectorAll("[data-contract-tab]").forEach(function (tab) {
+            const selected = tab.dataset.contractTab === id;
+            tab.classList.toggle("active", selected);
+            tab.setAttribute("aria-selected", selected ? "true" : "false");
+        });
+        document.querySelectorAll(".contract-tab-panel").forEach(function (panel) {
+            panel.classList.toggle("active", panel.id === id);
+        });
+        if (updateHash && history.replaceState) history.replaceState(null, "", "#" + id);
+    }
+
+    document.querySelectorAll("[data-contract-tab]").forEach(function (tab) {
+        tab.addEventListener("click", function (event) {
+            event.preventDefault();
+            activate(tab.dataset.contractTab, true);
+        });
+    });
+
+    const hash = window.location.hash.substring(1);
+    if (hash === "workflow-settings" || hash === "questions") activate(hash, false);
+    else activate("@activeTab", false);
+})();
+</script>
+}

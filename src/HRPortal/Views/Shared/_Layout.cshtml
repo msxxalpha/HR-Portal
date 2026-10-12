@@ -87,7 +87,7 @@
                     <summary><span class="nav-icon">⚙</span>تنظیمات و مدیریت</summary><div class="nav-submenu">
                         @if (Can("Users.Manage") || Can("Roles.Manage")) { <a href="/Users">کاربران و نقش‌ها</a> }
                         @if (Can("Workflow.Manage")) { <a href="/Workflow/Manage">مدیریت گردش کار</a> }
-                        @if (Can("Settings.View")) { <a href="/SystemSettings">تنظیمات سامانه</a> }
+                        @if (Can("Settings.View")) { <a href="/SystemSettings">تنظیمات سامانه</a><a href="/OrganizationPositions">پست‌های سازمانی</a> }
                     </div>
                 </details>
             }

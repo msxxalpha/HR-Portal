@@ -65,7 +65,7 @@ public class WorkflowController(
     [HttpPost]
     [Authorize(Policy = "Workflow.Inbox")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Act(int id, string action, string? comment, Dictionary<string, string?>? values)
+    public async Task<IActionResult> Act(int id, string action, string? comment, Dictionary<string, string?>? values, Dictionary<string, string?>? previousValues)
     {
         if (!int.TryParse(User.FindFirst("EmployeeId")?.Value, out var employeeId))
             return Forbid();
@@ -77,7 +77,7 @@ public class WorkflowController(
 
         try
         {
-            await workflow.CompleteTaskAsync(id, employeeId, action, comment, values);
+            await workflow.CompleteTaskAsync(id, employeeId, action, comment, values, previousValues);
             TempData["Success"] = action == "SaveDraft" ? "پیش‌نویس مرحله ذخیره شد." : "اقدام گردش کار با موفقیت ثبت شد.";
         }
         catch (Exception ex)

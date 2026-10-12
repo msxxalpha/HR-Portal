@@ -44,11 +44,11 @@
                     <summary><span class="nav-icon">⚑</span>اطلاعیه‌ها</summary><div class="nav-submenu"><a href="/Announcements">اطلاعیه‌ها</a></div>
                 </details>
             }
-            @if (Can("Employees.View") || Can("Organization.View")) {
-                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Employees") || Context.Request.Path.StartsWithSegments("/Organization") ? "open" : null)">
+            @if (Can("Employees.View") || Can("Organization.View") || Can("Settings.View")) {
+                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Employees") || Context.Request.Path.StartsWithSegments("/Organization") || Context.Request.Path.StartsWithSegments("/OrganizationPositions") ? "open" : null)">
                     <summary><span class="nav-icon">♙</span>اطلاعات پایه</summary><div class="nav-submenu">
                         @if (Can("Employees.View")) { <a href="/Employees">کارکنان</a> }
-                        @if (Can("Settings.View")) { <a href="/SystemSettings#positions">مدیریت پست‌های سازمانی</a> }
+                        @if (Can("Settings.View")) { <a href="/OrganizationPositions">مدیریت پست‌های سازمانی</a> }
                         @if (Can("Organization.View")) { <a href="/Organization">ساختار سازمانی</a> }
                     </div>
                 </details>
@@ -87,7 +87,7 @@
                     <summary><span class="nav-icon">⚙</span>تنظیمات و مدیریت</summary><div class="nav-submenu">
                         @if (Can("Users.Manage") || Can("Roles.Manage")) { <a href="/Users">کاربران و نقش‌ها</a> }
                         @if (Can("Workflow.Manage")) { <a href="/Workflow/Manage">مدیریت گردش کار</a> }
-                        @if (Can("Settings.View")) { <a href="/SystemSettings">تنظیمات سامانه</a><a href="/OrganizationPositions">پست‌های سازمانی</a> }
+                        @if (Can("Settings.View")) { <a href="/SystemSettings">تنظیمات سامانه</a> }
                     </div>
                 </details>
             }

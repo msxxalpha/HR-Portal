@@ -218,7 +218,7 @@ public class EmployeeContractsController(
     [Authorize(Policy = "ContractRenewal.Manage")]
     public async Task<IActionResult> Renewal(int? employeeId = null)
     {
-        var model = await BuildIntakeViewModelAsync(new ContractRenewalIntakeViewModel { EmployeeId = employeeId ?? 0 }, false);
+        var model = await BuildIntakeViewModelAsync(new ContractRenewalIntakeViewModel { EmployeeId = employeeId ?? 0 }, true);
         return View(model);
     }
 
@@ -492,9 +492,9 @@ public class EmployeeContractsController(
     [HttpPost, Authorize(Policy = "ContractRenewal.Manage"), ValidateAntiForgeryToken]
     public async Task<IActionResult> StopRequest(int id, string? reason)
     {
-        if (reason is { Length: > 3000 })
+        if (reason is { Length: > 2000 })
         {
-            TempData["Error"] = "توضیح توقف حداکثر می‌تواند ۳۰۰۰ نویسه باشد.";
+            TempData["Error"] = "توضیح توقف حداکثر می‌تواند ۲۰۰۰ نویسه باشد.";
             return RedirectToAction(nameof(Requests));
         }
 
@@ -643,6 +643,7 @@ public class EmployeeContractsController(
         {
             var recent = db.ContractRenewalRequests.AsNoTracking()
                 .Include(x => x.Employee)
+                .Where(x => x.Status != "حذف شده")
                 .OrderByDescending(x => x.CreatedAt);
             if (!User.HasClaim("IsAdmin", "1"))
             {

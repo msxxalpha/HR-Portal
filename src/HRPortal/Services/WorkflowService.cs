@@ -231,6 +231,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             ?? throw new InvalidOperationException("مرحله یافت نشد.");
         if (step.WorkflowDefinition.IsRuntimeInstance)
             throw new InvalidOperationException("نسخه اجرایی درخواست قابل ویرایش نیست.");
+        if (await db.WorkflowInstances.AnyAsync(x => x.WorkflowDefinitionId == step.WorkflowDefinitionId || x.WorkflowDefinition.SourceDefinitionId == step.WorkflowDefinitionId))
+            throw new InvalidOperationException("این گردش کار قبلاً استفاده شده است؛ ابتدا مشخصات آن را ذخیره کنید تا نسخه جدید ساخته شود، سپس تنظیمات مرحله را تغییر دهید.");
         step.AllowEditPreviousData = allowEditPreviousData;
         step.RequireNotes = requireNotes;
         step.WorkflowDefinition.UpdatedAt = DateTime.UtcNow;
@@ -576,6 +578,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         {
             Code = $"__runtime_{source.Id}_{Guid.NewGuid():N}",
             Title = source.Title,
+            FormCode = source.FormCode,
             Description = source.Description,
             IsActive = false,
             IsRuntimeInstance = true,

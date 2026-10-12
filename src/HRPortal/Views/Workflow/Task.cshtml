@@ -69,9 +69,17 @@
                                     }
                                 </select>
                             }
+                            else if (field.FieldType == "Checkbox" && group.IsCurrentStep)
+                            {
+                                <input type="checkbox" id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="values[@field.Code]" value="true" checked="@(field.Value == "true")" />
+                            }
                             else if (field.FieldType == "Checkbox")
                             {
-                                <input type="checkbox" id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="@(group.IsCurrentStep ? $"values[{field.Code}]" : $"previousValues[{field.FieldDefinitionId}]")" value="true" checked="@(field.Value == "true")" />
+                                <select id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="previousValues[@field.FieldDefinitionId]">
+                                    <option value="">بدون تغییر</option>
+                                    <option value="true" selected="@(field.Value == "true")">بله</option>
+                                    <option value="false" selected="@(field.Value == "false")">خیر</option>
+                                </select>
                             }
                             else
                             {

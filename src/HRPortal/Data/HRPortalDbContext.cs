@@ -267,8 +267,10 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.HasKey(x => x.Id);
             e.Property(x => x.Action).HasMaxLength(30).IsRequired();
             e.Property(x => x.SnapshotJson).IsRequired();
-            e.HasIndex(x => new { x.ContractRenewalRequestId, x.RevisionNumber }).IsUnique();
-            e.HasIndex(x => new { x.ContractRenewalRequestId, x.CreatedAt });
+            e.HasIndex(x => new { x.ContractRenewalRequestId, x.RevisionNumber })
+                .IsUnique().HasDatabaseName("UX_ContractRenewalRequestRevisions_Request_Revision");
+            e.HasIndex(x => new { x.ContractRenewalRequestId, x.CreatedAt })
+                .HasDatabaseName("IX_ContractRenewalRequestRevisions_Request_CreatedAt");
         });
         modelBuilder.Entity<ContractRenewalRequest>(e =>
         {

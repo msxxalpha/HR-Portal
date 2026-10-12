@@ -18,6 +18,7 @@ public static class DatabaseInitializer
         await ContractManagementSchemaInitializer.InitializeAsync(db);
         await ContractRenewalRequestRevisionSchemaInitializer.InitializeAsync(db);
         await OrganizationRankSchemaInitializer.InitializeAsync(db);
+        await OrganizationPositionSchemaInitializer.InitializeAsync(db);
 
         if (!await db.ContractRenewalWorkflowSettings.AnyAsync())
             db.ContractRenewalWorkflowSettings.Add(new ContractRenewalWorkflowSettings { Id = 1 });

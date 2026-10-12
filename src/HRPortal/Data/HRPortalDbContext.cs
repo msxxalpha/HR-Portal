@@ -80,7 +80,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.Property(x => x.Description).HasMaxLength(1000);
             e.HasIndex(x => x.Code).IsUnique().HasDatabaseName("UX_OrganizationPositionDefinitions_Code");
             e.HasIndex(x => x.Title).IsUnique().HasDatabaseName("UX_OrganizationPositionDefinitions_Title");
-            e.HasIndex(x => new { x.IsActive, x.SortOrder, x.Title });
+            e.HasIndex(x => new { x.IsActive, x.SortOrder, x.Title }).HasDatabaseName("IX_OrganizationPositionDefinitions_Active_SortOrder_Title");
         });
         modelBuilder.Entity<OrganizationNode>(e =>
         {

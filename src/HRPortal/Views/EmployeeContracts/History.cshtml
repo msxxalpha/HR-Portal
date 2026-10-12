@@ -6,6 +6,8 @@
     var request = ViewBag.Request as ContractRenewalRequest;
     ViewData["Title"] = "سوابق درخواست تمدید قرارداد";
     var workflowHistory = ViewBag.WorkflowHistory as List<WorkflowHistory> ?? [];
+    var evaluationStages = ViewBag.EvaluationStages as List<HRPortal.Models.ContractRenewalHistoryScoreStage> ?? [];
+    string score(decimal? value) => value.HasValue ? value.Value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) : "—";
     string actionTitle(string action) => action switch
     {
         "BeforeEdit" => "نسخه قبل از ویرایش",
@@ -71,6 +73,45 @@
                 </tbody>
             </table>
         </div>
+    }
+    <h3 class="contract-form-subhead">سوابق امتیازدهی مرحله‌ای</h3>
+    @if (evaluationStages.Count == 0)
+    {
+        <div class="empty">برای این درخواست سابقه امتیازدهی سازمانی ثبت نشده است.</div>
+    }
+    else
+    {
+        @foreach (var stage in evaluationStages)
+        {
+            <div class="contract-score-stage">
+                <div class="section-head">
+                    <div>
+                        <h4>@stage.StageTitle</h4>
+                        <span class="muted">جایگاه: @stage.PositionTitle</span>
+                    </div>
+                    <span class="badge">@(stage.IsComplete ? $"مجموع: {score(stage.ScoreTotal)} از ۱۰۰" : "مرحله ناقص")</span>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>پرسش</th><th>سقف امتیاز</th><th>امتیاز ثبت‌شده</th></tr></thead>
+                        <tbody>
+                        @foreach (var item in stage.Scores)
+                        {
+                            <tr>
+                                <td>@item.QuestionTextSnapshot</td>
+                                <td>@score(item.MaxScoreSnapshot)</td>
+                                <td>@score(item.Score)</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(stage.Comment))
+                {
+                    <div class="note"><strong>توضیحات ارزیاب:</strong> @stage.Comment</div>
+                }
+            </div>
+        }
     }
     <h3 class="contract-form-subhead">نسخه‌های پیشین اطلاعات درخواست</h3>
     @if (Model.Count == 0)

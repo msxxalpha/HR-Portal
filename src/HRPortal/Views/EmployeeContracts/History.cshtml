@@ -39,7 +39,7 @@
             <details class="contract-request-revision">
                 <summary>
                     <strong>نسخه @revision.RevisionNumber — @actionTitle(revision.Action)</strong>
-                    <span class="muted">@PersianDateService.Format(revision.CreatedAt)</span>
+                    <span class="muted">@PersianDateService.Format(revision.CreatedAt) · @(revision.ChangedByEmployeeId.HasValue ? $"شناسه کارمند اقدام‌کننده {revision.ChangedByEmployeeId}" : "حساب بدون شناسه کارمندی")</span>
                 </summary>
                 <div class="note">این نسخه فقط برای مشاهده است؛ هیچ داده‌ای از سوابق درخواست حذف نشده است.</div>
                 <pre dir="ltr" class="contract-snapshot-json">@revision.SnapshotJson</pre>

@@ -344,7 +344,6 @@ public class EmployeeContractsController(
     {
         var requests = await db.ContractRenewalRequests.AsNoTracking()
             .Include(x => x.WorkflowInstance).ThenInclude(x => x!.CurrentStep)
-            .Where(x => x.Status != "حذف شده")
             .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
             .ToListAsync();
 

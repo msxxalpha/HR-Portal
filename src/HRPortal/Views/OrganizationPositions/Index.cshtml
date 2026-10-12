@@ -44,7 +44,8 @@
         <label class="wide">توضیحات<textarea name="description" rows="2" maxlength="1000">@(edit?.Description ?? "")</textarea></label>
         <div class="form-actions"><button class="btn btn-main" type="submit">@(edit is null ? "ثبت پست" : "ذخیره تغییرات")</button></div>
     </form>
-</section>\n}\n
+</section>
+}\n
 
 <section class="card">
     <div class="section-head"><div><h3>فهرست پست‌ها</h3><span class="muted">@(totalCount.ToString("N0")) پست مطابق فیلترها</span></div>

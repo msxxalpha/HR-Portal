@@ -28,6 +28,7 @@
         <input type="hidden" name="Id" value="0" />
         <label>کد <input name="Code" required maxlength="100" placeholder="LeaveRequest" /></label>
         <label>عنوان <input name="Title" required maxlength="200" /></label>
+        <label>فرم عملیاتی<select name="FormCode" required><option value="">انتخاب فرم فعال با قابلیت گردش کار</option>@foreach (var form in Model.AvailableForms) { <option value="@form.Code">@form.Title</option> }</select></label>
         <label>توضیحات <textarea name="Description" rows="3"></textarea></label>
         <label class="toggle-card compact-toggle"><span class="toggle-text"><strong>فعال</strong></span><span class="switch-control"><input type="checkbox" name="IsActive" value="true" checked /><span class="switch-slider"></span></span></label>
         <button class="btn btn-main" type="submit">ایجاد گردش کار</button>
@@ -50,7 +51,7 @@ else
     <form method="post" action="/Workflow/SaveDefinition" class="form-stack workflow-definition-edit">
         @Html.AntiForgeryToken()
         <input type="hidden" name="Id" value="@selected.Id" />
-        <div class="grid-2"><label>کد<input name="Code" value="@selected.Code" required /></label><label>عنوان<input name="Title" value="@selected.Title" required /></label></div>
+        <div class="grid-2"><label>کد<input name="Code" value="@selected.Code" required /></label><label>عنوان<input name="Title" value="@selected.Title" required /></label><label>فرم عملیاتی<select name="FormCode"><option value="">بدون اتصال (تعریف قدیمی)</option>@foreach (var form in Model.AvailableForms) { <option value="@form.Code" selected="@(selected.FormCode == form.Code)">@form.Title</option> }</select></label></div>
         <label>توضیحات<textarea name="Description" rows="2">@selected.Description</textarea></label>
         <label class="toggle-card compact-toggle"><span class="toggle-text"><strong>فعال</strong></span><span class="switch-control"><input type="checkbox" name="IsActive" value="true" @(selected.IsActive ? "checked" : "") /><span class="switch-slider"></span></span></label>
         <button class="btn btn-main btn-sm" type="submit">ذخیره مشخصات</button>
@@ -61,6 +62,11 @@ else
     {
         <div class="workflow-step-card">
             <div class="workflow-step-head"><strong>@(step.SortOrder). @step.Title</strong><span>@step.Code · @(step.AssignmentType == "Hierarchy" ? $"زنجیره جایگاه‌ها تا {step.HierarchyStopRankType}" : step.OrganizationNode?.Title ?? "بدون جایگاه")</span></div>
+            <form method="post" action="/Workflow/SaveStepRules" class="form-stack workflow-stage-rules">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" />
+                <div class="actions"><label class="check-chip"><input type="checkbox" name="allowEditPreviousData" value="true" checked="@step.AllowEditPreviousData" /> اجازه ویرایش اطلاعات مراحل قبلی در این مرحله</label><label class="check-chip"><input type="checkbox" name="requireNotes" value="true" checked="@step.RequireNotes" /> ثبت ملاحظات در این مرحله اجباری باشد</label><button class="btn btn-outline btn-sm" type="submit">ذخیره تنظیمات مرحله</button></div>
+            </form>
             <div class="workflow-step-actions">
                 <form method="post" action="/Workflow/SaveTransition" class="transition-form">
                     @Html.AntiForgeryToken()
@@ -86,7 +92,7 @@ else
             </div>
             <div class="workflow-stage-fields">
                 <h4>فیلدهای فرم این مرحله</h4>
-                <p class="muted">این فیلدها هنگام رسیدن درخواست به این مرحله قابل ورود هستند و در مراحل بعدی فقط خوانده می‌شوند.</p>
+                <p class="muted">این فیلدها هنگام رسیدن درخواست به این مرحله قابل ورود هستند؛ مراحل بعدی به‌صورت پیش‌فرض فقط خواندنی‌اند و می‌توان برای هر مرحله اجازه ویرایش اطلاعات قبلی را فعال کرد.</p>
                 @foreach (var field in step.Fields.OrderBy(x => x.SortOrder))
                 {
                     <form method="post" action="/Workflow/SaveStepField" class="form-stack workflow-field-editor">

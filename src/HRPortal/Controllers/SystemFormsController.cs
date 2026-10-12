@@ -19,7 +19,7 @@ public class SystemFormsController(HRPortalDbContext db) : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Save(int id, string code, string title, string? implementationType, bool? supportsWorkflow, bool isActive, string? description)
+    public async Task<IActionResult> Save(int id, string code, string title, string? implementationType, bool? supportsWorkflow, bool supportsWorkflowSpecified, bool isActive, string? description)
     {
         try
         {
@@ -30,8 +30,8 @@ public class SystemFormsController(HRPortalDbContext db) : Controller
                 throw new InvalidOperationException("کد سیستمی و عنوان فرم الزامی است.");
             if (code.Length > 100 || title.Length > 200)
                 throw new InvalidOperationException("طول کد یا عنوان فرم بیش از حد مجاز است.");
-            if (supportsWorkflow.HasValue && id > 0)
-                implementationType = supportsWorkflow.Value ? "GenericWorkflow" : "Standalone";
+            if (supportsWorkflowSpecified && id > 0)
+                implementationType = supportsWorkflow == true ? "GenericWorkflow" : "Standalone";
             if (implementationType is not ("Custom" or "GenericWorkflow" or "Standalone"))
                 throw new InvalidOperationException("نوع پیاده‌سازی فرم معتبر نیست.");
 

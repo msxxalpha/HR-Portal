@@ -10,9 +10,9 @@
 <div class="page-head">
     <div>
         <h1>ارزشیابی عملکرد و تمدید قرارداد</h1>
-        <p>ثبت سوابق کارمند، بازبینی اطلاعات و شروع گردش خودکار ارزشیابی</p>
+        <p>@(Model.IsEditMode ? $"اصلاح اطلاعات اولیه درخواست #{Model.RequestId} پیش از شروع ارزیابی" : "ثبت سوابق کارمند، بازبینی اطلاعات و شروع گردش خودکار ارزشیابی")</p>
     </div>
-    <a class="btn btn-outline" href="/EmployeeContracts">بازگشت به مدیریت قراردادهای کارکنان</a>
+    <div class="actions"><a class="btn btn-outline" href="/EmployeeContracts/Requests">فهرست درخواست‌ها</a><a class="btn btn-outline" href="/EmployeeContracts">مدیریت قراردادهای کارکنان</a></div>
 </div>
 
 @if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
@@ -31,7 +31,7 @@
         <small>@(Model.WorkflowSettingsReady ? "تنظیم شده" : "مدیر سامانه باید مراحل ثابت را تنظیم کند.")</small>
         @if (User.HasClaim("IsAdmin", "1") && !Model.WorkflowSettingsReady)
         {
-            <a href="/EmployeeContracts/WorkflowSettings">رفتن به تنظیم مراحل ثابت</a>
+            <a href="/EmployeeContracts/BasicInformation#workflow-settings">رفتن به اطلاعات پایه و تنظیم مراحل ثابت</a>
         }
     </div>
 </div>
@@ -52,9 +52,15 @@
     </div>
     <form method="post" action="/EmployeeContracts/Preview" class="form-stack" id="renewalIntakeForm">
         @Html.AntiForgeryToken()
+        <input type="hidden" name="RequestId" value="@Model.RequestId" />
+        <input type="hidden" name="IsEditMode" value="@Model.IsEditMode.ToString().ToLowerInvariant()" />
         <div class="grid-2">
-            <label>کارمند *
-                <select name="EmployeeId" id="employeeSelect" required>
+            <label>جست‌وجوی کارمند بر اساس نام، شماره پرسنلی یا واحد
+                <input type="search" id="employeeFilter" placeholder="بخشی از نام، شماره پرسنلی یا واحد را وارد کنید" autocomplete="off" />
+            </label>
+            <label>کارمند *@(Model.IsEditMode ? " (در درخواست موجود قابل تغییر نیست)" : "")
+                @if (Model.IsEditMode) { <input type="hidden" name="EmployeeId" value="@Model.EmployeeId" /> }
+                <select name="EmployeeId" id="employeeSelect" required disabled="@(Model.IsEditMode ? "disabled" : null)">
                     <option value="">انتخاب کارمند</option>
                     @foreach (var e in Model.Employees)
                     {
@@ -64,7 +70,7 @@
                                 data-name="@displayName"
                                 data-personnel="@e.PersonnelNumber"
                                 data-unit="@(e.OrganizationUnit?.Title ?? "—")"
-                                data-position="@(e.PositionTitle ?? "—")"
+                                data-position="@(e.OrganizationPosition?.Title ?? e.PositionTitle ?? "—")"
                                 data-contract-end="@faDate(e.ContractEndDate)"
                                 data-employment-type="@(e.EmploymentType ?? "قراردادی")">@displayName — @e.PersonnelNumber</option>
                     }
@@ -76,7 +82,7 @@
             <div><span>نام و نام خانوادگی</span><strong id="employeeName">@((employee is null) ? "—" : $"{employee.FirstName} {employee.LastName}")</strong></div>
             <div><span>شماره پرسنلی</span><strong id="employeePersonnel">@((employee?.PersonnelNumber) ?? "—")</strong></div>
             <div><span>واحد سازمانی</span><strong id="employeeUnit">@(employee?.OrganizationUnit?.Title ?? "—")</strong></div>
-            <div><span>سمت / پست سازمانی</span><strong id="employeePosition">@(employee?.PositionTitle ?? "—")</strong></div>
+            <div><span>سمت / پست سازمانی</span><strong id="employeePosition">@(employee?.OrganizationPosition?.Title ?? employee?.PositionTitle ?? "—")</strong></div>
             <div><span>تاریخ پایان قرارداد قبلی</span><strong id="employeeContractEnd">@faDate(employee?.ContractEndDate)</strong></div>
         </div>
         <div class="note">فقط کارکنان قراردادی قابل انتخاب برای تمدید هستند. تاریخ پایان قرارداد از پرونده پرسنلی خوانده می‌شود و در این مرحله قابل تغییر نیست.</div>
@@ -152,14 +158,14 @@
             </label>
         </div>
 
-        <div class="actions"><button type="submit" class="btn btn-main">نمایش پیش‌نمایش</button></div>
+        <div class="actions"><button type="submit" class="btn btn-main">@(Model.IsEditMode ? "پیش‌نمایش اصلاحات" : "نمایش پیش‌نمایش")</button></div>
     </form>
 </section>
 
 @if (Model.ShowPreview && employee is not null)
 {
     <section class="card contract-preview-card">
-        <div class="section-head"><div><h3>۲. پیش‌نمایش نهایی درخواست</h3><span class="muted">اطلاعات زیر بازبینی شود؛ با تأیید، رکورد درخواست ساخته و گردش کار آغاز می‌شود.</span></div></div>
+        <div class="section-head"><div><h3>۲. پیش‌نمایش @(Model.IsEditMode ? "اصلاح درخواست" : "نهایی درخواست")</h3><span class="muted">@(Model.IsEditMode ? "با تأیید، اطلاعات اولیه به‌روزرسانی می‌شود؛ مسیر گردش و سوابق موجود حفظ می‌شوند." : "اطلاعات زیر بازبینی شود؛ با تأیید، درخواست ثبت و گردش کار آغاز می‌شود.")</span></div></div>
         <div class="contract-preview-grid">
             <div><span>کارمند</span><strong>@employee.FirstName @employee.LastName (@employee.PersonnelNumber)</strong></div>
             <div><span>واحد / سمت</span><strong>@(employee.OrganizationUnit?.Title ?? "—") / @(employee.OrganizationPosition?.Title ?? employee.PositionTitle ?? "—")</strong></div>
@@ -174,8 +180,10 @@
             <div><span>امتیازهای دو دوره پیشین</span><strong>@score(Model.PreviousPeriodScore1) / @score(Model.PreviousPeriodScore2)</strong></div>
         </div>
         <div class="note">پس از تأیید، وظایف ارزشیابی با آخرین ساختار تأییدشده سازمانی ساخته می‌شوند. هر ارزیاب فقط امتیاز مرحله بلافاصله قبل از خود را مشاهده خواهد کرد.</div>
-        <form method="post" action="/EmployeeContracts/Submit" class="actions contract-confirm-form">
+        <form method="post" action="@(Model.IsEditMode ? "/EmployeeContracts/UpdateRequest" : "/EmployeeContracts/Submit")" class="actions contract-confirm-form">
             @Html.AntiForgeryToken()
+            <input type="hidden" name="RequestId" value="@Model.RequestId" />
+            <input type="hidden" name="IsEditMode" value="@Model.IsEditMode.ToString().ToLowerInvariant()" />
             <input type="hidden" name="EmployeeId" value="@Model.EmployeeId" />
             <input type="hidden" name="PreviousExtensionMonths1" value="@Model.PreviousExtensionMonths1" />
             <input type="hidden" name="PreviousExtensionMonths2" value="@Model.PreviousExtensionMonths2" />
@@ -194,8 +202,8 @@
             <input type="hidden" name="CommendationCount" value="@Model.CommendationCount" />
             <input type="hidden" name="PreviousPeriodScore1" value="@score(Model.PreviousPeriodScore1)" />
             <input type="hidden" name="PreviousPeriodScore2" value="@score(Model.PreviousPeriodScore2)" />
-            <button type="submit" class="btn btn-main">تأیید نهایی اطلاعات و شروع گردش کار</button>
-            <a href="/EmployeeContracts/Renewal?employeeId=@Model.EmployeeId" class="btn btn-outline">بازگشت و اصلاح اطلاعات</a>
+            <button type="submit" class="btn btn-main">@(Model.IsEditMode ? "تأیید اصلاحات و ذخیره درخواست" : "تأیید نهایی اطلاعات و شروع گردش کار")</button>
+            <a href="@(Model.IsEditMode ? $"/EmployeeContracts/Edit?id={Model.RequestId}" : $"/EmployeeContracts/Renewal?employeeId={Model.EmployeeId}")" class="btn btn-outline">بازگشت و اصلاح اطلاعات</a>
         </form>
     </section>
 }
@@ -224,6 +232,7 @@
 <script>
 (function () {
     const select = document.getElementById('employeeSelect');
+    const filter = document.getElementById('employeeFilter');
     const name = document.getElementById('employeeName');
     const personnel = document.getElementById('employeePersonnel');
     const unit = document.getElementById('employeeUnit');
@@ -239,6 +248,26 @@
         contractEnd.textContent = hasValue ? option.dataset.contractEnd : '—';
     }
     select?.addEventListener('change', updateEmployeeSummary);
+    function applyEmployeeFilter() {
+        if (!select || !filter) return;
+        const query = (filter.value || "").trim().toLocaleLowerCase();
+        let visible = 0;
+        Array.from(select.options).forEach(function (option) {
+            if (!option.value) { option.hidden = false; return; }
+            const text = [option.dataset.name, option.dataset.personnel, option.dataset.unit]
+                .filter(Boolean).join(" ").toLocaleLowerCase();
+            const match = !query || text.includes(query);
+            option.hidden = !match;
+            if (match) visible++;
+        });
+        const selected = select.selectedOptions[0];
+        if (selected && selected.value && selected.hidden) select.value = "";
+        const count = document.getElementById("employeeFilterCount");
+        if (count) count.textContent = query ? visible + " کارمند مطابق فیلتر" : "همه کارکنان نمایش داده می‌شوند";
+        updateEmployeeSummary();
+    }
+    filter?.addEventListener('input', applyEmployeeFilter);
+    applyEmployeeFilter();
     updateEmployeeSummary();
 
     document.querySelectorAll('[data-toggle-target]').forEach(function (checkbox) {

@@ -19,6 +19,7 @@ public static class DatabaseInitializer
         await ContractRenewalRequestRevisionSchemaInitializer.InitializeAsync(db);
         await OrganizationRankSchemaInitializer.InitializeAsync(db);
         await OrganizationPositionSchemaInitializer.InitializeAsync(db);
+        await SeedLegacyOrganizationPositionsAsync(db);
 
         if (!await db.ContractRenewalWorkflowSettings.AnyAsync())
             db.ContractRenewalWorkflowSettings.Add(new ContractRenewalWorkflowSettings { Id = 1 });
@@ -63,6 +64,46 @@ public static class DatabaseInitializer
 
         var roleService = new global::HRPortal.Services.RoleService(db);
         await roleService.SeedAsync();
+    }
+
+    private static async Task SeedLegacyOrganizationPositionsAsync(HRPortalDbContext db)
+    {
+        var knownTitles = (await db.OrganizationPositionDefinitions.AsNoTracking()
+            .Select(x => x.Title).ToListAsync())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var knownCodes = (await db.OrganizationPositionDefinitions.AsNoTracking()
+            .Select(x => x.Code).ToListAsync())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var legacyTitles = await db.Employees.AsNoTracking()
+            .Where(x => x.PositionTitle != null && x.PositionTitle != "")
+            .Select(x => x.PositionTitle!)
+            .ToListAsync();
+
+        var nextNumber = 1;
+        var inserted = false;
+        foreach (var rawTitle in legacyTitles)
+        {
+            var title = rawTitle.Trim();
+            if (title.Length == 0 || knownTitles.Contains(title)) continue;
+
+            string code;
+            do { code = $"LEGACY-{nextNumber++:000000}"; } while (knownCodes.Contains(code));
+            db.OrganizationPositionDefinitions.Add(new OrganizationPositionDefinition
+            {
+                Code = code,
+                Title = title.Length > 150 ? title[..150] : title,
+                JobFamily = "انتقال از اطلاعات قبلی",
+                Description = "این پست در زمان راه‌اندازی فهرست پست‌های سازمانی از سمت‌های موجود کارکنان منتقل شده است.",
+                SortOrder = 1000,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+            knownTitles.Add(title);
+            knownCodes.Add(code);
+            inserted = true;
+        }
+        if (inserted) await db.SaveChangesAsync();
     }
 
     private static async Task EnsureReportAndAnnouncementSchemaAsync(HRPortalDbContext db)

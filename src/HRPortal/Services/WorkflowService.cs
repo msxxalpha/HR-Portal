@@ -166,8 +166,10 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         var assignmentType = model.AssignmentType is "Hierarchy" or "Employee" ? model.AssignmentType : "Position";
         if (assignmentType == "Position" && !model.OrganizationNodeId.HasValue)
             throw new InvalidOperationException("برای مرحله جایگاه ثابت، انتخاب جایگاه سازمانی الزامی است.");
-        if (assignmentType == "Hierarchy" && model.HierarchyStopRankType is not ("معاونت" or "مدیریت" or "ریاست" or "سرپرستی" or "مدیرعامل"))
-            throw new InvalidOperationException("رده توقف مسیر پویا معتبر نیست.");
+        if (assignmentType == "Hierarchy" &&
+            (string.IsNullOrWhiteSpace(model.HierarchyStopRankType) ||
+             !await db.OrganizationRankDefinitions.AnyAsync(x => x.Title == model.HierarchyStopRankType.Trim())))
+            throw new InvalidOperationException("رده توقف مسیر پویا باید از فهرست رده‌های سازمانی اطلاعات پایه انتخاب شود.");
         if (assignmentType == "Employee" && (!model.AssignedEmployeeId.HasValue || !await db.Employees.AnyAsync(x => x.Id == model.AssignedEmployeeId.Value && x.Status == "فعال")))
             throw new InvalidOperationException("برای مرحله اختصاص‌یافته به کارمند، انتخاب کارمند فعال الزامی است.");
         if (assignmentType == "Position" && model.OrganizationNodeId.HasValue &&

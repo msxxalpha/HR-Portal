@@ -354,10 +354,19 @@ public class EmployeeContractsController(
     }
 
     [Authorize(Policy = "ContractRenewal.Manage")]
-    public async Task<IActionResult> Requests()
+    public async Task<IActionResult> Requests(bool includeDeleted = false)
     {
-        var requests = await db.ContractRenewalRequests.AsNoTracking()
+        var requestQuery = db.ContractRenewalRequests.AsNoTracking()
             .Include(x => x.WorkflowInstance).ThenInclude(x => x!.CurrentStep)
+            .AsQueryable();
+
+        // Soft-deleted requests are hidden from the ordinary operational list,
+        // but remain discoverable from this list to preserve access to their audit trail.
+        if (!includeDeleted)
+            requestQuery = requestQuery.Where(x => x.Status != "حذف شده");
+
+        ViewBag.IncludeDeleted = includeDeleted;
+        var requests = await requestQuery
             .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
             .ToListAsync();
 

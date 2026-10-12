@@ -36,6 +36,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
     public DbSet<EmployeePerformanceEvaluationQuestion> EmployeePerformanceEvaluationQuestions => Set<EmployeePerformanceEvaluationQuestion>();
     public DbSet<EmployeePerformanceEvaluationScore> EmployeePerformanceEvaluationScores => Set<EmployeePerformanceEvaluationScore>();
     public DbSet<ContractRenewalRequest> ContractRenewalRequests => Set<ContractRenewalRequest>();
+    public DbSet<ContractRenewalRequestRevision> ContractRenewalRequestRevisions => Set<ContractRenewalRequestRevision>();
     public DbSet<ContractRenewalWorkflowSettings> ContractRenewalWorkflowSettings => Set<ContractRenewalWorkflowSettings>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -260,6 +261,14 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.HasOne(x => x.WorkflowInstance).WithMany().HasForeignKey(x => x.WorkflowInstanceId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.WorkflowStep).WithMany().HasForeignKey(x => x.WorkflowStepId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.EvaluatorEmployee).WithMany().HasForeignKey(x => x.EvaluatorEmployeeId).OnDelete(DeleteBehavior.SetNull);
+        });
+        modelBuilder.Entity<ContractRenewalRequestRevision>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Action).HasMaxLength(30).IsRequired();
+            e.Property(x => x.SnapshotJson).IsRequired();
+            e.HasIndex(x => new { x.ContractRenewalRequestId, x.RevisionNumber }).IsUnique();
+            e.HasIndex(x => new { x.ContractRenewalRequestId, x.CreatedAt });
         });
         modelBuilder.Entity<ContractRenewalRequest>(e =>
         {

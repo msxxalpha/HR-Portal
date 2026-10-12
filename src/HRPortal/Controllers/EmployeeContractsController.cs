@@ -396,6 +396,16 @@ public class EmployeeContractsController(
             .Where(x => x.ContractRenewalRequestId == id)
             .OrderByDescending(x => x.RevisionNumber)
             .ToListAsync();
+        var workflowHistory = request.WorkflowInstanceId.HasValue
+            ? await db.WorkflowHistory.AsNoTracking()
+                .Include(x => x.WorkflowStep)
+                .Include(x => x.ActorEmployee)
+                .Include(x => x.ActorPosition)
+                .Where(x => x.WorkflowInstanceId == request.WorkflowInstanceId.Value)
+                .OrderByDescending(x => x.CreatedAt)
+                .ToListAsync()
+            : new List<WorkflowHistory>();
+        ViewBag.WorkflowHistory = workflowHistory;
         return View(revisions);
     }
 

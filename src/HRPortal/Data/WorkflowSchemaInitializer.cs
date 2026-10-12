@@ -162,12 +162,12 @@ IF COL_LENGTH(N'dbo.WorkflowDefinitions', N'SourceDefinitionId') IS NULL ALTER T
 IF COL_LENGTH(N'dbo.WorkflowSteps', N'HierarchyStopRankType') IS NULL ALTER TABLE [dbo].[WorkflowSteps] ADD [HierarchyStopRankType] nvarchar(30) NOT NULL CONSTRAINT [DF_WorkflowSteps_HierarchyStopRankType] DEFAULT N'معاونت';
 IF OBJECT_ID(N'dbo.WorkflowSteps', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.WorkflowSteps', N'AssignedEmployeeId') IS NULL ALTER TABLE [dbo].[WorkflowSteps] ADD [AssignedEmployeeId] int NULL;
 
-IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'UX_SystemFormDefinitions_Code' AND object_id=OBJECT_ID(N'dbo.SystemFormDefinitions'))
-    EXEC sys.sp_executesql N'CREATE UNIQUE INDEX [UX_SystemFormDefinitions_Code] ON [dbo].[SystemFormDefinitions]([Code]);';
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_SystemFormDefinitions_Code' AND object_id=OBJECT_ID(N'dbo.SystemFormDefinitions'))
+    EXEC sys.sp_executesql N'CREATE UNIQUE INDEX [IX_SystemFormDefinitions_Code] ON [dbo].[SystemFormDefinitions]([Code]);';
 
 IF NOT EXISTS(SELECT 1 FROM [dbo].[SystemFormDefinitions] WHERE [Code]=N'contract-renewal-evaluation')
-    INSERT INTO [dbo].[SystemFormDefinitions]([Code],[Title],[ImplementationType],[IsActive],[Description])
-    VALUES(N'contract-renewal-evaluation',N'ارزشیابی و تمدید قرارداد',N'Custom',1,N'فرم اختصاصی با گردش کار مستقل؛ از موتور گردش کار عمومی استفاده نمی‌کند.');
+    INSERT INTO [dbo].[SystemFormDefinitions]([Code],[Title],[ImplementationType],[IsActive],[Description],[CreatedAt],[UpdatedAt])
+    VALUES(N'contract-renewal-evaluation',N'ارزشیابی و تمدید قرارداد',N'Custom',1,N'فرم اختصاصی با گردش کار مستقل؛ از موتور گردش کار عمومی استفاده نمی‌کند.',SYSUTCDATETIME(),SYSUTCDATETIME());
 
 IF EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowDefinitions_Code' AND object_id=OBJECT_ID(N'dbo.WorkflowDefinitions'))
     DROP INDEX [IX_WorkflowDefinitions_Code] ON [dbo].[WorkflowDefinitions];

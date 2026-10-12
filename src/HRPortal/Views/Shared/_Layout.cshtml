@@ -60,7 +60,7 @@
                             <summary>مدیریت قراردادهای کارکنان</summary>
                             <div class="nav-submenu nav-submenu-nested">
                                 @if (isAdmin) { <a href="/EmployeeContracts/BasicInformation">اطلاعات پایه ماژول مدیریت قراردادها</a> }
-                                @if (isAdmin) { <a href="/EmployeeContracts/WorkflowSettings">تنظیم مراحل ثابت گردش کار</a> }
+                                @if (isAdmin || Can("ContractRenewal.Manage")) { <a href="/EmployeeContracts/Requests">فهرست درخواست‌های ارزشیابی و تمدید قرارداد</a> }
                                 @if (isAdmin || Can("ContractRenewal.Manage")) { <a href="/EmployeeContracts/Renewal">تمدید قرارداد</a> }
                             </div>
                         </details>

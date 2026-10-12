@@ -26,6 +26,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
     public DbSet<EmployeeRole> EmployeeRoles => Set<EmployeeRole>();
     public DbSet<AnnouncementCategory> AnnouncementCategories => Set<AnnouncementCategory>();
     public DbSet<Announcement> Announcements => Set<Announcement>();
+    public DbSet<SystemFormDefinition> SystemFormDefinitions => Set<SystemFormDefinition>();
     public DbSet<WorkflowDefinition> WorkflowDefinitions => Set<WorkflowDefinition>();
     public DbSet<WorkflowStep> WorkflowSteps => Set<WorkflowStep>();
     public DbSet<WorkflowTransition> WorkflowTransitions => Set<WorkflowTransition>();
@@ -181,9 +182,19 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.Property(x => x.Code).HasMaxLength(100).IsRequired();
             e.Property(x => x.Title).HasMaxLength(200).IsRequired();
             e.Property(x => x.Description).HasMaxLength(1000);
+            e.Property(x => x.FormCode).HasMaxLength(100);
             e.HasIndex(x => new { x.Code, x.Version }).IsUnique();
             e.Property(x => x.IsRuntimeInstance).HasDefaultValue(false);
             e.Property(x => x.SourceDefinitionId);
+        });
+        modelBuilder.Entity<SystemFormDefinition>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Code).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Title).HasMaxLength(200).IsRequired();
+            e.Property(x => x.ImplementationType).HasMaxLength(30).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(1000);
+            e.HasIndex(x => x.Code).IsUnique();
         });
         modelBuilder.Entity<WorkflowStep>(e =>
         {

@@ -58,7 +58,7 @@ public class EmployeeContractsController(
                 PositionTitle = employee.PositionTitle ?? "—",
                 ContractEndDate = endDate,
                 DaysRemaining = (endDate - today).Days,
-                LatestRequest = matching.FirstOrDefault(),
+                LatestRequest = blockingRequest ?? matching.FirstOrDefault(),
                 CanStartRequest = blockingRequest is null
             });
         }
@@ -421,7 +421,7 @@ public class EmployeeContractsController(
             EmployeeNameSnapshot = $"{employee.FirstName} {employee.LastName}".Trim(),
             PersonnelNumberSnapshot = employee.PersonnelNumber,
             OrganizationUnitSnapshot = employee.OrganizationUnit?.Title ?? "",
-            PositionTitleSnapshot = employee.OrganizationPosition?.Title ?? employee.PositionTitle ?? "",
+            PositionTitleSnapshot = employee.PositionTitle ?? employee.OrganizationPosition?.Title ?? "",
             PreviousContractEndDate = employee.ContractEndDate,
             PreviousExtensionMonths1 = model.PreviousExtensionMonths1,
             PreviousExtensionMonths2 = model.PreviousExtensionMonths2,

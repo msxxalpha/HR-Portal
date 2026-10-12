@@ -84,7 +84,7 @@ public static class DatabaseInitializer
         foreach (var rawTitle in legacyTitles)
         {
             var title = rawTitle.Trim();
-            if (title.Length == 0 || knownTitles.Contains(title)) continue;
+            if (title.Length == 0 || title.Length > 150 || knownTitles.Contains(title)) continue;
 
             string code;
             do { code = $"LEGACY-{nextNumber++:000000}"; } while (knownCodes.Contains(code));

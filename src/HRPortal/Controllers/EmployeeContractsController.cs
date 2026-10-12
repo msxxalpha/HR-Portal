@@ -192,7 +192,9 @@ public class EmployeeContractsController(
                 ErrorMessage = ceoEmployees.Count == 1 ? null : "تخصیص مدیرعامل به یک کارمند فعال را در فرم کارکنان انجام دهید."
             };
             var basicInfo = await BuildBasicInfoViewModelAsync();
-            basicInfo.WorkflowSettings = await BuildWorkflowSettingsViewModelAsync(securityPositionId, humanResourcesPositionId);
+            basicInfo.WorkflowSettings = await BuildWorkflowSettingsViewModelAsync();
+            basicInfo.WorkflowSettings.Settings.SecurityPositionId = securityPositionId;
+            basicInfo.WorkflowSettings.Settings.HumanResourcesPositionId = humanResourcesPositionId;
             basicInfo.WorkflowSettings.ErrorMessage = string.Join(" ", ModelState.Values
                 .SelectMany(v => v.Errors).Select(e => e.ErrorMessage));
             ViewBag.ActiveTab = "workflow-settings";
@@ -724,6 +726,16 @@ public class EmployeeContractsController(
         var positions = current is null ? new List<OrganizationNode>() : await db.OrganizationNodes.AsNoTracking()
             .Where(x => x.OrganizationStructureRevisionId == current.Id && x.IsActive)
             .OrderBy(x => x.RankType).ThenBy(x => x.Title).ToListAsync();
+        var persistedSecurityNode = persisted.SecurityPositionId.HasValue
+            ? await db.OrganizationNodes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == persisted.SecurityPositionId.Value)
+            : null;
+        var persistedHrNode = persisted.HumanResourcesPositionId.HasValue
+            ? await db.OrganizationNodes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == persisted.HumanResourcesPositionId.Value)
+            : null;
+        var selectedSecurityPositionId = requestedSecurityPositionId ??
+            (persistedSecurityNode is null ? null : positions.FirstOrDefault(x => x.Code == persistedSecurityNode.Code)?.Id);
+        var selectedHrPositionId = requestedHumanResourcesPositionId ??
+            (persistedHrNode is null ? null : positions.FirstOrDefault(x => x.Code == persistedHrNode.Code)?.Id);
         var ceoNodes = positions.Where(x => x.RankType == "مدیرعامل").ToList();
         var ceoEmployees = ceoNodes.Count != 1 ? new List<Employee>() : await db.Employees.AsNoTracking()
             .Where(x => x.Status == "فعال" && x.OrganizationPositionId == ceoNodes[0].Id)
@@ -733,8 +745,8 @@ public class EmployeeContractsController(
         {
             Settings = new ContractRenewalWorkflowSettings
             {
-                SecurityPositionId = requestedSecurityPositionId ?? persisted.SecurityPositionId,
-                HumanResourcesPositionId = requestedHumanResourcesPositionId ?? persisted.HumanResourcesPositionId,
+                SecurityPositionId = selectedSecurityPositionId,
+                HumanResourcesPositionId = selectedHrPositionId,
                 CeoEmployeeId = ceoEmployees.Count == 1 ? ceoEmployees[0].Id : null
             },
             Positions = positions,

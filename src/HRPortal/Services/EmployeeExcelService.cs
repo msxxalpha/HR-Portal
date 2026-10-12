@@ -75,6 +75,9 @@ public class EmployeeExcelService(HRPortalDbContext db)
         var unitMap = nodes.Where(x => x.RankType == "مدیریت").ToDictionary(x => x.Code, StringComparer.OrdinalIgnoreCase);
         var departmentMap = nodes.Where(x => x.RankType == "ریاست").ToDictionary(x => x.Code, StringComparer.OrdinalIgnoreCase);
         var sectionMap = nodes.Where(x => x.RankType == "سرپرستی").ToDictionary(x => x.Code, StringComparer.OrdinalIgnoreCase);
+        var activePositionTitles = await db.OrganizationPositionDefinitions.AsNoTracking()
+            .Where(x => x.IsActive).Select(x => x.Title).ToListAsync();
+        var activePositionSet = activePositionTitles.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var employees = await db.Employees.ToListAsync();
         var newEmployees = new List<Employee>();
         var seenPersonnelNumbers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -130,6 +133,15 @@ public class EmployeeExcelService(HRPortalDbContext db)
             if (identityConflict)
             {
                 errors.Add($"ردیف {row}: شماره پرسنلی، شناسه یا کد ملی با اطلاعات کارمند دیگری تداخل دارد.");
+                continue;
+            }
+
+            var positionTitle = Cell(11);
+            if (!string.IsNullOrWhiteSpace(positionTitle) &&
+                !activePositionSet.Contains(positionTitle) &&
+                (target is null || !string.Equals(target.PositionTitle, positionTitle, StringComparison.OrdinalIgnoreCase)))
+            {
+                errors.Add($"ردیف {row}: سمت «{positionTitle}» در میان پست‌های فعال ثبت نشده است؛ کد یا عنوان پست را اصلاح کنید.");
                 continue;
             }
 
@@ -208,7 +220,7 @@ public class EmployeeExcelService(HRPortalDbContext db)
             target.OrganizationUnitId = unitId;
             target.OrganizationDepartmentId = departmentId;
             target.OrganizationSectionId = sectionId;
-            target.PositionTitle = EmptyToNull(Cell(11));
+            target.PositionTitle = EmptyToNull(positionTitle);
             target.EmploymentType = employmentType;
             target.ContractEndDate = contractEndDate;
             target.Email = EmptyToNull(Cell(13));

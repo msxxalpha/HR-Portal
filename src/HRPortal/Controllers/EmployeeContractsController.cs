@@ -623,7 +623,11 @@ public class EmployeeContractsController(
             ContractRenewalRequestId = request.Id,
             RevisionNumber = nextRevision,
             Action = action,
-            SnapshotJson = System.Text.Json.JsonSerializer.Serialize(snapshot),
+            SnapshotJson = System.Text.Json.JsonSerializer.Serialize(snapshot, new System.Text.Json.JsonSerializerOptions
+            {
+                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+                WriteIndented = true
+            }),
             ChangedByEmployeeId = GetCurrentEmployeeId(),
             CreatedAt = DateTime.UtcNow
         });

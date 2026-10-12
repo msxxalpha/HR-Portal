@@ -144,32 +144,8 @@ public class EmployeeContractsController(
     }
 
     [Authorize(Policy = "AdminOnly")]
-    public async Task<IActionResult> WorkflowSettings()
-    {
-        var current = await CurrentRevisionAsync();
-        var settings = await db.ContractRenewalWorkflowSettings.FirstOrDefaultAsync(x => x.Id == 1)
-            ?? new ContractRenewalWorkflowSettings { Id = 1 };
-
-        var positions = current is null ? new List<OrganizationNode>() : await db.OrganizationNodes.AsNoTracking()
-            .Where(x => x.OrganizationStructureRevisionId == current.Id && x.IsActive)
-            .OrderBy(x => x.RankType).ThenBy(x => x.Title).ToListAsync();
-        var ceoNodeIds = positions.Where(x => x.RankType == "مدیرعامل").Select(x => x.Id).ToList();
-        var ceoEmployees = ceoNodeIds.Count == 0 ? new List<Employee>() : await db.Employees.AsNoTracking()
-            .Where(x => x.Status == "فعال" && x.OrganizationPositionId.HasValue && ceoNodeIds.Contains(x.OrganizationPositionId.Value))
-            .OrderBy(x => x.LastName).ThenBy(x => x.FirstName).ToListAsync();
-
-        var vm = new ContractRenewalWorkflowSettingsViewModel
-        {
-            Settings = settings,
-            Positions = positions,
-            ActiveEmployees = await db.Employees.AsNoTracking()
-                .Where(x => x.Status == "فعال")
-                .OrderBy(x => x.LastName).ThenBy(x => x.FirstName).ToListAsync(),
-            ChiefExecutiveEmployee = ceoEmployees.Count == 1 ? ceoEmployees[0] : null,
-            ErrorMessage = ceoEmployees.Count == 1 ? null : "برای ادامه باید دقیقاً یک کارمند فعال در رده مدیرعامل نسخه نهایی ساختار سازمانی قرار گیرد."
-        };
-        return View(vm);
-    }
+    public IActionResult WorkflowSettings() =>
+        Redirect("/EmployeeContracts/BasicInformation#workflow-settings");
 
     [HttpPost, Authorize(Policy = "AdminOnly"), ValidateAntiForgeryToken]
     public async Task<IActionResult> SaveWorkflowSettings(int? securityPositionId, int? humanResourcesPositionId)
@@ -215,7 +191,12 @@ public class EmployeeContractsController(
                 ChiefExecutiveEmployee = ceoEmployees.Count == 1 ? ceoEmployees[0] : null,
                 ErrorMessage = ceoEmployees.Count == 1 ? null : "تخصیص مدیرعامل به یک کارمند فعال را در فرم کارکنان انجام دهید."
             };
-            return View("WorkflowSettings", vm);
+            var basicInfo = await BuildBasicInfoViewModelAsync();
+            basicInfo.WorkflowSettings = await BuildWorkflowSettingsViewModelAsync(securityPositionId, humanResourcesPositionId);
+            basicInfo.WorkflowSettings.ErrorMessage = string.Join(" ", ModelState.Values
+                .SelectMany(v => v.Errors).Select(e => e.ErrorMessage));
+            ViewBag.ActiveTab = "workflow-settings";
+            return View("BasicInformation", basicInfo);
         }
 
         var settings = await db.ContractRenewalWorkflowSettings.FirstOrDefaultAsync(x => x.Id == 1);
@@ -231,7 +212,7 @@ public class EmployeeContractsController(
         await db.SaveChangesAsync();
         await audit.WriteAsync("تنظیم مراحل ثابت تمدید قرارداد", nameof(ContractRenewalWorkflowSettings), "1");
         TempData["Success"] = "تنظیم مراحل ثابت گردش تمدید قرارداد ذخیره شد.";
-        return RedirectToAction(nameof(WorkflowSettings));
+        return Redirect("/EmployeeContracts/BasicInformation#workflow-settings");
     }
 
     [Authorize(Policy = "ContractRenewal.Manage")]
@@ -451,6 +432,39 @@ public class EmployeeContractsController(
             .OrderByDescending(x => x.EffectiveDate).ThenByDescending(x => x.Id)
             .FirstOrDefaultAsync();
 
+    private async Task<ContractRenewalWorkflowSettingsViewModel> BuildWorkflowSettingsViewModelAsync(
+        int? requestedSecurityPositionId = null,
+        int? requestedHumanResourcesPositionId = null)
+    {
+        var current = await CurrentRevisionAsync();
+        var persisted = await db.ContractRenewalWorkflowSettings.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == 1) ?? new ContractRenewalWorkflowSettings { Id = 1 };
+        var positions = current is null ? new List<OrganizationNode>() : await db.OrganizationNodes.AsNoTracking()
+            .Where(x => x.OrganizationStructureRevisionId == current.Id && x.IsActive)
+            .OrderBy(x => x.RankType).ThenBy(x => x.Title).ToListAsync();
+        var ceoNodes = positions.Where(x => x.RankType == "مدیرعامل").ToList();
+        var ceoEmployees = ceoNodes.Count != 1 ? new List<Employee>() : await db.Employees.AsNoTracking()
+            .Where(x => x.Status == "فعال" && x.OrganizationPositionId == ceoNodes[0].Id)
+            .OrderBy(x => x.LastName).ThenBy(x => x.FirstName).ToListAsync();
+
+        return new ContractRenewalWorkflowSettingsViewModel
+        {
+            Settings = new ContractRenewalWorkflowSettings
+            {
+                SecurityPositionId = requestedSecurityPositionId ?? persisted.SecurityPositionId,
+                HumanResourcesPositionId = requestedHumanResourcesPositionId ?? persisted.HumanResourcesPositionId,
+                CeoEmployeeId = ceoEmployees.Count == 1 ? ceoEmployees[0].Id : null
+            },
+            Positions = positions,
+            ActiveEmployees = await db.Employees.AsNoTracking().Where(x => x.Status == "فعال")
+                .OrderBy(x => x.LastName).ThenBy(x => x.FirstName).ToListAsync(),
+            ChiefExecutiveEmployee = ceoEmployees.Count == 1 ? ceoEmployees[0] : null,
+            ErrorMessage = ceoEmployees.Count == 1
+                ? null
+                : "برای ادامه باید دقیقاً یک کارمند فعال در رده مدیرعامل نسخه نهایی ساختار سازمانی قرار گیرد."
+        };
+    }
+
     private async Task<ContractManagementBasicInfoViewModel> BuildBasicInfoViewModelAsync(
         EmployeePerformanceEvaluationQuestion? editingQuestion = null)
     {
@@ -466,7 +480,8 @@ public class EmployeeContractsController(
                 SortOrder = questions.Count == 0 ? 10 : questions.Max(x => x.SortOrder) + 10
             },
             ActiveQuestionCount = questions.Count(x => x.IsActive),
-            ActiveMaxScoreTotal = questions.Where(x => x.IsActive).Sum(x => x.MaxScore)
+            ActiveMaxScoreTotal = questions.Where(x => x.IsActive).Sum(x => x.MaxScore),
+            WorkflowSettings = await BuildWorkflowSettingsViewModelAsync()
         };
     }
 }

@@ -44,12 +44,13 @@
                     <summary><span class="nav-icon">⚑</span>اطلاعیه‌ها</summary><div class="nav-submenu"><a href="/Announcements">اطلاعیه‌ها</a></div>
                 </details>
             }
-            @if (Can("Employees.View") || Can("Organization.View") || Can("Settings.View")) {
-                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Employees") || Context.Request.Path.StartsWithSegments("/Organization") || Context.Request.Path.StartsWithSegments("/OrganizationPositions") ? "open" : null)">
+            @if (Can("Employees.View") || Can("Organization.View") || Can("Settings.View") || Can("Settings.Edit")) {
+                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Employees") || Context.Request.Path.StartsWithSegments("/Organization") || Context.Request.Path.StartsWithSegments("/OrganizationPositions") || Context.Request.Path.StartsWithSegments("/SystemForms") ? "open" : null)">
                     <summary><span class="nav-icon">♙</span>اطلاعات پایه</summary><div class="nav-submenu">
                         @if (Can("Employees.View")) { <a href="/Employees">کارکنان</a> }
                         @if (Can("Settings.View")) { <a href="/OrganizationPositions">مدیریت پست‌های سازمانی</a> }
                         @if (Can("Organization.View")) { <a href="/Organization">ساختار سازمانی</a> }
+                        @if (Can("Settings.Edit")) { <a href="/SystemForms">مدیریت فرم‌ها</a> }
                     </div>
                 </details>
             }

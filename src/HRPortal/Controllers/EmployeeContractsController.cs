@@ -611,11 +611,19 @@ public class EmployeeContractsController(
         var currentCeoCount = currentCeoNodeIds.Count == 0 ? 0 : await db.Employees.CountAsync(x =>
             x.Status == "فعال" && x.OrganizationPositionId.HasValue &&
             currentCeoNodeIds.Contains(x.OrganizationPositionId.Value));
-        input.WorkflowSettingsReady = current is not null && config?.SecurityPositionId is int securityId &&
-            config.HumanResourcesPositionId is int hrId &&
+        var configuredSecurity = config?.SecurityPositionId is int securityId
+            ? await db.OrganizationNodes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == securityId)
+            : null;
+        var configuredHr = config?.HumanResourcesPositionId is int hrId
+            ? await db.OrganizationNodes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == hrId)
+            : null;
+        input.WorkflowSettingsReady = current is not null &&
+            configuredSecurity is not null && configuredHr is not null &&
             currentCeoNodeIds.Count == 1 && currentCeoCount == 1 &&
-            await db.OrganizationNodes.AnyAsync(x => x.Id == securityId && x.OrganizationStructureRevisionId == current.Id && x.IsActive) &&
-            await db.OrganizationNodes.AnyAsync(x => x.Id == hrId && x.OrganizationStructureRevisionId == current.Id && x.IsActive);
+            await db.OrganizationNodes.AnyAsync(x => x.OrganizationStructureRevisionId == current.Id &&
+                x.Code == configuredSecurity.Code && x.IsActive) &&
+            await db.OrganizationNodes.AnyAsync(x => x.OrganizationStructureRevisionId == current.Id &&
+                x.Code == configuredHr.Code && x.IsActive);
 
         if (input.SelectedEmployee is not null)
         {

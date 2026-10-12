@@ -16,6 +16,7 @@ public static class DatabaseInitializer
         await EnsureReportAndAnnouncementSchemaAsync(db);
         await WorkflowSchemaInitializer.InitializeAsync(db);
         await ContractManagementSchemaInitializer.InitializeAsync(db);
+        await ContractRenewalRequestRevisionSchemaInitializer.InitializeAsync(db);
         await OrganizationRankSchemaInitializer.InitializeAsync(db);
 
         if (!await db.ContractRenewalWorkflowSettings.AnyAsync())

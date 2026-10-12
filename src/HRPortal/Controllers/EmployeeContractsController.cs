@@ -311,6 +311,279 @@ public class EmployeeContractsController(
         }
     }
 
+    [Authorize(Policy = "ContractRenewal.Manage")]
+    public async Task<IActionResult> Requests()
+    {
+        var requests = await db.ContractRenewalRequests.AsNoTracking()
+            .Include(x => x.WorkflowInstance).ThenInclude(x => x!.CurrentStep)
+            .Where(x => x.Status != "حذف شده")
+            .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+            .ToListAsync();
+
+        var instanceIds = requests.Where(x => x.WorkflowInstanceId.HasValue)
+            .Select(x => x.WorkflowInstanceId!.Value).Distinct().ToList();
+        var scoredInstanceIds = await db.EmployeePerformanceEvaluationScores.AsNoTracking()
+            .Where(x => instanceIds.Contains(x.WorkflowInstanceId) && x.Score.HasValue)
+            .Select(x => x.WorkflowInstanceId).Distinct().ToListAsync();
+        var completedEvaluationInstanceIds = await db.WorkflowTasks.AsNoTracking()
+            .Where(x => instanceIds.Contains(x.WorkflowInstanceId) &&
+                x.Status == "Completed" && x.WorkflowStep.Code.StartsWith("Evaluation_H"))
+            .Select(x => x.WorkflowInstanceId).Distinct().ToListAsync();
+        var evaluated = scoredInstanceIds.Concat(completedEvaluationInstanceIds).ToHashSet();
+
+        var rows = requests.Select(request =>
+        {
+            var instance = request.WorkflowInstance;
+            var hasEvaluation = instance is not null && evaluated.Contains(instance.Id);
+            var active = instance is not null && instance.Status == "InProgress";
+            return new ContractRenewalRequestListItem
+            {
+                Request = request,
+                LastStatus = request.Status,
+                CurrentStageTitle = instance?.CurrentStep?.Title ?? (instance?.Status ?? "ثبت نشده"),
+                HasAnyEvaluation = hasEvaluation,
+                CanEditOrDelete = active && !hasEvaluation && request.Status != "متوقف شده",
+                CanStop = active
+            };
+        }).ToList();
+
+        return View(rows);
+    }
+
+    [HttpGet, Authorize(Policy = "ContractRenewal.Manage")]
+    public async Task<IActionResult> Edit(int id)
+    {
+        var request = await db.ContractRenewalRequests
+            .Include(x => x.WorkflowInstance)
+            .FirstOrDefaultAsync(x => x.Id == id && x.Status != "حذف شده");
+        if (request is null) return NotFound();
+        if (request.WorkflowInstance is null || request.WorkflowInstance.Status != "InProgress" ||
+            await HasEvaluationActivityAsync(request.WorkflowInstance.Id))
+        {
+            TempData["Error"] = "ویرایش فقط تا پیش از ثبت اولین ارزیابی سازمانی امکان‌پذیر است؛ سوابق ثبت‌شده حفظ می‌شوند.";
+            return RedirectToAction(nameof(Requests));
+        }
+
+        var input = new ContractRenewalIntakeViewModel
+        {
+            RequestId = request.Id,
+            IsEditMode = true,
+            EmployeeId = request.EmployeeId,
+            PreviousExtensionMonths1 = request.PreviousExtensionMonths1,
+            PreviousExtensionMonths2 = request.PreviousExtensionMonths2,
+            PreviousExtensionMonths3 = request.PreviousExtensionMonths3,
+            HasDisciplinaryWarnings = request.HasDisciplinaryWarnings,
+            DisciplinaryWarningCount = request.DisciplinaryWarningCount,
+            HasDisciplinaryCommitteeResolution = request.HasDisciplinaryCommitteeResolution,
+            DisciplinaryCommitteeResolutionCount = request.DisciplinaryCommitteeResolutionCount,
+            HasUnpaidLeave = request.HasUnpaidLeave,
+            UnpaidLeaveDays = request.UnpaidLeaveDays,
+            HasSickLeave = request.HasSickLeave,
+            SickLeaveDays = request.SickLeaveDays,
+            HasAccidentLeave = request.HasAccidentLeave,
+            AccidentLeaveDays = request.AccidentLeaveDays,
+            HasCommendations = request.HasCommendations,
+            CommendationCount = request.CommendationCount,
+            PreviousPeriodScore1 = request.PreviousPeriodScore1,
+            PreviousPeriodScore2 = request.PreviousPeriodScore2,
+            PreviousPeriodScore1FromHistory = request.PreviousPeriodScore1FromHistory,
+            PreviousPeriodScore2FromHistory = request.PreviousPeriodScore2FromHistory
+        };
+        var model = await BuildIntakeViewModelAsync(input, false);
+        model.PreviousPeriodScore1 = request.PreviousPeriodScore1;
+        model.PreviousPeriodScore2 = request.PreviousPeriodScore2;
+        model.PreviousPeriodScore1FromHistory = request.PreviousPeriodScore1FromHistory;
+        model.PreviousPeriodScore2FromHistory = request.PreviousPeriodScore2FromHistory;
+        return View("Renewal", model);
+    }
+
+    [HttpPost, Authorize(Policy = "ContractRenewal.Manage"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateRequest(ContractRenewalIntakeViewModel input)
+    {
+        var request = await db.ContractRenewalRequests
+            .Include(x => x.WorkflowInstance)
+            .FirstOrDefaultAsync(x => x.Id == input.RequestId && x.Status != "حذف شده");
+        if (request is null) return NotFound();
+        if (request.WorkflowInstance is null || request.WorkflowInstance.Status != "InProgress" ||
+            await HasEvaluationActivityAsync(request.WorkflowInstance.Id))
+        {
+            TempData["Error"] = "این درخواست پس از شروع ارزیابی قابل ویرایش نیست.";
+            return RedirectToAction(nameof(Requests));
+        }
+        if (input.EmployeeId != request.EmployeeId)
+            ModelState.AddModelError(nameof(input.EmployeeId), "کارمند موضوع درخواست پس از ایجاد قابل تغییر نیست؛ برای کارمند دیگر درخواست جدید ثبت کنید.");
+
+        var model = await BuildIntakeViewModelAsync(input, false);
+        model.IsEditMode = true;
+        model.RequestId = request.Id;
+        model.ShowPreview = true;
+        model.PreviousPeriodScore1 = request.PreviousPeriodScore1;
+        model.PreviousPeriodScore2 = request.PreviousPeriodScore2;
+        model.PreviousPeriodScore1FromHistory = request.PreviousPeriodScore1FromHistory;
+        model.PreviousPeriodScore2FromHistory = request.PreviousPeriodScore2FromHistory;
+        ValidateIntake(model);
+        if (!ModelState.IsValid)
+            return View("Renewal", model);
+
+        ApplyIntakeToRequest(request, model, model.SelectedEmployee!);
+        db.WorkflowHistory.Add(new WorkflowHistory
+        {
+            WorkflowInstanceId = request.WorkflowInstance.Id,
+            WorkflowStepId = request.WorkflowInstance.CurrentStepId,
+            FromStatus = request.WorkflowInstance.Status,
+            ToStatus = request.WorkflowInstance.Status,
+            Action = "EditIntake",
+            ActorEmployeeId = GetCurrentEmployeeId(),
+            Comment = "اطلاعات اولیه درخواست پیش از نخستین ارزیابی اصلاح شد."
+        });
+        await db.SaveChangesAsync();
+        await audit.WriteAsync("ویرایش اطلاعات اولیه درخواست تمدید قرارداد", nameof(ContractRenewalRequest),
+            request.Id.ToString(), request.RequestCode);
+        TempData["Success"] = $"اطلاعات اولیه درخواست {request.RequestCode} اصلاح شد؛ مسیر گردش و سوابق موجود حفظ شدند.";
+        return RedirectToAction(nameof(Requests));
+    }
+
+    [HttpPost, Authorize(Policy = "ContractRenewal.Manage"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteRequest(int id)
+    {
+        var request = await db.ContractRenewalRequests
+            .Include(x => x.WorkflowInstance).ThenInclude(x => x!.Tasks)
+            .FirstOrDefaultAsync(x => x.Id == id && x.Status != "حذف شده");
+        if (request is null) return NotFound();
+        if (request.WorkflowInstance is null || request.WorkflowInstance.Status != "InProgress" ||
+            await HasEvaluationActivityAsync(request.WorkflowInstance.Id))
+        {
+            TempData["Error"] = "حذف فقط تا پیش از ثبت اولین ارزیابی مجاز است. سوابق قبلی به‌صورت نرم‌حذف حفظ می‌شوند.";
+            return RedirectToAction(nameof(Requests));
+        }
+
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        var instance = request.WorkflowInstance;
+        var previousStatus = instance.Status;
+        request.Status = "حذف شده";
+        request.CompletedAt = DateTime.UtcNow;
+        instance.Status = "Cancelled";
+        instance.CurrentStepId = null;
+        instance.CompletedAt = DateTime.UtcNow;
+        foreach (var task in instance.Tasks.Where(x => x.Status == "Pending"))
+        {
+            task.Status = "Cancelled";
+            task.Action = "Delete";
+            task.CompletedAt = DateTime.UtcNow;
+        }
+        db.WorkflowHistory.Add(new WorkflowHistory
+        {
+            WorkflowInstanceId = instance.Id,
+            WorkflowStepId = instance.Tasks.FirstOrDefault(x => x.Status == "Cancelled")?.WorkflowStepId,
+            FromStatus = previousStatus,
+            ToStatus = "Cancelled",
+            Action = "Delete",
+            ActorEmployeeId = GetCurrentEmployeeId(),
+            Comment = "درخواست پیش از اولین ارزیابی به‌صورت نرم‌حذف شد؛ رکوردها و تاریخچه حفظ شدند."
+        });
+        await db.SaveChangesAsync();
+        await transaction.CommitAsync();
+        await audit.WriteAsync("نرم‌حذف درخواست تمدید قرارداد", nameof(ContractRenewalRequest),
+            request.Id.ToString(), request.RequestCode);
+        TempData["Success"] = $"درخواست {request.RequestCode} از فهرست فعال حذف شد؛ تاریخچه و رکوردهای وابسته حفظ شدند.";
+        return RedirectToAction(nameof(Requests));
+    }
+
+    [HttpPost, Authorize(Policy = "ContractRenewal.Manage"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> StopRequest(int id, string? reason)
+    {
+        if (reason is { Length: > 3000 })
+        {
+            TempData["Error"] = "توضیح توقف حداکثر می‌تواند ۳۰۰۰ نویسه باشد.";
+            return RedirectToAction(nameof(Requests));
+        }
+
+        var request = await db.ContractRenewalRequests
+            .Include(x => x.WorkflowInstance).ThenInclude(x => x!.Tasks)
+            .FirstOrDefaultAsync(x => x.Id == id && x.Status != "حذف شده");
+        if (request is null) return NotFound();
+        if (request.WorkflowInstance is null || request.WorkflowInstance.Status != "InProgress")
+        {
+            TempData["Error"] = "فقط درخواست دارای گردش فعال را می‌توان متوقف کرد؛ درخواست‌های خاتمه‌یافته سابقه خود را حفظ می‌کنند.";
+            return RedirectToAction(nameof(Requests));
+        }
+
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        var instance = request.WorkflowInstance;
+        var previousStatus = instance.Status;
+        request.Status = "متوقف شده";
+        request.CompletedAt = DateTime.UtcNow;
+        instance.Status = "Cancelled";
+        instance.CurrentStepId = null;
+        instance.CompletedAt = DateTime.UtcNow;
+        foreach (var task in instance.Tasks.Where(x => x.Status == "Pending"))
+        {
+            task.Status = "Cancelled";
+            task.Action = "Stop";
+            task.Comment = reason?.Trim();
+            task.CompletedAt = DateTime.UtcNow;
+        }
+        db.WorkflowHistory.Add(new WorkflowHistory
+        {
+            WorkflowInstanceId = instance.Id,
+            WorkflowStepId = instance.Tasks.FirstOrDefault(x => x.Status == "Cancelled")?.WorkflowStepId,
+            FromStatus = previousStatus,
+            ToStatus = "Cancelled",
+            Action = "Stop",
+            ActorEmployeeId = GetCurrentEmployeeId(),
+            Comment = string.IsNullOrWhiteSpace(reason) ? "گردش درخواست متوقف شد." : reason.Trim()
+        });
+        await db.SaveChangesAsync();
+        await transaction.CommitAsync();
+        await audit.WriteAsync("توقف گردش تمدید قرارداد", nameof(ContractRenewalRequest),
+            request.Id.ToString(), request.RequestCode);
+        TempData["Success"] = $"گردش درخواست {request.RequestCode} متوقف شد؛ امتیازها و تاریخچه حفظ شدند.";
+        return RedirectToAction(nameof(Requests));
+    }
+
+    private int? GetCurrentEmployeeId() =>
+        int.TryParse(User.FindFirst("EmployeeId")?.Value, out var id) ? id : null;
+
+    private async Task<bool> HasEvaluationActivityAsync(int workflowInstanceId)
+    {
+        if (await db.EmployeePerformanceEvaluationScores.AnyAsync(x =>
+                x.WorkflowInstanceId == workflowInstanceId && x.Score.HasValue))
+            return true;
+        return await db.WorkflowTasks.AnyAsync(x =>
+            x.WorkflowInstanceId == workflowInstanceId &&
+            x.Status == "Completed" &&
+            x.WorkflowStep.Code.StartsWith("Evaluation_H"));
+    }
+
+    private static void ApplyIntakeToRequest(
+        ContractRenewalRequest request, ContractRenewalIntakeViewModel model, Employee employee)
+    {
+        request.EmployeeNameSnapshot = $"{employee.FirstName} {employee.LastName}".Trim();
+        request.PersonnelNumberSnapshot = employee.PersonnelNumber;
+        request.OrganizationUnitSnapshot = employee.OrganizationUnit?.Title ?? "";
+        request.PositionTitleSnapshot = employee.OrganizationPosition?.Title ?? employee.PositionTitle ?? "";
+        request.PreviousContractEndDate = employee.ContractEndDate;
+        request.PreviousExtensionMonths1 = model.PreviousExtensionMonths1;
+        request.PreviousExtensionMonths2 = model.PreviousExtensionMonths2;
+        request.PreviousExtensionMonths3 = model.PreviousExtensionMonths3;
+        request.HasDisciplinaryWarnings = model.HasDisciplinaryWarnings;
+        request.DisciplinaryWarningCount = model.HasDisciplinaryWarnings ? model.DisciplinaryWarningCount : 0;
+        request.HasDisciplinaryCommitteeResolution = model.HasDisciplinaryCommitteeResolution;
+        request.DisciplinaryCommitteeResolutionCount = model.HasDisciplinaryCommitteeResolution ? model.DisciplinaryCommitteeResolutionCount : 0;
+        request.HasUnpaidLeave = model.HasUnpaidLeave;
+        request.UnpaidLeaveDays = model.HasUnpaidLeave ? model.UnpaidLeaveDays : 0;
+        request.HasSickLeave = model.HasSickLeave;
+        request.SickLeaveDays = model.HasSickLeave ? model.SickLeaveDays : 0;
+        request.HasAccidentLeave = model.HasAccidentLeave;
+        request.AccidentLeaveDays = model.HasAccidentLeave ? model.AccidentLeaveDays : 0;
+        request.HasCommendations = model.HasCommendations;
+        request.CommendationCount = model.HasCommendations ? model.CommendationCount : 0;
+        request.PreviousPeriodScore1 = model.PreviousPeriodScore1;
+        request.PreviousPeriodScore2 = model.PreviousPeriodScore2;
+        request.PreviousPeriodScore1FromHistory = model.PreviousPeriodScore1FromHistory;
+        request.PreviousPeriodScore2FromHistory = model.PreviousPeriodScore2FromHistory;
+    }
+
     private async Task<ContractRenewalIntakeViewModel> BuildIntakeViewModelAsync(
         ContractRenewalIntakeViewModel input, bool includeRecentRequests)
     {

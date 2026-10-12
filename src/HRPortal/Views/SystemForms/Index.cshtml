@@ -24,17 +24,20 @@
                             <input type="hidden" name="id" value="@form.Id" />
                             <input type="hidden" name="code" value="@form.Code" />
                             <input type="hidden" name="title" value="@form.Title" />
-                            <select name="implementationType" disabled="@(form.ImplementationType == "Custom")">
-                                <option value="Custom" selected="@(form.ImplementationType == "Custom")">اختصاصی و مستقل</option>
-                                <option value="GenericWorkflow" selected="@(form.ImplementationType == "GenericWorkflow")">قابل اتصال به گردش کار عمومی</option>
-                                <option value="Standalone" selected="@(form.ImplementationType == "Standalone")">ساده و مستقل</option>
-                            </select>
-                            @if (form.ImplementationType == "Custom") { <input type="hidden" name="implementationType" value="Custom" /> }
-                            <label class="check-chip"><input type="checkbox" name="isActive" value="true" checked="@form.IsActive" /> فعال</label>
+                            <input type="hidden" name="implementationType" value="@form.ImplementationType" />
+                            <input type="hidden" name="isActive" value="@form.IsActive.ToString().ToLowerInvariant()" />
                             <input type="hidden" name="description" value="@form.Description" />
-                            <button class="btn btn-outline btn-sm" type="submit">ذخیره وضعیت</button>
+                            @if (form.ImplementationType == "Custom")
+                            {
+                                <span class="badge">اختصاصی و مستقل</span>
+                                <small class="muted">این فرم با منطق اختصاصی اجرا می‌شود و قابلیت اتصال به موتور عمومی ندارد.</small>
+                            }
+                            else
+                            {
+                                <label class="check-chip"><input type="checkbox" name="supportsWorkflow" value="true" checked="@(form.ImplementationType == "GenericWorkflow")" /> قابلیت استفاده از گردش کار عمومی</label>
+                                <button class="btn btn-outline btn-sm" type="submit">ذخیره قابلیت</button>
+                            }
                         </form>
-                        @if (form.ImplementationType == "Custom") { <small class="muted">این فرم با منطق اختصاصی اجرا می‌شود و قابل اتصال به موتور عمومی نیست.</small> }
                     </td>
                     <td>@(form.IsActive ? "فعال" : "غیرفعال")</td>
                     <td>@form.Description</td>

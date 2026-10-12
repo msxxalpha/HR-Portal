@@ -104,7 +104,9 @@ public class SystemSettingsController(
     {
         var rank = await db.OrganizationRankDefinitions.FirstOrDefaultAsync(x => x.Id == id);
         if (rank is null) return NotFound();
-        if (rank.Title == "مدیرعامل" || await db.OrganizationNodes.AnyAsync(x => x.RankType == rank.Title))
+        if (rank.Title == "مدیرعامل" ||
+            await db.OrganizationNodes.AnyAsync(x => x.RankType == rank.Title) ||
+            await db.WorkflowSteps.AnyAsync(x => x.HierarchyStopRankType == rank.Title))
         {
             TempData["Error"] = "این رده در ساختار سازمانی یا گردش‌های کاری استفاده شده است و برای حفظ سوابق قابل حذف نیست.";
             return Redirect("/SystemSettings#organization-ranks");

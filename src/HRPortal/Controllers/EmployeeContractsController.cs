@@ -227,7 +227,44 @@ public class EmployeeContractsController(
     [HttpPost, Authorize(Policy = "ContractRenewal.Manage"), ValidateAntiForgeryToken]
     public async Task<IActionResult> Preview(ContractRenewalIntakeViewModel input)
     {
+        ContractRenewalRequest? editingRequest = null;
+        if (input.RequestId > 0)
+        {
+            editingRequest = await db.ContractRenewalRequests
+                .Include(x => x.WorkflowInstance)
+                .FirstOrDefaultAsync(x => x.Id == input.RequestId && x.Status != "حذف شده");
+            if (editingRequest?.WorkflowInstance is null ||
+                editingRequest.WorkflowInstance.Status != "InProgress" ||
+                await HasEvaluationActivityAsync(editingRequest.WorkflowInstance.Id))
+            {
+                TempData["Error"] = "این درخواست دیگر برای ویرایش پیش از ارزیابی واجد شرایط نیست.";
+                return RedirectToAction(nameof(Requests));
+            }
+
+            // Edit mode is derived from the persisted request, not trusted from hidden form values.
+            input.IsEditMode = true;
+            input.EmployeeId = editingRequest.EmployeeId;
+            input.PreviousPeriodScore1 = editingRequest.PreviousPeriodScore1;
+            input.PreviousPeriodScore2 = editingRequest.PreviousPeriodScore2;
+            input.PreviousPeriodScore1FromHistory = editingRequest.PreviousPeriodScore1FromHistory;
+            input.PreviousPeriodScore2FromHistory = editingRequest.PreviousPeriodScore2FromHistory;
+        }
+        else
+        {
+            input.IsEditMode = false;
+            input.RequestId = 0;
+        }
+
         var model = await BuildIntakeViewModelAsync(input, true);
+        if (editingRequest is not null)
+        {
+            model.IsEditMode = true;
+            model.RequestId = editingRequest.Id;
+            model.PreviousPeriodScore1 = editingRequest.PreviousPeriodScore1;
+            model.PreviousPeriodScore2 = editingRequest.PreviousPeriodScore2;
+            model.PreviousPeriodScore1FromHistory = editingRequest.PreviousPeriodScore1FromHistory;
+            model.PreviousPeriodScore2FromHistory = editingRequest.PreviousPeriodScore2FromHistory;
+        }
         ValidateIntake(model);
         model.ShowPreview = ModelState.IsValid;
         return View("Renewal", model);
@@ -236,6 +273,9 @@ public class EmployeeContractsController(
     [HttpPost, Authorize(Policy = "ContractRenewal.Manage"), ValidateAntiForgeryToken]
     public async Task<IActionResult> Submit(ContractRenewalIntakeViewModel input)
     {
+        // This endpoint creates new requests only; a posted edit flag must never bypass prerequisites.
+        input.IsEditMode = false;
+        input.RequestId = 0;
         if (!int.TryParse(User.FindFirst("EmployeeId")?.Value, out var requesterEmployeeId))
         {
             TempData["Error"] = "برای ثبت درخواست، ورود با حساب کاربری متصل به پرونده پرسنلی لازم است.";
@@ -436,6 +476,8 @@ public class EmployeeContractsController(
         }
         if (input.EmployeeId != request.EmployeeId)
             ModelState.AddModelError(nameof(input.EmployeeId), "کارمند موضوع درخواست پس از ایجاد قابل تغییر نیست؛ برای کارمند دیگر درخواست جدید ثبت کنید.");
+        input.EmployeeId = request.EmployeeId;
+        input.IsEditMode = true;
 
         var model = await BuildIntakeViewModelAsync(input, false);
         model.IsEditMode = true;

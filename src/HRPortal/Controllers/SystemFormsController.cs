@@ -19,7 +19,7 @@ public class SystemFormsController(HRPortalDbContext db) : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Save(int id, string code, string title, string implementationType, bool isActive, string? description)
+    public async Task<IActionResult> Save(int id, string code, string title, string? implementationType, bool? supportsWorkflow, bool isActive, string? description)
     {
         try
         {
@@ -30,6 +30,8 @@ public class SystemFormsController(HRPortalDbContext db) : Controller
                 throw new InvalidOperationException("کد سیستمی و عنوان فرم الزامی است.");
             if (code.Length > 100 || title.Length > 200)
                 throw new InvalidOperationException("طول کد یا عنوان فرم بیش از حد مجاز است.");
+            if (supportsWorkflow.HasValue && id > 0)
+                implementationType = supportsWorkflow.Value ? "GenericWorkflow" : "Standalone";
             if (implementationType is not ("Custom" or "GenericWorkflow" or "Standalone"))
                 throw new InvalidOperationException("نوع پیاده‌سازی فرم معتبر نیست.");
 
@@ -48,10 +50,14 @@ public class SystemFormsController(HRPortalDbContext db) : Controller
                 throw new InvalidOperationException("نوع پیاده‌سازی فرم اختصاصی قابل تغییر نیست؛ این فرم باید مستقل از موتور عمومی باقی بماند.");
             }
 
-            if (entity.ImplementationType == "Custom") implementationType = "Custom";
-            if (implementationType != "GenericWorkflow" &&
-                await db.WorkflowDefinitions.AnyAsync(x => x.FormCode == code && x.IsActive && !x.IsRuntimeInstance))
-                throw new InvalidOperationException("ابتدا گردش کار فعال این فرم را به فرم دیگری منتقل یا غیرفعال کنید.");
+            if (entity.ImplementationType == "Custom")
+            {
+                implementationType = "Custom";
+                if (!isActive) throw new InvalidOperationException("فرم اختصاصی سیستمی را نمی‌توان غیرفعال کرد.");
+            }
+            if ((!isActive || implementationType != "GenericWorkflow") &&
+                await db.WorkflowDefinitions.AnyAsync(x => x.FormCode == entity.Code && x.IsActive && !x.IsRuntimeInstance))
+                throw new InvalidOperationException("برای غیرفعال‌سازی فرم یا قابلیت گردش کار آن، ابتدا گردش کار فعال را غیرفعال کنید.");
 
             entity.Code = code;
             entity.Title = title;

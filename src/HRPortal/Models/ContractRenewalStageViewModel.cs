@@ -22,3 +22,13 @@ public class ContractRenewalScoreStageGroup
     public decimal ScoreTotal { get; set; }
     public List<EmployeePerformanceEvaluationScore> Scores { get; set; } = [];
 }
+
+public class ContractRenewalHistoryScoreStage
+{
+    public string StageTitle { get; set; } = "";
+    public string PositionTitle { get; set; } = "";
+    public string? Comment { get; set; }
+    public decimal? ScoreTotal { get; set; }
+    public bool IsComplete { get; set; }
+    public List<EmployeePerformanceEvaluationScore> Scores { get; set; } = [];
+}

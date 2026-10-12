@@ -200,6 +200,7 @@
     const revisionId = @revisionId;
     const companyName = "@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(companyName))";
     const nodes = @Html.Raw(treeJson);
+    const organizationRanks = @Html.Raw((string?)ViewBag.OrganizationRankJson ?? "[]");
     const treeHost = document.getElementById("organizationTree");
 
     if (!revisionId || !treeHost) return;
@@ -232,15 +233,6 @@
         if (className) el.className = className;
         if (text != null) el.textContent = text;
         return el;
-    }
-
-    function getRankChildren(parentRank) {
-        if (!parentRank) return ["مدیرعامل", "معاونت", "مدیریت"];
-        if (parentRank === "مدیرعامل") return ["معاونت"];
-        if (parentRank === "معاونت") return ["مدیریت"];
-        if (parentRank === "مدیریت") return ["ریاست"];
-        if (parentRank === "ریاست") return ["سرپرستی"];
-        return [];
     }
 
     function buildTree() {
@@ -448,8 +440,7 @@
         document.getElementById("nodeActive").checked = isEdit ? !!node.isActive : true;
         document.getElementById("nodeNotes").value = isEdit ? (node.notes || "") : "";
 
-        const parentRank = actualParentId ? dataById.get(actualParentId)?.rankType : null;
-        const ranks = getRankChildren(parentRank);
+        const ranks = organizationRanks;
         const select = document.getElementById("nodeRank");
         select.innerHTML = "";
 

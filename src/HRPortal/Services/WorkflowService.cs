@@ -35,6 +35,11 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
     public async Task<int> SaveDefinitionAsync(WorkflowDefinitionEditModel model)
     {
         var code = model.Code.Trim();
+        var formCode = string.IsNullOrWhiteSpace(model.FormCode) ? null : model.FormCode.Trim();
+        if (model.Id == 0 && formCode is null)
+            throw new InvalidOperationException("برای گردش کار جدید، انتخاب فرم عملیاتی الزامی است.");
+        if (formCode is not null && !await db.SystemFormDefinitions.AnyAsync(x => x.Code == formCode && x.IsActive && x.ImplementationType == "GenericWorkflow"))
+            throw new InvalidOperationException("فرم انتخاب‌شده فعال نیست یا قابلیت گردش کار عمومی ندارد.");
         if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(model.Title))
             throw new InvalidOperationException("کد و عنوان گردش کار الزامی است.");
         if (model.Id == 0 && await db.WorkflowDefinitions.AnyAsync(x => x.Code == code && !x.IsRuntimeInstance))
@@ -43,7 +48,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         WorkflowDefinition entity;
         if (model.Id == 0)
         {
-            entity = new WorkflowDefinition { Code = code, Version = 1 };
+            entity = new WorkflowDefinition { Code = code, Version = 1, FormCode = formCode };
             db.WorkflowDefinitions.Add(entity);
         }
         else
@@ -63,7 +68,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                     .Select(x => (int?)x.Version).MaxAsync() ?? 1;
                 entity = new WorkflowDefinition
                 {
-                    Code = code, Title = model.Title.Trim(), Description = model.Description?.Trim(),
+                    Code = code, Title = model.Title.Trim(), Description = model.Description?.Trim(), FormCode = formCode ?? current.FormCode,
                     IsActive = model.IsActive, Version = maxVersion + 1,
                     CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
                 };
@@ -80,7 +85,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                         HierarchyStopRankType = source.HierarchyStopRankType, OrganizationNodeId = source.OrganizationNodeId, AssignedEmployeeId = source.AssignedEmployeeId, AssignmentMode = source.AssignmentMode,
                         AllowApprove = source.AllowApprove, AllowReject = source.AllowReject, AllowReturn = source.AllowReturn,
                         RequireCommentOnReject = source.RequireCommentOnReject,
-                        RequireCommentOnReturn = source.RequireCommentOnReturn, IsFinalStep = source.IsFinalStep
+                        RequireCommentOnReturn = source.RequireCommentOnReturn, IsFinalStep = source.IsFinalStep,
+                        AllowEditPreviousData = source.AllowEditPreviousData, RequireNotes = source.RequireNotes
                     };
                     db.WorkflowSteps.Add(copy);
                     stepMap[source.Id] = copy;
@@ -122,12 +128,15 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         entity.Code = code;
         entity.Title = model.Title.Trim();
         entity.Description = model.Description?.Trim();
+        entity.FormCode = formCode ?? entity.FormCode;
         entity.IsActive = model.IsActive;
         entity.UpdatedAt = DateTime.UtcNow;
         if (entity.IsActive)
         {
             var otherActive = await db.WorkflowDefinitions
-                .Where(x => x.Code == code && x.Id != entity.Id && x.IsActive).ToListAsync();
+                .Where(x => x.Id != entity.Id && x.IsActive &&
+                    (x.Code == code || (entity.FormCode != null && x.FormCode == entity.FormCode)) && !x.IsRuntimeInstance)
+                .ToListAsync();
             foreach (var older in otherActive) older.IsActive = false;
         }
         await db.SaveChangesAsync();
@@ -208,8 +217,23 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         entity.RequireCommentOnReject = model.RequireCommentOnReject;
         entity.RequireCommentOnReturn = model.RequireCommentOnReturn;
         entity.IsFinalStep = model.IsFinalStep;
+        entity.AllowEditPreviousData = model.AllowEditPreviousData;
+        entity.RequireNotes = model.RequireNotes;
         definition.UpdatedAt = DateTime.UtcNow;
 
+        await db.SaveChangesAsync();
+    }
+
+    public async Task SaveStepRulesAsync(int stepId, bool allowEditPreviousData, bool requireNotes)
+    {
+        var step = await db.WorkflowSteps.Include(x => x.WorkflowDefinition)
+            .FirstOrDefaultAsync(x => x.Id == stepId)
+            ?? throw new InvalidOperationException("مرحله یافت نشد.");
+        if (step.WorkflowDefinition.IsRuntimeInstance)
+            throw new InvalidOperationException("نسخه اجرایی درخواست قابل ویرایش نیست.");
+        step.AllowEditPreviousData = allowEditPreviousData;
+        step.RequireNotes = requireNotes;
+        step.WorkflowDefinition.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
     }
 
@@ -331,6 +355,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 WorkflowStepId = step.Id,
                 StepTitle = step.Title,
                 IsCurrentStep = isCurrent,
+                IsEditable = isCurrent || task.WorkflowStep.AllowEditPreviousData,
                 Fields = stepFields.Select(f =>
                 {
                     var value = values.FirstOrDefault(v => v.WorkflowStepFieldId == f.Id);
@@ -362,6 +387,59 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         "Select" => "Select",
         _ => throw new InvalidOperationException("نوع فیلد نامعتبر است.")
     };
+
+    private async Task SavePreviousTaskFieldValuesAsync(
+        WorkflowTask task, int actorEmployeeId, IDictionary<string, string?>? submitted,
+        CancellationToken cancellationToken)
+    {
+        if (submitted is null || submitted.Count == 0) return;
+        if (!task.WorkflowStep.AllowEditPreviousData)
+            throw new InvalidOperationException("ویرایش اطلاعات مراحل قبلی برای این مرحله مجاز نیست.");
+
+        var definitionStepIds = await db.WorkflowSteps.AsNoTracking()
+            .Where(x => x.WorkflowDefinitionId == task.WorkflowInstance.WorkflowDefinitionId && x.SortOrder < task.WorkflowStep.SortOrder)
+            .Select(x => x.Id).ToListAsync(cancellationToken);
+        var fieldIds = submitted.Keys.Select(k => int.TryParse(k, out var id) ? id : 0).ToList();
+        if (fieldIds.Any(id => id <= 0))
+            throw new InvalidOperationException("شناسه فیلد مرحله قبلی نامعتبر است.");
+
+        var fields = await db.WorkflowStepFields
+            .Where(x => fieldIds.Contains(x.Id) && definitionStepIds.Contains(x.WorkflowStepId))
+            .ToListAsync(cancellationToken);
+        if (fields.Count != submitted.Count)
+            throw new InvalidOperationException("شما فقط مجاز به ویرایش فیلدهای مراحل قبلی همین درخواست هستید.");
+
+        foreach (var field in fields)
+        {
+            submitted.TryGetValue(field.Id.ToString(), out var raw);
+            var value = field.FieldType == "Checkbox"
+                ? (string.Equals(raw, "true", StringComparison.OrdinalIgnoreCase) || raw == "on" ? "true" : "false")
+                : raw?.Trim();
+            if (value is { Length: > 4000 } || (field.MaxLength.HasValue && value?.Length > field.MaxLength.Value))
+                throw new InvalidOperationException($"مقدار فیلد «{field.Title}» بیش از حد مجاز است.");
+            if (!string.IsNullOrEmpty(value))
+            {
+                if (field.FieldType == "Number" && !decimal.TryParse(value, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out _))
+                    throw new InvalidOperationException($"مقدار فیلد «{field.Title}» باید عددی باشد.");
+                if (field.FieldType == "Date" && !DateOnly.TryParseExact(value, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out _))
+                    throw new InvalidOperationException($"تاریخ فیلد «{field.Title}» معتبر نیست.");
+                if (field.FieldType == "Select" && !(field.Options ?? "").Split('\\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Contains(value))
+                    throw new InvalidOperationException($"گزینه انتخاب‌شده برای فیلد «{field.Title}» معتبر نیست.");
+            }
+            db.WorkflowFieldValues.Add(new WorkflowFieldValue
+            {
+                WorkflowInstanceId = task.WorkflowInstanceId,
+                WorkflowStepId = field.WorkflowStepId,
+                WorkflowStepFieldId = field.Id,
+                FieldCode = field.Code,
+                FieldTitle = field.Title,
+                FieldType = field.FieldType,
+                Value = value,
+                UpdatedByEmployeeId = actorEmployeeId,
+                UpdatedAt = DateTime.UtcNow
+            });
+        }
+    }
 
     private async Task SaveTaskFieldValuesAsync(
         WorkflowTask task, int actorEmployeeId, IDictionary<string, string?>? submitted, bool validateRequired,
@@ -675,7 +753,9 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         AllowReturn = source.AllowReturn,
         RequireCommentOnReject = source.RequireCommentOnReject,
         RequireCommentOnReturn = source.RequireCommentOnReturn,
-        IsFinalStep = isFinalStep
+        IsFinalStep = isFinalStep,
+        AllowEditPreviousData = source.AllowEditPreviousData,
+        RequireNotes = source.RequireNotes
     };
 
     private static string TrimCode(string code, int maxLength) =>
@@ -776,7 +856,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                        e.OrganizationSectionId == x.AssignedPositionId ||
                        e.OrganizationPositionId == x.AssignedPositionId)))));
 
-    public async Task CompleteTaskAsync(int taskId, int actorEmployeeId, string action, string? comment, IDictionary<string, string?>? values = null)
+    public async Task CompleteTaskAsync(int taskId, int actorEmployeeId, string action, string? comment, IDictionary<string, string?>? values = null, IDictionary<string, string?>? previousValues = null)
     {
         action = NormalizeAction(action);
         var task = await GetTaskAsync(taskId, actorEmployeeId)
@@ -787,6 +867,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             action == "Return" && !task.WorkflowStep.AllowReturn)
             throw new InvalidOperationException("این عملیات برای مرحله جاری مجاز نیست.");
 
+        if (action != "SaveDraft" && task.WorkflowStep.RequireNotes && string.IsNullOrWhiteSpace(comment))
+            throw new InvalidOperationException("ثبت ملاحظات برای این مرحله الزامی است.");
         if (action == "Reject" && task.WorkflowStep.RequireCommentOnReject && string.IsNullOrWhiteSpace(comment))
             throw new InvalidOperationException("ثبت توضیح برای رد درخواست الزامی است.");
         if (action == "Return" && task.WorkflowStep.RequireCommentOnReturn && string.IsNullOrWhiteSpace(comment))
@@ -801,6 +883,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         if (action == "SaveDraft")
         {
             await SaveTaskFieldValuesAsync(task, actorEmployeeId, values, false, CancellationToken.None);
+            await SavePreviousTaskFieldValuesAsync(task, actorEmployeeId, previousValues, CancellationToken.None);
             db.WorkflowHistory.Add(new WorkflowHistory
             {
                 WorkflowInstanceId = instance.Id,
@@ -818,6 +901,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             return;
         }
         await SaveTaskFieldValuesAsync(task, actorEmployeeId, values, action == "Approve", CancellationToken.None);
+        await SavePreviousTaskFieldValuesAsync(task, actorEmployeeId, previousValues, CancellationToken.None);
         var previousStatus = instance.Status;
         task.Status = "Completed";
         task.Action = action;

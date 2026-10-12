@@ -1,4 +1,6 @@
 using HRPortal.Models;
+using HRPortal.Data;
+using Microsoft.EntityFrameworkCore;
 using HRPortal.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,12 +13,14 @@ public class SystemSettingsController(
     EnvironmentSettingsService service,
     ISmsService sms,
     ILogger<SystemSettingsController> logger,
-    AnnouncementService announcements) : Controller
+    AnnouncementService announcements,
+    HRPortalDbContext db,
+    AuditService audit) : Controller
 {
     [HttpGet("")]
     public async Task<IActionResult> Index()
     {
-        return View("Index", await service.GetEditAsync());
+        return View("Index", await PreparePageAsync(await service.GetEditAsync()));
     }
 
 
@@ -37,6 +41,87 @@ public class SystemSettingsController(
         }
 
         return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost("SaveOrganizationRank")]
+    [Authorize(Policy = "Settings.Edit")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveOrganizationRank(int id, string? title, int sortOrder = 10)
+    {
+        title = title?.Trim();
+        if (string.IsNullOrWhiteSpace(title) || title.Length > 100)
+        {
+            TempData["Error"] = "عنوان رده سازمانی الزامی است و حداکثر ۱۰۰ نویسه دارد.";
+            return Redirect("/SystemSettings#organization-ranks");
+        }
+
+        var existing = id > 0
+            ? await db.OrganizationRankDefinitions.FirstOrDefaultAsync(x => x.Id == id)
+            : null;
+        if (id > 0 && existing is null) return NotFound();
+        if (await db.OrganizationRankDefinitions.AnyAsync(x => x.Title == title && x.Id != id))
+        {
+            TempData["Error"] = "رده‌ای با این عنوان از قبل ثبت شده است.";
+            return Redirect("/SystemSettings#organization-ranks");
+        }
+
+        if (existing is null)
+        {
+            existing = new OrganizationRankDefinition { Title = title, SortOrder = sortOrder };
+            db.OrganizationRankDefinitions.Add(existing);
+        }
+        else
+        {
+            var oldTitle = existing.Title;
+            if (oldTitle == "مدیرعامل" && oldTitle != title)
+            {
+                TempData["Error"] = "عنوان ویژه «مدیرعامل» قابل تغییر نیست؛ این عنوان برای تشخیص مرحله نهایی گردش کار استفاده می‌شود.";
+                return Redirect("/SystemSettings#organization-ranks");
+            }
+            if (oldTitle != title)
+            {
+                var nodes = await db.OrganizationNodes.Where(x => x.RankType == oldTitle).ToListAsync();
+                foreach (var node in nodes) node.RankType = title;
+                var steps = await db.WorkflowSteps.Where(x => x.HierarchyStopRankType == oldTitle).ToListAsync();
+                foreach (var step in steps) step.HierarchyStopRankType = title;
+            }
+            existing.Title = title;
+            existing.SortOrder = sortOrder;
+            existing.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await db.SaveChangesAsync();
+        await audit.WriteAsync(id == 0 ? "ایجاد رده سازمانی" : "ویرایش رده سازمانی",
+            nameof(OrganizationRankDefinition), existing.Id.ToString(), existing.Title);
+        TempData["Success"] = id == 0 ? "رده سازمانی ایجاد شد." : "رده سازمانی و ارجاع‌های آن به‌روزرسانی شد.";
+        return Redirect("/SystemSettings#organization-ranks");
+    }
+
+    [HttpPost("DeleteOrganizationRank")]
+    [Authorize(Policy = "Settings.Edit")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteOrganizationRank(int id)
+    {
+        var rank = await db.OrganizationRankDefinitions.FirstOrDefaultAsync(x => x.Id == id);
+        if (rank is null) return NotFound();
+        if (rank.Title == "مدیرعامل" || await db.OrganizationNodes.AnyAsync(x => x.RankType == rank.Title))
+        {
+            TempData["Error"] = "این رده در ساختار سازمانی یا گردش‌های کاری استفاده شده است و برای حفظ سوابق قابل حذف نیست.";
+            return Redirect("/SystemSettings#organization-ranks");
+        }
+
+        db.OrganizationRankDefinitions.Remove(rank);
+        await db.SaveChangesAsync();
+        await audit.WriteAsync("حذف رده سازمانی", nameof(OrganizationRankDefinition), id.ToString(), rank.Title);
+        TempData["Success"] = "رده سازمانی حذف شد.";
+        return Redirect("/SystemSettings#organization-ranks");
+    }
+
+    private async Task<SystemSettingsEditModel> PreparePageAsync(SystemSettingsEditModel model)
+    {
+        ViewBag.OrganizationRanks = await db.OrganizationRankDefinitions.AsNoTracking()
+            .OrderBy(x => x.SortOrder).ThenBy(x => x.Title).ToListAsync();
+        return model;
     }
 
     [HttpPost("Save")]
@@ -72,7 +157,7 @@ public class SystemSettingsController(
             // Re-read the committed data to guarantee that the displayed values
             // are exactly what is in SQL Server.
             var persisted = await service.GetEditAsync();
-            return View("Index", persisted);
+            return View("Index", await PreparePageAsync(persisted));
         }
         catch (Exception ex)
         {
@@ -80,7 +165,7 @@ public class SystemSettingsController(
             TempData["Error"] = "ذخیره تنظیمات انجام نشد: " + ex.Message;
 
             // Do not replace the submitted values by an empty model on failure.
-            return View("Index", model);
+            return View("Index", await PreparePageAsync(model));
         }
     }
 }

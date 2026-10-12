@@ -619,6 +619,8 @@ public class EmployeeContractsController(
             request.EmployeeId,
             request.CreatedByEmployeeId,
             request.WorkflowInstanceId,
+            WorkflowStatus = request.WorkflowInstance?.Status,
+            WorkflowCurrentStepId = request.WorkflowInstance?.CurrentStepId,
             request.Status,
             request.EmployeeNameSnapshot,
             request.PersonnelNumberSnapshot,

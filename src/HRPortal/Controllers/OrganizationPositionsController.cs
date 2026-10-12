@@ -278,11 +278,21 @@ public class OrganizationPositionsController(HRPortalDbContext db, AuditService 
                     continue;
                 }
 
+                var previousTitle = position?.Title;
                 if (position is null)
                 {
                     position = new OrganizationPositionDefinition { Code = code, Title = title };
                     db.OrganizationPositionDefinitions.Add(position);
                     byCode[code] = position;
+                }
+                else if (!string.Equals(previousTitle, title, StringComparison.Ordinal))
+                {
+                    var affectedEmployees = await db.Employees.Where(x => x.PositionTitle == previousTitle).ToListAsync();
+                    foreach (var employee in affectedEmployees)
+                    {
+                        employee.PositionTitle = title;
+                        employee.UpdatedAt = DateTime.UtcNow;
+                    }
                 }
                 position.Code = code;
                 position.Title = title;

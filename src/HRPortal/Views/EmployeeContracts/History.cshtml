@@ -20,6 +20,16 @@
         "Submit" => "ثبت درخواست",
         _ => action
     };
+    string statusTitle(string status) => status switch
+    {
+        "New" => "جدید",
+        "InProgress" => "در حال انجام",
+        "Approved" => "تأیید و تکمیل شده",
+        "Rejected" => "رد شده",
+        "Returned" => "برگشت خورده",
+        "Cancelled" => "متوقف یا لغو شده",
+        _ => status
+    };
 }
 <div class="page-head">
     <div>
@@ -54,7 +64,7 @@
                         <td>@(eventRow.WorkflowStep?.Title ?? "—")</td>
                         <td>@actionTitle(eventRow.Action)</td>
                         <td>@(eventRow.ActorEmployee is null ? "کاربر سیستمی / بدون پرونده" : $"{eventRow.ActorEmployee.FirstName} {eventRow.ActorEmployee.LastName}") / @(eventRow.ActorPosition?.Title ?? "—")</td>
-                        <td>@eventRow.FromStatus / @eventRow.ToStatus</td>
+                        <td>@statusTitle(eventRow.FromStatus) / @statusTitle(eventRow.ToStatus)</td>
                         <td>@(string.IsNullOrWhiteSpace(eventRow.Comment) ? "—" : eventRow.Comment)</td>
                     </tr>
                 }

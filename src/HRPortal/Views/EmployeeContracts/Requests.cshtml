@@ -74,10 +74,10 @@
                                 }
                                 @if (row.CanStop)
                                 {
-                                    <form method="post" action="/EmployeeContracts/StopRequest" onsubmit="return confirm('گردش این درخواست متوقف شود؟ امتیازها و تاریخچه حفظ می‌شوند.');">
+                                    <form method="post" action="/EmployeeContracts/StopRequest" onsubmit="return stopContractRenewalRequest(this);">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="id" value="@r.Id" />
-                                        <input type="hidden" name="reason" value="توقف توسط کاربر مجاز از فهرست درخواست‌ها" />
+                                        <input type="hidden" name="reason" value="" />
                                         <button class="btn btn-outline btn-sm danger" type="submit">توقف</button>
                                     </form>
                                 }
@@ -101,6 +101,13 @@
 
 @section Scripts {
 <script>
+function stopContractRenewalRequest(form) {
+    const reason = window.prompt("دلیل توقف گردش را وارد کنید (اختیاری):", "");
+    if (reason === null) return false;
+    const field = form.querySelector('input[name="reason"]');
+    if (field) field.value = reason.trim();
+    return window.confirm("گردش این درخواست متوقف شود؟ امتیازها و تاریخچه حفظ می‌شوند.");
+}
 (function () {
     const input = document.getElementById("contractRequestSearch");
     const rows = Array.from(document.querySelectorAll("#contractRequestsTable tbody tr"));

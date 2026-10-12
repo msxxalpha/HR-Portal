@@ -70,7 +70,7 @@
                                 selected="@(Model.EmployeeId == e.Id)"
                                 data-name="@displayName"
                                 data-personnel="@e.PersonnelNumber"
-                                data-unit="@(e.OrganizationUnit?.Title ?? "—")"
+                                data-unit="@(e.OrganizationUnit?.Title ?? "") @(e.OrganizationDepartment?.Title ?? "") @(e.OrganizationSection?.Title ?? "")"
                                 data-position="@(e.OrganizationPosition?.Title ?? e.PositionTitle ?? "—")"
                                 data-contract-end="@faDate(e.ContractEndDate)"
                                 data-employment-type="@(e.EmploymentType ?? "قراردادی")">@displayName — @e.PersonnelNumber</option>

@@ -154,11 +154,16 @@ public class OrganizationController(
             await db.OrganizationNodes.AnyAsync(x => x.OrganizationStructureRevisionId == revisionId && x.RankType == "مدیرعامل"))
             return Json(new { success = false, message = "در هر نسخه ساختار سازمانی فقط یک گره با رده مدیرعامل مجاز است." });
 
-        code = code.Trim();
-        title = title.Trim();
+        code = (code ?? "").Trim();
+        title = (title ?? "").Trim();
 
-        if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(title))
-            return Json(new { success = false, message = "کد و عنوان الزامی است." });
+        // Generate a default when the client submits an empty code; the user can still
+        // change the suggested code before saving it.
+        if (string.IsNullOrWhiteSpace(code))
+            code = await GenerateAvailableNodeCodeAsync(revisionId);
+
+        if (string.IsNullOrWhiteSpace(title))
+            return Json(new { success = false, message = "عنوان گره الزامی است. کد در صورت خالی بودن به‌صورت خودکار تولید می‌شود." });
 
         if (await db.OrganizationNodes.AnyAsync(x =>
                 x.OrganizationStructureRevisionId == revisionId &&
@@ -444,6 +449,24 @@ public class OrganizationController(
             return Json(new { success = false, message = "ابتدا یک نسخه بازنگری جدید ایجاد کنید." });
 
         return null;
+    }
+
+    private async Task<string> GenerateAvailableNodeCodeAsync(int revisionId)
+    {
+        var used = (await db.OrganizationNodes.AsNoTracking()
+                .Where(x => x.OrganizationStructureRevisionId == revisionId)
+                .Select(x => x.Code)
+                .ToListAsync())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        for (var number = 1; number < int.MaxValue; number++)
+        {
+            var candidate = $"ORG-{number:000}";
+            if (!used.Contains(candidate))
+                return candidate;
+        }
+
+        throw new InvalidOperationException("کد خودکار گره سازمانی قابل تولید نیست؛ ظرفیت کدهای پیش‌فرض تمام شده است.");
     }
 
     private async Task<string?> ValidateNodeParentAsync(int revisionId, int? parentId, string childRank)

@@ -23,16 +23,18 @@ IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'UX_OrganizationRankDefiniti
     CREATE UNIQUE INDEX [UX_OrganizationRankDefinitions_Title]
         ON [dbo].[OrganizationRankDefinitions]([Title]);
 
-INSERT INTO dbo.OrganizationRankDefinitions(Title, SortOrder)
-SELECT seeds.Title, seeds.SortOrder
-FROM (VALUES
-    (N'مدیرعامل', 10),
-    (N'معاونت', 20),
-    (N'مدیریت', 30),
-    (N'ریاست', 40),
-    (N'سرپرستی', 50)
-) AS seeds(Title, SortOrder)
-WHERE NOT EXISTS(SELECT 1 FROM dbo.OrganizationRankDefinitions r WHERE r.Title=seeds.Title);
+-- Seed the standard list only for a brand-new/empty master list. Do not recreate
+-- deleted or renamed defaults on every application startup.
+IF NOT EXISTS(SELECT 1 FROM dbo.OrganizationRankDefinitions)
+BEGIN
+    INSERT INTO dbo.OrganizationRankDefinitions(Title, SortOrder)
+    VALUES
+        (N'مدیرعامل', 10),
+        (N'معاونت', 20),
+        (N'مدیریت', 30),
+        (N'ریاست', 40),
+        (N'سرپرستی', 50);
+END;
 
 IF OBJECT_ID(N'dbo.OrganizationNodes', N'U') IS NOT NULL
 BEGIN

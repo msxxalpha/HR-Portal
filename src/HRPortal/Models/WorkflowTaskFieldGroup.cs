@@ -5,6 +5,7 @@ public class WorkflowTaskFieldGroup
     public int WorkflowStepId { get; set; }
     public string StepTitle { get; set; } = "";
     public bool IsCurrentStep { get; set; }
+    public bool IsEditable { get; set; }
     public List<WorkflowTaskFieldItem> Fields { get; set; } = [];
 }
 

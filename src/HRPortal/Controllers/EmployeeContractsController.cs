@@ -164,6 +164,8 @@ public class EmployeeContractsController(
             ModelState.AddModelError(nameof(securityPositionId), "جایگاه فعال مدیر حراست را انتخاب کنید.");
         if (!humanResourcesPositionId.HasValue || !nodes.Any(x => x.Id == humanResourcesPositionId.Value))
             ModelState.AddModelError(nameof(humanResourcesPositionId), "جایگاه فعال مدیر منابع انسانی و خدمات پشتیبانی را انتخاب کنید.");
+        if (securityPositionId.HasValue && securityPositionId == humanResourcesPositionId)
+            ModelState.AddModelError(nameof(humanResourcesPositionId), "جایگاه مدیر حراست و مدیر منابع انسانی و خدمات پشتیبانی باید متفاوت باشد.");
 
         var ceoNodes = nodes.Where(x => x.RankType == "مدیرعامل").ToList();
         if (ceoNodes.Count != 1)
@@ -197,7 +199,19 @@ public class EmployeeContractsController(
         settings.HumanResourcesPositionId = humanResourcesPositionId;
         settings.CeoEmployeeId = ceoEmployees[0].Id;
         settings.UpdatedAt = DateTime.UtcNow;
-        await db.SaveChangesAsync();
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (Exception)
+        {
+            db.ChangeTracker.Clear();
+            var basicInfo = await BuildBasicInfoViewModelAsync();
+            basicInfo.WorkflowSettings = await BuildWorkflowSettingsViewModelAsync(securityPositionId, humanResourcesPositionId);
+            basicInfo.WorkflowSettings.ErrorMessage = "ذخیره تنظیمات مراحل ثابت در پایگاه داده انجام نشد. ارتباط پایگاه داده و ساختار فعال را بررسی کنید؛ مقادیر انتخاب‌شده حفظ شده‌اند.";
+            ViewBag.ActiveTab = "workflow-settings";
+            return View("BasicInformation", basicInfo);
+        }
         await audit.WriteAsync("تنظیم مراحل ثابت تمدید قرارداد", nameof(ContractRenewalWorkflowSettings), "1");
         TempData["Success"] = "تنظیم مراحل ثابت گردش تمدید قرارداد ذخیره شد.";
         return Redirect("/EmployeeContracts/BasicInformation#workflow-settings");

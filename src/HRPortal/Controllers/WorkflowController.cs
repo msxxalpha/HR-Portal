@@ -70,6 +70,11 @@ public class WorkflowController(
         if (!int.TryParse(User.FindFirst("EmployeeId")?.Value, out var employeeId))
             return Forbid();
 
+        var task = await workflow.GetTaskAsync(id, employeeId);
+        if (task is null) return NotFound();
+        if (task.WorkflowInstance.EntityType == ContractRenewalWorkflowService.WorkflowEntityType)
+            return RedirectToAction("Details", "ContractRenewalTask", new { id });
+
         try
         {
             await workflow.CompleteTaskAsync(id, employeeId, action, comment, values);

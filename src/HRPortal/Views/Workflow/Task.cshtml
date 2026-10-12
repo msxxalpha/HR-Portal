@@ -29,20 +29,20 @@
 @if (groups.Count > 0)
 {
     <section class="card form-stack">
-        <div class="section-head"><div><h3>اطلاعات فرم</h3><p class="muted">اطلاعات مراحل قبلی فقط برای مشاهده است؛ فقط فیلدهای مرحله جاری قابل ویرایش هستند.</p></div></div>
+        <div class="section-head"><div><h3>اطلاعات فرم</h3><p class="muted">فیلدهای مراحل قبل فقط در صورت مجاز بودن ویرایش در تنظیمات این مرحله قابل تغییر هستند.</p></div></div>
         <form method="post" action="/Workflow/Act" class="form-stack" novalidate>
             @Html.AntiForgeryToken()
             <input type="hidden" name="id" value="@Model.Id" />
             @foreach (var group in groups)
             {
                 <section class="card">
-                    <div class="section-head"><h3>@group.StepTitle</h3><span class="badge">@(group.IsCurrentStep ? "مرحله جاری" : "فقط خواندنی")</span></div>
+                    <div class="section-head"><h3>@group.StepTitle</h3><span class="badge">@(group.IsCurrentStep ? "مرحله جاری" : group.IsEditable ? "مرحله قبل — ویرایش مجاز" : "فقط خواندنی")</span></div>
                     <div class="grid-2">
                     @foreach (var field in group.Fields)
                     {
                         <div class="form-field">
                             <label for="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)">@field.Title @(group.IsCurrentStep && field.IsRequired ? "*" : "")</label>
-                            @if (!group.IsCurrentStep)
+                            @if (!group.IsEditable)
                             {
                                 <div class="readonly-field" id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)">
                                     @if (field.FieldType == "Checkbox")
@@ -57,11 +57,11 @@
                             }
                             else if (field.FieldType == "TextArea")
                             {
-                                <textarea id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="values[@field.Code]" rows="3" maxlength="@(field.MaxLength ?? 4000)" required="@field.IsRequired">@field.Value</textarea>
+                                <textarea id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="@(group.IsCurrentStep ? $"values[{field.Code}]" : $"previousValues[{field.FieldDefinitionId}]")" rows="3" maxlength="@(field.MaxLength ?? 4000)" required="@(group.IsCurrentStep && field.IsRequired)">@field.Value</textarea>
                             }
                             else if (field.FieldType == "Select")
                             {
-                                <select id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="values[@field.Code]" required="@field.IsRequired">
+                                <select id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="@(group.IsCurrentStep ? $"values[{field.Code}]" : $"previousValues[{field.FieldDefinitionId}]")" required="@(group.IsCurrentStep && field.IsRequired)">
                                     <option value="">انتخاب کنید</option>
                                     @foreach (var option in (field.Options ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
                                     {
@@ -71,12 +71,12 @@
                             }
                             else if (field.FieldType == "Checkbox")
                             {
-                                <input type="checkbox" id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="values[@field.Code]" value="true" checked="@(field.Value == "true")" />
+                                <input type="checkbox" id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="@(group.IsCurrentStep ? $"values[{field.Code}]" : $"previousValues[{field.FieldDefinitionId}]")" value="true" checked="@(field.Value == "true")" />
                             }
                             else
                             {
                                 var inputType = field.FieldType == "Number" ? "number" : field.FieldType == "Date" ? "date" : "text";
-                                <input id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="values[@field.Code]" type="@inputType" value="@field.Value" maxlength="@(field.MaxLength ?? 4000)" required="@field.IsRequired" />
+                                <input id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="@(group.IsCurrentStep ? $"values[{field.Code}]" : $"previousValues[{field.FieldDefinitionId}]")" type="@inputType" value="@field.Value" maxlength="@(field.MaxLength ?? 4000)" required="@(group.IsCurrentStep && field.IsRequired)" />
                             }
                             @if (!string.IsNullOrWhiteSpace(field.HelpText))
                             {
@@ -89,8 +89,8 @@
             }
             <section class="card">
                 <div class="section-head"><h3>اقدام و توضیحات</h3></div>
-                <label>توضیحات
-                    <textarea name="comment" rows="4" placeholder="در صورت نیاز توضیح خود را ثبت کنید."></textarea>
+                <label>ملاحظات @(Model.WorkflowStep.RequireNotes ? "*" : "")
+                    <textarea name="comment" rows="4" required="@Model.WorkflowStep.RequireNotes" placeholder="@(Model.WorkflowStep.RequireNotes ? "ثبت ملاحظات این مرحله الزامی است." : "در صورت نیاز توضیح خود را ثبت کنید.")"></textarea>
                 </label>
                 <div class="actions">
                     <button class="btn btn-outline" name="action" value="SaveDraft" type="submit">ذخیره پیش‌نویس</button>
@@ -109,7 +109,7 @@ else
         <form method="post" action="/Workflow/Act" class="form-stack">
             @Html.AntiForgeryToken()
             <input type="hidden" name="id" value="@Model.Id" />
-            <label>توضیحات<textarea name="comment" rows="5" placeholder="در صورت نیاز توضیح خود را ثبت کنید."></textarea></label>
+            <label>ملاحظات @(Model.WorkflowStep.RequireNotes ? "*" : "")<textarea name="comment" rows="5" required="@Model.WorkflowStep.RequireNotes" placeholder="@(Model.WorkflowStep.RequireNotes ? "ثبت ملاحظات این مرحله الزامی است." : "در صورت نیاز توضیح خود را ثبت کنید.")"></textarea></label>
             <div class="actions">
                 <button class="btn btn-outline" name="action" value="SaveDraft" type="submit">ذخیره پیش‌نویس</button>
                 @if (Model.WorkflowStep.AllowReturn) { <button class="btn btn-outline" name="action" value="Return" type="submit">برگشت</button> }

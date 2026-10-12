@@ -429,6 +429,45 @@ public class EmployeeContractsController(
                 .ToListAsync()
             : new List<WorkflowHistory>();
         ViewBag.WorkflowHistory = workflowHistory;
+
+        var evaluationStages = new List<ContractRenewalHistoryScoreStage>();
+        if (request.WorkflowInstanceId.HasValue)
+        {
+            var instanceId = request.WorkflowInstanceId.Value;
+            var scoreRows = await db.EmployeePerformanceEvaluationScores.AsNoTracking()
+                .Include(x => x.WorkflowStep).ThenInclude(x => x.OrganizationNode)
+                .Where(x => x.WorkflowInstanceId == instanceId &&
+                    x.WorkflowStep.Code.StartsWith("Evaluation_H"))
+                .OrderBy(x => x.WorkflowStep.SortOrder).ThenBy(x => x.Id)
+                .ToListAsync();
+            var stageTasks = await db.WorkflowTasks.AsNoTracking()
+                .Where(x => x.WorkflowInstanceId == instanceId)
+                .OrderByDescending(x => x.CompletedAt).ThenByDescending(x => x.Id)
+                .ToListAsync();
+
+            evaluationStages = scoreRows
+                .GroupBy(x => x.WorkflowStepId)
+                .Select(group =>
+                {
+                    var rows = group.OrderBy(x => x.Id).ToList();
+                    var step = rows[0].WorkflowStep;
+                    var complete = rows.All(x => x.Score.HasValue);
+                    return new ContractRenewalHistoryScoreStage
+                    {
+                        StageTitle = step.Title,
+                        PositionTitle = step.OrganizationNode?.Title ?? step.Title,
+                        IsComplete = complete,
+                        ScoreTotal = complete ? rows.Sum(x => x.Score!.Value) : null,
+                        Comment = stageTasks.FirstOrDefault(x =>
+                            x.WorkflowStepId == step.Id && x.Status == "Completed")?.Comment,
+                        Scores = rows
+                    };
+                })
+                .OrderBy(x => scoreRows.First(s => s.WorkflowStep.Title == x.StageTitle).WorkflowStep.SortOrder)
+                .ToList();
+        }
+
+        ViewBag.EvaluationStages = evaluationStages;
         return View(revisions);
     }
 

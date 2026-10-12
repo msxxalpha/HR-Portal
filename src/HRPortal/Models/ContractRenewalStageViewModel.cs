@@ -27,6 +27,7 @@ public class ContractRenewalHistoryScoreStage
 {
     public string StageTitle { get; set; } = "";
     public string PositionTitle { get; set; } = "";
+    public int SortOrder { get; set; }
     public string? Comment { get; set; }
     public decimal? ScoreTotal { get; set; }
     public bool IsComplete { get; set; }

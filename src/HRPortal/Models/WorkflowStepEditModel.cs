@@ -18,4 +18,6 @@ public class WorkflowStepEditModel
     public bool RequireCommentOnReject { get; set; } = true;
     public bool RequireCommentOnReturn { get; set; }
     public bool IsFinalStep { get; set; }
+    public bool AllowEditPreviousData { get; set; }
+    public bool RequireNotes { get; set; }
 }

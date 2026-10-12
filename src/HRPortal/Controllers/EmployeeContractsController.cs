@@ -456,6 +456,7 @@ public class EmployeeContractsController(
                     {
                         StageTitle = step.Title,
                         PositionTitle = step.OrganizationNode?.Title ?? step.Title,
+                        SortOrder = step.SortOrder,
                         IsComplete = complete,
                         ScoreTotal = complete ? rows.Sum(x => x.Score!.Value) : null,
                         Comment = stageTasks.FirstOrDefault(x =>
@@ -463,7 +464,7 @@ public class EmployeeContractsController(
                         Scores = rows
                     };
                 })
-                .OrderBy(x => scoreRows.First(s => s.WorkflowStep.Title == x.StageTitle).WorkflowStep.SortOrder)
+                .OrderBy(x => x.SortOrder)
                 .ToList();
         }
 

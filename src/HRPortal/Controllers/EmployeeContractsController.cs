@@ -352,6 +352,21 @@ public class EmployeeContractsController(
         return View(rows);
     }
 
+    [Authorize(Policy = "ContractRenewal.Manage")]
+    public async Task<IActionResult> History(int id)
+    {
+        var request = await db.ContractRenewalRequests.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == id);
+        if (request is null) return NotFound();
+
+        ViewBag.Request = request;
+        var revisions = await db.ContractRenewalRequestRevisions.AsNoTracking()
+            .Where(x => x.ContractRenewalRequestId == id)
+            .OrderByDescending(x => x.RevisionNumber)
+            .ToListAsync();
+        return View(revisions);
+    }
+
     [HttpGet, Authorize(Policy = "ContractRenewal.Manage")]
     public async Task<IActionResult> Edit(int id)
     {

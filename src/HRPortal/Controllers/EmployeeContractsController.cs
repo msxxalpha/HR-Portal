@@ -342,7 +342,14 @@ public class EmployeeContractsController(
             {
                 Request = request,
                 LastStatus = request.Status,
-                CurrentStageTitle = instance?.CurrentStep?.Title ?? (instance?.Status ?? "ثبت نشده"),
+                CurrentStageTitle = instance?.CurrentStep?.Title ?? (instance?.Status switch
+                {
+                    "Cancelled" => "گردش متوقف شده",
+                    "Approved" => "گردش تأیید و تکمیل شده",
+                    "Rejected" => "گردش رد شده",
+                    "Returned" => "گردش برگشت خورده",
+                    _ => "مرحله جاری ثبت نشده"
+                }),
                 HasAnyEvaluation = hasEvaluation,
                 CanEditOrDelete = active && !hasEvaluation && request.Status != "متوقف شده",
                 CanStop = active

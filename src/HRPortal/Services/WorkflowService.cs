@@ -982,6 +982,13 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .FirstOrDefaultAsync(x => x.Id == id && x.RequesterEmployeeId == employeeId);
     }
 
+    public async Task<WorkflowInstance?> GetInstanceForAdminAsync(int id) =>
+        await db.WorkflowInstances
+            .Include(x => x.WorkflowDefinition)
+            .Include(x => x.RequesterEmployee)
+            .Include(x => x.CurrentStep).ThenInclude(x => x!.OrganizationNode)
+            .FirstOrDefaultAsync(x => x.Id == id);
+
     public async Task<List<WorkflowHistory>> GetHistoryAsync(int instanceId) =>
         await db.WorkflowHistory
             .AsNoTracking()

@@ -6,6 +6,7 @@ public class ContractRenewalStageViewModel
     public ContractRenewalRequest Request { get; set; } = null!;
     public Employee SubjectEmployee { get; set; } = null!;
     public string StageKind { get; set; } = "";
+    public bool IsReadOnly { get; set; }
     public List<EmployeePerformanceEvaluationScore> CurrentScores { get; set; } = [];
     public List<EmployeePerformanceEvaluationScore> PreviousStageScores { get; set; } = [];
     public List<ContractRenewalScoreStageGroup> AllScoreStages { get; set; } = [];

@@ -898,7 +898,13 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 StepTitle = x.CurrentStep == null ? "پایان گردش" : x.CurrentStep.Title,
                 PositionTitle = x.CurrentStep == null || x.CurrentStep.OrganizationNode == null ? "" : x.CurrentStep.OrganizationNode.Title,
                 Status = x.Status,
-                CreatedAt = x.StartedAt
+                CreatedAt = x.StartedAt,
+                CanDelete = db.WorkflowTasks.Any(t => t.WorkflowInstanceId == x.Id) &&
+                    !db.WorkflowTasks.Any(t => t.WorkflowInstanceId == x.Id &&
+                        (t.Status != "Pending" || t.ClaimedAt != null)) &&
+                    !db.WorkflowHistory.Any(h => h.WorkflowInstanceId == x.Id &&
+                        h.ActorEmployeeId != null && h.ActorEmployeeId != x.RequesterEmployeeId &&
+                        h.Action != "Created" && h.Action != "Submitted" && h.Action != "Submit")
             });
     }
 

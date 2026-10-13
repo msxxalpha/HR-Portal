@@ -164,9 +164,10 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         {
             if (await db.OtpChallenges.AnyAsync(x => x.EmployeeId == id) ||
                 await db.AuditLogs.AnyAsync(x => x.EmployeeId == id) ||
-                await db.WorkflowInstances.AnyAsync(x => x.RequesterEmployeeId == id))
+                await db.WorkflowInstances.AnyAsync(x => x.RequesterEmployeeId == id) ||
+                await db.OrganizationNodes.AnyAsync(x => x.PositionHolderEmployeeId == id))
             {
-                TempData["Error"] = "این کارمند دارای سوابق سامانه است و حذف مستقیم مجاز نیست؛ او را غیرفعال کنید.";
+                TempData["Error"] = "این کارمند دارای سوابق سامانه یا متصدی یک جایگاه سازمانی است؛ حذف مستقیم مجاز نیست و باید او را غیرفعال کنید یا ابتدا متصدی جایگاه را تغییر دهید.";
             }
             else
             {
@@ -251,7 +252,8 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
             {
                 var hasHistory = await db.OtpChallenges.AnyAsync(x => x.EmployeeId == employee.Id) ||
                                  await db.AuditLogs.AnyAsync(x => x.EmployeeId == employee.Id) ||
-                                 await db.WorkflowInstances.AnyAsync(x => x.RequesterEmployeeId == employee.Id);
+                                 await db.WorkflowInstances.AnyAsync(x => x.RequesterEmployeeId == employee.Id) ||
+                                 await db.OrganizationNodes.AnyAsync(x => x.PositionHolderEmployeeId == employee.Id);
 
                 if (hasHistory)
                 {

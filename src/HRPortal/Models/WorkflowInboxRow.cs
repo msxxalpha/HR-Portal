@@ -14,4 +14,5 @@ public class WorkflowInboxRow
     public string Status { get; set; } = "";
     public DateTime CreatedAt { get; set; }
     public string? Comment { get; set; }
+    public string Action { get; set; } = "";
 }

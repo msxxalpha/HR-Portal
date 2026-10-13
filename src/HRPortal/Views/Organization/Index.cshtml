@@ -65,14 +65,19 @@
         </form>
 
         <div class="revision-list">
-            @foreach (var r in revisions)
+            @foreach (var dayGroup in revisions.GroupBy(r => r.EffectiveDate.Date).OrderByDescending(g => g.Key))
             {
-                <a class="revision @(revisionId == r.Id ? "selected" : "")" href="/Organization?revisionId=@r.Id">
-                    <strong>@r.Title</strong>
-                    <span>@r.RevisionCode</span>
-                    <span>@HRPortal.Services.PersianDateService.Format(r.EffectiveDate)</span>
-                    <span>@(r.IsFinalized ? "نهایی" : "در حال بازنگری")</span>
-                </a>
+                <div class="revision-day-group">
+                    <div class="revision-day-heading">بازنگری‌های تاریخ @HRPortal.Services.PersianDateService.Format(dayGroup.Key)</div>
+                    @foreach (var r in dayGroup.OrderByDescending(x => x.FinalizedAt).ThenByDescending(x => x.CreatedAt))
+                    {
+                        <a class="revision @(revisionId == r.Id ? "selected" : "")" href="/Organization?revisionId=@r.Id">
+                            <strong>@r.Title</strong>
+                            <span>@r.RevisionCode</span>
+                            <span>@(r.IsFinalized ? "نهایی" : "در حال بازنگری")</span>
+                        </a>
+                    }
+                </div>
             }
         </div>
     </section>

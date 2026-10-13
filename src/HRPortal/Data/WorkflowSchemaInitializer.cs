@@ -153,6 +153,21 @@ BEGIN
     );
 END;
 
+IF OBJECT_ID(N'dbo.OrganizationNodes', N'U') IS NOT NULL
+AND COL_LENGTH(N'dbo.OrganizationNodes', N'PositionHolderEmployeeId') IS NULL
+    ALTER TABLE [dbo].[OrganizationNodes] ADD [PositionHolderEmployeeId] int NULL;
+
+IF OBJECT_ID(N'dbo.OrganizationNodes', N'U') IS NOT NULL
+AND OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL
+AND NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name=N'FK_OrganizationNodes_PositionHolderEmployee')
+    ALTER TABLE [dbo].[OrganizationNodes] ADD CONSTRAINT [FK_OrganizationNodes_PositionHolderEmployee]
+    FOREIGN KEY([PositionHolderEmployeeId]) REFERENCES [dbo].[Employees]([Id]) ON DELETE NO ACTION;
+
+IF OBJECT_ID(N'dbo.OrganizationNodes', N'U') IS NOT NULL
+AND COL_LENGTH(N'dbo.OrganizationNodes', N'PositionHolderEmployeeId') IS NOT NULL
+AND NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'UX_OrganizationNodes_Revision_PositionHolder' AND object_id=OBJECT_ID(N'dbo.OrganizationNodes'))
+    EXEC sys.sp_executesql N'CREATE UNIQUE INDEX [UX_OrganizationNodes_Revision_PositionHolder] ON [dbo].[OrganizationNodes]([OrganizationStructureRevisionId],[PositionHolderEmployeeId]) WHERE [PositionHolderEmployeeId] IS NOT NULL;';
+
 IF COL_LENGTH(N'dbo.WorkflowDefinitions', N'FormCode') IS NULL ALTER TABLE [dbo].[WorkflowDefinitions] ADD [FormCode] nvarchar(100) NULL;
 IF COL_LENGTH(N'dbo.WorkflowSteps', N'AllowEditPreviousData') IS NULL ALTER TABLE [dbo].[WorkflowSteps] ADD [AllowEditPreviousData] bit NOT NULL CONSTRAINT [DF_WorkflowSteps_AllowEditPreviousData] DEFAULT 0;
 IF COL_LENGTH(N'dbo.WorkflowSteps', N'RequireNotes') IS NULL ALTER TABLE [dbo].[WorkflowSteps] ADD [RequireNotes] bit NOT NULL CONSTRAINT [DF_WorkflowSteps_RequireNotes] DEFAULT 0;

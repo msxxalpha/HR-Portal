@@ -17,7 +17,7 @@ public class ContractRenewalTaskController(
     public async Task<IActionResult> Details(int id)
     {
         if (!TryGetEmployeeId(out var employeeId)) return Forbid();
-        var task = await workflow.GetTaskAsync(id, employeeId);
+        var task = await workflow.GetTaskAsync(id, employeeId) ?? await workflow.GetTaskForHistoryAsync(id, employeeId);
         if (task is null) return NotFound();
         if (task.WorkflowInstance.EntityType != ContractRenewalWorkflowService.WorkflowEntityType)
             return NotFound();
@@ -222,6 +222,7 @@ public class ContractRenewalTaskController(
         return new ContractRenewalStageViewModel
         {
             Task = task,
+            IsReadOnly = task.Status != "Pending",
             Request = request,
             SubjectEmployee = request.Employee,
             StageKind = stageKind,

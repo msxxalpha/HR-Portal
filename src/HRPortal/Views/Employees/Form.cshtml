@@ -71,10 +71,15 @@
                 <input type="checkbox" id="isNonContractual" name="isNonContractual" value="true" checked="@(Model.Employee.EmploymentType == "غیرقراردادی")" />
             </label>
             <label>تاریخ پایان قرارداد
-                <input type="text" id="contractEndDatePersian" name="contractEndDatePersian"
-                       value="@(Model.Employee.ContractEndDate.HasValue ? HRPortal.Services.PersianDateService.Format(Model.Employee.ContractEndDate.Value) : "")"
-                       autocomplete="off" placeholder="۱۴۰۵/۱۲/۲۹"
-                       disabled="@(Model.Employee.EmploymentType == "غیرقراردادی")" />
+                <div class="jalali-date-input">
+                    <input type="text" id="contractEndDatePersian" name="contractEndDatePersian"
+                           value="@(Model.Employee.ContractEndDate.HasValue ? HRPortal.Services.PersianDateService.Format(Model.Employee.ContractEndDate.Value) : "")"
+                           autocomplete="off" placeholder="۱۴۰۵/۱۲/۲۹"
+                           disabled="@(Model.Employee.EmploymentType == "غیرقراردادی")" />
+                    <button type="button" class="btn btn-outline jalali-date-open" id="contractDatePickerButton"
+                            aria-label="باز کردن تقویم شمسی" aria-haspopup="dialog"
+                            disabled="@(Model.Employee.EmploymentType == "غیرقراردادی")">تقویم</button>
+                </div>
             </label>
             <label>وضعیت
                 <select name="Status">
@@ -223,6 +228,9 @@
 })();
 </script>
 <style>
+.jalali-date-input { display:flex; align-items:center; gap:6px; width:100%; }
+.jalali-date-input input { flex:1; min-width:0; }
+.jalali-date-open { white-space:nowrap; padding:8px 10px; }
 #contractDatePicker {
     position: fixed; z-index: 100000; width: 286px; padding: 12px;
     background: #fff; border: 1px solid #d8e1e8; border-radius: 12px;
@@ -261,9 +269,15 @@
     const input = document.getElementById('contractEndDatePersian');
     const nonContractual = document.getElementById('isNonContractual');
     const popup = document.getElementById('contractDatePicker');
+    const openButton = document.getElementById('contractDatePickerButton');
     const title = document.getElementById('cdpTitle');
     const daysHost = document.getElementById('cdpDays');
-    if (!input || !nonContractual || !popup || !window.Intl || !Intl.DateTimeFormat.prototype.formatToParts) return;
+    if (!input || !nonContractual || !popup || !openButton) return;
+    if (!window.Intl || !Intl.DateTimeFormat.prototype.formatToParts) {
+        openButton.disabled = true;
+        openButton.title = 'تقویم شمسی در این مرورگر پشتیبانی نمی‌شود؛ تاریخ را به‌صورت سال/ماه/روز وارد کنید.';
+        return;
+    }
 
     const monthNames = ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
     const numberFa = new Intl.NumberFormat('fa-IR-u-nu-latn', { useGrouping: false });
@@ -371,6 +385,7 @@
     document.getElementById('cdpClose').addEventListener('click', close);
     input.addEventListener('focus', open);
     input.addEventListener('click', open);
+    openButton.addEventListener('click', open);
     input.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
     document.addEventListener('pointerdown', e => {
         if (!popup.hidden && e.target !== input && !popup.contains(e.target)) close();
@@ -381,6 +396,7 @@
     function syncEmploymentType() {
         const isNonContract = nonContractual.checked;
         input.disabled = isNonContract;
+        openButton.disabled = isNonContract;
         if (isNonContract) { input.value = ''; close(); }
         else if (!input.value) input.value = '۱۴۰۵/۱۲/۲۹';
     }

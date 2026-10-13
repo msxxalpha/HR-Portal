@@ -63,10 +63,12 @@ public class WorkflowController(
     [Authorize(Policy = "Workflow.Inbox")]
     public async Task<IActionResult> Details(int id)
     {
-        if (!int.TryParse(User.FindFirst("EmployeeId")?.Value, out var employeeId))
+        var isAdmin = User.HasClaim("IsAdmin", "1");
+        var hasEmployeeId = int.TryParse(User.FindFirst("EmployeeId")?.Value, out var employeeId);
+        if (!hasEmployeeId && !isAdmin)
             return Forbid();
 
-        var instance = User.HasClaim("IsAdmin", "1")
+        var instance = isAdmin
             ? await workflow.GetInstanceForAdminAsync(id)
             : await workflow.GetInstanceAsync(id, employeeId);
         if (instance is null) return NotFound();

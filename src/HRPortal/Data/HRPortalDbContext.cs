@@ -46,6 +46,10 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
         base.OnModelCreating(modelBuilder);
         modelBuilder.Entity<Employee>(e =>
         {
+            // The production Employees table has enabled SQL Server triggers.
+            // EF Core 8's default OUTPUT clause is incompatible with such tables;
+            // disable it for this entity so INSERT/UPDATE/DELETE use the trigger-safe SQL path.
+            e.ToTable("Employees", table => table.UseSqlOutputClause(false));
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.PersonnelNumber).IsUnique();
             e.Property(x => x.PersonalPasswordHash).HasMaxLength(1000);

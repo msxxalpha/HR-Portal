@@ -65,7 +65,7 @@
     {
         <div class="table-wrap">
             <table>
-                <thead><tr><th>درخواست</th><th>درخواست‌کننده</th><th>مرحله‌ای که اقدام شد</th><th>نتیجه</th><th>تاریخ اقدام</th><th>توضیحات ثبت‌شده</th></tr></thead>
+                <thead><tr><th>درخواست</th><th>درخواست‌کننده</th><th>مرحله‌ای که اقدام شد</th><th>نتیجه</th><th>تاریخ اقدام</th><th>توضیحات ثبت‌شده</th><th>جزئیات</th></tr></thead>
                 <tbody>
                 @foreach (var item in actionHistory)
                 {
@@ -76,6 +76,7 @@
                         <td>@(item.Action switch { "Approve" => "تأیید", "Reject" => "رد", "Return" => "برگشت", "SaveDraft" => "ذخیره پیش‌نویس", _ => item.Action })</td>
                         <td>@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
                         <td>@(string.IsNullOrWhiteSpace(item.Comment) ? "—" : item.Comment)</td>
+                        <td>@if (item.EntityType == HRPortal.Services.ContractRenewalWorkflowService.WorkflowEntityType && item.TaskId > 0) { <a class="btn btn-outline btn-sm" href="/ContractRenewalTask/Details?id=@item.TaskId">مشاهده فرم و سوابق</a> } else { <span class="muted">—</span> }</td>
                     </tr>
                 }
                 </tbody>

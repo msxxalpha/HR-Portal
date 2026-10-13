@@ -254,7 +254,7 @@ public class OrganizationController(
         if (nodeIsUsed && !string.Equals(node.Code, code?.Trim(), StringComparison.Ordinal))
             return Json(new { success = false, message = "کد گره‌ای که در کارکنان یا گردش‌های کاری استفاده شده قابل تغییر نیست؛ برای تغییر رده، عنوان یا توضیحات نیازی به تغییر کد نیست." });
         if (nodeIsUsed && node.IsActive && !isActive)
-            return Json(new { success = false, message = "غیرفعال‌سازی گره‌ای که در کارکنان یا سوابق گردش کار استفاده شده مجاز نیست." });
+            return Json(new { success = false, message = "غیرفعال‌سازی گره‌ای که در کارکنان، متصدی جایگاه یا سوابق گردش کار استفاده شده مجاز نیست." });
 
         var validation = await ValidateNodeParentAsync(node.OrganizationStructureRevisionId, node.ParentId, rankType);
         if (validation is not null)

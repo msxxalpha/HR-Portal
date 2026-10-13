@@ -92,8 +92,8 @@
     </section>
 
     <section class="card">
-        <div class="section-head"><div><h3>امتیازدهی شما</h3><span class="muted">برای هر پرسش امتیازی بین صفر و سقف امتیاز ثبت کنید. مجموع سقف پرسش‌ها ۱۰۰ است.</span></div><span class="badge">مرحله جاری</span></div>
-        <form method="post" action="/ContractRenewalTask/Submit" class="form-stack">
+        <div class="section-head"><div><h3>@(Model.IsReadOnly ? "امتیازهای ثبت‌شده این مرحله" : "امتیازدهی شما")</h3><span class="muted">برای هر پرسش امتیازی بین صفر و سقف امتیاز ثبت شده است. مجموع سقف پرسش‌ها ۱۰۰ است.</span></div><span class="badge">@(Model.IsReadOnly ? "سابقه ثبت‌شده" : "مرحله جاری")</span></div>
+        @if (!Model.IsReadOnly) { <form method="post" action="/ContractRenewalTask/Submit" class="form-stack">
             @Html.AntiForgeryToken()
             <input type="hidden" name="id" value="@Model.Task.Id" />
             <div class="table-wrap"><table>
@@ -115,7 +115,7 @@
                 <textarea name="comment" rows="4" maxlength="2000" placeholder="توضیح کلی درباره عملکرد کارمند، مستندات یا ملاحظات مرتبط با امتیازدهی"></textarea>
             </label>
             <div class="actions"><button class="btn btn-main" type="submit">ثبت امتیازها و ارجاع به جایگاه بعدی</button></div>
-        </form>
+        </form> }
     </section>
 }
 
@@ -151,7 +151,7 @@
 {
     <section class="card">
         <div class="section-head"><div><h3>اظهارنظر مدیر حراست</h3><span class="muted">نظر شما ثبت می‌شود و همراه پرونده به مدیر منابع انسانی می‌رود.</span></div></div>
-        <form method="post" action="/ContractRenewalTask/Submit" class="form-stack">
+        @if (!Model.IsReadOnly) { <form method="post" action="/ContractRenewalTask/Submit" class="form-stack">
             @Html.AntiForgeryToken()
             <input type="hidden" name="id" value="@Model.Task.Id" />
             <label>نظر حراست *
@@ -166,7 +166,7 @@
                 <textarea name="comment" rows="4" maxlength="2000" placeholder="توضیحات و ملاحظات حراست"></textarea>
             </label>
             <div class="actions"><button class="btn btn-main" type="submit">ثبت تصمیم حراست</button></div>
-        </form>
+        </form> }
     </section>
 }
 
@@ -195,7 +195,7 @@
             <div><span>مدت پیشنهادی اولیه سیستم</span><div class="contract-score-value">@suggested <small>ماه</small></div></div>
         </div>
         <div class="note">قاعده پیشنهادی فعلی: کمتر از ۳۰ = صفر ماه؛ ۳۰ تا ۳۵ = یک ماه؛ ۳۶ تا ۵۲ = سه ماه؛ ۵۳ تا ۷۰ = شش ماه؛ ۷۱ تا ۸۷ = نه ماه؛ ۸۸ تا ۱۰۰ = دوازده ماه. امتیازهای ۳۰ و ۸۸ برای جلوگیری از بازه خالی به‌ترتیب در گروه یک‌ماهه و دوازده‌ماهه قرار گرفته‌اند.</div>
-        <form method="post" action="/ContractRenewalTask/Submit" class="form-stack">
+        @if (!Model.IsReadOnly) { <form method="post" action="/ContractRenewalTask/Submit" class="form-stack">
             @Html.AntiForgeryToken()
             <input type="hidden" name="id" value="@Model.Task.Id" />
             <label>مدت پیشنهادی تمدید قرارداد (ماه) *
@@ -205,7 +205,7 @@
                 <textarea name="comment" rows="4" maxlength="2000" placeholder="دلایل پیشنهاد مدت قرارداد و ملاحظات منابع انسانی"></textarea>
             </label>
             <div class="actions"><button class="btn btn-main" type="submit">ثبت پیشنهاد و ارجاع به مدیرعامل</button></div>
-        </form>
+        </form> }
     </section>
 }
 
@@ -213,7 +213,7 @@
 {
     <section class="card">
         <div class="section-head"><div><h3>تصمیم نهایی مدیرعامل</h3><span class="muted">مدت پیشنهادی منابع انسانی قابل تغییر است؛ تأیید شما فرایند را نهایی می‌کند.</span></div></div>
-        <form method="post" action="/ContractRenewalTask/Submit" class="form-stack">
+        @if (!Model.IsReadOnly) { <form method="post" action="/ContractRenewalTask/Submit" class="form-stack">
             @Html.AntiForgeryToken()
             <input type="hidden" name="id" value="@Model.Task.Id" />
             <label>مدت نهایی قرارداد (ماه) *
@@ -223,6 +223,6 @@
                 <textarea name="comment" rows="4" maxlength="2000" placeholder="توضیحات یا دلایل تغییر مدت پیشنهادی در صورت نیاز"></textarea>
             </label>
             <div class="actions"><button class="btn btn-main" type="submit">تأیید نهایی و تکمیل فرایند</button></div>
-        </form>
+        </form> }
     </section>
 }

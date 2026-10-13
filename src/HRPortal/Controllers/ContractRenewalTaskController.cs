@@ -38,7 +38,7 @@ public class ContractRenewalTaskController(
     public async Task<IActionResult> Submit(
         int id,
         string? comment,
-        Dictionary<int, decimal?>? scores,
+        Dictionary<string, decimal?>? scores,
         string? securityDecision,
         int? contractMonths)
     {
@@ -72,12 +72,22 @@ public class ContractRenewalTaskController(
                     throw new InvalidOperationException("پرسش‌های ارزشیابی برای این مرحله ساخته نشده‌اند.");
 
                 var validIds = currentRows.Select(x => x.Id).ToHashSet();
-                if (scores is null || scores.Keys.Any(x => !validIds.Contains(x)))
+                var parsedScores = new Dictionary<int, decimal?>();
+                if (scores is not null)
+                {
+                    foreach (var pair in scores)
+                    {
+                        if (!int.TryParse(pair.Key, out var scoreId) || !validIds.Contains(scoreId))
+                            throw new InvalidOperationException("اطلاعات ارسالی امتیازدهی معتبر نیست.");
+                        parsedScores[scoreId] = pair.Value;
+                    }
+                }
+                if (scores is null)
                     throw new InvalidOperationException("اطلاعات ارسالی امتیازدهی معتبر نیست.");
 
                 foreach (var row in currentRows)
                 {
-                    if (!scores.TryGetValue(row.Id, out var value) || !value.HasValue)
+                    if (!parsedScores.TryGetValue(row.Id, out var value) || !value.HasValue)
                         throw new InvalidOperationException($"برای پرسش «{row.QuestionTextSnapshot}» امتیاز وارد کنید.");
                     if (value.Value < 0 || value.Value > row.MaxScoreSnapshot)
                         throw new InvalidOperationException($"امتیاز پرسش «{row.QuestionTextSnapshot}» باید بین صفر و سقف {row.MaxScoreSnapshot:0.##} باشد.");

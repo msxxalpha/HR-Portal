@@ -11,6 +11,8 @@ public class OrganizationService(HRPortalDbContext db, AuditService audit)
             .Include(x => x.Nodes)
             .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
             .OrderByDescending(x => x.EffectiveDate)
+            .ThenByDescending(x => x.FinalizedAt)
+            .ThenByDescending(x => x.CreatedAt)
             .FirstOrDefaultAsync();
 
     public async Task<List<OrganizationStructureRevision>> RevisionsAsync() =>
@@ -126,14 +128,6 @@ public class OrganizationService(HRPortalDbContext db, AuditService audit)
 
         if (revision.IsFinalized)
             return;
-
-        if (await db.OrganizationStructureRevisions.AnyAsync(x =>
-                x.Id != id &&
-                x.IsFinalized &&
-                x.EffectiveDate == revision.EffectiveDate))
-        {
-            throw new InvalidOperationException("برای این تاریخ نسخه نهایی دیگری وجود دارد.");
-        }
 
         revision.IsFinalized = true;
         revision.FinalizedAt = DateTime.UtcNow;

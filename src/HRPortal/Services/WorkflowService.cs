@@ -718,6 +718,17 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         var route = new List<OrganizationNode>();
         var visited = new HashSet<int> { current.Id };
         var stopFound = false;
+
+        // Employees who belong to a department often share its node with its president.
+        // If that node has a different designated holder, the holder is the direct reviewer
+        // and must be included. If the subject is the holder, skip their own position.
+        if (!(stopRankType == "مدیرعامل" && current.RankType == "مدیرعامل") &&
+            current.PositionHolderEmployeeId.HasValue &&
+            current.PositionHolderEmployeeId.Value != subjectEmployeeId)
+        {
+            route.Add(current);
+        }
+
         current = byId.GetValueOrDefault(current.ParentId.Value);
         while (current is not null)
         {
@@ -752,6 +763,15 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
         if (!stopFound)
             throw new InvalidOperationException($"در زنجیره بالادستی کارمند، رده توقف «{stopRankType}» پیدا نشد؛ ساختار سازمانی یا تنظیم مرحله را بررسی کنید.");
+
+        // A hierarchy stage must route to the explicitly assigned position holder. Falling
+        // back to every employee in the department would send evaluation tasks to peers.
+        foreach (var position in route)
+        {
+            if (!position.PositionHolderEmployeeId.HasValue ||
+                !await db.Employees.AnyAsync(x => x.Id == position.PositionHolderEmployeeId.Value && x.Status == "فعال", cancellationToken))
+                throw new InvalidOperationException($"برای جایگاه «{position.Title}» متصدی فعال تعیین نشده است. در مدیریت ساختار سازمانی، متصدی جایگاه را مشخص کنید.");
+        }
 
         return route;
     }

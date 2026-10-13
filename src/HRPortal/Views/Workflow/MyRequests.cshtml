@@ -34,7 +34,7 @@
                         <td><strong>@item.WorkflowTitle</strong></td>
                         <td>@item.EntityType #@item.EntityId</td>
                         <td>@item.StepTitle</td>
-                        <td><span class="badge @(item.Status == "Approved" ? "" : "badge-info")">@statusTitle</span></td>
+                        <td><span class="workflow-status @(item.Status == "Approved" ? "done" : item.Status == "Rejected" ? "rejected" : item.Status == "Returned" ? "returned" : "pending")">@statusTitle</span></td>
                         <td>@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
                         <td>
                             <div class="actions request-row-actions">

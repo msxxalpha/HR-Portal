@@ -55,6 +55,12 @@ public class OrganizationController(
             .OrderBy(x => x.SortOrder).ThenBy(x => x.Title)
             .Select(x => x.Title).ToListAsync();
         ViewBag.OrganizationRankJson = JsonSerializer.Serialize(organizationRankTitles);
+        var activeEmployees = await db.Employees.AsNoTracking()
+            .Where(x => x.Status == "فعال")
+            .OrderBy(x => x.LastName).ThenBy(x => x.FirstName).ThenBy(x => x.PersonnelNumber)
+            .Select(x => new { id = x.Id, name = x.FirstName + " " + x.LastName, personnelNumber = x.PersonnelNumber })
+            .ToListAsync();
+        ViewBag.PositionHolderEmployeesJson = JsonSerializer.Serialize(activeEmployees);
         ViewBag.Revisions = revisions;
         ViewBag.IsEditable = revision is not null && !revision.IsFinalized && canEditStructure;
         ViewBag.CanCreate = User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Organization.Create");
@@ -86,6 +92,7 @@ public class OrganizationController(
                     sortOrder = n.SortOrder,
                     isActive = n.IsActive,
                     notes = n.Notes,
+                    positionHolderEmployeeId = n.PositionHolderEmployeeId,
                     parentId = n.ParentId,
                     revisionId = n.OrganizationStructureRevisionId
                 },
@@ -140,7 +147,8 @@ public class OrganizationController(
         string rankType,
         int sortOrder = 0,
         bool isActive = true,
-        string? notes = null)
+        string? notes = null,
+        int? positionHolderEmployeeId = null)
     {
         var result = await EnsureEditableRevision(revisionId);
         if (result is not null)
@@ -149,6 +157,9 @@ public class OrganizationController(
         var validation = await ValidateNodeParentAsync(revisionId, parentId, rankType);
         if (validation is not null)
             return Json(new { success = false, message = validation });
+        var holderValidation = await ValidatePositionHolderAsync(revisionId, positionHolderEmployeeId, null);
+        if (holderValidation is not null)
+            return Json(new { success = false, message = holderValidation });
 
         if (rankType == "مدیرعامل" &&
             await db.OrganizationNodes.AnyAsync(x => x.OrganizationStructureRevisionId == revisionId && x.RankType == "مدیرعامل"))
@@ -181,7 +192,8 @@ public class OrganizationController(
             RankType = rankType,
             SortOrder = sortOrder,
             IsActive = isActive,
-            Notes = notes?.Trim()
+            Notes = notes?.Trim(),
+            PositionHolderEmployeeId = positionHolderEmployeeId
         };
 
         db.OrganizationNodes.Add(node);
@@ -207,7 +219,8 @@ public class OrganizationController(
                 rankType = node.RankType,
                 sortOrder = node.SortOrder,
                 isActive = node.IsActive,
-                notes = node.Notes
+                notes = node.Notes,
+                positionHolderEmployeeId = node.PositionHolderEmployeeId
             }
         });
     }
@@ -220,7 +233,8 @@ public class OrganizationController(
         string rankType,
         int sortOrder,
         bool isActive,
-        string? notes)
+        string? notes,
+        int? positionHolderEmployeeId = null)
     {
         var node = await db.OrganizationNodes
             .Include(x => x.Revision)
@@ -241,6 +255,9 @@ public class OrganizationController(
         var validation = await ValidateNodeParentAsync(node.OrganizationStructureRevisionId, node.ParentId, rankType);
         if (validation is not null)
             return Json(new { success = false, message = validation });
+        var holderValidation = await ValidatePositionHolderAsync(node.OrganizationStructureRevisionId, positionHolderEmployeeId, node.Id);
+        if (holderValidation is not null)
+            return Json(new { success = false, message = holderValidation });
 
         if (rankType == "مدیرعامل" &&
             await db.OrganizationNodes.AnyAsync(x => x.Id != id && x.OrganizationStructureRevisionId == node.OrganizationStructureRevisionId && x.RankType == "مدیرعامل"))
@@ -258,6 +275,7 @@ public class OrganizationController(
         node.SortOrder = sortOrder;
         node.IsActive = isActive;
         node.Notes = notes?.Trim();
+        node.PositionHolderEmployeeId = positionHolderEmployeeId;
 
         db.OrganizationChanges.Add(new OrganizationChange
         {
@@ -437,6 +455,22 @@ public class OrganizationController(
         }
 
         return RedirectToAction(nameof(Index), new { revisionId });
+    }
+
+    private async Task<string?> ValidatePositionHolderAsync(int revisionId, int? employeeId, int? currentNodeId)
+    {
+        if (!employeeId.HasValue) return null;
+
+        if (!await db.Employees.AnyAsync(x => x.Id == employeeId.Value && x.Status == "فعال"))
+            return "متصدی جایگاه باید یک کارمند فعال باشد.";
+
+        if (await db.OrganizationNodes.AnyAsync(x =>
+                x.OrganizationStructureRevisionId == revisionId &&
+                x.PositionHolderEmployeeId == employeeId.Value &&
+                (!currentNodeId.HasValue || x.Id != currentNodeId.Value)))
+            return "هر کارمند در هر نسخه ساختار سازمانی فقط می‌تواند متصدی یک جایگاه باشد.";
+
+        return null;
     }
 
     private async Task<IActionResult?> EnsureEditableRevision(int revisionId)

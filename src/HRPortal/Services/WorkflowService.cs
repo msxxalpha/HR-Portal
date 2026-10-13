@@ -929,6 +929,17 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                        e.OrganizationSectionId == x.AssignedPositionId ||
                        e.OrganizationPositionId == x.AssignedPositionId)))));
 
+    public async Task<WorkflowTask?> GetTaskForHistoryAsync(int id, int employeeId) =>
+        await db.WorkflowTasks
+            .AsNoTracking()
+            .Include(x => x.WorkflowInstance).ThenInclude(x => x.WorkflowDefinition)
+            .Include(x => x.WorkflowInstance).ThenInclude(x => x.RequesterEmployee)
+            .Include(x => x.WorkflowStep).ThenInclude(x => x.OrganizationNode)
+            .Include(x => x.AssignedPosition)
+            .FirstOrDefaultAsync(x => x.Id == id && x.Status != "Pending" &&
+                db.WorkflowHistory.Any(h => h.WorkflowInstanceId == x.WorkflowInstanceId &&
+                    h.WorkflowStepId == x.WorkflowStepId && h.ActorEmployeeId == employeeId));
+
     public async Task CompleteTaskAsync(int taskId, int actorEmployeeId, string action, string? comment, IDictionary<string, string?>? values = null, IDictionary<string, string?>? previousValues = null)
     {
         action = NormalizeAction(action);

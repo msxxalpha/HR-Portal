@@ -38,6 +38,9 @@ public class ContractRenewalWorkflowService(HRPortalDbContext db, WorkflowServic
                 cancellationToken);
         if (securityPosition is null)
             throw new InvalidOperationException("جایگاه مدیر حراست را در تنظیمات گردش کار انتخاب کنید؛ جایگاه ذخیره‌شده در نسخه فعال ساختار یافت نشد.");
+        if (!securityPosition.PositionHolderEmployeeId.HasValue ||
+            !await db.Employees.AnyAsync(x => x.Id == securityPosition.PositionHolderEmployeeId.Value && x.Status == "فعال", cancellationToken))
+            throw new InvalidOperationException("برای جایگاه مدیر حراست در ساختار سازمانی، متصدی فعال تعیین کنید.");
 
         var configuredHr = settings.HumanResourcesPositionId.HasValue
             ? await db.OrganizationNodes.AsNoTracking()
@@ -50,6 +53,9 @@ public class ContractRenewalWorkflowService(HRPortalDbContext db, WorkflowServic
                 cancellationToken);
         if (humanResourcesPosition is null)
             throw new InvalidOperationException("جایگاه مدیر منابع انسانی و خدمات پشتیبانی را در تنظیمات گردش کار انتخاب کنید؛ جایگاه ذخیره‌شده در نسخه فعال ساختار یافت نشد.");
+        if (!humanResourcesPosition.PositionHolderEmployeeId.HasValue ||
+            !await db.Employees.AnyAsync(x => x.Id == humanResourcesPosition.PositionHolderEmployeeId.Value && x.Status == "فعال", cancellationToken))
+            throw new InvalidOperationException("برای جایگاه مدیر منابع انسانی و خدمات پشتیبانی در ساختار سازمانی، متصدی فعال تعیین کنید.");
 
         var ceoNodes = await db.OrganizationNodes.AsNoTracking()
             .Where(x => x.OrganizationStructureRevisionId == revision.Id && x.IsActive && x.RankType == "مدیرعامل")
@@ -57,13 +63,24 @@ public class ContractRenewalWorkflowService(HRPortalDbContext db, WorkflowServic
         if (ceoNodes.Count != 1)
             throw new InvalidOperationException("در آخرین نسخه نهایی ساختار سازمانی باید دقیقاً یک گره فعال با رده مدیرعامل وجود داشته باشد.");
 
-        var ceoEmployees = await db.Employees.AsNoTracking()
-            .Where(x => x.Status == "فعال" && x.OrganizationPositionId == ceoNodes[0].Id)
-            .ToListAsync(cancellationToken);
-        if (ceoEmployees.Count != 1)
-            throw new InvalidOperationException("باید دقیقاً یک کارمند فعال به جایگاه مدیرعامل در نسخه نهایی ساختار سازمانی متصل باشد.");
-
-        var ceoEmployeeId = ceoEmployees[0].Id;
+        int ceoEmployeeId;
+        if (ceoNodes[0].PositionHolderEmployeeId.HasValue)
+        {
+            ceoEmployeeId = ceoNodes[0].PositionHolderEmployeeId.Value;
+            if (!await db.Employees.AnyAsync(x => x.Id == ceoEmployeeId && x.Status == "فعال", cancellationToken))
+                throw new InvalidOperationException("متصدی جایگاه مدیرعامل فعال نیست؛ متصدی فعال تعیین کنید.");
+        }
+        else
+        {
+            // Compatibility with existing data where the CEO was assigned through the
+            // employee's legacy OrganizationPositionId field.
+            var ceoEmployees = await db.Employees.AsNoTracking()
+                .Where(x => x.Status == "فعال" && x.OrganizationPositionId == ceoNodes[0].Id)
+                .ToListAsync(cancellationToken);
+            if (ceoEmployees.Count != 1)
+                throw new InvalidOperationException("برای جایگاه مدیرعامل متصدی فعال تعیین کنید یا از روش قدیمی اتصال مدیرعامل به جایگاه ویژه استفاده کنید.");
+            ceoEmployeeId = ceoEmployees[0].Id;
+        }
 
         var questions = await db.EmployeePerformanceEvaluationQuestions
             .AsNoTracking()

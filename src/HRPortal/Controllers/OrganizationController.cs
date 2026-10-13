@@ -33,17 +33,14 @@ public class OrganizationController(
         OrganizationStructureRevision? revision;
         if (selected is null)
         {
-            revision = revisions.FirstOrDefault(x => !x.IsFinalized);
-            if (revision is null)
-                revision = canEditStructure ? await service.GetOrCreateDraftAsync() : current;
-        }
-        else if (selected.IsFinalized && canEditStructure && current?.Id == selected.Id)
-        {
-            // Selecting the current finalized version opens its editable working copy for an authorized user.
-            revision = revisions.FirstOrDefault(x => !x.IsFinalized) ?? await service.GetOrCreateDraftAsync();
+            // Opening the page must never create a draft as a side effect.
+            // Prefer an explicitly existing draft; otherwise show the current finalized snapshot read-only.
+            revision = revisions.FirstOrDefault(x => !x.IsFinalized) ?? current;
         }
         else
         {
+            // A finalized revision is always read-only, including the current one.
+            // Editing begins only through the explicit NewRevision action.
             revision = selected;
         }
 

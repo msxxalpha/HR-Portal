@@ -48,3 +48,38 @@
         </div>
     }
 </section>
+
+@{
+    var actionHistory = ViewBag.ActionHistory as List<HRPortal.Models.WorkflowInboxRow> ?? [];
+}
+<section class="card workflow-history-card">
+    <div class="section-head">
+        <div><h3>سوابق اقدام‌های من</h3><span class="muted">اقدام‌هایی که قبلاً توسط شما ثبت شده‌اند، حتی پس از خروج از کارتابل جاری، در این بخش باقی می‌مانند.</span></div>
+        <span class="badge">@actionHistory.Count سابقه</span>
+    </div>
+    @if (actionHistory.Count == 0)
+    {
+        <div class="empty">هنوز سابقه اقدامی برای نمایش وجود ندارد.</div>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>درخواست</th><th>درخواست‌کننده</th><th>مرحله‌ای که اقدام شد</th><th>نتیجه</th><th>تاریخ اقدام</th><th>توضیحات ثبت‌شده</th></tr></thead>
+                <tbody>
+                @foreach (var item in actionHistory)
+                {
+                    <tr>
+                        <td><strong>@item.WorkflowTitle</strong><div class="muted">@item.EntityType #@item.EntityId</div></td>
+                        <td>@item.RequesterName<div class="muted">@item.RequesterPersonnelNumber</div></td>
+                        <td>@item.StepTitle<div class="muted">@item.PositionTitle</div></td>
+                        <td>@(item.Action switch { "Approve" => "تأیید", "Reject" => "رد", "Return" => "برگشت", "SaveDraft" => "ذخیره پیش‌نویس", _ => item.Action })</td>
+                        <td>@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                        <td>@(string.IsNullOrWhiteSpace(item.Comment) ? "—" : item.Comment)</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

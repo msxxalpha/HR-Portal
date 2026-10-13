@@ -29,7 +29,34 @@ public class WorkflowController(
         if (!int.TryParse(User.FindFirst("EmployeeId")?.Value, out var employeeId))
             return View(new List<WorkflowInboxRow>());
 
+        var isAdmin = User.HasClaim("IsAdmin", "1");
+        ViewBag.IsAdminRequests = isAdmin;
+        if (isAdmin)
+            return View(await workflow.GetAllRequestsAsync());
+
         return View(await workflow.GetMyRequestsAsync(employeeId));
+    }
+
+    [HttpPost]
+    [Authorize(Policy = "Workflow.Inbox")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteRequest(int id)
+    {
+        if (!int.TryParse(User.FindFirst("EmployeeId")?.Value, out var employeeId) &&
+            !User.HasClaim("IsAdmin", "1"))
+            return Forbid();
+
+        var isAdmin = User.HasClaim("IsAdmin", "1");
+        try
+        {
+            await workflow.DeleteRequestAsync(id, employeeId, isAdmin);
+            TempData["Success"] = "درخواست و تمام سوابق گردش کار آن به‌طور کامل حذف شد.";
+        }
+        catch (Exception ex)
+        {
+            TempData["Error"] = ex.Message;
+        }
+        return RedirectToAction(nameof(MyRequests));
     }
 
     [HttpGet]

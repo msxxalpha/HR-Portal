@@ -400,3 +400,24 @@
   .contract-month-chart { gap: 6px; }
   .organization-position-grid { grid-template-columns: 1fr; }
 }
+
+
+/* Shared Jalali date picker */
+.jalali-date-input{display:flex;align-items:center;gap:6px;width:100%}
+.jalali-date-input input{flex:1;min-width:0}
+.jalali-date-open{white-space:nowrap;padding:8px 10px}
+.jalali-picker{display:none;position:absolute;z-index:100000;width:286px;padding:12px;background:#fff;border:1px solid #d8e1e8;border-radius:12px;box-shadow:0 12px 34px rgba(15,37,53,.22);color:#1d2a34;direction:rtl}
+.jalali-picker.open{display:block}
+.jalali-picker button{font:inherit;cursor:pointer}
+.jalali-picker .jp-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.jalali-picker .jp-title{font-weight:700;color:#17324d}
+.jalali-picker .jp-head button{border:1px solid #dce5eb;background:#f7fafc;border-radius:7px;padding:5px 9px}
+.jalali-picker .jp-week,.jalali-picker .jp-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;text-align:center}
+.jalali-picker .jp-week{margin-bottom:5px;color:#71808b;font-size:11px}
+.jalali-picker .jp-cell{border:1px solid transparent;background:#fff;border-radius:7px;padding:7px 0;min-width:0}
+.jalali-picker .jp-cell:hover{background:#edf4f8;border-color:#cbd9e2}
+.jalali-picker .jp-cell.selected{background:#17324d;color:#fff}
+.jalali-picker .jp-cell.today{border-color:#7897ad}
+.jalali-picker .jp-cell.empty{visibility:hidden;pointer-events:none}
+.revision-day-group{border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:10px}
+.revision-day-heading{font-weight:800;color:var(--navy);padding:4px 6px 8px}

@@ -93,7 +93,7 @@
 
     <section class="card">
         <div class="section-head"><div><h3>@(Model.IsReadOnly ? "امتیازهای ثبت‌شده این مرحله" : "امتیازدهی شما")</h3><span class="muted">برای هر پرسش امتیازی بین صفر و سقف امتیاز ثبت شده است. مجموع سقف پرسش‌ها ۱۰۰ است.</span></div><span class="badge">@(Model.IsReadOnly ? "سابقه ثبت‌شده" : "مرحله جاری")</span></div>
-        @if (!Model.IsReadOnly) { <form method="post" action="/ContractRenewalTask/Submit" class="form-stack">
+        <form method="post" action="/ContractRenewalTask/Submit" class="form-stack">
             @Html.AntiForgeryToken()
             <input type="hidden" name="id" value="@Model.Task.Id" />
             <div class="table-wrap"><table>
@@ -105,17 +105,17 @@
                         <td>@s.QuestionTextSnapshot</td>
                         <td class="contract-score-guidance">@s.ScoringGuidanceSnapshot</td>
                         <td>@score(s.MaxScoreSnapshot)</td>
-                        <td><input class="contract-score-input" type="number" name="scores[@s.Id]" min="0" max="@score(s.MaxScoreSnapshot)" step="0.01" required value="@(s.Score.HasValue ? score(s.Score) : "")" /></td>
+                        <td><input class="contract-score-input" type="number" name="scores[@s.Id]" min="0" max="@score(s.MaxScoreSnapshot)" step="0.01" required value="@(s.Score.HasValue ? score(s.Score) : "")" disabled="@(Model.IsReadOnly)" /></td>
                     </tr>
                 }
                 </tbody>
                 <tfoot><tr><th colspan="2">مجموع سقف امتیاز</th><th>@score(Model.CurrentQuestionCeilingTotal)</th><th>مجموع کسب‌شده توسط شما</th></tr></tfoot>
             </table></div>
             <label>توضیحات کلی این مرحله (مستقل از پرسش‌ها)
-                <textarea name="comment" rows="4" maxlength="2000" placeholder="توضیح کلی درباره عملکرد کارمند، مستندات یا ملاحظات مرتبط با امتیازدهی"></textarea>
+                <textarea name="comment" rows="4" maxlength="2000" disabled="@(Model.IsReadOnly)" placeholder="توضیح کلی درباره عملکرد کارمند، مستندات یا ملاحظات مرتبط با امتیازدهی"></textarea>
             </label>
-            <div class="actions"><button class="btn btn-main" type="submit">ثبت امتیازها و ارجاع به جایگاه بعدی</button></div>
-        </form> }
+            @if (!Model.IsReadOnly) { <div class="actions"><button class="btn btn-main" type="submit">ثبت امتیازها و ارجاع به جایگاه بعدی</button></div> }
+        </form>
     </section>
 }
 

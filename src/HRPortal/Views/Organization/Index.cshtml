@@ -68,7 +68,7 @@
             @foreach (var dayGroup in revisions.GroupBy(r => r.EffectiveDate.Date).OrderByDescending(g => g.Key))
             {
                 <div class="revision-day-group">
-                    <div class="revision-day-heading">بازنگری‌های تاریخ @HRPortal.Services.PersianDateService.Format(dayGroup.Key)</div>
+                    <div class="revision-day-heading">نسخه بازنگری روز @HRPortal.Services.PersianDateService.Format(dayGroup.Key)</div>
                     @foreach (var r in dayGroup.OrderByDescending(x => x.FinalizedAt).ThenByDescending(x => x.CreatedAt))
                     {
                         <a class="revision @(revisionId == r.Id ? "selected" : "")" href="/Organization?revisionId=@r.Id">

@@ -73,7 +73,7 @@
             <label>تاریخ پایان قرارداد
                 <input type="text" id="contractEndDatePersian" name="contractEndDatePersian"
                        value="@(Model.Employee.ContractEndDate.HasValue ? HRPortal.Services.PersianDateService.Format(Model.Employee.ContractEndDate.Value) : "")"
-                       data-jdp data-jdp-only-date autocomplete="off" placeholder="۱۴۰۵/۱۲/۲۹"
+                       autocomplete="off" placeholder="۱۴۰۵/۱۲/۲۹"
                        disabled="@(Model.Employee.EmploymentType == "غیرقراردادی")" />
             </label>
             <label>وضعیت

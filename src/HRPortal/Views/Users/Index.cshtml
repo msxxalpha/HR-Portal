@@ -30,8 +30,25 @@
                 <span class="muted">نام کاربری کارکنان همان شماره پرسنلی است و ورود با OTP یا رمز شخصی انجام می‌شود.</span>
             </div>
         </div>
-        <div class="table-wrap">
-            <table>
+        <div class="users-table-tools">
+            <label>جستجو
+                <input id="usersSearch" type="search" placeholder="نام، نام خانوادگی، شماره پرسنلی یا واحد..." autocomplete="off" />
+            </label>
+            <label>وضعیت کاربر
+                <select id="usersStatusFilter"><option value="all">همه</option><option value="active">فعال</option><option value="inactive">غیرفعال</option></select>
+            </label>
+            <label>نقش
+                <select id="usersRoleFilter"><option value="all">همه نقش‌ها</option>
+                    @foreach (var role in Model.Roles) { <option value="@role.Id">@role.Title</option> }
+                </select>
+            </label>
+            <label>تعداد در صفحه
+                <select id="usersPageSize"><option value="25">۲۵</option><option value="50">۵۰</option><option value="100">۱۰۰</option></select>
+            </label>
+            <span id="usersResultCount" class="muted" aria-live="polite"></span>
+        </div>
+        <div class="table-wrap users-table-wrap">
+            <table class="users-management-table">
                 <thead>
                     <tr><th>شماره پرسنلی</th><th>کارمند</th><th>واحد</th><th>نقش‌ها</th><th>رمز شخصی</th><th>فعال</th><th>عملیات</th></tr>
                 </thead>
@@ -83,7 +100,7 @@
                 }
                 @if (!Model.Users.Any())
                 {
-                    <tr><td colspan="7" class="empty">هنوز کارمندی ثبت نشده است.</td></tr>
+                    <tr class="users-empty-row"><td colspan="7" class="empty">هنوز کارمندی ثبت نشده است.</td></tr>
                 }
                 </tbody>
             </table>
@@ -161,5 +178,49 @@ document.querySelectorAll('.tab').forEach(function (button) {
         document.getElementById(button.dataset.tab).classList.add('active');
     });
 });
+const usersTable = document.querySelector('.users-management-table');
+if (usersTable) {
+    const body = usersTable.tBodies[0];
+    const rows = Array.from(body.rows).filter(row => !row.classList.contains('users-empty-row'));
+    const search = document.getElementById('usersSearch');
+    const status = document.getElementById('usersStatusFilter');
+    const role = document.getElementById('usersRoleFilter');
+    const pageSize = document.getElementById('usersPageSize');
+    const count = document.getElementById('usersResultCount');
+    const pager = document.createElement('div');
+    pager.className = 'users-pagination';
+    pager.innerHTML = '<button type="button" class="btn btn-outline btn-sm" data-prev>قبلی</button><span data-page></span><button type="button" class="btn btn-outline btn-sm" data-next>بعدی</button>';
+    usersTable.closest('.users-table-wrap').insertAdjacentElement('afterend', pager);
+    let currentPage = 1;
+    function applyUserFilters() {
+        const q = (search.value || '').trim().toLocaleLowerCase('fa');
+        const activeFilter = status.value;
+        const roleFilter = role.value;
+        const filtered = rows.filter(row => {
+            const textMatch = !q || row.innerText.toLocaleLowerCase('fa').includes(q);
+            const activeBox = row.querySelector('input[name="isSystemUser"]');
+            const active = !!(activeBox && activeBox.checked);
+            const statusMatch = activeFilter === 'all' || (activeFilter === 'active' ? active : !active);
+            const roleMatch = roleFilter === 'all' || Array.from(row.querySelectorAll('input[name="roleIds"]')).some(input => input.value === roleFilter && input.checked);
+            return textMatch && statusMatch && roleMatch;
+        });
+        const size = Math.max(1, parseInt(pageSize.value, 10) || 25);
+        const pages = Math.max(1, Math.ceil(filtered.length / size));
+        currentPage = Math.min(currentPage, pages);
+        rows.forEach(row => row.style.display = 'none');
+        filtered.slice((currentPage - 1) * size, currentPage * size).forEach(row => row.style.display = '');
+        const empty = body.querySelector('.users-empty-row');
+        if (empty) empty.style.display = filtered.length ? 'none' : '';
+        count.textContent = 'نمایش ' + filtered.length + ' کاربر';
+        pager.querySelector('[data-page]').textContent = 'صفحه ' + currentPage + ' از ' + pages;
+        pager.querySelector('[data-prev]').disabled = currentPage <= 1;
+        pager.querySelector('[data-next]').disabled = currentPage >= pages;
+    }
+    [search, status, role, pageSize].forEach(control => control.addEventListener('input', () => { currentPage = 1; applyUserFilters(); }));
+    pager.querySelector('[data-prev]').addEventListener('click', () => { currentPage--; applyUserFilters(); });
+    pager.querySelector('[data-next]').addEventListener('click', () => { currentPage++; applyUserFilters(); });
+    body.addEventListener('change', event => { if (event.target.matches('input[name="roleIds"], input[name="isSystemUser"]')) applyUserFilters(); });
+    applyUserFilters();
+}
 </script>
 }

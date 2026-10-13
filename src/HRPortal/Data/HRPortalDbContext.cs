@@ -94,6 +94,10 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.HasIndex(x => x.OrganizationStructureRevisionId).HasDatabaseName("UX_OrganizationNodes_OneCEOPerRevision").IsUnique().HasFilter("[RankType] = N'مدیرعامل'");
             e.HasOne(x => x.Revision).WithMany(x => x.Nodes).HasForeignKey(x => x.OrganizationStructureRevisionId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.Parent).WithMany(x => x.Children).HasForeignKey(x => x.ParentId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.PositionHolderEmployee).WithMany().HasForeignKey(x => x.PositionHolderEmployeeId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.OrganizationStructureRevisionId, x.PositionHolderEmployeeId })
+                .IsUnique().HasFilter("[PositionHolderEmployeeId] IS NOT NULL")
+                .HasDatabaseName("UX_OrganizationNodes_Revision_PositionHolder");
         });
         modelBuilder.Entity<OrganizationChange>(e =>
         {

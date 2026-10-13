@@ -703,20 +703,29 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .Where(x => x.OrganizationStructureRevisionId == revision.Id && x.IsActive)
             .ToListAsync(cancellationToken);
         var byId = nodes.ToDictionary(x => x.Id);
-        OrganizationNode? current = nodes.FirstOrDefault(x => x.Code == oldPosition.Code)
-            ?? throw new InvalidOperationException("جایگاه کارمند در نسخه فعال ساختار سازمانی یافت نشد.");
+        var matchingPositions = nodes.Where(x => x.Code == oldPosition.Code).ToList();
+        if (matchingPositions.Count != 1)
+            throw new InvalidOperationException("جایگاه کارمند باید با یک کد یکتا در نسخه فعال ساختار سازمانی قابل شناسایی باشد.");
 
+        var current = matchingPositions[0];
         if (!current.ParentId.HasValue)
             throw new InvalidOperationException("جایگاه کارمند والد سازمانی ندارد؛ مسیر بالادستی ساخته نشد.");
 
+        // Walk the actual parent chain, not a hard-coded list of ranks. This intentionally
+        // includes every intermediate node (for example سرپرستی before ریاست, or معاونت
+        // between مدیریت and مدیرعامل). A node is included once the request starts, so later
+        // organization edits cannot silently reroute an in-flight renewal.
         var route = new List<OrganizationNode>();
+        var visited = new HashSet<int> { current.Id };
         var stopFound = false;
-        var guard = 0;
         current = byId.GetValueOrDefault(current.ParentId.Value);
-        while (current is not null && guard++ < 1000)
+        while (current is not null)
         {
-            // When the desired stop is CEO, include every parent below CEO but do not
-            // create an evaluation task for the CEO position itself.
+            if (!visited.Add(current.Id))
+                throw new InvalidOperationException("در ساختار سازمانی حلقه والد/فرزند شناسایی شد؛ مسیر تمدید قرارداد قابل ایجاد نیست.");
+
+            // The CEO makes the final decision, not an evaluation score. Include all
+            // ancestors below CEO regardless of RankType, then stop before the CEO node.
             if (stopRankType == "مدیرعامل" && current.RankType == "مدیرعامل")
             {
                 stopFound = true;
@@ -729,7 +738,16 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 stopFound = true;
                 break;
             }
-            current = current.ParentId.HasValue ? byId.GetValueOrDefault(current.ParentId.Value) : null;
+
+            if (!current.ParentId.HasValue)
+            {
+                current = null;
+                break;
+            }
+
+            if (!byId.TryGetValue(current.ParentId.Value, out var parent))
+                throw new InvalidOperationException($"والد جایگاه «{current.Title}» در نسخه فعال ساختار سازمانی وجود ندارد؛ ابتدا ساختار را اصلاح کنید.");
+            current = parent;
         }
 
         if (!stopFound)

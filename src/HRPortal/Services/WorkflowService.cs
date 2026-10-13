@@ -873,14 +873,22 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .ToListAsync();
     }
 
-    public async Task<List<WorkflowInboxRow>> GetMyRequestsAsync(int employeeId)
+    public async Task<List<WorkflowInboxRow>> GetAllRequestsAsync()
     {
-        return await db.WorkflowInstances
+        return await BuildRequestsQuery(null).ToListAsync();
+    }
+
+    private IQueryable<WorkflowInboxRow> BuildRequestsQuery(int? requesterEmployeeId)
+    {
+        var query = db.WorkflowInstances
             .AsNoTracking()
             .Include(x => x.WorkflowDefinition)
-            .Include(x => x.CurrentStep).ThenInclude(x => x.OrganizationNode)
-            .Where(x => x.RequesterEmployeeId == employeeId)
-            .OrderByDescending(x => x.StartedAt)
+            .Include(x => x.CurrentStep).ThenInclude(x => x!.OrganizationNode)
+            .AsQueryable();
+        if (requesterEmployeeId.HasValue)
+            query = query.Where(x => x.RequesterEmployeeId == requesterEmployeeId.Value);
+
+        return query.OrderByDescending(x => x.StartedAt)
             .Select(x => new WorkflowInboxRow
             {
                 WorkflowInstanceId = x.Id,
@@ -891,9 +899,70 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 PositionTitle = x.CurrentStep == null || x.CurrentStep.OrganizationNode == null ? "" : x.CurrentStep.OrganizationNode.Title,
                 Status = x.Status,
                 CreatedAt = x.StartedAt
-            })
-            .ToListAsync();
+            });
     }
+
+    public async Task DeleteRequestAsync(int instanceId, int actorEmployeeId, bool isAdmin)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        var instance = await db.WorkflowInstances
+            .FirstOrDefaultAsync(x => x.Id == instanceId);
+        if (instance is null)
+            throw new InvalidOperationException("درخواست موردنظر یافت نشد.");
+
+        if (!isAdmin)
+        {
+            if (instance.RequesterEmployeeId != actorEmployeeId)
+                throw new InvalidOperationException("فقط ایجادکننده درخواست می‌تواند آن را حذف کند.");
+            var tasks = await db.WorkflowTasks
+                .Where(x => x.WorkflowInstanceId == instanceId)
+                .Select(x => new { x.Status, x.ClaimedAt })
+                .ToListAsync();
+            var hasBeenSeenOrActed = tasks.Any(x =>
+                x.Status != "Pending" || x.ClaimedAt.HasValue);
+            var hasOtherActorHistory = await db.WorkflowHistory.AnyAsync(x =>
+                x.WorkflowInstanceId == instanceId &&
+                x.ActorEmployeeId.HasValue &&
+                x.ActorEmployeeId.Value != actorEmployeeId &&
+                x.Action != "Created" && x.Action != "Submitted" && x.Action != "Submit");
+            if (tasks.Count == 0 || hasBeenSeenOrActed || hasOtherActorHistory)
+                throw new InvalidOperationException("پس از مشاهده یا اقدام جایگاه بعدی، حذف درخواست مجاز نیست.");
+        }
+
+        var requestIds = await db.ContractRenewalRequests
+            .Where(x => x.WorkflowInstanceId == instanceId)
+            .Select(x => x.Id).ToListAsync();
+        if (requestIds.Count > 0)
+        {
+            await db.ContractRenewalRequestRevisions
+                .Where(x => requestIds.Contains(x.ContractRenewalRequestId))
+                .ExecuteDeleteAsync();
+            await db.ContractRenewalRequests
+                .Where(x => requestIds.Contains(x.Id))
+                .ExecuteDeleteAsync();
+        }
+
+        await db.EmployeePerformanceEvaluationScores
+            .Where(x => x.WorkflowInstanceId == instanceId)
+            .ExecuteDeleteAsync();
+        await db.WorkflowHistory
+            .Where(x => x.WorkflowInstanceId == instanceId)
+            .ExecuteDeleteAsync();
+        await db.WorkflowTasks
+            .Where(x => x.WorkflowInstanceId == instanceId)
+            .ExecuteDeleteAsync();
+        await db.WorkflowFieldValues
+            .Where(x => x.WorkflowInstanceId == instanceId)
+            .ExecuteDeleteAsync();
+        await db.WorkflowInstances
+            .Where(x => x.Id == instanceId)
+            .ExecuteDeleteAsync();
+
+        await transaction.CommitAsync();
+    }
+
+    public async Task<List<WorkflowInboxRow>> GetMyRequestsAsync(int employeeId) =>
+        await BuildRequestsQuery(employeeId).ToListAsync();
 
     public async Task<WorkflowInstance?> GetInstanceAsync(int id, int employeeId)
     {
@@ -914,8 +983,9 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .OrderBy(x => x.CreatedAt)
             .ToListAsync();
 
-    public async Task<WorkflowTask?> GetTaskAsync(int id, int employeeId) =>
-        await db.WorkflowTasks
+    public async Task<WorkflowTask?> GetTaskAsync(int id, int employeeId)
+    {
+        var task = await db.WorkflowTasks
             .Include(x => x.WorkflowInstance).ThenInclude(x => x.WorkflowDefinition)
             .Include(x => x.WorkflowInstance).ThenInclude(x => x.RequesterEmployee)
             .Include(x => x.WorkflowStep).ThenInclude(x => x.OrganizationNode)
@@ -928,6 +998,13 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                        e.OrganizationDepartmentId == x.AssignedPositionId ||
                        e.OrganizationSectionId == x.AssignedPositionId ||
                        e.OrganizationPositionId == x.AssignedPositionId)))));
+        if (task is not null && !task.ClaimedAt.HasValue)
+        {
+            task.ClaimedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync();
+        }
+        return task;
+    }
 
     public async Task<WorkflowTask?> GetTaskForHistoryAsync(int id, int employeeId) =>
         await db.WorkflowTasks

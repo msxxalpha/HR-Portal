@@ -112,7 +112,7 @@
                 <tfoot><tr><th colspan="2">مجموع سقف امتیاز</th><th>@score(Model.CurrentQuestionCeilingTotal)</th><th>مجموع کسب‌شده توسط شما</th></tr></tfoot>
             </table></div>
             <label>توضیحات کلی این مرحله (مستقل از پرسش‌ها)
-                <textarea name="comment" rows="4" maxlength="2000" disabled="@(Model.IsReadOnly)" placeholder="توضیح کلی درباره عملکرد کارمند، مستندات یا ملاحظات مرتبط با امتیازدهی"></textarea>
+                <textarea name="comment" rows="4" maxlength="2000" disabled="@(Model.IsReadOnly)" placeholder="توضیح کلی درباره عملکرد کارمند، مستندات یا ملاحظات مرتبط با امتیازدهی">@Model.Task.Comment</textarea>
             </label>
             @if (!Model.IsReadOnly) { <div class="actions"><button class="btn btn-main" type="submit">ثبت امتیازها و ارجاع به جایگاه بعدی</button></div> }
         </form>
@@ -144,6 +144,37 @@
                 </div>
             }
         }
+    </section>
+}
+
+@if (Model.IsReadOnly && Model.StageKind == "Security")
+{
+    <section class="card">
+        <div class="section-head"><h3>سابقه تصمیم حراست</h3><span class="badge">ثبت‌شده</span></div>
+        <div class="contract-preview-grid">
+            <div><span>تصمیم</span><strong>@securityDecisionTitle(r.SecurityDecision)</strong></div>
+            <div><span>توضیحات حراست</span><strong>@(string.IsNullOrWhiteSpace(r.SecurityComment) ? "توضیحی ثبت نشده است." : r.SecurityComment)</strong></div>
+        </div>
+    </section>
+}
+@if (Model.IsReadOnly && Model.StageKind == "HumanResources")
+{
+    <section class="card">
+        <div class="section-head"><h3>سابقه پیشنهاد منابع انسانی</h3><span class="badge">ثبت‌شده</span></div>
+        <div class="contract-preview-grid">
+            <div><span>مدت پیشنهادی قرارداد</span><strong>@(r.HrProposedContractMonths?.ToString() ?? "ثبت نشده") ماه</strong></div>
+            <div><span>توضیحات</span><strong>@(string.IsNullOrWhiteSpace(r.HrComment) ? "توضیحی ثبت نشده است." : r.HrComment)</strong></div>
+        </div>
+    </section>
+}
+@if (Model.IsReadOnly && Model.StageKind == "CEO")
+{
+    <section class="card">
+        <div class="section-head"><h3>سابقه تصمیم نهایی مدیرعامل</h3><span class="badge">ثبت‌شده</span></div>
+        <div class="contract-preview-grid">
+            <div><span>مدت نهایی قرارداد</span><strong>@(r.FinalContractMonths?.ToString() ?? "ثبت نشده") ماه</strong></div>
+            <div><span>توضیحات مدیرعامل</span><strong>@(string.IsNullOrWhiteSpace(r.CeoComment) ? "توضیحی ثبت نشده است." : r.CeoComment)</strong></div>
+        </div>
     </section>
 }
 

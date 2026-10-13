@@ -18,6 +18,7 @@ public class WorkflowController(
         if (!int.TryParse(User.FindFirst("EmployeeId")?.Value, out var employeeId))
             return View(new List<WorkflowInboxRow>());
 
+        ViewBag.ActionHistory = await workflow.GetMyActionHistoryAsync(employeeId);
         return View(await workflow.GetInboxAsync(employeeId));
     }
 

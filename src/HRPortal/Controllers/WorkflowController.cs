@@ -66,7 +66,9 @@ public class WorkflowController(
         if (!int.TryParse(User.FindFirst("EmployeeId")?.Value, out var employeeId))
             return Forbid();
 
-        var instance = await workflow.GetInstanceAsync(id, employeeId);
+        var instance = User.HasClaim("IsAdmin", "1")
+            ? await workflow.GetInstanceForAdminAsync(id)
+            : await workflow.GetInstanceAsync(id, employeeId);
         if (instance is null) return NotFound();
 
         ViewBag.History = await workflow.GetHistoryAsync(id);

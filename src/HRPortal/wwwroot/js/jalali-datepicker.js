@@ -37,6 +37,12 @@ document.querySelectorAll("input").forEach(input=>{
    wrapper.appendChild(trigger);
   }
  }
+ const activeTrigger=wrapper.querySelector("[data-jalali-trigger]");
+ if(activeTrigger){
+  [...wrapper.querySelectorAll("button")].forEach(button=>{
+   if(button!==activeTrigger&&button.textContent.trim()==="تقویم")button.remove();
+  });
+ }
 });
 document.querySelectorAll("[data-jalali-date]").forEach(input=>{
  const trigger=input.parentElement.querySelector("[data-jalali-trigger]");

@@ -26,13 +26,13 @@ public class WorkflowController(
     [Authorize(Policy = "Workflow.Inbox")]
     public async Task<IActionResult> MyRequests()
     {
-        if (!int.TryParse(User.FindFirst("EmployeeId")?.Value, out var employeeId))
-            return View(new List<WorkflowInboxRow>());
-
         var isAdmin = User.HasClaim("IsAdmin", "1");
         ViewBag.IsAdminRequests = isAdmin;
         if (isAdmin)
             return View(await workflow.GetAllRequestsAsync());
+
+        if (!int.TryParse(User.FindFirst("EmployeeId")?.Value, out var employeeId))
+            return Forbid();
 
         return View(await workflow.GetMyRequestsAsync(employeeId));
     }

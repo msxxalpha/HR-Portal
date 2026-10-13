@@ -246,7 +246,7 @@ public class OrganizationController(
         if (node.Revision.IsFinalized)
             return Json(new { success = false, message = "نسخه نهایی قابل ویرایش نیست." });
 
-        var nodeIsUsed = await IsNodeUsedAsync(id);
+        var nodeIsUsed = await IsNodeUsedAsync(id) || node.PositionHolderEmployeeId.HasValue;
         if (nodeIsUsed && !string.Equals(node.Code, code?.Trim(), StringComparison.Ordinal))
             return Json(new { success = false, message = "کد گره‌ای که در کارکنان یا گردش‌های کاری استفاده شده قابل تغییر نیست؛ برای تغییر رده، عنوان یا توضیحات نیازی به تغییر کد نیست." });
         if (nodeIsUsed && node.IsActive && !isActive)
@@ -348,6 +348,9 @@ public class OrganizationController(
 
         if (node.Revision.IsFinalized)
             return Json(new { success = false, message = "نسخه نهایی قابل حذف نیست." });
+
+        if (node.PositionHolderEmployeeId.HasValue)
+            return Json(new { success = false, message = "ابتدا متصدی این جایگاه را حذف یا به جایگاه دیگری منتقل کنید." });
 
         if (await IsNodeUsedAsync(id))
             return Json(new { success = false, message = "این گره در اطلاعات کارکنان استفاده شده است." });

@@ -1073,8 +1073,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         if (isRuntimeDefinition)
         {
             // Runtime definitions are created for one request and must keep the exact
-            // position/node snapshot chosen when that request started. Never remap these
-            // stages to a newer organization revision while the request is in progress.
+            // node, designated holder, and reporting-line snapshot chosen when the request
+            // started. Never remap these stages to a newer organization revision in flight.
             position = configuredPosition;
             if (!position.IsActive)
                 throw new InvalidOperationException($"جایگاه ثبت‌شده در مسیر درخواست «{position.Title}» فعال نیست؛ برای ادامه باید مسئول مربوطه مسیر را بررسی کند.");

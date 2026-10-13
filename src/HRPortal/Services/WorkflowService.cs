@@ -883,6 +883,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         var query = db.WorkflowInstances
             .AsNoTracking()
             .Include(x => x.WorkflowDefinition)
+            .Include(x => x.RequesterEmployee)
             .Include(x => x.CurrentStep).ThenInclude(x => x!.OrganizationNode)
             .AsQueryable();
         if (requesterEmployeeId.HasValue)
@@ -895,6 +896,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 WorkflowTitle = x.WorkflowDefinition.Title,
                 EntityType = x.EntityType,
                 EntityId = x.EntityId,
+                RequesterName = x.RequesterEmployee.FirstName + " " + x.RequesterEmployee.LastName,
+                RequesterPersonnelNumber = x.RequesterEmployee.PersonnelNumber,
                 StepTitle = x.CurrentStep == null ? "پایان گردش" : x.CurrentStep.Title,
                 PositionTitle = x.CurrentStep == null || x.CurrentStep.OrganizationNode == null ? "" : x.CurrentStep.OrganizationNode.Title,
                 Status = x.Status,

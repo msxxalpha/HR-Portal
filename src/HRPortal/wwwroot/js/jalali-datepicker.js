@@ -25,9 +25,17 @@ document.querySelectorAll("input").forEach(input=>{
  }
  let trigger=wrapper.querySelector("[data-jalali-trigger]");
  if(!trigger){
-  trigger=document.createElement("button");trigger.type="button";trigger.className="btn btn-outline jalali-date-open";
-  trigger.setAttribute("data-jalali-trigger","");trigger.textContent="تقویم";trigger.setAttribute("aria-label","باز کردن تقویم شمسی");
-  wrapper.appendChild(trigger);
+  const existing=[...wrapper.querySelectorAll("button")].filter(b=>b.textContent.trim()==="تقویم");
+  if(existing.length){
+   trigger=existing[0];
+   existing.slice(1).forEach(b=>b.remove());
+   trigger.setAttribute("data-jalali-trigger","");
+   trigger.setAttribute("aria-label","باز کردن تقویم شمسی");
+  } else {
+   trigger=document.createElement("button");trigger.type="button";trigger.className="btn btn-outline jalali-date-open";
+   trigger.setAttribute("data-jalali-trigger","");trigger.textContent="تقویم";trigger.setAttribute("aria-label","باز کردن تقویم شمسی");
+   wrapper.appendChild(trigger);
+  }
  }
 });
 document.querySelectorAll("[data-jalali-date]").forEach(input=>{

@@ -1080,6 +1080,24 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             ?? throw new InvalidOperationException($"جایگاه «{configuredPosition.Title}» در نسخه فعال ساختار سازمانی یافت نشد.");
 
         var positionId = position.Id;
+        if (position.PositionHolderEmployeeId.HasValue)
+        {
+            var holderIsActive = await db.Employees.AsNoTracking()
+                .AnyAsync(e => e.Id == position.PositionHolderEmployeeId.Value && e.Status == "فعال", cancellationToken);
+            if (!holderIsActive)
+                throw new InvalidOperationException($"متصدی جایگاه «{position.Title}» فعال نیست؛ متصدی فعال دیگری تعیین کنید.");
+
+            db.WorkflowTasks.Add(new WorkflowTask
+            {
+                WorkflowInstanceId = instance.Id,
+                WorkflowStepId = step.Id,
+                AssignedPositionId = positionId,
+                AssignedEmployeeId = position.PositionHolderEmployeeId.Value
+            });
+            await db.SaveChangesAsync(cancellationToken);
+            return;
+        }
+
         var employees = await db.Employees
             .AsNoTracking()
             .Where(e => e.Status == "فعال" &&

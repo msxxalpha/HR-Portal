@@ -855,7 +855,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .Select(x => new WorkflowInboxRow
             {
                 TaskId = db.WorkflowTasks
-                    .Where(t => t.WorkflowInstanceId == x.WorkflowInstanceId && t.WorkflowStepId == x.WorkflowStepId)
+                    .Where(t => t.WorkflowInstanceId == x.WorkflowInstanceId && t.WorkflowStepId == x.WorkflowStepId && t.Status != "Pending" && t.Action == x.Action)
                     .OrderByDescending(t => t.Id).Select(t => t.Id).FirstOrDefault(),
                 WorkflowInstanceId = x.WorkflowInstanceId,
                 WorkflowTitle = x.WorkflowInstance.WorkflowDefinition.Title,

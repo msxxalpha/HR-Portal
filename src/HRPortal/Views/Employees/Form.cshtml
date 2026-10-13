@@ -171,17 +171,6 @@
 @section Scripts {
 <script>
 (function(){
-    const nonContractual = document.getElementById('isNonContractual');
-    const contractEndDate = document.getElementById('contractEndDatePersian');
-    function syncEmploymentType() {
-        const isNonContract = nonContractual.checked;
-        contractEndDate.disabled = isNonContract;
-        if (isNonContract) contractEndDate.value = '';
-        else if (!contractEndDate.value) contractEndDate.value = '۱۴۰۵/۱۲/۲۹';
-    }
-    nonContractual.addEventListener('change', syncEmploymentType);
-    syncEmploymentType();
-
     const positionFilter = document.getElementById('positionFilter');
     const positionSelect = document.getElementById('positionSelect');
     positionFilter.addEventListener('input', function () {
@@ -324,7 +313,7 @@
         popup.style.left = Math.max(8, Math.min(window.innerWidth - popup.offsetWidth - 8, r.left)) + 'px';
     }
     function render() {
-        title.textContent = monthNames[shownMonth - 1] + ' ' + numberFa.format(shownYear);
+        title.textContent = monthNames[shownMonth - 1] + ' ' + persianNumber.format(shownYear);
         daysHost.replaceChildren();
         const first = monthStart(shownYear, shownMonth);
         const offset = (first.getUTCDay() + 1) % 7; // Persian week begins Saturday.

@@ -170,6 +170,12 @@
                     <label>ترتیب نمایش
                         <input id="nodeSortOrder" type="number" value="0" />
                     </label>
+                    <label class="wide">متصدی / مسئول این جایگاه
+                        <select id="nodePositionHolder">
+                            <option value="">بدون متصدی مشخص‌شده</option>
+                        </select>
+                        <small class="muted">برای ارزشیابی تمدید قرارداد، متصدی هر جایگاه از این فهرست مشخص می‌شود؛ مسیر به‌صورت خودکار تمام والدها را تا پیش از مدیرعامل طی می‌کند.</small>
+                    </label>
                     <label class="inline-check">فعال
                         <input id="nodeActive" type="checkbox" checked />
                     </label>
@@ -202,6 +208,7 @@
     const companyName = "@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(companyName))";
     const nodes = @Html.Raw(treeJson);
     const organizationRanks = @Html.Raw((string?)ViewBag.OrganizationRankJson ?? "[]");
+    const positionHolderEmployees = @Html.Raw((string?)ViewBag.PositionHolderEmployeesJson ?? "[]");
     const treeHost = document.getElementById("organizationTree");
 
     if (!revisionId || !treeHost) return;
@@ -452,6 +459,19 @@
         document.getElementById("nodeSortOrder").value = isEdit ? Number(node.sortOrder || 0) : 0;
         document.getElementById("nodeActive").checked = isEdit ? !!node.isActive : true;
         document.getElementById("nodeNotes").value = isEdit ? (node.notes || "") : "";
+        const holderSelect = document.getElementById("nodePositionHolder");
+        holderSelect.innerHTML = "";
+        const noHolder = document.createElement("option");
+        noHolder.value = "";
+        noHolder.textContent = "بدون متصدی مشخص‌شده";
+        holderSelect.appendChild(noHolder);
+        positionHolderEmployees.forEach(function (employee) {
+            const option = document.createElement("option");
+            option.value = String(employee.id);
+            option.textContent = employee.name + " (" + employee.personnelNumber + ")";
+            if (isEdit && Number(node.positionHolderEmployeeId || 0) === Number(employee.id)) option.selected = true;
+            holderSelect.appendChild(option);
+        });
 
         const ranks = organizationRanks;
         const select = document.getElementById("nodeRank");
@@ -526,7 +546,8 @@
             rankType: document.getElementById("nodeRank").value,
             sortOrder: Number(document.getElementById("nodeSortOrder").value || 0),
             isActive: document.getElementById("nodeActive").checked ? "true" : "false",
-            notes: document.getElementById("nodeNotes").value
+            notes: document.getElementById("nodeNotes").value,
+            positionHolderEmployeeId: document.getElementById("nodePositionHolder").value
         };
 
         if (mode === "edit") {

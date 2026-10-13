@@ -330,7 +330,6 @@
         const offset = (first.getUTCDay() + 1) % 7; // Persian week begins Saturday.
         const today = new Date();
         const todayParts = persianParts(new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())));
-        const count = Math.round((monthStart(shownYear, shownMonth === 12 ? 1 : shownMonth + 1 + (shownMonth === 12 ? 0 : 0)).getTime() - first.getTime()) / 86400000);
         // Month 12's next month belongs to the next Persian year.
         const nextStart = shownMonth === 12 ? monthStart(shownYear + 1, 1) : monthStart(shownYear, shownMonth + 1);
         const daysInMonth = Math.round((nextStart.getTime() - first.getTime()) / 86400000);

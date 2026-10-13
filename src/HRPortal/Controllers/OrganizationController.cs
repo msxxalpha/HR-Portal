@@ -84,8 +84,8 @@ public class OrganizationController(
                 id = "node-" + n.Id,
                 parent = n.ParentId.HasValue ? "node-" + n.ParentId.Value : "root",
                 text = n.Title + "  [" + n.RankType + "]" +
-                    (n.PositionHolderEmployeeId.HasValue && activeEmployeeNames.TryGetValue(n.PositionHolderEmployeeId.Value, out var holderName)
-                        ? " — متصدی: " + holderName
+                    (n.PositionHolderEmployeeId.HasValue && activeEmployeeNames.ContainsKey(n.PositionHolderEmployeeId.Value)
+                        ? " — متصدی: " + activeEmployeeNames[n.PositionHolderEmployeeId.Value]
                         : ""),
                 data = new
                 {

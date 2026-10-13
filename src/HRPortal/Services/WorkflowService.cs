@@ -841,6 +841,38 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .ToListAsync();
     }
 
+    public async Task<List<WorkflowInboxRow>> GetMyActionHistoryAsync(int employeeId)
+    {
+        return await db.WorkflowHistory
+            .AsNoTracking()
+            .Include(x => x.WorkflowInstance).ThenInclude(x => x.WorkflowDefinition)
+            .Include(x => x.WorkflowInstance).ThenInclude(x => x.RequesterEmployee)
+            .Include(x => x.WorkflowStep).ThenInclude(x => x!.OrganizationNode)
+            .Where(x => x.ActorEmployeeId == employeeId &&
+                        x.Action != "SaveDraft" &&
+                        x.WorkflowStepId != null)
+            .OrderByDescending(x => x.CreatedAt)
+            .Select(x => new WorkflowInboxRow
+            {
+                TaskId = db.WorkflowTasks
+                    .Where(t => t.WorkflowInstanceId == x.WorkflowInstanceId && t.WorkflowStepId == x.WorkflowStepId)
+                    .OrderByDescending(t => t.Id).Select(t => t.Id).FirstOrDefault(),
+                WorkflowInstanceId = x.WorkflowInstanceId,
+                WorkflowTitle = x.WorkflowInstance.WorkflowDefinition.Title,
+                EntityType = x.WorkflowInstance.EntityType,
+                EntityId = x.WorkflowInstance.EntityId,
+                RequesterName = x.WorkflowInstance.RequesterEmployee.FirstName + " " + x.WorkflowInstance.RequesterEmployee.LastName,
+                RequesterPersonnelNumber = x.WorkflowInstance.RequesterEmployee.PersonnelNumber,
+                StepTitle = x.WorkflowStep!.Title,
+                PositionTitle = x.ActorPosition == null ? "" : x.ActorPosition.Title,
+                Status = x.ToStatus,
+                CreatedAt = x.CreatedAt,
+                Comment = x.Comment,
+                Action = x.Action
+            })
+            .ToListAsync();
+    }
+
     public async Task<List<WorkflowInboxRow>> GetMyRequestsAsync(int employeeId)
     {
         return await db.WorkflowInstances

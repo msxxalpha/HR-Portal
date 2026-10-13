@@ -1064,20 +1064,38 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .FirstOrDefaultAsync(x => x.Id == step.OrganizationNodeId.Value, cancellationToken)
             ?? throw new InvalidOperationException($"جایگاه تنظیم‌شده برای مرحله «{step.Title}» یافت نشد.");
 
-        var currentRevision = await db.OrganizationStructureRevisions
-            .AsNoTracking()
-            .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
-            .OrderByDescending(x => x.EffectiveDate)
-            .ThenByDescending(x => x.Id)
-            .FirstOrDefaultAsync(cancellationToken)
-            ?? throw new InvalidOperationException("نسخه نهایی فعال ساختار سازمانی یافت نشد.");
+        var isRuntimeDefinition = await db.WorkflowDefinitions.AsNoTracking()
+            .Where(x => x.Id == instance.WorkflowDefinitionId)
+            .Select(x => x.IsRuntimeInstance)
+            .SingleAsync(cancellationToken);
 
-        var position = await db.OrganizationNodes
-            .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.OrganizationStructureRevisionId == currentRevision.Id &&
-                                       x.Code == configuredPosition.Code &&
-                                       x.IsActive, cancellationToken)
-            ?? throw new InvalidOperationException($"جایگاه «{configuredPosition.Title}» در نسخه فعال ساختار سازمانی یافت نشد.");
+        OrganizationNode position;
+        if (isRuntimeDefinition)
+        {
+            // Runtime definitions are created for one request and must keep the exact
+            // position/node snapshot chosen when that request started. Never remap these
+            // stages to a newer organization revision while the request is in progress.
+            position = configuredPosition;
+            if (!position.IsActive)
+                throw new InvalidOperationException($"جایگاه ثبت‌شده در مسیر درخواست «{position.Title}» فعال نیست؛ برای ادامه باید مسئول مربوطه مسیر را بررسی کند.");
+        }
+        else
+        {
+            var currentRevision = await db.OrganizationStructureRevisions
+                .AsNoTracking()
+                .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
+                .OrderByDescending(x => x.EffectiveDate)
+                .ThenByDescending(x => x.Id)
+                .FirstOrDefaultAsync(cancellationToken)
+                ?? throw new InvalidOperationException("نسخه نهایی فعال ساختار سازمانی یافت نشد.");
+
+            position = await db.OrganizationNodes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.OrganizationStructureRevisionId == currentRevision.Id &&
+                                           x.Code == configuredPosition.Code &&
+                                           x.IsActive, cancellationToken)
+                ?? throw new InvalidOperationException($"جایگاه «{configuredPosition.Title}» در نسخه فعال ساختار سازمانی یافت نشد.");
+        }
 
         var positionId = position.Id;
         if (position.PositionHolderEmployeeId.HasValue)

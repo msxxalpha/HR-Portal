@@ -61,6 +61,7 @@ public class OrganizationController(
             .Select(x => new { id = x.Id, name = x.FirstName + " " + x.LastName, personnelNumber = x.PersonnelNumber })
             .ToListAsync();
         ViewBag.PositionHolderEmployeesJson = JsonSerializer.Serialize(activeEmployees);
+        var activeEmployeeNames = activeEmployees.ToDictionary(x => x.id, x => x.name);
         ViewBag.Revisions = revisions;
         ViewBag.IsEditable = revision is not null && !revision.IsFinalized && canEditStructure;
         ViewBag.CanCreate = User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Organization.Create");
@@ -82,7 +83,10 @@ public class OrganizationController(
             {
                 id = "node-" + n.Id,
                 parent = n.ParentId.HasValue ? "node-" + n.ParentId.Value : "root",
-                text = n.Title + "  [" + n.RankType + "]",
+                text = n.Title + "  [" + n.RankType + "]" +
+                    (n.PositionHolderEmployeeId.HasValue && activeEmployeeNames.TryGetValue(n.PositionHolderEmployeeId.Value, out var holderName)
+                        ? " — متصدی: " + holderName
+                        : ""),
                 data = new
                 {
                     id = n.Id,

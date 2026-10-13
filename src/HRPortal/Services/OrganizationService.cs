@@ -91,7 +91,8 @@ public class OrganizationService(HRPortalDbContext db, AuditService audit)
             RankType = oldNode.RankType,
             SortOrder = oldNode.SortOrder,
             IsActive = oldNode.IsActive,
-            Notes = oldNode.Notes
+            Notes = oldNode.Notes,
+            PositionHolderEmployeeId = oldNode.PositionHolderEmployeeId
         };
 
         db.OrganizationNodes.Add(clone);

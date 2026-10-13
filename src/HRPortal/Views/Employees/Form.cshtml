@@ -224,6 +224,18 @@
         filterChildren(department, section);
     });
 
+    const nonContractual = document.getElementById('isNonContractual');
+    const contractDate = document.getElementById('contractEndDatePersian');
+    const contractDateButton = document.getElementById('contractDatePickerButton');
+    function updateContractDateAvailability() {
+        const disabled = nonContractual.checked;
+        contractDate.disabled = disabled;
+        contractDateButton.disabled = disabled;
+        if (disabled) contractDate.value = '';
+    }
+    nonContractual.addEventListener('change', updateContractDateAvailability);
+    updateContractDateAvailability();
+
     refresh();
 })();
 </script>

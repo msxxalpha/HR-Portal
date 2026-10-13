@@ -15,4 +15,5 @@ public class WorkflowInboxRow
     public DateTime CreatedAt { get; set; }
     public string? Comment { get; set; }
     public string Action { get; set; } = "";
+    public bool CanDelete { get; set; }
 }

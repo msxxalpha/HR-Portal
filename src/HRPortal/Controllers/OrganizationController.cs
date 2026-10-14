@@ -360,8 +360,8 @@ public class OrganizationController(
         if (node.Revision.IsFinalized)
             return Json(new { success = false, message = "نسخه نهایی قابل حذف نیست." });
 
-        if (node.PositionHolderEmployeeId.HasValue)
-            return Json(new { success = false, message = "ابتدا متصدی این جایگاه را حذف یا به جایگاه دیگری منتقل کنید." });
+        if (node.PositionHolderEmployeeId.HasValue || !string.IsNullOrWhiteSpace(node.AssignedEmployeeIdsCsv))
+            return Json(new { success = false, message = "ابتدا تمام انتساب‌های کارکنان این جایگاه را حذف یا به جایگاه دیگری منتقل کنید." });
 
         if (await IsNodeUsedAsync(id))
             return Json(new { success = false, message = "این گره در اطلاعات کارکنان استفاده شده است." });

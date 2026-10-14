@@ -171,7 +171,7 @@ public sealed class ContractRenewalPdfService
                 var path = Path.Combine(fontsDirectory, font);
                 if (!File.Exists(path)) continue;
                 using var stream = File.OpenRead(path);
-                FontManager.RegisterFontFromStream(stream);
+                FontManager.RegisterFont(stream);
                 _fontRegistered = true;
                 return;
             }

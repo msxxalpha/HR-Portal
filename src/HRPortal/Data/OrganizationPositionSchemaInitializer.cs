@@ -7,6 +7,8 @@ public static class OrganizationPositionSchemaInitializer
     public static async Task InitializeAsync(HRPortalDbContext db)
     {
         const string sql = @"
+IF COL_LENGTH(N'dbo.OrganizationNodes', N'AssignedEmployeeIdsCsv') IS NULL
+    ALTER TABLE dbo.OrganizationNodes ADD AssignedEmployeeIdsCsv nvarchar(max) NULL;
 IF OBJECT_ID(N'dbo.OrganizationPositionDefinitions', N'U') IS NULL
 BEGIN
     CREATE TABLE [dbo].[OrganizationPositionDefinitions](

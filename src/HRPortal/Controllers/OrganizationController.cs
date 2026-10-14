@@ -76,13 +76,15 @@ public class OrganizationController(
                 .ThenBy(x => x.Title)
                 .ToListAsync();
 
+            var assignedIdsByNode = nodes.ToDictionary(n => n.Id,
+                n => ParseEmployeeIds(n.AssignedEmployeeIdsCsv, n.PositionHolderEmployeeId));
             var tree = nodes.Select(n => new
             {
                 id = "node-" + n.Id,
                 parent = n.ParentId.HasValue ? "node-" + n.ParentId.Value : "root",
                 text = n.Title + "  [" + n.RankType + "]" +
-                    (n.PositionHolderEmployeeId.HasValue && activeEmployeeNames.ContainsKey(n.PositionHolderEmployeeId.Value)
-                        ? " — متصدی: " + activeEmployeeNames[n.PositionHolderEmployeeId.Value]
+                    (assignedIdsByNode[n.Id].Any(id => activeEmployeeNames.ContainsKey(id))
+                        ? " — متصدیان: " + string.Join("، ", assignedIdsByNode[n.Id].Where(activeEmployeeNames.ContainsKey).Select(id => activeEmployeeNames[id]))
                         : ""),
                 data = new
                 {
@@ -94,6 +96,7 @@ public class OrganizationController(
                     isActive = n.IsActive,
                     notes = n.Notes,
                     positionHolderEmployeeId = n.PositionHolderEmployeeId,
+                    assignedEmployeeIds = assignedIdsByNode[n.Id],
                     parentId = n.ParentId,
                     revisionId = n.OrganizationStructureRevisionId
                 },
@@ -149,7 +152,8 @@ public class OrganizationController(
         int sortOrder = 0,
         bool isActive = true,
         string? notes = null,
-        int? positionHolderEmployeeId = null)
+        int? positionHolderEmployeeId = null,
+        string? assignedEmployeeIdsCsv = null)
     {
         var result = await EnsureEditableRevision(revisionId);
         if (result is not null)
@@ -158,9 +162,10 @@ public class OrganizationController(
         var validation = await ValidateNodeParentAsync(revisionId, parentId, rankType);
         if (validation is not null)
             return Json(new { success = false, message = validation });
-        var holderValidation = await ValidatePositionHolderAsync(revisionId, positionHolderEmployeeId, null);
-        if (holderValidation is not null)
-            return Json(new { success = false, message = holderValidation });
+        var assignedEmployeeIds = ParseEmployeeIds(assignedEmployeeIdsCsv, positionHolderEmployeeId);
+        var assignmentValidation = await ValidateAssignedEmployeesAsync(revisionId, assignedEmployeeIds, null);
+        if (assignmentValidation is not null)
+            return Json(new { success = false, message = assignmentValidation });
 
         if (rankType == "مدیرعامل" &&
             await db.OrganizationNodes.AnyAsync(x => x.OrganizationStructureRevisionId == revisionId && x.RankType == "مدیرعامل"))
@@ -194,7 +199,8 @@ public class OrganizationController(
             SortOrder = sortOrder,
             IsActive = isActive,
             Notes = notes?.Trim(),
-            PositionHolderEmployeeId = positionHolderEmployeeId
+            PositionHolderEmployeeId = assignedEmployeeIds.Count == 1 ? assignedEmployeeIds[0] : null,
+            AssignedEmployeeIdsCsv = assignedEmployeeIds.Count == 0 ? null : string.Join(",", assignedEmployeeIds)
         };
 
         db.OrganizationNodes.Add(node);
@@ -221,7 +227,8 @@ public class OrganizationController(
                 sortOrder = node.SortOrder,
                 isActive = node.IsActive,
                 notes = node.Notes,
-                positionHolderEmployeeId = node.PositionHolderEmployeeId
+                positionHolderEmployeeId = node.PositionHolderEmployeeId,
+                assignedEmployeeIds
             }
         });
     }
@@ -235,7 +242,8 @@ public class OrganizationController(
         int sortOrder,
         bool isActive,
         string? notes,
-        int? positionHolderEmployeeId = null)
+        int? positionHolderEmployeeId = null,
+        string? assignedEmployeeIdsCsv = null)
     {
         var node = await db.OrganizationNodes
             .Include(x => x.Revision)
@@ -247,7 +255,7 @@ public class OrganizationController(
         if (node.Revision.IsFinalized)
             return Json(new { success = false, message = "نسخه نهایی قابل ویرایش نیست." });
 
-        var nodeIsUsed = await IsNodeUsedAsync(id) || node.PositionHolderEmployeeId.HasValue;
+        var nodeIsUsed = await IsNodeUsedAsync(id) || node.PositionHolderEmployeeId.HasValue || !string.IsNullOrWhiteSpace(node.AssignedEmployeeIdsCsv);
         if (nodeIsUsed && !string.Equals(node.Code, code?.Trim(), StringComparison.Ordinal))
             return Json(new { success = false, message = "کد گره‌ای که در کارکنان یا گردش‌های کاری استفاده شده قابل تغییر نیست؛ برای تغییر رده، عنوان یا توضیحات نیازی به تغییر کد نیست." });
         if (nodeIsUsed && node.IsActive && !isActive)
@@ -256,9 +264,10 @@ public class OrganizationController(
         var validation = await ValidateNodeParentAsync(node.OrganizationStructureRevisionId, node.ParentId, rankType);
         if (validation is not null)
             return Json(new { success = false, message = validation });
-        var holderValidation = await ValidatePositionHolderAsync(node.OrganizationStructureRevisionId, positionHolderEmployeeId, node.Id);
-        if (holderValidation is not null)
-            return Json(new { success = false, message = holderValidation });
+        var assignedEmployeeIds = ParseEmployeeIds(assignedEmployeeIdsCsv, positionHolderEmployeeId);
+        var assignmentValidation = await ValidateAssignedEmployeesAsync(node.OrganizationStructureRevisionId, assignedEmployeeIds, node.Id);
+        if (assignmentValidation is not null)
+            return Json(new { success = false, message = assignmentValidation });
 
         if (rankType == "مدیرعامل" &&
             await db.OrganizationNodes.AnyAsync(x => x.Id != id && x.OrganizationStructureRevisionId == node.OrganizationStructureRevisionId && x.RankType == "مدیرعامل"))
@@ -276,7 +285,8 @@ public class OrganizationController(
         node.SortOrder = sortOrder;
         node.IsActive = isActive;
         node.Notes = notes?.Trim();
-        node.PositionHolderEmployeeId = positionHolderEmployeeId;
+        node.PositionHolderEmployeeId = assignedEmployeeIds.Count == 1 ? assignedEmployeeIds[0] : null;
+        node.AssignedEmployeeIdsCsv = assignedEmployeeIds.Count == 0 ? null : string.Join(",", assignedEmployeeIds);
 
         db.OrganizationChanges.Add(new OrganizationChange
         {
@@ -459,6 +469,33 @@ public class OrganizationController(
         }
 
         return RedirectToAction(nameof(Index), new { revisionId });
+    }
+
+    private static List<int> ParseEmployeeIds(string? csv, int? legacyEmployeeId)
+    {
+        var ids = (csv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(value => int.TryParse(value, out var id) ? id : 0)
+            .Where(id => id > 0).Distinct().ToList();
+        if (ids.Count == 0 && legacyEmployeeId.HasValue) ids.Add(legacyEmployeeId.Value);
+        return ids;
+    }
+
+    private async Task<string?> ValidateAssignedEmployeesAsync(int revisionId, List<int> employeeIds, int? currentNodeId)
+    {
+        if (employeeIds.Count == 0) return null;
+        var activeIds = await db.Employees.AsNoTracking()
+            .Where(x => x.Status == "فعال" && employeeIds.Contains(x.Id))
+            .Select(x => x.Id).ToListAsync();
+        if (activeIds.Count != employeeIds.Count)
+            return "تمام کارکنان منتسب‌شده باید فعال و معتبر باشند.";
+
+        var otherNodes = await db.OrganizationNodes.AsNoTracking()
+            .Where(x => x.OrganizationStructureRevisionId == revisionId && (!currentNodeId.HasValue || x.Id != currentNodeId.Value))
+            .Select(x => new { x.PositionHolderEmployeeId, x.AssignedEmployeeIdsCsv }).ToListAsync();
+        var alreadyAssigned = otherNodes.SelectMany(x => ParseEmployeeIds(x.AssignedEmployeeIdsCsv, x.PositionHolderEmployeeId)).ToHashSet();
+        if (employeeIds.Any(alreadyAssigned.Contains))
+            return "هر کارمند در هر نسخه ساختار سازمانی فقط می‌تواند به یک جایگاه منتسب شود.";
+        return null;
     }
 
     private async Task<string?> ValidatePositionHolderAsync(int revisionId, int? employeeId, int? currentNodeId)

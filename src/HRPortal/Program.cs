@@ -3,6 +3,9 @@ using HRPortal.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using QuestPDF.Infrastructure;
+
+QuestPDF.Settings.License = LicenseType.Professional;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -73,6 +76,7 @@ builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<RoleService>();
 builder.Services.AddScoped<WorkflowService>();
 builder.Services.AddScoped<ContractRenewalWorkflowService>();
+builder.Services.AddScoped<ContractRenewalPdfService>();
 builder.Services.AddScoped<ISmsService, ConfigurableSmsService>();
 
 builder.Services

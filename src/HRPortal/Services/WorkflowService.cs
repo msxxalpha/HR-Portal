@@ -675,6 +675,17 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         return runtime;
     }
 
+    private static List<int> GetAssignedEmployeeIds(OrganizationNode position)
+    {
+        var ids = (position.AssignedEmployeeIdsCsv ?? "")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(value => int.TryParse(value, out var id) ? id : 0)
+            .Where(id => id > 0).Distinct().ToList();
+        if (ids.Count == 0 && position.PositionHolderEmployeeId.HasValue)
+            ids.Add(position.PositionHolderEmployeeId.Value);
+        return ids;
+    }
+
     private async Task<List<OrganizationNode>> BuildHierarchyRouteAsync(
         int subjectEmployeeId, string stopRankType, CancellationToken cancellationToken)
     {
@@ -722,9 +733,10 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         // Employees who belong to a department often share its node with its president.
         // If that node has a different designated holder, the holder is the direct reviewer
         // and must be included. If the subject is the holder, skip their own position.
+        var currentAssignedEmployeeIds = GetAssignedEmployeeIds(current);
         if (!(stopRankType == "مدیرعامل" && current.RankType == "مدیرعامل") &&
-            current.PositionHolderEmployeeId.HasValue &&
-            current.PositionHolderEmployeeId.Value != subjectEmployeeId)
+            currentAssignedEmployeeIds.Count > 0 &&
+            !currentAssignedEmployeeIds.Contains(subjectEmployeeId))
         {
             route.Add(current);
         }
@@ -768,9 +780,10 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         // back to every employee in the department would send evaluation tasks to peers.
         foreach (var position in route)
         {
-            if (!position.PositionHolderEmployeeId.HasValue ||
-                !await db.Employees.AnyAsync(x => x.Id == position.PositionHolderEmployeeId.Value && x.Status == "فعال", cancellationToken))
-                throw new InvalidOperationException($"برای جایگاه «{position.Title}» متصدی فعال تعیین نشده است. در مدیریت ساختار سازمانی، متصدی جایگاه را مشخص کنید.");
+            var assignedEmployeeIds = GetAssignedEmployeeIds(position);
+            if (assignedEmployeeIds.Count == 0 ||
+                !await db.Employees.AnyAsync(x => assignedEmployeeIds.Contains(x.Id) && x.Status == "فعال", cancellationToken))
+                throw new InvalidOperationException($"برای جایگاه «{position.Title}» دست‌کم یک کارمند منتسب و فعال تعیین نشده است. در مدیریت ساختار سازمانی، انتساب کارکنان را بررسی کنید.");
         }
 
         return route;
@@ -1008,12 +1021,21 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .Include(x => x.AssignedPosition)
             .FirstOrDefaultAsync(x => x.Id == id && x.Status == "Pending" &&
                 (x.AssignedEmployeeId == employeeId ||
-                 (x.AssignedEmployeeId == null && x.AssignedPositionId.HasValue &&
-                  db.Employees.Any(e => e.Id == employeeId && e.Status == "فعال" &&
-                      (e.OrganizationUnitId == x.AssignedPositionId ||
-                       e.OrganizationDepartmentId == x.AssignedPositionId ||
-                       e.OrganizationSectionId == x.AssignedPositionId ||
-                       e.OrganizationPositionId == x.AssignedPositionId)))));
+                 (x.AssignedEmployeeId == null && x.AssignedPositionId.HasValue)));
+        if (task is not null && !task.AssignedEmployeeId.HasValue)
+        {
+            var position = task.AssignedPosition;
+            var isLegacyMember = await db.Employees.AnyAsync(e => e.Id == employeeId && e.Status == "فعال" &&
+                (e.OrganizationUnitId == task.AssignedPositionId ||
+                 e.OrganizationDepartmentId == task.AssignedPositionId ||
+                 e.OrganizationSectionId == task.AssignedPositionId ||
+                 e.OrganizationPositionId == task.AssignedPositionId));
+            var isExplicitlyAssigned = position is not null &&
+                GetAssignedEmployeeIds(position).Contains(employeeId) &&
+                await db.Employees.AnyAsync(e => e.Id == employeeId && e.Status == "فعال");
+            if (!isLegacyMember && !isExplicitlyAssigned)
+                return null;
+        }
         if (task is not null && !task.ClaimedAt.HasValue)
         {
             task.ClaimedAt = DateTime.UtcNow;
@@ -1234,6 +1256,24 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         }
 
         var positionId = position.Id;
+        var assignedEmployeeIds = GetAssignedEmployeeIds(position);
+        if (assignedEmployeeIds.Count > 1)
+        {
+            if (!await db.Employees.AnyAsync(e => assignedEmployeeIds.Contains(e.Id) && e.Status == "فعال", cancellationToken))
+                throw new InvalidOperationException($"برای جایگاه «{position.Title}» هیچ کارمند منتسب فعالی وجود ندارد.");
+            // One position task is shared by its assigned employees; the first authorized
+            // employee to complete it advances the workflow, without duplicate pending tasks.
+            db.WorkflowTasks.Add(new WorkflowTask
+            {
+                WorkflowInstanceId = instance.Id,
+                WorkflowStepId = step.Id,
+                AssignedPositionId = positionId,
+                AssignedEmployeeId = null
+            });
+            await db.SaveChangesAsync(cancellationToken);
+            return;
+        }
+
         if (position.PositionHolderEmployeeId.HasValue)
         {
             var holderIsActive = await db.Employees.AsNoTracking()

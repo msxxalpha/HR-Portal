@@ -46,7 +46,7 @@ public sealed class ContractRenewalPdfService
                         ("وضعیت درخواست", request.Status),
                         ("تاریخ ثبت", FormatDate(request.CreatedAt)),
                         ("تاریخ تکمیل", request.CompletedAt.HasValue ? FormatDate(request.CompletedAt.Value) : "—"),
-                        ("پایان قرارداد قبلی", request.PreviousContractEndDate?.ToString("yyyy/MM/dd") ?? "—"),
+                        ("پایان قرارداد قبلی", request.PreviousContractEndDate.HasValue ? PersianDateService.Format(request.PreviousContractEndDate.Value) : "—"),
                         ("تمدیدهای قبلی", $"{request.PreviousExtensionMonths1}، {request.PreviousExtensionMonths2}، {request.PreviousExtensionMonths3} ماه"),
                         ("امتیاز دوره قبلی اول", request.PreviousPeriodScore1.ToString("0.##")),
                         ("امتیاز دوره قبلی دوم", request.PreviousPeriodScore2.ToString("0.##"))
@@ -164,7 +164,7 @@ public sealed class ContractRenewalPdfService
             throw new InvalidOperationException("فونت فارسی محلی Tahoma یا Arial در پوشه فونت‌های سرور یافت نشد؛ برای تولید PDF باید فونت مناسب روی سرور نصب باشد.");
     }
 
-    private static string FormatDate(DateTime value) => value.ToLocalTime().ToString("yyyy/MM/dd HH:mm");
+    private static string FormatDate(DateTime value) => PersianDateService.Format(value.ToLocalTime()) + " " + value.ToLocalTime().ToString("HH:mm");
 
     private static void SectionTitle(IContainer container, string title)
     {

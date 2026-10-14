@@ -146,11 +146,11 @@ public sealed class ContractRenewalPdfService
                     row.RelativeItem().AlignRight().Text($"گزارش سیستمی | {DateTime.Now:yyyy/MM/dd HH:mm}").FontSize(8).FontColor(Colors.Grey.Darken1);
                     row.RelativeItem().AlignLeft().Text(text =>
                     {
-                        text.Span("صفحه ");
+                        text.Span("صفحه ").FontSize(8).FontColor(Colors.Grey.Darken1);
                         text.CurrentPageNumber();
-                        text.Span(" از ");
+                        text.Span(" از ").FontSize(8).FontColor(Colors.Grey.Darken1);
                         text.TotalPages();
-                    }).FontSize(8).FontColor(Colors.Grey.Darken1);
+                    });
                 });
             });
         }).GeneratePdf();

@@ -276,9 +276,22 @@ public class EmployeeContractsController(
         if (ceoNodes.Count != 1)
             ModelState.AddModelError("ChiefExecutiveEmployee", "در نسخه نهایی ساختار سازمانی باید دقیقاً یک گره فعال با رده مدیرعامل وجود داشته باشد.");
 
-        var ceoEmployees = ceoNodes.Count != 1 ? new List<Employee>() : await db.Employees.AsNoTracking()
-            .Where(x => x.Status == "فعال" && x.OrganizationPositionId == ceoNodes[0].Id)
-            .OrderBy(x => x.LastName).ThenBy(x => x.FirstName).ToListAsync();
+        var ceoEmployees = new List<Employee>();
+        if (ceoNodes.Count == 1)
+        {
+            if (ceoNodes[0].PositionHolderEmployeeId is int holderId)
+            {
+                var holder = await db.Employees.AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.Id == holderId && x.Status == "فعال");
+                if (holder is not null) ceoEmployees.Add(holder);
+            }
+            else
+            {
+                ceoEmployees = await db.Employees.AsNoTracking()
+                    .Where(x => x.Status == "فعال" && x.OrganizationPositionId == ceoNodes[0].Id)
+                    .OrderBy(x => x.LastName).ThenBy(x => x.FirstName).ToListAsync();
+            }
+        }
         if (ceoEmployees.Count != 1)
             ModelState.AddModelError("ChiefExecutiveEmployee", "باید دقیقاً یک کارمند فعال به جایگاه مدیرعامل نسخه نهایی متصل باشد. این جایگاه را در فرم کارکنان تخصیص دهید.");
 
@@ -990,12 +1003,18 @@ public class EmployeeContractsController(
 
         var current = await CurrentRevisionAsync();
         var config = await db.ContractRenewalWorkflowSettings.AsNoTracking().FirstOrDefaultAsync(x => x.Id == 1);
-        var currentCeoNodeIds = current is null ? new List<int>() : await db.OrganizationNodes.AsNoTracking()
+        var currentCeoNodes = current is null ? new List<OrganizationNode>() : await db.OrganizationNodes.AsNoTracking()
             .Where(x => x.OrganizationStructureRevisionId == current.Id && x.IsActive && x.RankType == "مدیرعامل")
-            .Select(x => x.Id).ToListAsync();
-        var currentCeoCount = currentCeoNodeIds.Count == 0 ? 0 : await db.Employees.CountAsync(x =>
-            x.Status == "فعال" && x.OrganizationPositionId.HasValue &&
-            currentCeoNodeIds.Contains(x.OrganizationPositionId.Value));
+            .ToListAsync();
+        var currentCeoNodeIds = currentCeoNodes.Select(x => x.Id).ToList();
+        var currentCeoCount = 0;
+        if (currentCeoNodes.Count == 1)
+        {
+            var ceoNode = currentCeoNodes[0];
+            currentCeoCount = ceoNode.PositionHolderEmployeeId.HasValue
+                ? await db.Employees.CountAsync(x => x.Id == ceoNode.PositionHolderEmployeeId.Value && x.Status == "فعال")
+                : await db.Employees.CountAsync(x => x.Status == "فعال" && x.OrganizationPositionId == ceoNode.Id);
+        }
         var configuredSecurity = config?.SecurityPositionId is int securityId
             ? await db.OrganizationNodes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == securityId)
             : null;
@@ -1123,9 +1142,22 @@ public class EmployeeContractsController(
         var selectedHrPositionId = requestedHumanResourcesPositionId ??
             (persistedHrNode is null ? null : positions.FirstOrDefault(x => x.Code == persistedHrNode.Code)?.Id);
         var ceoNodes = positions.Where(x => x.RankType == "مدیرعامل").ToList();
-        var ceoEmployees = ceoNodes.Count != 1 ? new List<Employee>() : await db.Employees.AsNoTracking()
-            .Where(x => x.Status == "فعال" && x.OrganizationPositionId == ceoNodes[0].Id)
-            .OrderBy(x => x.LastName).ThenBy(x => x.FirstName).ToListAsync();
+        var ceoEmployees = new List<Employee>();
+        if (ceoNodes.Count == 1)
+        {
+            if (ceoNodes[0].PositionHolderEmployeeId is int holderId)
+            {
+                var holder = await db.Employees.AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.Id == holderId && x.Status == "فعال");
+                if (holder is not null) ceoEmployees.Add(holder);
+            }
+            else
+            {
+                ceoEmployees = await db.Employees.AsNoTracking()
+                    .Where(x => x.Status == "فعال" && x.OrganizationPositionId == ceoNodes[0].Id)
+                    .OrderBy(x => x.LastName).ThenBy(x => x.FirstName).ToListAsync();
+            }
+        }
 
         return new ContractRenewalWorkflowSettingsViewModel
         {

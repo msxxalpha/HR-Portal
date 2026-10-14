@@ -629,6 +629,7 @@ public class EmployeeContractsController(
             .Where(x => x.WorkflowDefinitionId == definitionId.Value)
             .OrderBy(x => x.SortOrder).ThenBy(x => x.Id).ToListAsync();
         var tasks = await db.WorkflowTasks.AsNoTracking()
+            .Include(x => x.WorkflowStep)
             .Include(x => x.AssignedEmployee).Include(x => x.AssignedPosition)
             .Where(x => x.WorkflowInstanceId == instanceId)
             .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync();

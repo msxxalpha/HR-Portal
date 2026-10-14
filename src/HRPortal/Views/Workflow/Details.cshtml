@@ -17,7 +17,13 @@
 }
 <div class="page-head">
     <div><h1>@Model.WorkflowDefinition.Title</h1><p>@Model.EntityType #@Model.EntityId</p></div>
-    <a class="btn btn-outline" href="/Workflow/MyRequests">بازگشت به درخواست‌های من</a>
+    <div class="actions">
+        @if (renewal != null && renewal.Status == "تکمیل شده" && renewal.CompletedAt.HasValue)
+        {
+            <a class="btn btn-main" href="/Workflow/DownloadContractRenewalPdf/@Model.Id">دریافت گزارش نهایی PDF</a>
+        }
+        <a class="btn btn-outline" href="/Workflow/MyRequests">بازگشت به درخواست‌های من</a>
+    </div>
 </div>
 <section class="workflow-detail-grid">
     <div class="card">

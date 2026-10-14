@@ -3,6 +3,10 @@
     Layout = "~/Views/Shared/_Layout.cshtml";
     ViewData["Title"] = "جزئیات گردش کار";
     var history = ViewBag.History as List<HRPortal.Models.WorkflowHistory> ?? [];
+    var renewal = ViewBag.ContractRenewalRequest as HRPortal.Models.ContractRenewalRequest;
+    var renewalSteps = ViewBag.ContractRenewalSteps as List<HRPortal.Models.WorkflowStep> ?? [];
+    var renewalTasks = ViewBag.ContractRenewalTasks as List<HRPortal.Models.WorkflowTask> ?? [];
+    var renewalScores = ViewBag.ContractRenewalScores as List<HRPortal.Models.EmployeePerformanceEvaluationScore> ?? [];
     var statusTitle = Model.Status switch
     {
         "Approved" => "تأیید نهایی",
@@ -41,3 +45,91 @@
         </div>
     </div>
 </section>
+
+
+@if (renewal != null)
+{
+    <section class="card" style="margin-top:1rem">
+        <div class="section-head"><div><h3>گزارش کامل درخواست تمدید قرارداد</h3><span class="muted">تمام مراحل گردش کار، امتیازها و تصمیم‌های ثبت‌شده</span></div></div>
+        <dl class="detail-list">
+            <dt>کد درخواست</dt><dd>@renewal.RequestCode</dd>
+            <dt>کارمند</dt><dd>@renewal.EmployeeNameSnapshot (@renewal.PersonnelNumberSnapshot)</dd>
+            <dt>واحد سازمانی</dt><dd>@renewal.OrganizationUnitSnapshot</dd>
+            <dt>عنوان جایگاه</dt><dd>@renewal.PositionTitleSnapshot</dd>
+            <dt>وضعیت کسب‌وکاری</dt><dd>@renewal.Status</dd>
+            <dt>تاریخ ثبت</dt><dd>@renewal.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</dd>
+            <dt>تاریخ تکمیل</dt><dd>@(renewal.CompletedAt?.ToLocalTime().ToString("yyyy/MM/dd HH:mm") ?? "—")</dd>
+            <dt>پایان قرارداد قبلی</dt><dd>@(renewal.PreviousContractEndDate?.ToString("yyyy/MM/dd") ?? "—")</dd>
+            <dt>تمدیدهای قبلی</dt><dd>@renewal.PreviousExtensionMonths1 ماه، @renewal.PreviousExtensionMonths2 ماه، @renewal.PreviousExtensionMonths3 ماه</dd>
+            <dt>امتیاز دوره قبلی اول</dt><dd>@renewal.PreviousPeriodScore1.ToString("0.##") @(renewal.PreviousPeriodScore1FromHistory ? "(از سوابق)" : "")</dd>
+            <dt>امتیاز دوره قبلی دوم</dt><dd>@renewal.PreviousPeriodScore2.ToString("0.##") @(renewal.PreviousPeriodScore2FromHistory ? "(از سوابق)" : "")</dd>
+        </dl>
+    </section>
+
+    <section class="card" style="margin-top:1rem">
+        <div class="section-head"><div><h3>جزئیات همه مراحل</h3><span class="muted">مراحل به ترتیب واقعی گردش کار نمایش داده می‌شوند؛ از ارزشیابی عملکرد تا تصمیم مدیرعامل</span></div></div>
+        <div class="workflow-history">
+        @foreach (var step in renewalSteps)
+        {
+            var stepTasks = renewalTasks.Where(t => t.WorkflowStepId == step.Id).ToList();
+            var stepScores = renewalScores.Where(s => s.WorkflowStepId == step.Id).ToList();
+            var completed = stepTasks.Any(t => t.Status == "Completed");
+            <article class="workflow-history-item" style="padding:1rem;margin-bottom:.8rem;border:1px solid var(--border-color,#ddd);border-radius:10px">
+                <div>
+                    <strong>@step.Title</strong>
+                    <span class="badge">@(completed ? "انجام‌شده" : stepTasks.Any(t => t.Status == "Pending") ? "در انتظار اقدام" : "بدون اقدام ثبت‌شده")</span>
+                </div>
+                <p class="muted">جایگاه: @(step.OrganizationNode?.Title ?? (step.AssignedEmployeeId.HasValue ? "کارمند مشخص" : step.AssignmentType == "Hierarchy" ? "مسیر سلسله‌مراتبی" : "—"))</p>
+                @if (stepScores.Count > 0)
+                {
+                    <div class="table-wrap">
+                        <table>
+                            <thead><tr><th>پرسش</th><th>راهنمای امتیازدهی</th><th>سقف</th><th>امتیاز ثبت‌شده</th><th>ارزیاب</th></tr></thead>
+                            <tbody>
+                            @foreach (var score in stepScores)
+                            {
+                                <tr>
+                                    <td>@score.QuestionTextSnapshot</td>
+                                    <td>@score.ScoringGuidanceSnapshot</td>
+                                    <td>@score.MaxScoreSnapshot.ToString("0.##")</td>
+                                    <td>@(score.Score?.ToString("0.##") ?? "ثبت نشده")</td>
+                                    <td>@(score.EvaluatorEmployee == null ? "—" : score.EvaluatorEmployee.FirstName + " " + score.EvaluatorEmployee.LastName)</td>
+                                </tr>
+                            }
+                            <tr><th colspan="3">مجموع امتیاز مرحله</th><th colspan="2">@((stepScores.All(x => x.Score.HasValue) ? stepScores.Sum(x => x.Score!.Value).ToString("0.##") : "ناقص")) از @stepScores.Sum(x => x.MaxScoreSnapshot).ToString("0.##")</th></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                @foreach (var task in stepTasks)
+                {
+                    <div class="workflow-history-item">
+                        <p><strong>اقدام:</strong> @(task.Action ?? (task.Status == "Completed" ? "تکمیل" : task.Status)) — <strong>مسئول:</strong> @(task.AssignedEmployee == null ? task.AssignedPosition?.Title ?? "—" : task.AssignedEmployee.FirstName + " " + task.AssignedEmployee.LastName)</p>
+                        <p><strong>زمان ثبت:</strong> @((task.CompletedAt ?? task.CreatedAt).ToLocalTime().ToString("yyyy/MM/dd HH:mm"))</p>
+                        <p><strong>نظر ثبت‌شده:</strong> @(string.IsNullOrWhiteSpace(task.Comment) ? "نظری ثبت نشده است." : task.Comment)</p>
+                    </div>
+                }
+            </article>
+        }
+        </div>
+    </section>
+
+    <section class="card" style="margin-top:1rem">
+        <div class="section-head"><h3>جمع‌بندی تصمیم‌های نهایی</h3></div>
+        <dl class="detail-list">
+            <dt>مجموع امتیاز ارزشیابی</dt><dd>@(renewal.FinalEvaluationScore?.ToString("0.##") ?? "ثبت نشده") از ۱۰۰</dd>
+            <dt>تصمیم حراست</dt><dd>@(renewal.SecurityDecision switch { "ApproveFull" => "موافقت", "ApproveOneMonth" => "موافقت با تمدید یک‌ماهه", "Reject" => "عدم موافقت", _ => "ثبت نشده" })</dd>
+            <dt>نظر مدیر حراست</dt><dd>@(string.IsNullOrWhiteSpace(renewal.SecurityComment) ? "ثبت نشده" : renewal.SecurityComment)</dd>
+            <dt>پیشنهاد مدت قرارداد منابع انسانی و خدمات پشتیبانی</dt><dd>@(renewal.HrProposedContractMonths.HasValue ? renewal.HrProposedContractMonths.Value + " ماه" : "ثبت نشده")</dd>
+            <dt>نظر مدیر منابع انسانی و خدمات پشتیبانی</dt><dd>@(string.IsNullOrWhiteSpace(renewal.HrComment) ? "ثبت نشده" : renewal.HrComment)</dd>
+            <dt>مدت نهایی مصوب مدیرعامل</dt><dd>@(renewal.FinalContractMonths.HasValue ? renewal.FinalContractMonths.Value + " ماه" : "ثبت نشده")</dd>
+            <dt>نظر مدیرعامل</dt><dd>@(string.IsNullOrWhiteSpace(renewal.CeoComment) ? "ثبت نشده" : renewal.CeoComment)</dd>
+            <dt>سوابق انضباطی</dt><dd>@(renewal.HasDisciplinaryWarnings ? $"دارای اخطار ({renewal.DisciplinaryWarningCount})" : "بدون اخطار ثبت‌شده")</dd>
+            <dt>آرای کمیته انضباطی</dt><dd>@(renewal.HasDisciplinaryCommitteeResolution ? renewal.DisciplinaryCommitteeResolutionCount.ToString() : "۰")</dd>
+            <dt>مرخصی بدون حقوق</dt><dd>@(renewal.HasUnpaidLeave ? renewal.UnpaidLeaveDays + " روز" : "۰ روز")</dd>
+            <dt>مرخصی استعلاجی</dt><dd>@(renewal.HasSickLeave ? renewal.SickLeaveDays + " روز" : "۰ روز")</dd>
+            <dt>مرخصی حادثه</dt><dd>@(renewal.HasAccidentLeave ? renewal.AccidentLeaveDays + " روز" : "۰ روز")</dd>
+            <dt>تقدیرنامه</dt><dd>@(renewal.HasCommendations ? renewal.CommendationCount.ToString() : "۰")</dd>
+        </dl>
+    </section>
+}

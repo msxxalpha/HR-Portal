@@ -24,6 +24,7 @@ public sealed class ContractRenewalPdfService
             document.Page(page =>
             {
                 page.Size(PageSizes.A4);
+                page.ContentFromRightToLeft();
                 page.Margin(28);
                 page.DefaultTextStyle(style => style.FontFamily("Tahoma").FontSize(9));
                 page.Header().Column(header =>
@@ -108,7 +109,7 @@ public sealed class ContractRenewalPdfService
                             }
                             foreach (var task in stepTasks)
                             {
-                                stage.Item().Text($"مسئول: {task.AssignedEmployee?.FirstName} {task.AssignedEmployee?.LastName}".Trim()).FontSize(8);
+                                stage.Item().Text("مسئول: " + (task.AssignedEmployee is not null ? task.AssignedEmployee.FirstName + " " + task.AssignedEmployee.LastName : task.AssignedPosition?.Title ?? "—")).FontSize(8);
                                 stage.Item().Text($"اقدام: {task.Action ?? task.Status} | زمان: {FormatDate(task.CompletedAt ?? task.CreatedAt)}").FontSize(8);
                                 stage.Item().Text("نظر مرحله: " + (string.IsNullOrWhiteSpace(task.Comment) ? "نظری ثبت نشده است." : task.Comment)).FontSize(8);
                             }
@@ -118,7 +119,7 @@ public sealed class ContractRenewalPdfService
                     column.Item().Element(c => SectionTitle(c, "۴. جمع‌بندی تصمیم‌های نهایی"));
                     column.Item().Element(c => KeyValueTable(c, new (string, string)[]
                     {
-                        ("مجموع امتیاز نهایی ارزشیابی", request.FinalEvaluationScore?.ToString("0.##") + " از ۱۰۰" ?? "ثبت نشده"),
+                        ("مجموع امتیاز نهایی ارزشیابی", request.FinalEvaluationScore.HasValue ? request.FinalEvaluationScore.Value.ToString("0.##") + " از ۱۰۰" : "ثبت نشده"),
                         ("تصمیم حراست", request.SecurityDecision switch { "ApproveFull" => "موافقت", "ApproveOneMonth" => "موافقت با تمدید یک‌ماهه", "Reject" => "عدم موافقت", _ => "ثبت نشده" }),
                         ("نظر مدیر حراست", request.SecurityComment ?? "ثبت نشده"),
                         ("پیشنهاد مدت قرارداد منابع انسانی", request.HrProposedContractMonths.HasValue ? request.HrProposedContractMonths.Value + " ماه" : "ثبت نشده"),
@@ -158,17 +159,9 @@ public sealed class ContractRenewalPdfService
     private static void RegisterLocalFont()
     {
         var fontsDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
-        foreach (var font in new[] { "tahoma.ttf", "arial.ttf" })
-        {
-            var path = Path.Combine(fontsDirectory, font);
-            if (File.Exists(path))
-            {
-                using var stream = File.OpenRead(path);
-                FontManager.RegisterFont(stream);
-                return;
-            }
-        }
-        throw new InvalidOperationException("فونت فارسی محلی Tahoma یا Arial در پوشه فونت‌های سرور یافت نشد؛ برای تولید PDF باید فونت مناسب روی سرور نصب باشد.");
+        if (!File.Exists(Path.Combine(fontsDirectory, "tahoma.ttf")) &&
+            !File.Exists(Path.Combine(fontsDirectory, "arial.ttf")))
+            throw new InvalidOperationException("فونت فارسی محلی Tahoma یا Arial در پوشه فونت‌های سرور یافت نشد؛ برای تولید PDF باید فونت مناسب روی سرور نصب باشد.");
     }
 
     private static string FormatDate(DateTime value) => value.ToLocalTime().ToString("yyyy/MM/dd HH:mm");

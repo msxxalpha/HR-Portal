@@ -1025,14 +1025,16 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         if (task is not null && !task.AssignedEmployeeId.HasValue)
         {
             var position = task.AssignedPosition;
-            var isLegacyMember = await db.Employees.AnyAsync(e => e.Id == employeeId && e.Status == "فعال" &&
-                (e.OrganizationUnitId == task.AssignedPositionId ||
-                 e.OrganizationDepartmentId == task.AssignedPositionId ||
-                 e.OrganizationSectionId == task.AssignedPositionId ||
-                 e.OrganizationPositionId == task.AssignedPositionId));
+            var hasExplicitAssignments = position is not null && !string.IsNullOrWhiteSpace(position.AssignedEmployeeIdsCsv);
             var isExplicitlyAssigned = position is not null &&
                 GetAssignedEmployeeIds(position).Contains(employeeId) &&
                 await db.Employees.AnyAsync(e => e.Id == employeeId && e.Status == "فعال");
+            var isLegacyMember = !hasExplicitAssignments &&
+                await db.Employees.AnyAsync(e => e.Id == employeeId && e.Status == "فعال" &&
+                    (e.OrganizationUnitId == task.AssignedPositionId ||
+                     e.OrganizationDepartmentId == task.AssignedPositionId ||
+                     e.OrganizationSectionId == task.AssignedPositionId ||
+                     e.OrganizationPositionId == task.AssignedPositionId));
             if (!isLegacyMember && !isExplicitlyAssigned)
                 return null;
         }

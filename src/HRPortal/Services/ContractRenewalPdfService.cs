@@ -1,5 +1,6 @@
 using HRPortal.Models;
 using QuestPDF.Fluent;
+using QuestPDF.Drawing;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 
@@ -156,12 +157,26 @@ public sealed class ContractRenewalPdfService
         }).GeneratePdf();
     }
 
+    private static readonly object FontRegistrationLock = new();
+    private static bool _fontRegistered;
+
     private static void RegisterLocalFont()
     {
-        var fontsDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
-        if (!File.Exists(Path.Combine(fontsDirectory, "tahoma.ttf")) &&
-            !File.Exists(Path.Combine(fontsDirectory, "arial.ttf")))
+        lock (FontRegistrationLock)
+        {
+            if (_fontRegistered) return;
+            var fontsDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
+            foreach (var font in new[] { "tahoma.ttf", "arial.ttf" })
+            {
+                var path = Path.Combine(fontsDirectory, font);
+                if (!File.Exists(path)) continue;
+                using var stream = File.OpenRead(path);
+                FontManager.RegisterFontFromStream(stream);
+                _fontRegistered = true;
+                return;
+            }
             throw new InvalidOperationException("فونت فارسی محلی Tahoma یا Arial در پوشه فونت‌های سرور یافت نشد؛ برای تولید PDF باید فونت مناسب روی سرور نصب باشد.");
+        }
     }
 
     private static string FormatDate(DateTime value) => PersianDateService.Format(value.ToLocalTime()) + " " + value.ToLocalTime().ToString("HH:mm");

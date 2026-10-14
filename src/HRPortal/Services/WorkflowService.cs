@@ -817,41 +817,52 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
     public async Task<List<WorkflowInboxRow>> GetInboxAsync(int employeeId, string? status = null)
     {
-        var query = db.WorkflowTasks
-            .AsNoTracking()
+        var employee = await db.Employees.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == employeeId && x.Status == "فعال");
+        if (employee is null) return [];
+
+        var tasks = await db.WorkflowTasks.AsNoTracking()
             .Include(x => x.WorkflowInstance).ThenInclude(x => x.WorkflowDefinition)
             .Include(x => x.WorkflowInstance).ThenInclude(x => x.RequesterEmployee)
             .Include(x => x.WorkflowStep).ThenInclude(x => x.OrganizationNode)
+            .Include(x => x.AssignedPosition)
             .Where(x => x.Status == "Pending" &&
                         (x.AssignedEmployeeId == employeeId ||
-                         (x.AssignedEmployeeId == null && x.AssignedPositionId.HasValue &&
-                          db.Employees.Any(e => e.Id == employeeId && e.Status == "فعال" &&
-                              (e.OrganizationUnitId == x.AssignedPositionId ||
-                               e.OrganizationDepartmentId == x.AssignedPositionId ||
-                               e.OrganizationSectionId == x.AssignedPositionId ||
-                               e.OrganizationPositionId == x.AssignedPositionId)))));
+                         (x.AssignedEmployeeId == null && x.AssignedPositionId.HasValue)))
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync();
+
+        var authorizedTasks = tasks.Where(task =>
+        {
+            if (task.AssignedEmployeeId == employeeId) return true;
+            if (!task.AssignedPositionId.HasValue) return false;
+            var position = task.AssignedPosition;
+            if (position is not null && !string.IsNullOrWhiteSpace(position.AssignedEmployeeIdsCsv))
+                return GetAssignedEmployeeIds(position).Contains(employeeId);
+            return employee.OrganizationUnitId == task.AssignedPositionId ||
+                   employee.OrganizationDepartmentId == task.AssignedPositionId ||
+                   employee.OrganizationSectionId == task.AssignedPositionId ||
+                   employee.OrganizationPositionId == task.AssignedPositionId;
+        });
 
         if (!string.IsNullOrWhiteSpace(status))
-            query = query.Where(x => x.Status == status);
+            authorizedTasks = authorizedTasks.Where(x => x.Status == status);
 
-        return await query
-            .OrderByDescending(x => x.CreatedAt)
-            .Select(x => new WorkflowInboxRow
-            {
-                TaskId = x.Id,
-                WorkflowInstanceId = x.WorkflowInstanceId,
-                WorkflowTitle = x.WorkflowInstance.WorkflowDefinition.Title,
-                EntityType = x.WorkflowInstance.EntityType,
-                EntityId = x.WorkflowInstance.EntityId,
-                RequesterName = x.WorkflowInstance.RequesterEmployee.FirstName + " " + x.WorkflowInstance.RequesterEmployee.LastName,
-                RequesterPersonnelNumber = x.WorkflowInstance.RequesterEmployee.PersonnelNumber,
-                StepTitle = x.WorkflowStep.Title,
-                PositionTitle = x.AssignedPosition == null ? "" : x.AssignedPosition.Title,
-                Status = x.Status,
-                CreatedAt = x.CreatedAt,
-                Comment = x.Comment
-            })
-            .ToListAsync();
+        return authorizedTasks.Select(x => new WorkflowInboxRow
+        {
+            TaskId = x.Id,
+            WorkflowInstanceId = x.WorkflowInstanceId,
+            WorkflowTitle = x.WorkflowInstance.WorkflowDefinition.Title,
+            EntityType = x.WorkflowInstance.EntityType,
+            EntityId = x.WorkflowInstance.EntityId,
+            RequesterName = x.WorkflowInstance.RequesterEmployee.FirstName + " " + x.WorkflowInstance.RequesterEmployee.LastName,
+            RequesterPersonnelNumber = x.WorkflowInstance.RequesterEmployee.PersonnelNumber,
+            StepTitle = x.WorkflowStep.Title,
+            PositionTitle = x.AssignedPosition == null ? "" : x.AssignedPosition.Title,
+            Status = x.Status,
+            CreatedAt = x.CreatedAt,
+            Comment = x.Comment
+        }).ToList();
     }
 
     public async Task<List<WorkflowInboxRow>> GetMyActionHistoryAsync(int employeeId)

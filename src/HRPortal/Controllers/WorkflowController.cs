@@ -74,6 +74,31 @@ public class WorkflowController(
         if (instance is null) return NotFound();
 
         ViewBag.History = await workflow.GetHistoryAsync(id);
+
+        if (instance.EntityType == ContractRenewalWorkflowService.WorkflowEntityType &&
+            int.TryParse(instance.EntityId, out var renewalRequestId))
+        {
+            var renewalRequest = await db.ContractRenewalRequests.AsNoTracking()
+                .Include(x => x.Employee)
+                .FirstOrDefaultAsync(x => x.Id == renewalRequestId && x.WorkflowInstanceId == instance.Id);
+            if (renewalRequest is not null)
+            {
+                ViewBag.ContractRenewalRequest = renewalRequest;
+                ViewBag.ContractRenewalSteps = await db.WorkflowSteps.AsNoTracking()
+                    .Include(x => x.OrganizationNode)
+                    .Where(x => x.WorkflowDefinitionId == instance.WorkflowDefinitionId)
+                    .OrderBy(x => x.SortOrder).ThenBy(x => x.Id).ToListAsync();
+                ViewBag.ContractRenewalTasks = await db.WorkflowTasks.AsNoTracking()
+                    .Include(x => x.AssignedEmployee).Include(x => x.AssignedPosition)
+                    .Where(x => x.WorkflowInstanceId == instance.Id)
+                    .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync();
+                ViewBag.ContractRenewalScores = await db.EmployeePerformanceEvaluationScores.AsNoTracking()
+                    .Include(x => x.EvaluatorEmployee)
+                    .Where(x => x.WorkflowInstanceId == instance.Id)
+                    .OrderBy(x => x.WorkflowStep.SortOrder).ThenBy(x => x.Id).ToListAsync();
+            }
+        }
+
         return View(instance);
     }
 

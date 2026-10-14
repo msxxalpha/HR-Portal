@@ -13,7 +13,8 @@ public class EmployeeContractsController(
     EmployeeExcelService excel,
     AuditService audit,
     RoleService roles,
-    ContractRenewalWorkflowService renewalWorkflow) : Controller
+    ContractRenewalWorkflowService renewalWorkflow,
+    ContractRenewalPdfService renewalPdf) : Controller
 {
     [Authorize(Policy = "ContractRenewal.Manage")]
     public IActionResult Index() => View();
@@ -590,7 +591,61 @@ public class EmployeeContractsController(
         }
 
         ViewBag.EvaluationStages = evaluationStages;
+        if (request.WorkflowInstanceId.HasValue)
+        {
+            var instanceId = request.WorkflowInstanceId.Value;
+            ViewBag.WorkflowSteps = await db.WorkflowSteps.AsNoTracking()
+                .Include(x => x.OrganizationNode)
+                .Where(x => x.WorkflowDefinitionId == (await db.WorkflowInstances.AsNoTracking()
+                    .Where(i => i.Id == instanceId).Select(i => i.WorkflowDefinitionId).FirstOrDefaultAsync()))
+                .OrderBy(x => x.SortOrder).ThenBy(x => x.Id).ToListAsync();
+            ViewBag.WorkflowTasks = await db.WorkflowTasks.AsNoTracking()
+                .Include(x => x.AssignedEmployee).Include(x => x.AssignedPosition)
+                .Where(x => x.WorkflowInstanceId == instanceId)
+                .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync();
+        }
+        else
+        {
+            ViewBag.WorkflowSteps = new List<WorkflowStep>();
+            ViewBag.WorkflowTasks = new List<WorkflowTask>();
+        }
         return View(revisions);
+    }
+
+    [HttpGet, Authorize(Policy = "ContractRenewal.Manage")]
+    public async Task<IActionResult> DownloadReport(int id)
+    {
+        var request = await db.ContractRenewalRequests.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == id && x.Status != "حذف شده");
+        if (request is null || !request.WorkflowInstanceId.HasValue) return NotFound();
+
+        var instanceId = request.WorkflowInstanceId.Value;
+        var definitionId = await db.WorkflowInstances.AsNoTracking()
+            .Where(x => x.Id == instanceId).Select(x => (int?)x.WorkflowDefinitionId).FirstOrDefaultAsync();
+        if (!definitionId.HasValue) return NotFound();
+
+        var steps = await db.WorkflowSteps.AsNoTracking().Include(x => x.OrganizationNode)
+            .Where(x => x.WorkflowDefinitionId == definitionId.Value)
+            .OrderBy(x => x.SortOrder).ThenBy(x => x.Id).ToListAsync();
+        var tasks = await db.WorkflowTasks.AsNoTracking()
+            .Include(x => x.AssignedEmployee).Include(x => x.AssignedPosition)
+            .Where(x => x.WorkflowInstanceId == instanceId)
+            .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync();
+
+        if (request.Status != "تکمیل شده" || !request.CompletedAt.HasValue ||
+            !tasks.Any(x => x.WorkflowStep.Code == "CEO" && x.Status == "Completed"))
+            return BadRequest("گزارش نهایی پس از ثبت تصمیم مدیرعامل و تکمیل فرایند قابل دریافت است.");
+
+        var scores = await db.EmployeePerformanceEvaluationScores.AsNoTracking()
+            .Include(x => x.EvaluatorEmployee).Include(x => x.WorkflowStep)
+            .Where(x => x.WorkflowInstanceId == instanceId)
+            .OrderBy(x => x.WorkflowStep.SortOrder).ThenBy(x => x.Id).ToListAsync();
+        var history = await db.WorkflowHistory.AsNoTracking()
+            .Include(x => x.WorkflowStep).Include(x => x.ActorEmployee).Include(x => x.ActorPosition)
+            .Where(x => x.WorkflowInstanceId == instanceId)
+            .OrderBy(x => x.CreatedAt).ToListAsync();
+        var bytes = renewalPdf.Generate(request, steps, tasks, scores, history);
+        return File(bytes, "application/pdf", $"ContractRenewal-{request.RequestCode}.pdf");
     }
 
     [HttpGet, Authorize(Policy = "ContractRenewal.Manage")]

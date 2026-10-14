@@ -9,7 +9,8 @@ namespace HRPortal.Controllers;
 [Authorize]
 public class WorkflowController(
     WorkflowService workflow,
-    HRPortal.Data.HRPortalDbContext db) : Controller
+    HRPortal.Data.HRPortalDbContext db,
+    ContractRenewalPdfService contractRenewalPdf) : Controller
 {
     [HttpGet]
     [Authorize(Policy = "Workflow.Inbox")]
@@ -100,6 +101,49 @@ public class WorkflowController(
         }
 
         return View(instance);
+    }
+
+
+    [HttpGet]
+    [Authorize(Policy = "Workflow.Inbox")]
+    public async Task<IActionResult> DownloadContractRenewalPdf(int id)
+    {
+        var isAdmin = User.HasClaim("IsAdmin", "1");
+        var hasEmployeeId = int.TryParse(User.FindFirst("EmployeeId")?.Value, out var employeeId);
+        if (!hasEmployeeId && !isAdmin) return Forbid();
+
+        var instance = isAdmin
+            ? await workflow.GetInstanceForAdminAsync(id)
+            : await workflow.GetInstanceAsync(id, employeeId);
+        if (instance is null || instance.EntityType != ContractRenewalWorkflowService.WorkflowEntityType)
+            return NotFound();
+        if (!int.TryParse(instance.EntityId, out var requestId)) return NotFound();
+
+        var request = await db.ContractRenewalRequests.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == requestId && x.WorkflowInstanceId == instance.Id);
+        if (request is null) return NotFound();
+
+        var steps = await db.WorkflowSteps.AsNoTracking()
+            .Include(x => x.OrganizationNode)
+            .Where(x => x.WorkflowDefinitionId == instance.WorkflowDefinitionId)
+            .OrderBy(x => x.SortOrder).ThenBy(x => x.Id).ToListAsync();
+        var tasks = await db.WorkflowTasks.AsNoTracking()
+            .Include(x => x.AssignedEmployee).Include(x => x.AssignedPosition)
+            .Where(x => x.WorkflowInstanceId == instance.Id)
+            .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync();
+
+        // The downloadable final report is available only after the CEO stage is completed.
+        if (request.Status != "تکمیل شده" || !request.CompletedAt.HasValue ||
+            !tasks.Any(x => x.WorkflowStep.Code == "CEO" && x.Status == "Completed"))
+            return BadRequest("گزارش نهایی پس از ثبت تصمیم مدیرعامل و تکمیل فرایند قابل دریافت است.");
+
+        var scores = await db.EmployeePerformanceEvaluationScores.AsNoTracking()
+            .Include(x => x.EvaluatorEmployee)
+            .Where(x => x.WorkflowInstanceId == instance.Id)
+            .OrderBy(x => x.WorkflowStep.SortOrder).ThenBy(x => x.Id).ToListAsync();
+        var history = await workflow.GetHistoryAsync(instance.Id);
+        var bytes = contractRenewalPdf.Generate(request, steps, tasks, scores, history);
+        return File(bytes, "application/pdf", $"ContractRenewal-{request.RequestCode}.pdf");
     }
 
     [HttpGet]

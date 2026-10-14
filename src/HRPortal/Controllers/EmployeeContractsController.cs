@@ -594,10 +594,11 @@ public class EmployeeContractsController(
         if (request.WorkflowInstanceId.HasValue)
         {
             var instanceId = request.WorkflowInstanceId.Value;
+            var definitionId = await db.WorkflowInstances.AsNoTracking()
+                .Where(i => i.Id == instanceId).Select(i => i.WorkflowDefinitionId).FirstOrDefaultAsync();
             ViewBag.WorkflowSteps = await db.WorkflowSteps.AsNoTracking()
                 .Include(x => x.OrganizationNode)
-                .Where(x => x.WorkflowDefinitionId == (await db.WorkflowInstances.AsNoTracking()
-                    .Where(i => i.Id == instanceId).Select(i => i.WorkflowDefinitionId).FirstOrDefaultAsync()))
+                .Where(x => x.WorkflowDefinitionId == definitionId)
                 .OrderBy(x => x.SortOrder).ThenBy(x => x.Id).ToListAsync();
             ViewBag.WorkflowTasks = await db.WorkflowTasks.AsNoTracking()
                 .Include(x => x.AssignedEmployee).Include(x => x.AssignedPosition)

@@ -38,9 +38,10 @@ public class ContractRenewalWorkflowService(HRPortalDbContext db, WorkflowServic
                 cancellationToken);
         if (securityPosition is null)
             throw new InvalidOperationException("جایگاه مدیر حراست را در تنظیمات گردش کار انتخاب کنید؛ جایگاه ذخیره‌شده در نسخه فعال ساختار یافت نشد.");
-        if (!securityPosition.PositionHolderEmployeeId.HasValue ||
-            !await db.Employees.AnyAsync(x => x.Id == securityPosition.PositionHolderEmployeeId.Value && x.Status == "فعال", cancellationToken))
-            throw new InvalidOperationException("برای جایگاه مدیر حراست در ساختار سازمانی، متصدی فعال تعیین کنید.");
+        var securityAssignees = GetAssignedEmployeeIds(securityPosition);
+        if (securityAssignees.Count == 0 ||
+            !await db.Employees.AnyAsync(x => securityAssignees.Contains(x.Id) && x.Status == "فعال", cancellationToken))
+            throw new InvalidOperationException("برای جایگاه مدیر حراست در ساختار سازمانی، دست‌کم یک کارمند منتسب و فعال تعیین کنید.");
 
         var configuredHr = settings.HumanResourcesPositionId.HasValue
             ? await db.OrganizationNodes.AsNoTracking()
@@ -53,9 +54,10 @@ public class ContractRenewalWorkflowService(HRPortalDbContext db, WorkflowServic
                 cancellationToken);
         if (humanResourcesPosition is null)
             throw new InvalidOperationException("جایگاه مدیر منابع انسانی و خدمات پشتیبانی را در تنظیمات گردش کار انتخاب کنید؛ جایگاه ذخیره‌شده در نسخه فعال ساختار یافت نشد.");
-        if (!humanResourcesPosition.PositionHolderEmployeeId.HasValue ||
-            !await db.Employees.AnyAsync(x => x.Id == humanResourcesPosition.PositionHolderEmployeeId.Value && x.Status == "فعال", cancellationToken))
-            throw new InvalidOperationException("برای جایگاه مدیر منابع انسانی و خدمات پشتیبانی در ساختار سازمانی، متصدی فعال تعیین کنید.");
+        var humanResourcesAssignees = GetAssignedEmployeeIds(humanResourcesPosition);
+        if (humanResourcesAssignees.Count == 0 ||
+            !await db.Employees.AnyAsync(x => humanResourcesAssignees.Contains(x.Id) && x.Status == "فعال", cancellationToken))
+            throw new InvalidOperationException("برای جایگاه مدیر منابع انسانی و خدمات پشتیبانی در ساختار سازمانی، دست‌کم یک کارمند منتسب و فعال تعیین کنید.");
 
         var ceoNodes = await db.OrganizationNodes.AsNoTracking()
             .Where(x => x.OrganizationStructureRevisionId == revision.Id && x.IsActive && x.RankType == "مدیرعامل")
@@ -197,6 +199,17 @@ public class ContractRenewalWorkflowService(HRPortalDbContext db, WorkflowServic
         }
         await db.SaveChangesAsync(cancellationToken);
         return instance;
+    }
+
+    private static List<int> GetAssignedEmployeeIds(OrganizationNode position)
+    {
+        var ids = (position.AssignedEmployeeIdsCsv ?? "")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(value => int.TryParse(value, out var id) ? id : 0)
+            .Where(id => id > 0).Distinct().ToList();
+        if (ids.Count == 0 && position.PositionHolderEmployeeId.HasValue)
+            ids.Add(position.PositionHolderEmployeeId.Value);
+        return ids;
     }
 
     public static int SuggestedContractMonths(decimal? score)

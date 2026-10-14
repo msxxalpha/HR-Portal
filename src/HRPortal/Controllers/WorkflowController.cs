@@ -128,6 +128,7 @@ public class WorkflowController(
             .Where(x => x.WorkflowDefinitionId == instance.WorkflowDefinitionId)
             .OrderBy(x => x.SortOrder).ThenBy(x => x.Id).ToListAsync();
         var tasks = await db.WorkflowTasks.AsNoTracking()
+            .Include(x => x.WorkflowStep)
             .Include(x => x.AssignedEmployee).Include(x => x.AssignedPosition)
             .Where(x => x.WorkflowInstanceId == instance.Id)
             .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync();

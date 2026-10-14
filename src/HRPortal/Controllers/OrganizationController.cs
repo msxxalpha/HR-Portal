@@ -163,6 +163,8 @@ public class OrganizationController(
         if (validation is not null)
             return Json(new { success = false, message = validation });
         var assignedEmployeeIds = ParseEmployeeIds(assignedEmployeeIdsCsv, positionHolderEmployeeId);
+        if (rankType == "مدیرعامل" && assignedEmployeeIds.Count != 1)
+            return Json(new { success = false, message = "برای جایگاه مدیرعامل دقیقاً یک کارمند فعال انتخاب کنید." });
         var assignmentValidation = await ValidateAssignedEmployeesAsync(revisionId, assignedEmployeeIds, null);
         if (assignmentValidation is not null)
             return Json(new { success = false, message = assignmentValidation });
@@ -265,6 +267,8 @@ public class OrganizationController(
         if (validation is not null)
             return Json(new { success = false, message = validation });
         var assignedEmployeeIds = ParseEmployeeIds(assignedEmployeeIdsCsv, positionHolderEmployeeId);
+        if (rankType == "مدیرعامل" && assignedEmployeeIds.Count != 1)
+            return Json(new { success = false, message = "برای جایگاه مدیرعامل دقیقاً یک کارمند فعال انتخاب کنید." });
         var assignmentValidation = await ValidateAssignedEmployeesAsync(node.OrganizationStructureRevisionId, assignedEmployeeIds, node.Id);
         if (assignmentValidation is not null)
             return Json(new { success = false, message = assignmentValidation });

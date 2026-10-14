@@ -6,7 +6,6 @@ using Microsoft.EntityFrameworkCore;
 using QuestPDF.Infrastructure;
 
 QuestPDF.Settings.License = LicenseType.Professional;
-QuestPDF.Settings.UseSystemFonts = true;
 
 var builder = WebApplication.CreateBuilder(args);
 

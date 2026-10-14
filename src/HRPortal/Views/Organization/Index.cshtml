@@ -175,12 +175,21 @@
                     <label>ترتیب نمایش
                         <input id="nodeSortOrder" type="number" value="0" />
                     </label>
-                    <label class="wide">متصدی / مسئول این جایگاه
-                        <select id="nodePositionHolder">
-                            <option value="">بدون متصدی مشخص‌شده</option>
-                        </select>
-                        <small class="muted">برای ارزشیابی تمدید قرارداد، متصدی هر جایگاه از این فهرست مشخص می‌شود؛ مسیر به‌صورت خودکار تمام والدها را تا پیش از مدیرعامل طی می‌کند.</small>
-                    </label>
+                    <div class="wide node-assignment-editor">
+                        <label for="nodeEmployeeSearch">جستجوی کارکنان برای انتساب به جایگاه</label>
+                        <input id="nodeEmployeeSearch" type="search" placeholder="نام، نام خانوادگی یا شماره پرسنلی..." autocomplete="off" />
+                        <div class="node-assignment-add-row">
+                            <select id="nodePositionHolder" aria-label="انتخاب کارمند"><option value="">انتخاب کارمند...</option></select>
+                            <button class="btn btn-outline" type="button" id="addNodeEmployee">＋ افزودن</button>
+                        </div>
+                        <div class="table-wrap">
+                            <table class="node-assignment-table">
+                                <thead><tr><th>ردیف</th><th>نام و نام خانوادگی</th><th>شماره پرسنلی</th><th>عملیات</th></tr></thead>
+                                <tbody id="nodeAssignedEmployees"><tr><td colspan="4" class="muted">هنوز کارمندی اضافه نشده است.</td></tr></tbody>
+                            </table>
+                        </div>
+                        <small class="muted">می‌توانید چند نفر را به یک جایگاه منتسب کنید. با ذخیره فرم، تمام ردیف‌های جدول ثبت می‌شوند.</small>
+                    </div>
                     <label class="inline-check">فعال
                         <input id="nodeActive" type="checkbox" checked />
                     </label>
@@ -465,18 +474,63 @@
         document.getElementById("nodeActive").checked = isEdit ? !!node.isActive : true;
         document.getElementById("nodeNotes").value = isEdit ? (node.notes || "") : "";
         const holderSelect = document.getElementById("nodePositionHolder");
+        const employeeSearch = document.getElementById("nodeEmployeeSearch");
         holderSelect.innerHTML = "";
-        const noHolder = document.createElement("option");
-        noHolder.value = "";
-        noHolder.textContent = "بدون متصدی مشخص‌شده";
-        holderSelect.appendChild(noHolder);
-        positionHolderEmployees.forEach(function (employee) {
-            const option = document.createElement("option");
-            option.value = String(employee.id);
-            option.textContent = employee.name + " (" + employee.personnelNumber + ")";
-            if (isEdit && Number(node.positionHolderEmployeeId || 0) === Number(employee.id)) option.selected = true;
-            holderSelect.appendChild(option);
-        });
+        employeeSearch.value = "";
+        window.nodeAssignedEmployeeMap = new Map(positionHolderEmployees.map(function (employee) { return [Number(employee.id), employee]; }));
+        window.nodeAssignedEmployeeIds = [];
+        function refreshEmployeeOptions() {
+            const term = employeeSearch.value.trim().toLocaleLowerCase();
+            const selected = holderSelect.value;
+            holderSelect.innerHTML = '<option value="">انتخاب کارمند...</option>';
+            positionHolderEmployees.filter(function (employee) {
+                return !term || (employee.name + " " + employee.personnelNumber).toLocaleLowerCase().includes(term);
+            }).forEach(function (employee) {
+                const option = document.createElement("option");
+                option.value = String(employee.id);
+                option.textContent = employee.name + " (" + employee.personnelNumber + ")";
+                holderSelect.appendChild(option);
+            });
+            if (selected) holderSelect.value = selected;
+        }
+        function renderAssignedEmployees() {
+            const tbody = document.getElementById("nodeAssignedEmployees");
+            tbody.innerHTML = "";
+            if (!window.nodeAssignedEmployeeIds.length) {
+                tbody.innerHTML = '<tr><td colspan="4" class="muted">هنوز کارمندی اضافه نشده است.</td></tr>';
+                return;
+            }
+            window.nodeAssignedEmployeeIds.forEach(function (id, index) {
+                const employee = window.nodeAssignedEmployeeMap.get(Number(id));
+                if (!employee) return;
+                const tr = document.createElement("tr");
+                [String(index + 1), employee.name, employee.personnelNumber].forEach(function (value) {
+                    const td = document.createElement("td"); td.textContent = value; tr.appendChild(td);
+                });
+                const td = document.createElement("td");
+                const remove = document.createElement("button");
+                remove.type = "button"; remove.className = "btn btn-outline"; remove.textContent = "حذف";
+                remove.addEventListener("click", function () {
+                    window.nodeAssignedEmployeeIds = window.nodeAssignedEmployeeIds.filter(function (item) { return Number(item) !== Number(id); });
+                    renderAssignedEmployees();
+                });
+                td.appendChild(remove); tr.appendChild(td); tbody.appendChild(tr);
+            });
+        }
+        employeeSearch.oninput = refreshEmployeeOptions;
+        refreshEmployeeOptions();
+        const initialIds = isEdit && Array.isArray(node.assignedEmployeeIds) && node.assignedEmployeeIds.length
+            ? node.assignedEmployeeIds : (isEdit && node.positionHolderEmployeeId ? [node.positionHolderEmployeeId] : []);
+        window.nodeAssignedEmployeeIds = initialIds.map(Number);
+        renderAssignedEmployees();
+        document.getElementById("addNodeEmployee").onclick = function () {
+            const id = Number(holderSelect.value || 0);
+            if (!id) { showNodeError("ابتدا یک کارمند را جستجو و انتخاب کنید."); return; }
+            if (window.nodeAssignedEmployeeIds.includes(id)) { showNodeError("این کارمند قبلاً به جایگاه اضافه شده است."); return; }
+            window.nodeAssignedEmployeeIds.push(id);
+            showNodeError("");
+            renderAssignedEmployees();
+        };
 
         const ranks = organizationRanks;
         const select = document.getElementById("nodeRank");
@@ -552,7 +606,7 @@
             sortOrder: Number(document.getElementById("nodeSortOrder").value || 0),
             isActive: document.getElementById("nodeActive").checked ? "true" : "false",
             notes: document.getElementById("nodeNotes").value,
-            positionHolderEmployeeId: document.getElementById("nodePositionHolder").value
+            assignedEmployeeIdsCsv: (window.nodeAssignedEmployeeIds || []).join(",")
         };
 
         if (mode === "edit") {

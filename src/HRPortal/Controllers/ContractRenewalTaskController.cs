@@ -159,6 +159,7 @@ public class ContractRenewalTaskController(
             else if (stageKind == "HumanResources")
             {
                 var baseScore = request.OriginalEvaluationScore ?? request.FinalEvaluationScore ?? 0m;
+                request.OriginalEvaluationScore ??= baseScore;
                 request.HrDisciplinaryDeductionPercent = disciplinaryDeductionPercent!.Value;
                 request.FinalEvaluationScore = decimal.Round(baseScore * (100m - disciplinaryDeductionPercent.Value) / 100m, 2, MidpointRounding.AwayFromZero);
                 request.HrProposedContractMonths = contractMonths;

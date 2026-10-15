@@ -86,6 +86,14 @@
                     <span class="badge">@(completed ? "انجام‌شده" : stepTasks.Any(t => t.Status == "Pending") ? "در انتظار اقدام" : "بدون اقدام ثبت‌شده")</span>
                 </div>
                 <p class="muted">جایگاه: @(step.OrganizationNode?.Title ?? (step.AssignedEmployeeId.HasValue ? "کارمند مشخص" : step.AssignmentType == "Hierarchy" ? "مسیر سلسله‌مراتبی" : "—"))</p>
+                @if (renewal is not null && step.Code == "Security")
+                {
+                    <div class="note"><strong>تصمیم مدیر حراست:</strong> @(renewal.SecurityDecision switch { "ApproveFull" => "موافقت با تمدید قرارداد", "ApproveOneMonth" => "موافقت با تمدید یک‌ماهه", "Reject" => "عدم موافقت", _ => "ثبت نشده" })<p><strong>توضیحات:</strong> @(string.IsNullOrWhiteSpace(renewal.SecurityComment) ? "ثبت نشده" : renewal.SecurityComment)</p></div>
+                }
+                @if (renewal is not null && step.Code == "HumanResources")
+                {
+                    <div class="note"><strong>درصد کسر انضباطی:</strong> @renewal.HrDisciplinaryDeductionPercent.ToString("0.##")٪ — <strong>امتیاز نهایی:</strong> @(renewal.FinalEvaluationScore?.ToString("0.##") ?? "ثبت نشده") از ۱۰۰ — <strong>مدت پیشنهادی سیستم:</strong> @HRPortal.Services.ContractRenewalWorkflowService.SuggestedContractMonths(renewal.FinalEvaluationScore) ماه — <strong>پیشنهاد منابع انسانی:</strong> @(renewal.HrProposedContractMonths?.ToString() ?? "ثبت نشده") ماه<p><strong>توضیحات منابع انسانی:</strong> @(string.IsNullOrWhiteSpace(renewal.HrComment) ? "ثبت نشده" : renewal.HrComment)</p></div>
+                }
                 @if (stepScores.Count > 0)
                 {
                     <div class="table-wrap">

@@ -228,7 +228,7 @@
         <div class="contract-score-summary" id="hrDisciplinarySummary" data-original-score="@((r.OriginalEvaluationScore ?? r.FinalEvaluationScore ?? 0m).ToString(System.Globalization.CultureInfo.InvariantCulture))">
             <div><span>امتیاز اولیه ارزیابی سازمانی</span><div class="contract-score-value">@score(r.OriginalEvaluationScore ?? r.FinalEvaluationScore) <small>از ۱۰۰</small></div></div>
             <div><span>کسر سوابق انضباطی ثبت‌شده</span><div class="contract-score-value">@score(r.HrDisciplinaryDeductionPercent) <small>٪</small></div></div>
-            <div><span>امتیاز نهایی پس از کسر</span><div class="contract-score-value">@score(r.FinalEvaluationScore) <small>از ۱۰۰</small></div></div>
+            <div><span>امتیاز نهایی پس از کسر</span><div class="contract-score-value"><span id="liveFinalScore">@score(r.FinalEvaluationScore)</span> <small>از ۱۰۰</small></div></div>
             <div><span>مدت پیشنهادی سیستم بر اساس امتیاز نهایی</span><div class="contract-score-value">@suggested <small>ماه</small></div></div>
         </div>
         <div class="note">قاعده پیشنهادی فعلی: کمتر از ۳۰ = صفر ماه؛ ۳۰ تا ۳۵ = یک ماه؛ ۳۶ تا ۵۲ = سه ماه؛ ۵۳ تا ۷۰ = شش ماه؛ ۷۱ تا ۸۷ = نه ماه؛ ۸۸ تا ۱۰۰ = دوازده ماه. امتیازهای ۳۰ و ۸۸ برای جلوگیری از بازه خالی به‌ترتیب در گروه یک‌ماهه و دوازده‌ماهه قرار گرفته‌اند.</div>
@@ -280,8 +280,9 @@
     const summary = document.getElementById("hrDisciplinarySummary");
     const deduction = document.getElementById("disciplinaryDeductionPercent");
     const suggestion = document.getElementById("systemSuggestedMonths");
+    const finalScoreDisplay = document.getElementById("liveFinalScore");
     const months = document.getElementById("hrContractMonths");
-    if (!summary || !deduction || !suggestion || !months) return;
+    if (!summary || !deduction || !suggestion || !finalScoreDisplay || !months) return;
     const original = Number(summary.dataset.originalScore || 0);
     let monthsTouched = false;
     months.addEventListener("input", function () { monthsTouched = true; });
@@ -295,8 +296,9 @@
     }
     function refresh() {
         const percent = Math.min(100, Math.max(0, Number(deduction.value || 0)));
-        const finalScore = Math.round(original * (100 - percent)) / 100;
+        const finalScore = Math.round((original * (100 - percent) / 100) * 100) / 100;
         const monthsSuggested = suggestedMonths(finalScore);
+        finalScoreDisplay.textContent = finalScore.toLocaleString("en-US", { maximumFractionDigits: 2 });
         suggestion.textContent = String(monthsSuggested);
         if (!monthsTouched) months.value = String(monthsSuggested);
     }

@@ -140,6 +140,14 @@
                     </div>
                     <span class="badge">@(stageDone ? "انجام‌شده" : stageTasks.Any(x => x.Status == "Pending") ? "در انتظار اقدام" : "بدون اقدام ثبت‌شده")</span>
                 </div>
+                @if (request is not null && step.Code == "Security")
+                {
+                    <div class="note"><strong>تصمیم مدیر حراست:</strong> @(request.SecurityDecision switch { "ApproveFull" => "موافقت با تمدید قرارداد", "ApproveOneMonth" => "موافقت با تمدید یک‌ماهه", "Reject" => "عدم موافقت", _ => "ثبت نشده" })<p><strong>توضیحات حراست:</strong> @(string.IsNullOrWhiteSpace(request.SecurityComment) ? "ثبت نشده" : request.SecurityComment)</p></div>
+                }
+                @if (request is not null && step.Code == "HumanResources")
+                {
+                    <div class="note"><strong>درصد کسر انضباطی:</strong> @score(request.HrDisciplinaryDeductionPercent)٪ — <strong>امتیاز نهایی:</strong> @score(request.FinalEvaluationScore) از ۱۰۰ — <strong>مدت پیشنهادی سیستم:</strong> @ContractRenewalWorkflowService.SuggestedContractMonths(request.FinalEvaluationScore) ماه — <strong>پیشنهاد منابع انسانی:</strong> @(request.HrProposedContractMonths?.ToString() ?? "ثبت نشده") ماه<p><strong>توضیحات منابع انسانی:</strong> @(string.IsNullOrWhiteSpace(request.HrComment) ? "ثبت نشده" : request.HrComment)</p></div>
+                }
                 @if (stageTasks.Count == 0)
                 {
                     <div class="empty">برای این مرحله، اقدام کارتابلی ثبت نشده است.</div>

@@ -30,9 +30,9 @@ public sealed class ContractRenewalPdfService
                 page.DefaultTextStyle(style => style.FontFamily("Tahoma").FontSize(9));
                 page.Header().Column(header =>
                 {
-                    header.Item().AlignRight().Text("گزارش نهایی ارزشیابی و تمدید قرارداد").FontSize(18).Bold().FontColor(Colors.Blue.Darken3);
+                    header.Item().AlignRight().Text("گزارش نهایی ارزشیابی و تمدید قرارداد").FontSize(18).Bold().FontColor(Colors.Grey.Darken4);
                     header.Item().AlignRight().Text($"شماره درخواست: {request.RequestCode}").FontSize(10).SemiBold();
-                    header.Item().PaddingTop(5).LineHorizontal(1).LineColor(Colors.Blue.Darken2);
+                    header.Item().PaddingTop(5).LineHorizontal(1).LineColor(Colors.Grey.Darken4);
                 });
                 page.Content().PaddingVertical(12).Column(column =>
                 {
@@ -74,7 +74,7 @@ public sealed class ContractRenewalPdfService
                             stage.Spacing(5);
                             stage.Item().Row(row =>
                             {
-                                row.RelativeItem().AlignRight().Text(step.Title).Bold().FontSize(11).FontColor(Colors.Blue.Darken3);
+                                row.RelativeItem().AlignRight().Text(step.Title).Bold().FontSize(11).FontColor(Colors.Grey.Darken4);
                                 row.ConstantItem(100).AlignLeft().Text(stepTasks.Any(x => x.Status == "Completed") ? "انجام‌شده" : stepTasks.Any(x => x.Status == "Pending") ? "در انتظار اقدام" : "بدون اقدام").FontSize(8);
                             });
                             stage.Item().AlignRight().Text("جایگاه: " + (step.OrganizationNode?.Title ?? (step.AssignmentType == "Hierarchy" ? "مسیر سلسله‌مراتبی" : "—"))).FontSize(8).FontColor(Colors.Grey.Darken2);
@@ -108,6 +108,16 @@ public sealed class ContractRenewalPdfService
                                     table.Cell().Element(BodyCell).Text(stepScores.All(x => x.Score.HasValue) ? stepScores.Sum(x => x.Score!.Value).ToString("0.##") : "ناقص").Bold();
                                 });
                             }
+                            if (step.Code == "Security")
+                                stage.Item().Text("تصمیم مدیر حراست: " + (request.SecurityDecision switch { "ApproveFull" => "موافقت با تمدید قرارداد", "ApproveOneMonth" => "موافقت با تمدید یک‌ماهه", "Reject" => "عدم موافقت", _ => "ثبت نشده" })).Bold().FontSize(9);
+                            if (step.Code == "HumanResources")
+                            {
+                                stage.Item().Text("درصد کسر سوابق انضباطی: " + request.HrDisciplinaryDeductionPercent.ToString("0.##") + "٪").Bold().FontSize(9);
+                                stage.Item().Text("امتیاز نهایی پس از کسر: " + (request.FinalEvaluationScore?.ToString("0.##") ?? "ثبت نشده") + " از ۱۰۰").FontSize(9);
+                                stage.Item().Text("مدت پیشنهادی سیستم: " + ContractRenewalWorkflowService.SuggestedContractMonths(request.FinalEvaluationScore) + " ماه | پیشنهاد مدیر منابع انسانی: " + (request.HrProposedContractMonths?.ToString() ?? "ثبت نشده") + " ماه").FontSize(9);
+                            }
+                            if (step.Code == "CEO")
+                                stage.Item().Text("مدت پیشنهادی سیستم: " + ContractRenewalWorkflowService.SuggestedContractMonths(request.FinalEvaluationScore) + " ماه | پیشنهاد منابع انسانی: " + (request.HrProposedContractMonths?.ToString() ?? "ثبت نشده") + " ماه | مدت نهایی مدیرعامل: " + (request.FinalContractMonths?.ToString() ?? "ثبت نشده") + " ماه").Bold().FontSize(9);
                             foreach (var task in stepTasks)
                             {
                                 stage.Item().Text("مسئول: " + (task.AssignedEmployee is not null ? task.AssignedEmployee.FirstName + " " + task.AssignedEmployee.LastName : task.AssignedPosition?.Title ?? "—")).FontSize(8);
@@ -120,10 +130,13 @@ public sealed class ContractRenewalPdfService
                     column.Item().Element(c => SectionTitle(c, "۴. جمع‌بندی تصمیم‌های نهایی"));
                     column.Item().Element(c => KeyValueTable(c, new (string, string)[]
                     {
-                        ("مجموع امتیاز نهایی ارزشیابی", request.FinalEvaluationScore.HasValue ? request.FinalEvaluationScore.Value.ToString("0.##") + " از ۱۰۰" : "ثبت نشده"),
-                        ("تصمیم حراست", request.SecurityDecision switch { "ApproveFull" => "موافقت", "ApproveOneMonth" => "موافقت با تمدید یک‌ماهه", "Reject" => "عدم موافقت", _ => "ثبت نشده" }),
+                        ("امتیاز اولیه ارزشیابی سازمانی", (request.OriginalEvaluationScore ?? request.FinalEvaluationScore).HasValue ? (request.OriginalEvaluationScore ?? request.FinalEvaluationScore)!.Value.ToString("0.##") + " از ۱۰۰" : "ثبت نشده"),
+                        ("درصد کسر بابت سوابق انضباطی", request.HrDisciplinaryDeductionPercent.ToString("0.##") + "٪"),
+                        ("امتیاز نهایی پس از کسر", request.FinalEvaluationScore.HasValue ? request.FinalEvaluationScore.Value.ToString("0.##") + " از ۱۰۰" : "ثبت نشده"),
+                        ("مدت پیشنهادی سیستم بر اساس امتیاز نهایی", ContractRenewalWorkflowService.SuggestedContractMonths(request.FinalEvaluationScore) + " ماه"),
+                        ("تصمیم ثبت‌شده مدیر حراست", request.SecurityDecision switch { "ApproveFull" => "موافقت با تمدید قرارداد", "ApproveOneMonth" => "موافقت با تمدید یک‌ماهه", "Reject" => "عدم موافقت", _ => "ثبت نشده" }),
                         ("نظر مدیر حراست", request.SecurityComment ?? "ثبت نشده"),
-                        ("پیشنهاد مدت قرارداد منابع انسانی", request.HrProposedContractMonths.HasValue ? request.HrProposedContractMonths.Value + " ماه" : "ثبت نشده"),
+                        ("پیشنهاد مدت قرارداد منابع انسانی و خدمات پشتیبانی", request.HrProposedContractMonths.HasValue ? request.HrProposedContractMonths.Value + " ماه" : "ثبت نشده"),
                         ("نظر مدیر منابع انسانی و خدمات پشتیبانی", request.HrComment ?? "ثبت نشده"),
                         ("مدت نهایی مصوب مدیرعامل", request.FinalContractMonths.HasValue ? request.FinalContractMonths.Value + " ماه" : "ثبت نشده"),
                         ("نظر مدیرعامل", request.CeoComment ?? "ثبت نشده")
@@ -183,7 +196,7 @@ public sealed class ContractRenewalPdfService
 
     private static void SectionTitle(IContainer container, string title)
     {
-        container.Background(Colors.Blue.Darken3).Padding(7).AlignRight()
+        container.Background(Colors.Grey.Darken4).Padding(7).AlignRight()
             .Text(title).FontColor(Colors.White).Bold().FontSize(11);
     }
 

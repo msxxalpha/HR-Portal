@@ -39,7 +39,9 @@ public class ContractRenewalRequest
     public bool PreviousPeriodScore1FromHistory { get; set; }
     public bool PreviousPeriodScore2FromHistory { get; set; }
 
+    public decimal? OriginalEvaluationScore { get; set; }
     public decimal? FinalEvaluationScore { get; set; }
+    public decimal HrDisciplinaryDeductionPercent { get; set; }
     [MaxLength(30)] public string? SecurityDecision { get; set; }
     [MaxLength(3000)] public string? SecurityComment { get; set; }
     public int? HrProposedContractMonths { get; set; }

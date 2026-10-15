@@ -36,9 +36,13 @@
     {
         <div><span>امتیاز نهایی ارزشیابی</span><strong>@score(r.FinalEvaluationScore) از ۱۰۰</strong></div>
     }
-    @if (Model.StageKind == "HumanResources")
+    @if (Model.StageKind is "Security" or "HumanResources" or "CEO")
     {
-        <div><span>مدت پیشنهادی بر اساس امتیاز</span><strong>@suggested ماه</strong></div>
+        <div><span>مدت پیشنهادی سیستم بر اساس امتیاز نهایی</span><strong>@suggested ماه</strong></div>
+    }
+    @if (Model.StageKind == "CEO")
+    {
+        <div><span>پیشنهاد مدت مدیر منابع انسانی</span><strong>@(r.HrProposedContractMonths.HasValue ? r.HrProposedContractMonths.Value + " ماه" : "ثبت نشده")</strong></div>
     }
 </section>
 
@@ -222,14 +226,20 @@
     <section class="card">
         <div class="section-head"><div><h3>پیشنهاد مدت قرارداد</h3><span class="muted">مدت پیشنهادی از روی امتیاز نهایی محاسبه شده و قابل ویرایش است.</span></div></div>
         <div class="contract-score-summary">
-            <div><span>امتیاز نهایی آخرین ارزیاب سازمانی</span><div class="contract-score-value">@score(r.FinalEvaluationScore) <small>از ۱۰۰</small></div></div>
-            <div><span>مدت پیشنهادی اولیه سیستم</span><div class="contract-score-value">@suggested <small>ماه</small></div></div>
+            <div><span>امتیاز اولیه ارزیابی سازمانی</span><div class="contract-score-value">@score(r.OriginalEvaluationScore ?? r.FinalEvaluationScore) <small>از ۱۰۰</small></div></div>
+            <div><span>کسر سوابق انضباطی ثبت‌شده</span><div class="contract-score-value">@score(r.HrDisciplinaryDeductionPercent) <small>٪</small></div></div>
+            <div><span>امتیاز نهایی پس از کسر</span><div class="contract-score-value">@score(r.FinalEvaluationScore) <small>از ۱۰۰</small></div></div>
+            <div><span>مدت پیشنهادی سیستم بر اساس امتیاز نهایی</span><div class="contract-score-value">@suggested <small>ماه</small></div></div>
         </div>
         <div class="note">قاعده پیشنهادی فعلی: کمتر از ۳۰ = صفر ماه؛ ۳۰ تا ۳۵ = یک ماه؛ ۳۶ تا ۵۲ = سه ماه؛ ۵۳ تا ۷۰ = شش ماه؛ ۷۱ تا ۸۷ = نه ماه؛ ۸۸ تا ۱۰۰ = دوازده ماه. امتیازهای ۳۰ و ۸۸ برای جلوگیری از بازه خالی به‌ترتیب در گروه یک‌ماهه و دوازده‌ماهه قرار گرفته‌اند.</div>
         @if (!Model.IsReadOnly) { <form method="post" action="/ContractRenewalTask/Submit" class="form-stack">
             @Html.AntiForgeryToken()
             <input type="hidden" name="id" value="@Model.Task.Id" />
-            <label>مدت پیشنهادی تمدید قرارداد (ماه) *
+            <label>درصد کسر امتیاز بابت سوابق انضباطی *
+                <input type="number" name="disciplinaryDeductionPercent" min="0" max="100" step="0.01" required value="@score(r.HrDisciplinaryDeductionPercent)" />
+            </label>
+            <p class="muted">امتیاز نهایی پس از کسر از امتیاز اولیه محاسبه می‌شود و پیشنهاد سیستم بر اساس امتیاز جدید به‌روزرسانی خواهد شد.</p>
+            <label>مدت پیشنهادی تمدید قرارداد (ماه؛ عدد صحیح از صفر تا ۱۲) *
                 <input type="number" name="contractMonths" min="0" max="12" step="1" required value="@suggested" />
             </label>
             <label>توضیحات مدیر منابع انسانی و خدمات پشتیبانی
@@ -247,8 +257,13 @@
         @if (!Model.IsReadOnly) { <form method="post" action="/ContractRenewalTask/Submit" class="form-stack">
             @Html.AntiForgeryToken()
             <input type="hidden" name="id" value="@Model.Task.Id" />
-            <label>مدت نهایی قرارداد (ماه) *
-                <input type="number" name="contractMonths" min="0" max="12" step="1" required value="@(r.HrProposedContractMonths ?? suggested)" />
+            <div class="contract-score-summary">
+                <div><span>امتیاز نهایی پس از کسر سوابق انضباطی</span><div class="contract-score-value">@score(r.FinalEvaluationScore) <small>از ۱۰۰</small></div></div>
+                <div><span>مدت پیشنهادی سیستم</span><div class="contract-score-value">@suggested <small>ماه</small></div></div>
+                <div><span>پیشنهاد مدیر منابع انسانی</span><div class="contract-score-value">@(r.HrProposedContractMonths ?? 0) <small>ماه</small></div></div>
+            </div>
+            <label>مدت نهایی قرارداد (ماه؛ عدد صحیح از صفر تا ۱۲) *
+                <input type="number" name="contractMonths" min="0" max="12" step="1" required value="@Math.Clamp(r.HrProposedContractMonths ?? suggested, 0, 12)" />
             </label>
             <label>توضیحات نهایی مدیرعامل
                 <textarea name="comment" rows="4" maxlength="2000" placeholder="توضیحات یا دلایل تغییر مدت پیشنهادی در صورت نیاز"></textarea>

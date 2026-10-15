@@ -84,7 +84,9 @@ BEGIN
         [PreviousPeriodScore2] decimal(5,2) NOT NULL,
         [PreviousPeriodScore1FromHistory] bit NOT NULL,
         [PreviousPeriodScore2FromHistory] bit NOT NULL,
+        [OriginalEvaluationScore] decimal(5,2) NULL,
         [FinalEvaluationScore] decimal(5,2) NULL,
+        [HrDisciplinaryDeductionPercent] decimal(5,2) NOT NULL CONSTRAINT [DF_ContractRenewalRequests_HrDisciplinaryDeductionPercent] DEFAULT 0,
         [SecurityDecision] nvarchar(30) NULL,
         [SecurityComment] nvarchar(3000) NULL,
         [HrProposedContractMonths] int NULL,
@@ -95,6 +97,11 @@ BEGIN
         [CompletedAt] datetime2 NULL
     );
 END;
+
+IF OBJECT_ID(N'dbo.ContractRenewalRequests', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.ContractRenewalRequests', N'OriginalEvaluationScore') IS NULL
+    ALTER TABLE [dbo].[ContractRenewalRequests] ADD [OriginalEvaluationScore] decimal(5,2) NULL;
+IF OBJECT_ID(N'dbo.ContractRenewalRequests', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.ContractRenewalRequests', N'HrDisciplinaryDeductionPercent') IS NULL
+    ALTER TABLE [dbo].[ContractRenewalRequests] ADD [HrDisciplinaryDeductionPercent] decimal(5,2) NOT NULL CONSTRAINT [DF_ContractRenewalRequests_HrDisciplinaryDeductionPercent] DEFAULT 0;
 
 IF OBJECT_ID(N'dbo.ContractRenewalRequests', N'U') IS NOT NULL
 AND COL_LENGTH(N'dbo.ContractRenewalRequests', N'Status') IS NOT NULL

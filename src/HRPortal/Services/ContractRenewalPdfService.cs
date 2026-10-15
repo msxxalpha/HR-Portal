@@ -30,9 +30,9 @@ public sealed class ContractRenewalPdfService
                 page.DefaultTextStyle(style => style.FontFamily("Tahoma").FontSize(9));
                 page.Header().Column(header =>
                 {
-                    header.Item().AlignRight().Text("گزارش نهایی ارزشیابی و تمدید قرارداد").FontSize(18).Bold().FontColor(Colors.Grey.Darken4);
+                    header.Item().AlignRight().Text("گزارش نهایی ارزشیابی و تمدید قرارداد").FontSize(18).Bold().FontColor(Colors.Blue.Darken4);
                     header.Item().AlignRight().Text($"شماره درخواست: {request.RequestCode}").FontSize(10).SemiBold();
-                    header.Item().PaddingTop(5).LineHorizontal(1).LineColor(Colors.Grey.Darken4);
+                    header.Item().PaddingTop(5).LineHorizontal(1).LineColor(Colors.Blue.Darken4);
                 });
                 page.Content().PaddingVertical(12).Column(column =>
                 {
@@ -74,7 +74,7 @@ public sealed class ContractRenewalPdfService
                             stage.Spacing(5);
                             stage.Item().Row(row =>
                             {
-                                row.RelativeItem().AlignRight().Text(step.Title).Bold().FontSize(11).FontColor(Colors.Grey.Darken4);
+                                row.RelativeItem().AlignRight().Text(step.Title).Bold().FontSize(11).FontColor(Colors.Blue.Darken4);
                                 row.ConstantItem(100).AlignLeft().Text(stepTasks.Any(x => x.Status == "Completed") ? "انجام‌شده" : stepTasks.Any(x => x.Status == "Pending") ? "در انتظار اقدام" : "بدون اقدام").FontSize(8);
                             });
                             stage.Item().AlignRight().Text("جایگاه: " + (step.OrganizationNode?.Title ?? (step.AssignmentType == "Hierarchy" ? "مسیر سلسله‌مراتبی" : "—"))).FontSize(8).FontColor(Colors.Grey.Darken2);

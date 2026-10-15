@@ -40,7 +40,8 @@ public class ContractRenewalTaskController(
         string? comment,
         Dictionary<string, decimal?>? scores,
         string? securityDecision,
-        int? contractMonths)
+        int? contractMonths,
+        decimal? disciplinaryDeductionPercent)
     {
         if (!TryGetEmployeeId(out var employeeId)) return Forbid();
         var task = await workflow.GetTaskAsync(id, employeeId);
@@ -110,10 +111,19 @@ public class ContractRenewalTaskController(
                 if (securityDecision is not ("ApproveFull" or "ApproveOneMonth" or "Reject"))
                     throw new InvalidOperationException("یکی از سه گزینه اظهار نظر حراست را انتخاب کنید.");
             }
-            else if (stageKind is "HumanResources" or "CEO")
+            else if (stageKind == "HumanResources")
             {
                 if (!contractMonths.HasValue || contractMonths.Value is < 0 or > 12)
-                    throw new InvalidOperationException("مدت قرارداد باید بین صفر تا ۱۲ ماه باشد.");
+                    throw new InvalidOperationException("مدت قرارداد باید عدد صحیحی بین صفر تا ۱۲ ماه باشد.");
+                if (!disciplinaryDeductionPercent.HasValue || disciplinaryDeductionPercent.Value < 0m || disciplinaryDeductionPercent.Value > 100m)
+                    throw new InvalidOperationException("درصد کسر بابت سوابق انضباطی باید بین صفر تا ۱۰۰ باشد.");
+                if (disciplinaryDeductionPercent.Value != decimal.Round(disciplinaryDeductionPercent.Value, 2))
+                    throw new InvalidOperationException("درصد کسر حداکثر می‌تواند دو رقم اعشار داشته باشد.");
+            }
+            else if (stageKind == "CEO")
+            {
+                if (!contractMonths.HasValue || contractMonths.Value is < 0 or > 12)
+                    throw new InvalidOperationException("مدت قرارداد باید عدد صحیحی بین صفر تا ۱۲ ماه باشد.");
             }
             else
             {
@@ -123,7 +133,9 @@ public class ContractRenewalTaskController(
             // Keep business data and workflow transition in the same WorkflowService transaction.
             if (stageKind == "Evaluation" && isLastEvaluationStage)
             {
+                request.OriginalEvaluationScore = completedEvaluationScore;
                 request.FinalEvaluationScore = completedEvaluationScore;
+                request.HrDisciplinaryDeductionPercent = 0m;
                 request.Status = "در انتظار اظهارنظر حراست";
             }
             else if (stageKind == "Evaluation")
@@ -146,6 +158,9 @@ public class ContractRenewalTaskController(
             }
             else if (stageKind == "HumanResources")
             {
+                var baseScore = request.OriginalEvaluationScore ?? request.FinalEvaluationScore ?? 0m;
+                request.HrDisciplinaryDeductionPercent = disciplinaryDeductionPercent!.Value;
+                request.FinalEvaluationScore = decimal.Round(baseScore * (100m - disciplinaryDeductionPercent.Value) / 100m, 2, MidpointRounding.AwayFromZero);
                 request.HrProposedContractMonths = contractMonths;
                 request.HrComment = comment?.Trim();
                 request.Status = "در انتظار تأیید نهایی مدیرعامل";

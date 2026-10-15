@@ -38,7 +38,7 @@
     }
     @if (Model.StageKind is "Security" or "HumanResources" or "CEO")
     {
-        <div><span>مدت پیشنهادی سیستم بر اساس امتیاز نهایی</span><strong>@suggested ماه</strong></div>
+        <div><span>مدت پیشنهادی سیستم بر اساس امتیاز نهایی</span><strong><span id="systemSuggestedMonths">@suggested</span> ماه</strong></div>
     }
     @if (Model.StageKind == "CEO")
     {
@@ -225,7 +225,7 @@
 {
     <section class="card">
         <div class="section-head"><div><h3>پیشنهاد مدت قرارداد</h3><span class="muted">مدت پیشنهادی از روی امتیاز نهایی محاسبه شده و قابل ویرایش است.</span></div></div>
-        <div class="contract-score-summary">
+        <div class="contract-score-summary" id="hrDisciplinarySummary" data-original-score="@((r.OriginalEvaluationScore ?? r.FinalEvaluationScore ?? 0m).ToString(System.Globalization.CultureInfo.InvariantCulture))">
             <div><span>امتیاز اولیه ارزیابی سازمانی</span><div class="contract-score-value">@score(r.OriginalEvaluationScore ?? r.FinalEvaluationScore) <small>از ۱۰۰</small></div></div>
             <div><span>کسر سوابق انضباطی ثبت‌شده</span><div class="contract-score-value">@score(r.HrDisciplinaryDeductionPercent) <small>٪</small></div></div>
             <div><span>امتیاز نهایی پس از کسر</span><div class="contract-score-value">@score(r.FinalEvaluationScore) <small>از ۱۰۰</small></div></div>
@@ -236,11 +236,11 @@
             @Html.AntiForgeryToken()
             <input type="hidden" name="id" value="@Model.Task.Id" />
             <label>درصد کسر امتیاز بابت سوابق انضباطی *
-                <input type="number" name="disciplinaryDeductionPercent" min="0" max="100" step="0.01" required value="@score(r.HrDisciplinaryDeductionPercent)" />
+                <input id="disciplinaryDeductionPercent" type="number" name="disciplinaryDeductionPercent" min="0" max="100" step="0.01" required value="@score(r.HrDisciplinaryDeductionPercent)" />
             </label>
             <p class="muted">امتیاز نهایی پس از کسر از امتیاز اولیه محاسبه می‌شود و پیشنهاد سیستم بر اساس امتیاز جدید به‌روزرسانی خواهد شد.</p>
             <label>مدت پیشنهادی تمدید قرارداد (ماه؛ عدد صحیح از صفر تا ۱۲) *
-                <input type="number" name="contractMonths" min="0" max="12" step="1" required value="@suggested" />
+                <input id="hrContractMonths" type="number" name="contractMonths" min="0" max="12" step="1" required value="@suggested" />
             </label>
             <label>توضیحات مدیر منابع انسانی و خدمات پشتیبانی
                 <textarea name="comment" rows="4" maxlength="2000" placeholder="دلایل پیشنهاد مدت قرارداد و ملاحظات منابع انسانی"></textarea>
@@ -271,4 +271,37 @@
             <div class="actions"><button class="btn btn-main" type="submit">تأیید نهایی و تکمیل فرایند</button></div>
         </form> }
     </section>
+}
+
+@if (Model.StageKind == "HumanResources" && !Model.IsReadOnly)
+{
+<script>
+(function () {
+    const summary = document.getElementById("hrDisciplinarySummary");
+    const deduction = document.getElementById("disciplinaryDeductionPercent");
+    const suggestion = document.getElementById("systemSuggestedMonths");
+    const months = document.getElementById("hrContractMonths");
+    if (!summary || !deduction || !suggestion || !months) return;
+    const original = Number(summary.dataset.originalScore || 0);
+    let monthsTouched = false;
+    months.addEventListener("input", function () { monthsTouched = true; });
+    function suggestedMonths(score) {
+        if (score < 30) return 0;
+        if (score <= 35) return 1;
+        if (score <= 52) return 3;
+        if (score <= 70) return 6;
+        if (score <= 87) return 9;
+        return 12;
+    }
+    function refresh() {
+        const percent = Math.min(100, Math.max(0, Number(deduction.value || 0)));
+        const finalScore = Math.round(original * (100 - percent)) / 100;
+        const monthsSuggested = suggestedMonths(finalScore);
+        suggestion.textContent = String(monthsSuggested);
+        if (!monthsTouched) months.value = String(monthsSuggested);
+    }
+    deduction.addEventListener("input", refresh);
+    refresh();
+})();
+</script>
 }

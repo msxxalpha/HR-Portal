@@ -123,7 +123,10 @@
     <section class="card" style="margin-top:1rem">
         <div class="section-head"><h3>جمع‌بندی تصمیم‌های نهایی</h3></div>
         <dl class="detail-list">
-            <dt>مجموع امتیاز ارزشیابی</dt><dd>@(renewal.FinalEvaluationScore?.ToString("0.##") ?? "ثبت نشده") از ۱۰۰</dd>
+            <dt>امتیاز اولیه ارزشیابی</dt><dd>@((renewal.OriginalEvaluationScore ?? renewal.FinalEvaluationScore)?.ToString("0.##") ?? "ثبت نشده") از ۱۰۰</dd>
+            <dt>درصد کسر سوابق انضباطی</dt><dd>@renewal.HrDisciplinaryDeductionPercent.ToString("0.##")٪</dd>
+            <dt>امتیاز نهایی پس از کسر</dt><dd>@(renewal.FinalEvaluationScore?.ToString("0.##") ?? "ثبت نشده") از ۱۰۰</dd>
+            <dt>مدت پیشنهادی سیستم</dt><dd>@HRPortal.Services.ContractRenewalWorkflowService.SuggestedContractMonths(renewal.FinalEvaluationScore) ماه</dd>
             <dt>تصمیم حراست</dt><dd>@(renewal.SecurityDecision switch { "ApproveFull" => "موافقت", "ApproveOneMonth" => "موافقت با تمدید یک‌ماهه", "Reject" => "عدم موافقت", _ => "ثبت نشده" })</dd>
             <dt>نظر مدیر حراست</dt><dd>@(string.IsNullOrWhiteSpace(renewal.SecurityComment) ? "ثبت نشده" : renewal.SecurityComment)</dd>
             <dt>پیشنهاد مدت قرارداد منابع انسانی و خدمات پشتیبانی</dt><dd>@(renewal.HrProposedContractMonths.HasValue ? renewal.HrProposedContractMonths.Value + " ماه" : "ثبت نشده")</dd>

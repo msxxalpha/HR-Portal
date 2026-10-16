@@ -163,7 +163,11 @@ public class RoleService(HRPortalDbContext db)
                 if (rankTypes.Count > 0)
                 {
                     var rankRoleIds = await db.RoleOrganizationRanks.AsNoTracking()
-                        .Where(x => rankTypes.Contains(x.RankType) && x.Role.IsActive)
+                        .Join(db.Roles.AsNoTracking().Where(role => role.IsActive),
+                            assignment => assignment.RoleId,
+                            role => role.Id,
+                            (assignment, role) => new { assignment.RoleId, assignment.RankType })
+                        .Where(x => rankTypes.Contains(x.RankType))
                         .Select(x => x.RoleId)
                         .Distinct()
                         .ToListAsync();
@@ -185,7 +189,7 @@ public class RoleService(HRPortalDbContext db)
     public async Task<List<string>> GetOrganizationRankTypesAsync()
     {
         var configured = await db.OrganizationRankDefinitions.AsNoTracking()
-            .Where(x => x.IsActive).Select(x => x.Title).ToListAsync();
+            .Select(x => x.Title).ToListAsync();
         var used = await db.OrganizationNodes.AsNoTracking()
             .Where(x => x.IsActive).Select(x => x.RankType).ToListAsync();
         return configured.Concat(used)

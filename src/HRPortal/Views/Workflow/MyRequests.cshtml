@@ -8,8 +8,14 @@
     <div><h1>@(isAdminRequests ? "مدیریت درخواست‌ها" : "درخواست‌های من")</h1><p>@(isAdminRequests ? "مشاهده و حذف کامل درخواست‌ها همراه با سوابق و تاریخچه گردش کار." : "پیگیری وضعیت درخواست‌های ثبت‌شده توسط شما؛ حذف فقط تا پیش از مشاهده مرحله بعد امکان‌پذیر است.")</p></div>
     <div class="actions"><a class="btn btn-outline" href="/Workflow/Inbox">کارتابل</a><a class="btn btn-main" href="/">بازگشت به داشبورد</a></div>
 </div>
+<div class="workflow-stats">
+    <div class="stat"><span>کل درخواست‌ها</span><strong>@Model.Count</strong></div>
+    <div class="stat"><span>در حال گردش</span><strong>@Model.Count(x => x.Status == "InProgress")</strong></div>
+    <div class="stat"><span>تأیید نهایی</span><strong>@Model.Count(x => x.Status == "Approved" || x.Status == "Completed")</strong></div>
+    <div class="stat"><span>رد یا برگشت</span><strong>@Model.Count(x => x.Status == "Rejected" || x.Status == "Returned")</strong></div>
+</div>
 <section class="card request-list-card">
-    <div class="section-head"><div><h3>@(isAdminRequests ? "همه درخواست‌های سامانه" : "فهرست درخواست‌ها")</h3><span class="muted">@Model.Count درخواست</span></div><span class="request-count-pill">@Model.Count</span></div>
+    <div class="section-head"><div><h3>@(isAdminRequests ? "همه درخواست‌های سامانه" : "فهرست درخواست‌ها")</h3><span class="muted">نمایش @Model.Count درخواست؛ تفکیک بر اساس وضعیت در آمار بالای صفحه</span></div><span class="request-count-pill">@Model.Count</span></div>
     @if (isAdminRequests) { <div class="alert warning">حذف مدیر سامانه غیرقابل‌بازگشت است و اطلاعات درخواست، مراحل، امتیازها و تاریخچه مرتبط را حذف می‌کند.</div> }
     @if (Model.Count == 0)
     {

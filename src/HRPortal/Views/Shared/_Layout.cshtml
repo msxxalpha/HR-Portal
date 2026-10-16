@@ -90,6 +90,7 @@
                         @if (Can("Users.Manage") || Can("Roles.Manage")) { <a href="/Users">کاربران و نقش‌ها</a> }
                         @if (Can("Workflow.Manage")) { <a href="/Workflow/Manage">مدیریت گردش کار</a> }
                         @if (Can("Settings.View")) { <a href="/SystemSettings">تنظیمات سامانه</a> }
+                        @if (isAdmin) { <a href="/DatabaseMaintenance">پاکسازی اطلاعات عملیاتی</a> }
                     </div>
                 </details>
             }

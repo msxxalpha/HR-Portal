@@ -163,6 +163,30 @@
                 </div>
                 <div class="form-actions"><button class="btn btn-outline" type="submit">ذخیره نقش</button></div>
             </form>
+            <div class="section-head" style="margin-top:18px;">
+                <div><h4>تخصیص نقش به رده‌های سازمانی</h4><span class="muted">تمام کارکنان منتسب به رده‌های انتخاب‌شده در آخرین ساختار نهایی‌شده، دسترسی‌های این نقش را به ارث می‌برند.</span></div>
+            </div>
+            <form method="post" action="/Users/SaveRoleRanks">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="roleId" value="@role.Id" />
+                @if (Model.OrganizationRankTypes.Count == 0)
+                {
+                    <div class="empty">رده سازمانی برای تخصیص وجود ندارد. ابتدا رده‌ها را در اطلاعات پایه تعریف کنید.</div>
+                }
+                else
+                {
+                    <div class="permission-grid">
+                        @foreach (var rankType in Model.OrganizationRankTypes)
+                        {
+                            <label class="permission-item">
+                                <input type="checkbox" name="rankTypes" value="@rankType" @(Model.RoleRankTypes.TryGetValue(role.Id, out var assignedRanks) && assignedRanks.Contains(rankType, StringComparer.OrdinalIgnoreCase) ? "checked" : "") />
+                                <span><strong>@rankType</strong><small>اعمال دسترسی‌های نقش «@role.Title» به کارکنان این رده</small></span>
+                            </label>
+                        }
+                    </div>
+                }
+                <div class="form-actions"><button class="btn btn-main" type="submit">ذخیره رده‌های این نقش</button></div>
+            </form>
         </div>
     }
 </section>

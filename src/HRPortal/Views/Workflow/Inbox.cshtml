@@ -16,6 +16,7 @@
     <div class="stat"><span>در انتظار اقدام</span><strong>@Model.Count(x => x.Status == "Pending")</strong></div>
     <div class="stat"><span>درخواست‌های امروز</span><strong>@Model.Count(x => x.CreatedAt.Date == DateTime.UtcNow.Date)</strong></div>
     <div class="stat"><span>انواع گردش کار</span><strong>@Model.Select(x => x.WorkflowTitle).Distinct().Count()</strong></div>
+    <div class="stat"><span>سوابق اقدام‌های من</span><strong>@((ViewBag.ActionHistory as List<HRPortal.Models.WorkflowInboxRow> ?? []).Count)</strong></div>
 </div>
 
 <section class="card workflow-inbox-card">

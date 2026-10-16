@@ -129,7 +129,98 @@ public class RoleService(HRPortalDbContext db)
             .SelectMany(er => db.RolePermissions.Where(rp => rp.RoleId == er.RoleId).Select(rp => rp.Permission.Code))
             .ToListAsync();
 
+        var revisionId = await db.OrganizationStructureRevisions.AsNoTracking()
+            .Where(x => x.IsFinalized)
+            .OrderByDescending(x => x.EffectiveDate)
+            .ThenByDescending(x => x.FinalizedAt)
+            .ThenByDescending(x => x.Id)
+            .Select(x => (int?)x.Id)
+            .FirstOrDefaultAsync();
+
+        if (revisionId.HasValue)
+        {
+            var employee = await db.Employees.AsNoTracking()
+                .Where(x => x.Id == employeeId)
+                .Select(x => new { x.OrganizationPositionId })
+                .FirstOrDefaultAsync();
+            if (employee is not null)
+            {
+                var nodes = await db.OrganizationNodes.AsNoTracking()
+                    .Where(x => x.OrganizationStructureRevisionId == revisionId.Value && x.IsActive)
+                    .Select(x => new { x.Id, x.RankType, x.PositionHolderEmployeeId, x.AssignedEmployeeIdsCsv })
+                    .ToListAsync();
+
+                var rankTypes = nodes
+                    .Where(n => n.PositionHolderEmployeeId == employeeId ||
+                        (employee.OrganizationPositionId.HasValue && n.Id == employee.OrganizationPositionId.Value) ||
+                        (n.AssignedEmployeeIdsCsv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                            .Contains(employeeId.ToString(), StringComparer.Ordinal))
+                    .Select(n => n.RankType)
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                if (rankTypes.Count > 0)
+                {
+                    var rankRoleIds = await db.RoleOrganizationRanks.AsNoTracking()
+                        .Where(x => rankTypes.Contains(x.RankType) && x.Role.IsActive)
+                        .Select(x => x.RoleId)
+                        .Distinct()
+                        .ToListAsync();
+                    if (rankRoleIds.Count > 0)
+                    {
+                        var inheritedCodes = await db.RolePermissions.AsNoTracking()
+                            .Where(x => rankRoleIds.Contains(x.RoleId))
+                            .Select(x => x.Permission.Code)
+                            .ToListAsync();
+                        codes.AddRange(inheritedCodes);
+                    }
+                }
+            }
+        }
+
         return codes.ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    public async Task<List<string>> GetOrganizationRankTypesAsync()
+    {
+        var configured = await db.OrganizationRankDefinitions.AsNoTracking()
+            .Where(x => x.IsActive).Select(x => x.Title).ToListAsync();
+        var used = await db.OrganizationNodes.AsNoTracking()
+            .Where(x => x.IsActive).Select(x => x.RankType).ToListAsync();
+        return configured.Concat(used)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x)
+            .ToList();
+    }
+
+    public async Task<Dictionary<int, List<string>>> GetRoleRankAssignmentsAsync()
+    {
+        var rows = await db.RoleOrganizationRanks.AsNoTracking().ToListAsync();
+        return rows.GroupBy(x => x.RoleId)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.RankType).ToList());
+    }
+
+    public async Task SaveRoleRankTypesAsync(int roleId, IEnumerable<string> rankTypes)
+    {
+        if (!await db.Roles.AnyAsync(x => x.Id == roleId))
+            throw new InvalidOperationException("نقش یافت نشد.");
+
+        var validTypes = await GetOrganizationRankTypesAsync();
+        var selected = rankTypes
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Where(x => validTypes.Contains(x, StringComparer.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        db.RoleOrganizationRanks.RemoveRange(
+            db.RoleOrganizationRanks.Where(x => x.RoleId == roleId));
+        foreach (var rankType in selected)
+            db.RoleOrganizationRanks.Add(new RoleOrganizationRank { RoleId = roleId, RankType = rankType });
+        await db.SaveChangesAsync();
     }
 
     public async Task SaveEmployeeRolesAsync(int employeeId, IEnumerable<int> roleIds)

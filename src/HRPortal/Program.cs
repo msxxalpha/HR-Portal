@@ -3,6 +3,9 @@ using HRPortal.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using QuestPDF.Infrastructure;
+
+QuestPDF.Settings.License = LicenseType.Professional;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -71,6 +74,9 @@ builder.Services.AddScoped<AnnouncementService>();
 builder.Services.AddScoped<EmployeeExcelService>();
 builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<RoleService>();
+builder.Services.AddScoped<WorkflowService>();
+builder.Services.AddScoped<ContractRenewalWorkflowService>();
+builder.Services.AddScoped<ContractRenewalPdfService>();
 builder.Services.AddScoped<ISmsService, ConfigurableSmsService>();
 
 builder.Services
@@ -165,6 +171,11 @@ app.MapControllerRoute(
     defaults: new { controller = "PersonnelOrder" });
 
 app.MapControllerRoute(
+    name: "workflow",
+    pattern: "Workflow/{action=Inbox}/{id?}",
+    defaults: new { controller = "Workflow" });
+
+app.MapControllerRoute(
     name: "announcements",
     pattern: "Announcements/{action=Index}/{id?}",
     defaults: new { controller = "Announcements" });
@@ -178,6 +189,11 @@ app.MapControllerRoute(
     name: "payroll",
     pattern: "Payroll/{action=Payslip}/{id?}",
     defaults: new { controller = "Payroll" });
+
+app.MapControllerRoute(
+    name: "support",
+    pattern: "Support/{action=Index}/{id?}",
+    defaults: new { controller = "Support" });
 
 app.MapControllerRoute(
     name: "settings",

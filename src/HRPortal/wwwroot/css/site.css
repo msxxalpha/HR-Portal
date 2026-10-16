@@ -214,3 +214,277 @@
 .announcement-meta{border-top:1px solid #edf1f3;margin-top:12px;padding-top:9px;color:var(--muted);font-size:8px}
 @media(max-width:950px){.announcement-management-grid,.category-management-grid{grid-template-columns:1fr}.announcement-dashboard-list{grid-template-columns:1fr}}
 @media(max-width:700px){.announcement-options{grid-template-columns:1fr}.report-toolbar{flex-direction:column;align-items:stretch}.report-toolbar .actions{width:100%}.report-toolbar .btn{flex:1}}
+
+/* Workflow and categorized navigation */
+.nav-caption{letter-spacing:.1px}
+.nav a{display:flex;align-items:center;gap:9px}
+.nav-icon{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border-radius:7px;background:rgba(255,255,255,.08);color:#d9e7ef;font-size:12px;flex:0 0 22px}
+.nav a:hover .nav-icon,.nav a.nav-emphasis .nav-icon{background:rgba(255,255,255,.16)}
+.nav-emphasis{background:rgba(255,255,255,.09)}
+.nav-badge{margin-right:auto;width:17px;height:17px;display:inline-grid;place-items:center;border-radius:50%;background:#e85b5b;color:#fff;font-size:9px}
+.workflow-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:18px}
+.workflow-inbox-card{overflow:hidden}
+.workflow-detail-grid{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:18px}
+.detail-list{display:grid;grid-template-columns:150px 1fr;gap:10px 16px;margin:0}
+.detail-list dt{color:var(--muted);font-size:10px}.detail-list dd{margin:0;color:var(--navy);font-size:11px;font-weight:600}
+.workflow-history{display:grid;gap:11px}
+.workflow-history-item{padding:12px;border:1px solid var(--line);border-radius:10px;background:#fafcfd}
+.workflow-history-item>div{display:flex;justify-content:space-between;gap:10px}
+.workflow-history-item strong{color:var(--navy);font-size:11px}.workflow-history-item span{color:var(--muted);font-size:9px}
+.workflow-history-item p{margin:6px 0 0;color:#52616d;font-size:10px;line-height:1.8}
+.workflow-management-grid{display:grid;grid-template-columns:minmax(260px,.65fr) minmax(0,1.8fr);gap:18px;align-items:start}
+.workflow-definition-item{display:flex;flex-direction:column;gap:4px;text-decoration:none;padding:12px;border:1px solid transparent;border-radius:10px;margin-bottom:6px}
+.workflow-definition-item:hover,.workflow-definition-item.selected{background:#f2f6f8;border-color:#d7e2e8}
+.workflow-definition-item strong{font-size:11px;color:var(--navy)}.workflow-definition-item span{font-size:9px;color:var(--muted)}
+.workflow-step-card{border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px;background:#fbfcfd}
+.workflow-step-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.workflow-step-head strong{color:var(--navy);font-size:12px}.workflow-step-head span{color:var(--muted);font-size:9px}
+.workflow-step-actions{display:flex;flex-wrap:wrap;gap:9px;align-items:end}
+.transition-form{display:flex;gap:7px;align-items:end;background:#fff;border:1px solid #e8edf0;border-radius:9px;padding:8px}
+.transition-form label{min-width:210px}
+.support-card{max-width:760px;text-align:center;margin:0 auto}
+.support-icon{width:64px;height:64px;border-radius:18px;background:#edf3f6;color:var(--navy);display:grid;place-items:center;margin:0 auto 15px;font-size:26px;font-weight:800}
+.badge-info{background:#eaf2fb;color:#2d628e}
+@media(max-width:950px){.workflow-management-grid,.workflow-detail-grid{grid-template-columns:1fr}.workflow-stats{grid-template-columns:1fr}.transition-form{width:100%;flex-wrap:wrap}.transition-form label{flex:1;min-width:180px}}
+
+/* Sidebar accordion navigation */
+.sidebar{overflow-y:auto;overflow-x:hidden;padding-bottom:72px}
+.nav{padding-top:10px;padding-bottom:14px}
+.nav-dashboard{display:block;text-decoration:none;color:#fff;padding:12px;border-radius:9px;font-size:12px;margin-bottom:7px;background:rgba(255,255,255,.06)}
+.nav-group{margin:4px 0;border-radius:10px;overflow:hidden}
+.nav-group>summary{list-style:none;display:flex;align-items:center;gap:9px;cursor:pointer;color:#e8f0f5;padding:11px 12px;border-radius:9px;font-size:12px;user-select:none}
+.nav-group>summary::-webkit-details-marker{display:none}
+.nav-group>summary::after{content:"";width:7px;height:7px;border-left:1.5px solid #9fb4c1;border-bottom:1.5px solid #9fb4c1;transform:rotate(45deg);margin-right:auto;margin-top:-4px;transition:transform .15s}
+.nav-group[open]>summary::after{transform:rotate(-45deg);margin-top:4px}
+.nav-group>summary:hover,.nav-group[open]>summary{background:rgba(255,255,255,.08)}
+.nav-group .nav-icon{width:18px;display:inline-flex;justify-content:center;color:#b8ccd8}
+.nav-submenu{padding:2px 0 7px}
+.nav-submenu a{display:block;text-decoration:none;color:#d7e3ea;padding:9px 18px 9px 10px;margin:2px 5px 2px 0;border-right:2px solid rgba(255,255,255,.18);border-radius:0 6px 6px 0;font-size:11px}
+.nav-submenu a:hover{background:rgba(255,255,255,.08);border-right-color:#fff}
+@media(max-width:900px){.sidebar{width:235px;flex-basis:235px}.content{padding:18px}}
+@media(max-width:680px){.app-shell{display:block}.sidebar{position:relative;width:100%;height:auto;min-height:0;flex-basis:auto;max-height:55vh}.sidebar-foot{display:none}.brand{padding-bottom:14px}.topbar{padding:14px 18px}.content{padding:14px}}
+
+/* Contract-management tabs and organization rank master data */
+.contract-request-revision{border:1px solid var(--line);border-radius:10px;padding:12px;margin:10px 0;background:#fbfcfd}
+.contract-request-revision summary{display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer}
+.contract-snapshot-json{white-space:pre-wrap;overflow-wrap:anywhere;max-height:520px;overflow:auto;padding:14px;background:#f2f5f7;border-radius:8px;font-size:10px;line-height:1.8;color:#293845}
+.contract-request-status{display:inline-block;padding:5px 8px;border-radius:6px;background:#f1f4f7;color:var(--navy);font-size:10px;line-height:1.7}
+.contract-tab-panel{display:none}
+.contract-tab-panel.active{display:block}
+.rank-management-grid{display:grid;grid-template-columns:minmax(260px,.7fr) minmax(0,1.4fr);gap:16px;align-items:start}
+.rank-definition-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.rank-definition-list .category-editor-card{min-width:0}
+@media(max-width:900px){.rank-management-grid,.rank-definition-list{grid-template-columns:1fr}}
+
+/* Employee contract management module */
+.nav-subgroup{margin:2px 0 2px 6px;border-right:1px solid rgba(255,255,255,.18);padding-right:3px}
+.nav-subgroup>summary{display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;color:#dce8ef;padding:8px 12px;font-size:11px;border-radius:7px}
+.nav-subgroup>summary::-webkit-details-marker{display:none}
+.nav-subgroup>summary::after{content:"";width:6px;height:6px;border-left:1px solid #9fb4c1;border-bottom:1px solid #9fb4c1;transform:rotate(45deg);margin-right:auto;margin-top:-3px}
+.nav-subgroup[open]>summary::after{transform:rotate(-45deg);margin-top:3px}
+.nav-subgroup>summary:hover,.nav-subgroup[open]>summary{background:rgba(255,255,255,.06)}
+.nav-submenu-nested{padding-bottom:4px}
+.nav-submenu-nested a{font-size:10px;padding-right:25px;margin-right:3px;border-right-color:rgba(255,255,255,.12)}
+.contract-module-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.contract-module-card{display:block;text-decoration:none;background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;transition:.15s}
+.contract-module-card:hover{border-color:#b6c8d3;box-shadow:0 8px 22px rgba(0,0,0,.05);transform:translateY(-2px)}
+.contract-module-icon{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:11px;background:#edf3f6;color:var(--navy);font-weight:800}
+.contract-module-card h3{font-size:15px;margin:14px 0 8px}
+.contract-module-card p{font-size:11px;line-height:2;color:var(--muted);margin:0 0 18px}
+.contract-module-link{display:block;color:var(--navy);font-size:11px;font-weight:700}
+.contract-tabs{display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid var(--line)}
+.contract-tab{display:inline-block;text-decoration:none;padding:12px 16px;color:var(--muted);font-size:12px;border-bottom:3px solid transparent}
+.contract-tab.active{color:var(--navy);font-weight:700;border-bottom-color:var(--navy)}
+.contract-score-summary{display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:16px}
+.contract-score-value{font-size:28px;font-weight:800;margin:6px 0;color:var(--navy)}
+.contract-score-value small{font-size:12px;font-weight:400;color:var(--muted)}
+.contract-score-value.score-total-complete{color:#216e4a}
+.contract-score-value.score-total-incomplete{color:var(--navy)}
+.contract-score-progress{flex:1;max-width:620px}
+.contract-score-track{height:10px;overflow:hidden;background:#edf1f4;border-radius:999px}
+.contract-score-track span{display:block;height:100%;background:var(--navy2);border-radius:999px}
+.contract-score-message{font-size:11px;color:var(--muted);line-height:1.9;margin-top:9px}
+.success-text{color:#216e4a}
+.error-text{color:#a92f37}
+.contract-management-grid{display:grid;grid-template-columns:minmax(300px,.78fr) minmax(0,1.5fr);gap:16px;align-items:start}
+.contract-active-toggle{display:flex;align-items:flex-start;gap:10px;padding:12px;border:1px solid var(--line);border-radius:9px}
+.contract-active-toggle input{margin-top:5px}
+.contract-active-toggle span strong,.contract-active-toggle span small{display:block}
+.contract-active-toggle span small{font-size:10px;line-height:1.8;margin-top:4px}
+.contract-question-text{min-width:220px;max-width:420px;line-height:1.9}
+.contract-question-text strong{font-size:11px}
+.contract-guidance{margin-top:6px}
+.contract-guidance summary{cursor:pointer;color:var(--navy);font-size:10px}
+.contract-guidance p{white-space:pre-line;line-height:2;font-size:11px;color:#4b5c67;max-width:420px}
+.contract-row-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap;min-width:220px}
+.contract-row-actions form{display:inline-flex}
+.contract-renewal-placeholder{text-align:center;max-width:850px;margin:36px auto;padding:34px}
+.contract-renewal-placeholder h3{margin:18px 0 10px}
+.contract-renewal-placeholder p{font-size:12px;line-height:2.2;color:var(--muted);max-width:700px;margin:0 auto 20px}
+@media(max-width:1150px){.contract-management-grid{grid-template-columns:1fr}}
+@media(max-width:720px){.contract-module-grid{grid-template-columns:1fr}.contract-score-summary{align-items:flex-start;flex-direction:column}.contract-score-progress{width:100%;max-width:none}.contract-tabs{overflow-x:auto}.contract-tab{white-space:nowrap}}
+
+
+/* Contract renewal intake and dedicated stage forms */
+.contract-readiness-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:16px 0}
+.contract-readiness-item{border:1px solid var(--line);border-radius:10px;padding:13px;background:#fbfcfd}
+.contract-readiness-item strong,.contract-readiness-item span{display:block}
+.contract-readiness-item strong{font-size:12px;color:var(--navy);margin-bottom:5px}
+.contract-readiness-item span{font-size:10px;line-height:1.9;color:var(--muted)}
+.contract-employee-summary,.contract-stage-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}
+.contract-employee-summary>div,.contract-stage-summary>div{border:1px solid var(--line);border-radius:10px;padding:13px;background:#fff;min-width:0}
+.contract-employee-summary span,.contract-stage-summary span,.contract-preview-grid span{display:block;color:var(--muted);font-size:10px;margin-bottom:6px}
+.contract-employee-summary strong,.contract-stage-summary strong,.contract-preview-grid strong{display:block;color:var(--navy);font-size:11px;line-height:1.9;overflow-wrap:anywhere}
+.contract-preview-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.contract-preview-grid>div{padding:12px;border:1px solid var(--line);border-radius:9px;background:#fbfcfd;min-width:0}
+.contract-preview-card{margin-top:18px}
+.contract-form-subhead{font-size:13px;color:var(--navy);margin:22px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.contract-conditional-field{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border:1px solid var(--line);border-radius:9px;padding:12px;margin:8px 0}
+.contract-check-label{display:flex;align-items:center;gap:9px;font-size:11px;line-height:1.8}
+.contract-check-label input{flex:0 0 auto}
+.conditional-count{min-width:130px}
+.conditional-count label{font-size:10px}
+.contract-confirm-form{margin-top:18px}
+.contract-stage-summary{grid-template-columns:repeat(4,minmax(0,1fr))}
+.contract-score-stage{border:1px solid var(--line);border-radius:11px;padding:14px;margin:12px 0;background:#fbfcfd}
+.contract-score-stage h4{margin:0}
+.contract-score-guidance{min-width:240px;max-width:520px;white-space:pre-line;line-height:1.9;font-size:10px}
+.contract-score-input{min-width:90px;max-width:130px}
+.note{padding:12px 14px;border-right:3px solid var(--navy2);background:#f4f7f9;border-radius:8px;color:#52616d;font-size:10px;line-height:2;margin:12px 0}
+@media(max-width:900px){.contract-readiness-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.contract-employee-summary,.contract-stage-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.contract-preview-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.contract-readiness-grid,.contract-employee-summary,.contract-stage-summary,.contract-preview-grid{grid-template-columns:1fr}.contract-conditional-field{flex-direction:column}.conditional-count{width:100%}.contract-score-guidance{min-width:170px}}
+
+
+/* Request-list filters */
+.contract-request-list-filters{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;min-width:min(100%,420px)}
+.contract-request-list-filters>input[type=search]{min-width:250px;max-width:100%;flex:1}
+.inline-filter-form{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0}
+.inline-filter-form .inline-check{display:flex;align-items:center;gap:7px;font-size:10px;white-space:nowrap}
+@media(max-width:760px){.contract-request-list-filters{width:100%;min-width:0;justify-content:stretch}.contract-request-list-filters>input[type=search]{width:100%;min-width:0}.inline-filter-form{width:100%;justify-content:space-between}}
+
+
+/* Organization position catalog */
+.organization-position-form .wide { grid-column: 1 / -1; }
+.contract-request-list-filters label { min-width: 160px; }
+.contract-request-list-filters input, .contract-request-list-filters select { width: 100%; }
+.organization-position-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.organization-position-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.contract-expiry-card { margin-bottom: 20px; }
+.contract-expiry-row { cursor: pointer; transition: background .15s ease; }
+.contract-expiry-row:hover, .contract-expiry-row:focus { background: rgba(23,50,77,.06); outline: none; }
+.contract-expiry-row td { vertical-align: middle; }
+.contract-expiry-table td:last-child { white-space: nowrap; }
+.contract-dashboard-kpis { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 14px; margin-bottom: 20px; }
+.contract-kpi { display: flex; flex-direction: column; gap: 7px; min-height: 116px; }
+.contract-kpi span { color: var(--muted,#667085); font-size: .9rem; }
+.contract-kpi strong { font-size: 1.8rem; line-height: 1.2; }
+.contract-kpi small { color: var(--muted,#667085); }
+.contract-dashboard-charts { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; align-items: stretch; }
+.chart-bar-row { margin: 16px 0; }
+.chart-bar-label { display:flex; justify-content:space-between; gap:12px; margin-bottom:7px; font-size:.93rem; }
+.chart-bar-track { height: 12px; border-radius: 999px; background: #e8edf2; overflow:hidden; }
+.chart-bar-fill { height:100%; border-radius:999px; background: var(--navy,#17324D); min-width: 2px; }
+.contract-month-chart { display:flex; align-items:stretch; justify-content:space-around; gap:12px; min-height:220px; padding-top:10px; }
+.contract-month-column { display:flex; flex:1; min-width:0; flex-direction:column; align-items:center; gap:7px; font-size:.82rem; }
+.contract-month-column strong { font-size:.95rem; }
+.contract-month-column span { direction:ltr; white-space:nowrap; color:var(--muted,#667085); font-size:.75rem; }
+.contract-month-bar-track { display:flex; align-items:flex-end; justify-content:center; width:100%; height:150px; background:#f0f3f6; border-radius:8px 8px 3px 3px; overflow:hidden; }
+.contract-month-bar { width:65%; min-height:2px; background:var(--navy,#17324D); border-radius:6px 6px 0 0; }
+@media (max-width: 1200px) {
+  .contract-dashboard-kpis { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .contract-expiry-table { min-width: 1050px; }
+}
+@media (max-width: 760px) {
+  .contract-dashboard-kpis { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .contract-dashboard-charts { grid-template-columns: 1fr; }
+  .contract-month-chart { gap: 6px; }
+  .organization-position-grid { grid-template-columns: 1fr; }
+}
+
+
+/* Shared Jalali date picker */
+.jalali-date-input{display:flex;align-items:center;gap:6px;width:100%;position:relative}
+.jalali-date-input input{flex:1;min-width:0}
+.jalali-date-open{white-space:nowrap;padding:8px 10px}
+.jalali-picker{display:none;position:absolute;z-index:100000;width:286px;padding:12px;background:#fff;border:1px solid #d8e1e8;border-radius:12px;box-shadow:0 12px 34px rgba(15,37,53,.22);color:#1d2a34;direction:rtl}
+.jalali-picker.open{display:block}
+.jalali-picker button{font:inherit;cursor:pointer}
+.jalali-picker .jp-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.jalali-picker .jp-title{font-weight:700;color:#17324d}
+.jalali-picker .jp-head button{border:1px solid #dce5eb;background:#f7fafc;border-radius:7px;padding:5px 9px}
+.jalali-picker .jp-week,.jalali-picker .jp-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;text-align:center}
+.jalali-picker .jp-week{margin-bottom:5px;color:#71808b;font-size:11px}
+.jalali-picker .jp-cell{border:1px solid transparent;background:#fff;border-radius:7px;padding:7px 0;min-width:0}
+.jalali-picker .jp-cell:hover{background:#edf4f8;border-color:#cbd9e2}
+.jalali-picker .jp-cell.selected{background:#17324d;color:#fff}
+.jalali-picker .jp-cell.today{border-color:#7897ad}
+.jalali-picker .jp-cell.empty{visibility:hidden;pointer-events:none}
+.revision-day-group{border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:10px}
+.revision-day-heading{font-weight:800;color:var(--navy);padding:4px 6px 8px}
+
+/* User administration: compact table without horizontal scrolling and with a frozen header. */
+.users-table-tools{display:grid;grid-template-columns:minmax(220px,2fr) minmax(130px,1fr) minmax(150px,1fr) 120px;gap:12px;align-items:end;margin:0 0 14px}
+.users-table-tools label{min-width:0}
+.users-table-tools #usersResultCount{align-self:center}
+.users-table-wrap{max-width:100%;max-height:70vh;overflow-y:auto;overflow-x:hidden}
+.users-management-table{width:100%;table-layout:fixed}
+.users-management-table th{position:sticky;top:0;z-index:2;background:#f1f5f7;white-space:normal;box-shadow:0 1px 0 var(--line)}
+.users-management-table td{white-space:normal;overflow-wrap:anywhere;word-break:break-word}
+.users-management-table th:nth-child(1){width:10%}
+.users-management-table th:nth-child(2){width:13%}
+.users-management-table th:nth-child(3){width:11%}
+.users-management-table th:nth-child(4){width:21%}
+.users-management-table th:nth-child(5){width:10%}
+.users-management-table th:nth-child(6){width:7%}
+.users-management-table th:nth-child(7){width:28%}
+.users-management-table .permission-chips{display:flex;flex-wrap:wrap;gap:5px}
+.users-management-table input[type=password]{min-width:0;max-width:100%!important}
+.users-pagination{display:flex;justify-content:center;align-items:center;gap:12px;padding:14px}
+.users-pagination button:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:900px){.users-table-tools{grid-template-columns:repeat(2,minmax(0,1fr))}.users-management-table{font-size:10px}.users-management-table th,.users-management-table td{padding:7px 5px}}
+@media(max-width:560px){.users-table-tools{grid-template-columns:1fr}}
+
+/* Workflow dashboard */
+.workflow-dashboard{margin:24px 0 28px}
+.workflow-dashboard-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:16px}
+.workflow-dashboard-heading .eyebrow{display:block;color:var(--navy2);font-size:10px;font-weight:700;letter-spacing:.3px;margin-bottom:5px}
+.workflow-dashboard-heading h2{font-size:21px;margin:0 0 5px}
+.workflow-dashboard-heading p{color:var(--muted);font-size:11px;margin:0}
+.workflow-dashboard-shortcuts{display:flex;gap:8px;flex-wrap:wrap}
+.workflow-dashboard-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.workflow-widget{background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 8px 24px rgba(23,50,77,.045);min-width:0}
+.workflow-widget-head{display:flex;align-items:center;gap:12px;padding:18px 19px;border-bottom:1px solid #edf1f3;background:linear-gradient(135deg,#fff,#f8fafb)}
+.workflow-widget-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:13px;font-size:21px;font-weight:700;flex:0 0 auto}
+.inbox-icon{background:#e8f4ee;color:#26754d}.requests-icon{background:#eaf1f8;color:#285a86}
+.workflow-widget-head h3{font-size:14px;margin:0 0 4px}.workflow-widget-head p{font-size:10px;color:var(--muted);margin:0;line-height:1.7}
+.workflow-widget-count{margin-right:auto;display:inline-flex;min-width:32px;height:32px;align-items:center;justify-content:center;border-radius:11px;background:#edf2f5;color:var(--navy);font-size:13px;font-weight:800;padding:0 8px}
+.workflow-widget-list{padding:0 17px}
+.workflow-list-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 2px;border-bottom:1px solid #edf1f3;min-width:0}
+.workflow-list-item:last-child{border-bottom:0}
+.workflow-list-main{display:flex;flex-direction:column;gap:5px;min-width:0}
+.workflow-list-main strong{font-size:11px;color:#253c4e;white-space:normal;line-height:1.8}
+.workflow-list-main span{font-size:10px;color:#637580;white-space:normal;line-height:1.7}
+.workflow-list-main small{font-size:9px;color:#8997a0}
+.workflow-list-actions{display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex:0 0 auto}
+.workflow-open-link{font-size:10px;font-weight:700;text-decoration:none;color:var(--navy2);white-space:nowrap}
+.workflow-open-link span,.workflow-widget-footer span{font-size:15px;margin-right:4px}
+.workflow-open-link:hover,.workflow-widget-footer:hover{color:#397db0}
+.workflow-status{display:inline-flex;align-items:center;border-radius:30px;padding:5px 8px;font-size:9px;white-space:nowrap}
+.workflow-status.pending{background:#fff4df;color:#8c5c0b}.workflow-status.done{background:#e8f5ec;color:#276b43}
+.workflow-status.rejected{background:#fff0f0;color:#9c3535}.workflow-status.returned{background:#f1ecfb;color:#6643a0}
+.workflow-widget-footer{display:flex;align-items:center;justify-content:center;gap:5px;padding:13px 16px;border-top:1px solid #edf1f3;background:#fbfcfd;color:var(--navy);text-decoration:none;font-size:10px;font-weight:700}
+.workflow-empty{display:flex;align-items:center;flex-direction:column;justify-content:center;text-align:center;padding:26px 16px;min-height:170px}
+.workflow-empty-mark{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:#edf5f0;color:#438260;font-size:20px;margin-bottom:10px}
+.workflow-empty strong{font-size:11px;color:#3a4c58}.workflow-empty p{font-size:10px;color:var(--muted);line-height:1.8;margin:5px 0 0}
+.request-list-card .section-head{align-items:center}
+.request-count-pill{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:34px;padding:0 9px;border-radius:11px;background:#edf2f5;color:var(--navy);font-weight:800}
+.request-row-actions{align-items:center;gap:7px}
+.request-row-actions form{margin:0}
+.btn-danger{background:#fff0f0;color:#a33333;border:1px solid #f0cece}
+.btn-danger:hover{background:#ffe3e3}
+.request-locked-note{font-size:9px;color:#8a6b2f;line-height:1.8;max-width:190px}
+@media(max-width:900px){.workflow-dashboard-grid{grid-template-columns:1fr}.workflow-dashboard-heading{align-items:flex-start;flex-direction:column}.workflow-dashboard-shortcuts{width:100%}}
+@media(max-width:560px){.workflow-widget-head{padding:14px}.workflow-widget-list{padding:0 12px}.workflow-list-item{align-items:flex-start;flex-direction:column}.workflow-list-actions{width:100%;flex-direction:row;align-items:center;justify-content:space-between}.workflow-dashboard-shortcuts .btn{flex:1}.request-row-actions{align-items:flex-start;flex-direction:column}}
+
+.node-assignment-editor{display:flex;flex-direction:column;gap:9px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fbfcfd}.node-assignment-editor>label{font-weight:700;color:var(--navy)}.node-assignment-add-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}.node-assignment-add-row select,.node-assignment-editor input[type=search]{width:100%;min-width:0;border:1px solid #cbd6de;border-radius:8px;padding:10px;background:#fff;font:inherit}.node-assignment-table{width:100%;border-collapse:collapse;font-size:12px}.node-assignment-table th,.node-assignment-table td{padding:9px 10px;border-bottom:1px solid #e6edf1;text-align:right}.node-assignment-table th{background:#edf3f6;color:var(--navy);font-weight:700}.node-assignment-table tbody tr:last-child td{border-bottom:0}.node-assignment-table .btn{padding:5px 10px;font-size:11px}
+@media(max-width:560px){.node-assignment-add-row{grid-template-columns:1fr}.node-assignment-table{min-width:500px}}

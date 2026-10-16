@@ -14,6 +14,15 @@ public static class DatabaseInitializer
         await EnsureAdminColumnsAsync(db);
         await EnsureRoleTablesAsync(db);
         await EnsureReportAndAnnouncementSchemaAsync(db);
+        await WorkflowSchemaInitializer.InitializeAsync(db);
+        await ContractManagementSchemaInitializer.InitializeAsync(db);
+        await ContractRenewalRequestRevisionSchemaInitializer.InitializeAsync(db);
+        await OrganizationRankSchemaInitializer.InitializeAsync(db);
+        await OrganizationPositionSchemaInitializer.InitializeAsync(db);
+        await SeedLegacyOrganizationPositionsAsync(db);
+
+        if (!await db.ContractRenewalWorkflowSettings.AnyAsync())
+            db.ContractRenewalWorkflowSettings.Add(new ContractRenewalWorkflowSettings { Id = 1 });
 
         if (!await db.SystemSettings.AnyAsync())
             db.SystemSettings.Add(new SystemSettings { OrganizationName = "شرکت کمک فنرسازی ایندامین سایپا", ApplicationName = "پورتال جامع منابع انسانی" });
@@ -55,6 +64,46 @@ public static class DatabaseInitializer
 
         var roleService = new global::HRPortal.Services.RoleService(db);
         await roleService.SeedAsync();
+    }
+
+    private static async Task SeedLegacyOrganizationPositionsAsync(HRPortalDbContext db)
+    {
+        var knownTitles = (await db.OrganizationPositionDefinitions.AsNoTracking()
+            .Select(x => x.Title).ToListAsync())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var knownCodes = (await db.OrganizationPositionDefinitions.AsNoTracking()
+            .Select(x => x.Code).ToListAsync())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var legacyTitles = await db.Employees.AsNoTracking()
+            .Where(x => x.PositionTitle != null && x.PositionTitle != "")
+            .Select(x => x.PositionTitle!)
+            .ToListAsync();
+
+        var nextNumber = 1;
+        var inserted = false;
+        foreach (var rawTitle in legacyTitles)
+        {
+            var title = rawTitle.Trim();
+            if (title.Length == 0 || title.Length > 150 || knownTitles.Contains(title)) continue;
+
+            string code;
+            do { code = $"LEGACY-{nextNumber++:000000}"; } while (knownCodes.Contains(code));
+            db.OrganizationPositionDefinitions.Add(new OrganizationPositionDefinition
+            {
+                Code = code,
+                Title = title.Length > 150 ? title[..150] : title,
+                JobFamily = "انتقال از اطلاعات قبلی",
+                Description = "این پست در زمان راه‌اندازی فهرست پست‌های سازمانی از سمت‌های موجود کارکنان منتقل شده است.",
+                SortOrder = 1000,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+            knownTitles.Add(title);
+            knownCodes.Add(code);
+            inserted = true;
+        }
+        if (inserted) await db.SaveChangesAsync();
     }
 
     private static async Task EnsureReportAndAnnouncementSchemaAsync(HRPortalDbContext db)
@@ -222,6 +271,15 @@ BEGIN
         [EmployeeId] int NOT NULL,
         [RoleId] int NOT NULL
     );
+END;
+
+IF OBJECT_ID(N'dbo.RoleOrganizationRanks', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[RoleOrganizationRanks](
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_RoleOrganizationRanks] PRIMARY KEY,
+        [RoleId] int NOT NULL,
+        [RankType] nvarchar(100) NOT NULL
+    );
 END;";
         await db.Database.ExecuteSqlRawAsync(sql);
 
@@ -253,7 +311,18 @@ BEGIN
     DELETE FROM duplicates WHERE rn > 1;
 END;
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_EmployeeRoles_EmployeeId_RoleId' AND object_id=OBJECT_ID(N'dbo.EmployeeRoles'))
-    CREATE UNIQUE INDEX [IX_EmployeeRoles_EmployeeId_RoleId] ON [dbo].[EmployeeRoles]([EmployeeId],[RoleId]);";
+    CREATE UNIQUE INDEX [IX_EmployeeRoles_EmployeeId_RoleId] ON [dbo].[EmployeeRoles]([EmployeeId],[RoleId]);
+IF OBJECT_ID(N'dbo.RoleOrganizationRanks', N'U') IS NOT NULL
+BEGIN
+    ;WITH duplicates AS
+    (
+        SELECT [Id], ROW_NUMBER() OVER(PARTITION BY [RoleId],[RankType] ORDER BY [Id]) AS rn
+        FROM [dbo].[RoleOrganizationRanks]
+    )
+    DELETE FROM duplicates WHERE rn > 1;
+END;
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_RoleOrganizationRanks_RoleId_RankType' AND object_id=OBJECT_ID(N'dbo.RoleOrganizationRanks'))
+    CREATE UNIQUE INDEX [IX_RoleOrganizationRanks_RoleId_RankType] ON [dbo].[RoleOrganizationRanks]([RoleId],[RankType]);";
         await db.Database.ExecuteSqlRawAsync(indexes);
 
         const string relationships = @"
@@ -311,6 +380,17 @@ BEGIN
         FOREIGN KEY ([RoleId]) REFERENCES [dbo].[Roles]([Id]) ON DELETE CASCADE;
 END;";
         await db.Database.ExecuteSqlRawAsync(relationships);
+        await db.Database.ExecuteSqlRawAsync(@"
+IF OBJECT_ID(N'dbo.RoleOrganizationRanks', N'U') IS NOT NULL
+AND OBJECT_ID(N'dbo.Roles', N'U') IS NOT NULL
+BEGIN
+    DELETE rr FROM [dbo].[RoleOrganizationRanks] rr
+    LEFT JOIN [dbo].[Roles] r ON r.[Id] = rr.[RoleId]
+    WHERE r.[Id] IS NULL;
+    IF NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name=N'FK_RoleOrganizationRanks_Roles_RoleId' AND parent_object_id=OBJECT_ID(N'dbo.RoleOrganizationRanks'))
+        ALTER TABLE [dbo].[RoleOrganizationRanks] ADD CONSTRAINT [FK_RoleOrganizationRanks_Roles_RoleId]
+        FOREIGN KEY ([RoleId]) REFERENCES [dbo].[Roles]([Id]) ON DELETE CASCADE;
+END;");
     }
 
     private static async Task EnsureSchemaAsync(HRPortalDbContext db)
@@ -462,6 +542,8 @@ IF COL_LENGTH(N'dbo.SmsSettings', N'TestRecipient') IS NULL ALTER TABLE [dbo].[S
 
 IF COL_LENGTH(N'dbo.Employees', N'Identifier') IS NULL ALTER TABLE [dbo].[Employees] ADD [Identifier] nvarchar(100) NOT NULL CONSTRAINT [DF_Employees_Identifier] DEFAULT N'';
 IF COL_LENGTH(N'dbo.Employees', N'PersonalPasswordHash') IS NULL ALTER TABLE [dbo].[Employees] ADD [PersonalPasswordHash] nvarchar(1000) NULL;
+IF OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.Employees', N'ContractEndDate') IS NULL ALTER TABLE [dbo].[Employees] ADD [ContractEndDate] date NULL CONSTRAINT [DF_Employees_ContractEndDate] DEFAULT ('2027-03-20');
+IF OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.Employees', N'OrganizationPositionId') IS NULL ALTER TABLE [dbo].[Employees] ADD [OrganizationPositionId] int NULL;
 
 IF COL_LENGTH(N'PayrollReportSettings', N'Enabled') IS NULL ALTER TABLE [PayrollReportSettings] ADD [Enabled] bit NOT NULL CONSTRAINT [DF_PayrollReportSettings_Enabled] DEFAULT 1;
 IF COL_LENGTH(N'PayrollReportSettings', N'ReportUrl') IS NULL ALTER TABLE [PayrollReportSettings] ADD [ReportUrl] nvarchar(2000) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportUrl] DEFAULT N'';
@@ -563,8 +645,10 @@ BEGIN
         [OrganizationUnitId] int NULL,
         [OrganizationDepartmentId] int NULL,
         [OrganizationSectionId] int NULL,
+        [OrganizationPositionId] int NULL,
         [PositionTitle] nvarchar(300) NULL,
         [EmploymentType] nvarchar(100) NULL,
+        [ContractEndDate] date NULL CONSTRAINT [DF_Employees_ContractEndDate] DEFAULT ('2027-03-20'),
         [Email] nvarchar(200) NULL,
         [FatherName] nvarchar(100) NULL,
         [Status] nvarchar(50) NOT NULL CONSTRAINT [DF_Employees_Status] DEFAULT N'فعال',
@@ -801,8 +885,40 @@ IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_OrganizationStructureRev
     CREATE UNIQUE INDEX [IX_OrganizationStructureRevisions_RevisionCode] ON [dbo].[OrganizationStructureRevisions]([RevisionCode]);
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_OrganizationNodes_Revision_Code' AND object_id=OBJECT_ID(N'dbo.OrganizationNodes'))
     CREATE UNIQUE INDEX [IX_OrganizationNodes_Revision_Code] ON [dbo].[OrganizationNodes]([OrganizationStructureRevisionId],[Code]);
+IF OBJECT_ID(N'dbo.OrganizationNodes', N'U') IS NOT NULL
+AND NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'UX_OrganizationNodes_OneCEOPerRevision' AND object_id=OBJECT_ID(N'dbo.OrganizationNodes'))
+    CREATE UNIQUE INDEX [UX_OrganizationNodes_OneCEOPerRevision] ON [dbo].[OrganizationNodes]([OrganizationStructureRevisionId]) WHERE [RankType] = N'مدیرعامل';
+
+IF OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL
+AND OBJECT_ID(N'dbo.OrganizationNodes', N'U') IS NOT NULL
+AND NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name=N'FK_Employees_OrganizationPosition')
+    ALTER TABLE [dbo].[Employees] ADD CONSTRAINT [FK_Employees_OrganizationPosition]
+    FOREIGN KEY([OrganizationPositionId]) REFERENCES [dbo].[OrganizationNodes]([Id]) ON DELETE NO ACTION;
+
+IF OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL
+AND NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_Employees_OrganizationPositionId' AND object_id=OBJECT_ID(N'dbo.Employees'))
+    CREATE INDEX [IX_Employees_OrganizationPositionId] ON [dbo].[Employees]([OrganizationPositionId]);
+
+
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_AuditLogs_CreatedAt' AND object_id=OBJECT_ID(N'dbo.AuditLogs'))
     CREATE INDEX [IX_AuditLogs_CreatedAt] ON [dbo].[AuditLogs]([CreatedAt]);";
         await db.Database.ExecuteSqlRawAsync(sql);
+        await db.Database.ExecuteSqlRawAsync(@"
+EXEC(N'CREATE OR ALTER TRIGGER [dbo].[TR_Employees_OnlyOneActiveCEO]
+ON [dbo].[Employees]
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF (
+        SELECT COUNT_BIG(*)
+        FROM [dbo].[Employees] e
+        INNER JOIN [dbo].[OrganizationNodes] n ON n.[Id] = e.[OrganizationPositionId]
+        WHERE e.[Status] = N''فعال'' AND n.[RankType] = N''مدیرعامل''
+    ) > 1
+    BEGIN
+        THROW 51001, N''در میان کارکنان فعال، فقط یک نفر می‌تواند رده مدیرعامل داشته باشد.'', 1;
+    END
+END;');");
     }
 }

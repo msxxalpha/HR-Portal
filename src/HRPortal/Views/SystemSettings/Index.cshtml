@@ -34,6 +34,7 @@
         <button type="button" class="tab" data-tab="queries">کوئری‌های ورودی</button>
         <button type="button" class="tab" data-tab="personnel-order">حکم کارگزینی / SSRS</button>
         <button type="button" class="tab" data-tab="announcement-categories">اطلاعات پایه / دسته‌بندی اطلاعیه</button>
+        <button type="button" class="tab" data-tab="organization-ranks">اطلاعات پایه / رده‌های سازمانی</button>
         <button type="button" class="tab" data-tab="maintenance">نگهداری</button>
     </div>
 
@@ -583,6 +584,56 @@
             </div>
         </div>
     </section>
+
+    <section id="organization-ranks" class="tab-panel">
+        <div class="settings-section-intro">
+            <strong>مدیریت رده‌های سازمانی</strong>
+            <span>فهرست این بخش مستقیماً در فیلد «رده» همه گره‌های ساختار سازمانی نمایش داده می‌شود؛ رده بر اساس محل گره فیلتر نمی‌شود. رده‌های مورد استفاده در ساختار قابل حذف نیستند.</span>
+        </div>
+        <div class="rank-management-grid">
+            <form method="post" action="/SystemSettings/SaveOrganizationRank" class="category-editor-card">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" value="0" />
+                <h3>افزودن رده جدید</h3>
+                <label>عنوان رده *
+                    <input name="title" maxlength="100" required placeholder="عنوان رده سازمانی" />
+                </label>
+                <label>ترتیب نمایش
+                    <input name="sortOrder" type="number" value="10" />
+                </label>
+                <button class="btn btn-main" type="submit">افزودن رده</button>
+            </form>
+            <div class="rank-definition-list">
+                @foreach (var rank in (ViewBag.OrganizationRanks as List<HRPortal.Models.OrganizationRankDefinition> ?? []))
+                {
+                    <form method="post" action="/SystemSettings/SaveOrganizationRank" class="category-editor-card">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@rank.Id" />
+                        <h3>@rank.Title</h3>
+                        <label>عنوان رده
+                            <input name="title" value="@rank.Title" maxlength="100" required readonly="@(rank.Title == "مدیرعامل")" />
+                        </label>
+                        @if (rank.Title == "مدیرعامل")
+                        {
+                            <small class="muted">عنوان مدیرعامل ویژه است و برای تشخیص مسئول نهایی گردش کار تغییر نمی‌کند.</small>
+                        }
+                        <label>ترتیب نمایش
+                            <input name="sortOrder" type="number" value="@rank.SortOrder" />
+                        </label>
+                        <div class="actions">
+                            <button class="btn btn-outline" type="submit">ذخیره</button>
+                            @if (rank.Title != "مدیرعامل")
+                            {
+                                <button class="btn btn-outline danger" type="submit" formaction="/SystemSettings/DeleteOrganizationRank" formmethod="post" onclick="return confirm('رده فقط در صورتی حذف می‌شود که در هیچ گره سازمانی استفاده نشده باشد. ادامه می‌دهید؟');">حذف</button>
+                            }
+                        </div>
+                    </form>
+                }
+            </div>
+        </div>
+    </section>
+
+
 
 
 @section Scripts {

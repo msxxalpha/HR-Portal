@@ -1,0 +1,50 @@
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "پاکسازی اطلاعات عملیاتی";
+}
+<div class="page-head">
+    <div>
+        <h1>پاکسازی اطلاعات عملیاتی پایگاه داده</h1>
+        <p>این عملیات فقط برای مدیر سامانه فعال است و اطلاعات پایه و پیکربندی را حفظ می‌کند.</p>
+    </div>
+</div>
+
+@if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
+@if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
+
+<div class="card">
+    <div class="alert warning">
+        <strong>هشدار: این عملیات غیرقابل‌بازگشت است.</strong>
+        سوابق انتخاب‌شده به‌صورت فیزیکی حذف می‌شوند. قبل از اجرا، از پایگاه داده نسخه پشتیبان تهیه کنید.
+    </div>
+    <h3>اطلاعاتی که پاک می‌شوند</h3>
+    <ul>
+        <li>درخواست‌ها و نمونه‌های گردش کار</li>
+        <li>وظایف، مقادیر فرم‌ها، تاریخچه گردش کار و امتیازهای ارزشیابی</li>
+        <li>درخواست‌ها و سوابق بازنگری تمدید قرارداد</li>
+        <li>سوابق تغییرات سازمانی</li>
+        <li>چالش‌های ورود OTP، اطلاعیه‌های ثبت‌شده و گزارش‌های ممیزی</li>
+    </ul>
+    <h3>اطلاعاتی که حفظ می‌شوند</h3>
+    <ul>
+        <li>اطلاعات کارکنان و کاربران مدیر سامانه</li>
+        <li>ساختار و رده‌های سازمانی و نسخه‌های آن</li>
+        <li>نقش‌ها، مجوزها، تخصیص نقش به کارکنان و رده‌های سازمانی</li>
+        <li>تعریف فرم‌ها و گردش کارها، پرسش‌های ارزشیابی و تنظیمات ماژول‌ها</li>
+        <li>تنظیمات سامانه، پیامک، OTP و گزارش‌ها و سایر اطلاعات پایه</li>
+    </ul>
+    <form method="post" action="/DatabaseMaintenance/Cleanup" onsubmit="return confirm('تمام اطلاعات عملیاتی فهرست‌شده به‌صورت فیزیکی حذف می‌شوند. این عملیات قابل بازگشت نیست. ادامه می‌دهید؟');">
+        @Html.AntiForgeryToken()
+        <label class="inline-check">
+            <input type="checkbox" name="acknowledged" value="true" required />
+            خطر حذف دائمی اطلاعات را می‌دانم و تأیید می‌کنم.
+        </label>
+        <label style="display:block;margin-top:12px;max-width:420px;">
+            برای تأیید عبارت «پاکسازی کامل» را وارد کنید
+            <input name="confirmation" required autocomplete="off" placeholder="پاکسازی کامل" />
+        </label>
+        <div class="form-actions">
+            <button class="btn btn-danger" type="submit">پاکسازی اطلاعات عملیاتی</button>
+        </div>
+    </form>
+</div>

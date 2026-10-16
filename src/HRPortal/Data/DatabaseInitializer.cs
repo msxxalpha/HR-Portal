@@ -271,6 +271,15 @@ BEGIN
         [EmployeeId] int NOT NULL,
         [RoleId] int NOT NULL
     );
+END;
+
+IF OBJECT_ID(N'dbo.RoleOrganizationRanks', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[RoleOrganizationRanks](
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_RoleOrganizationRanks] PRIMARY KEY,
+        [RoleId] int NOT NULL,
+        [RankType] nvarchar(100) NOT NULL
+    );
 END;";
         await db.Database.ExecuteSqlRawAsync(sql);
 
@@ -302,7 +311,18 @@ BEGIN
     DELETE FROM duplicates WHERE rn > 1;
 END;
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_EmployeeRoles_EmployeeId_RoleId' AND object_id=OBJECT_ID(N'dbo.EmployeeRoles'))
-    CREATE UNIQUE INDEX [IX_EmployeeRoles_EmployeeId_RoleId] ON [dbo].[EmployeeRoles]([EmployeeId],[RoleId]);";
+    CREATE UNIQUE INDEX [IX_EmployeeRoles_EmployeeId_RoleId] ON [dbo].[EmployeeRoles]([EmployeeId],[RoleId]);
+IF OBJECT_ID(N'dbo.RoleOrganizationRanks', N'U') IS NOT NULL
+BEGIN
+    ;WITH duplicates AS
+    (
+        SELECT [Id], ROW_NUMBER() OVER(PARTITION BY [RoleId],[RankType] ORDER BY [Id]) AS rn
+        FROM [dbo].[RoleOrganizationRanks]
+    )
+    DELETE FROM duplicates WHERE rn > 1;
+END;
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_RoleOrganizationRanks_RoleId_RankType' AND object_id=OBJECT_ID(N'dbo.RoleOrganizationRanks'))
+    CREATE UNIQUE INDEX [IX_RoleOrganizationRanks_RoleId_RankType] ON [dbo].[RoleOrganizationRanks]([RoleId],[RankType]);";
         await db.Database.ExecuteSqlRawAsync(indexes);
 
         const string relationships = @"
@@ -360,6 +380,17 @@ BEGIN
         FOREIGN KEY ([RoleId]) REFERENCES [dbo].[Roles]([Id]) ON DELETE CASCADE;
 END;";
         await db.Database.ExecuteSqlRawAsync(relationships);
+        await db.Database.ExecuteSqlRawAsync(@"
+IF OBJECT_ID(N'dbo.RoleOrganizationRanks', N'U') IS NOT NULL
+AND OBJECT_ID(N'dbo.Roles', N'U') IS NOT NULL
+BEGIN
+    DELETE rr FROM [dbo].[RoleOrganizationRanks] rr
+    LEFT JOIN [dbo].[Roles] r ON r.[Id] = rr.[RoleId]
+    WHERE r.[Id] IS NULL;
+    IF NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name=N'FK_RoleOrganizationRanks_Roles_RoleId' AND parent_object_id=OBJECT_ID(N'dbo.RoleOrganizationRanks'))
+        ALTER TABLE [dbo].[RoleOrganizationRanks] ADD CONSTRAINT [FK_RoleOrganizationRanks_Roles_RoleId]
+        FOREIGN KEY ([RoleId]) REFERENCES [dbo].[Roles]([Id]) ON DELETE CASCADE;
+END;");
     }
 
     private static async Task EnsureSchemaAsync(HRPortalDbContext db)

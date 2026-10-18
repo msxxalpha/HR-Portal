@@ -83,41 +83,15 @@
                 </div>
             </div>
         }
-        <div class="report-frame">
-            <iframe src="@ViewBag.ReportEndpoint#toolbar=0&navpanes=0&scrollbar=1&view=FitH" title="گزارش فیش حقوقی"></iframe>
+        <div class="report-frame protected-report-frame">
+            <div class="protected-pdf-viewer" data-pdf-url="@ViewBag.ReportEndpoint" aria-label="نمایش فیش حقوقی">
+                <div class="protected-pdf-status">در حال بارگذاری فیش حقوقی...</div>
+                <div class="protected-pdf-pages"></div>
+            </div>
         </div>
     </div>
 }
 @section Scripts
 {
-    <script>
-        (() => {
-            const blockProtectedActions = (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-            };
-
-            document.addEventListener("contextmenu", blockProtectedActions, true);
-
-            const isProtectedShortcut = (event) =>
-                event.code === "PrintScreen" ||
-                event.key === "PrintScreen" ||
-                event.keyCode === 44 ||
-                ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") ||
-                ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "p") ||
-                (event.metaKey && event.shiftKey && event.code === "KeyS");
-
-            document.addEventListener("keydown", (event) => {
-                if (isProtectedShortcut(event)) {
-                    blockProtectedActions(event);
-                }
-            }, true);
-
-            document.addEventListener("keyup", (event) => {
-                if (event.code === "PrintScreen" || event.key === "PrintScreen" || event.keyCode === 44) {
-                    blockProtectedActions(event);
-                }
-            }, true);
-        })();
-    </script>
+    <script src="~/js/protected-pdf-viewer.js" asp-append-version="true"></script>
 }

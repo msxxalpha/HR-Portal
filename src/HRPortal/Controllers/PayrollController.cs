@@ -43,7 +43,21 @@ public class PayrollController(HRPortalDbContext db, ReportService reports) : Co
         else if (!string.IsNullOrWhiteSpace(yearMonth) &&
                  ReportService.TryNormalizeYearMonth(yearMonth, out var normalizedYearMonth))
         {
-            ViewBag.ReportEndpoint = Url.Action(nameof(Report), "Payroll", new { yearMonth = normalizedYearMonth });
+            var minimumYear = await GetMinimumPayrollYearAsync();
+            if (int.Parse(normalizedYearMonth[..4], System.Globalization.CultureInfo.InvariantCulture) < minimumYear)
+            {
+                ViewBag.Message = $"فقط فیش‌های سال {minimumYear} و پس از آن قابل مشاهده هستند.";
+                ViewBag.MessageType = "error";
+            }
+            else
+            {
+                ViewBag.ReportEndpoint = Url.Action(nameof(Report), "Payroll", new { yearMonth = normalizedYearMonth });
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(yearMonth))
+        {
+            ViewBag.Message = "سال و ماه را به صورت شش‌رقمی مانند ۱۴۰۵۰۶ وارد کنید.";
+            ViewBag.MessageType = "error";
         }
 
         return View();
@@ -82,6 +96,13 @@ public class PayrollController(HRPortalDbContext db, ReportService reports) : Co
             return View("Payslip");
         }
 
+        var minimumYear = await GetMinimumPayrollYearAsync();
+        if (int.Parse(normalizedYearMonth[..4], System.Globalization.CultureInfo.InvariantCulture) < minimumYear)
+        {
+            ModelState.AddModelError("", $"فقط فیش‌های سال {minimumYear} و پس از آن قابل مشاهده هستند.");
+            return View("Payslip");
+        }
+
         var settings = await db.PayrollReportSettings.AsNoTracking().FirstOrDefaultAsync();
         if (settings is null || !settings.Enabled)
         {
@@ -113,6 +134,10 @@ public class PayrollController(HRPortalDbContext db, ReportService reports) : Co
 
         if (!ReportService.TryNormalizeYearMonth(yearMonth, out var normalizedYearMonth))
             return StyledReportError("پارامتر سال و ماه نامعتبر است.", StatusCodes.Status400BadRequest);
+
+        var minimumYear = await GetMinimumPayrollYearAsync();
+        if (int.Parse(normalizedYearMonth[..4], System.Globalization.CultureInfo.InvariantCulture) < minimumYear)
+            return StyledReportError($"فقط فیش‌های سال {minimumYear} و پس از آن قابل مشاهده هستند.", StatusCodes.Status403Forbidden);
 
         if (string.IsNullOrWhiteSpace(employee.Identifier))
             return StyledReportError("شناسه گزارش این کارمند در اطلاعات کارکنان ثبت نشده است.", StatusCodes.Status422UnprocessableEntity);
@@ -176,6 +201,10 @@ public class PayrollController(HRPortalDbContext db, ReportService reports) : Co
         if (!ReportService.TryNormalizeYearMonth(yearMonth, out var normalizedYearMonth))
             return StyledReportError("پارامتر سال و ماه باید دقیقاً با فرمت ۱۴۰۵۰۶ (شش رقم، بدون اسلش) باشد.", StatusCodes.Status400BadRequest);
 
+        var minimumYear = await GetMinimumPayrollYearAsync();
+        if (int.Parse(normalizedYearMonth[..4], System.Globalization.CultureInfo.InvariantCulture) < minimumYear)
+            return StyledReportError($"فقط فیش‌های سال {minimumYear} و پس از آن قابل مشاهده هستند.", StatusCodes.Status403Forbidden);
+
         // The report receives the employee's internal report identifier,
         // not the login personnel number.
         var result = await reports.FetchAsync(normalizedYearMonth, employee.Identifier);
@@ -204,6 +233,13 @@ public class PayrollController(HRPortalDbContext db, ReportService reports) : Co
             "</div></div></body></html>";
 
         return Content(html, "text/html; charset=utf-8");
+    }
+
+    private async Task<int> GetMinimumPayrollYearAsync()
+    {
+        return await db.SystemSettings.AsNoTracking()
+            .Select(x => (int?)x.PayrollMinimumYear)
+            .FirstOrDefaultAsync() ?? 1400;
     }
 
     private HRPortal.Models.Employee? GetAuthenticatedEmployee()

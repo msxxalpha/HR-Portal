@@ -131,6 +131,12 @@ public class SystemSettingsController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Save([FromForm] SystemSettingsEditModel model, [FromForm] string? command)
     {
+        if (model.PayrollMinimumYear < 1300 || model.PayrollMinimumYear > 1600)
+        {
+            TempData["Error"] = "سال شروع مشاهده فیش حقوقی باید یک سال شمسی چهاررقمی بین ۱۳۰۰ تا ۱۶۰۰ باشد.";
+            return Redirect("/SystemSettings#general");
+        }
+
         try
         {
             await service.SaveAsync(model);

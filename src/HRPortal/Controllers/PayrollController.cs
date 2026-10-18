@@ -169,6 +169,10 @@ public class PayrollController(HRPortalDbContext db, ReportService reports) : Co
         if (!ReportService.TryNormalizeYearMonth(yearMonth, out var normalizedYearMonth))
             return StyledReportError("پارامتر سال و ماه نامعتبر است.", StatusCodes.Status400BadRequest);
 
+        var minimumYear = await GetMinimumPayrollYearAsync();
+        if (int.Parse(normalizedYearMonth[..4], System.Globalization.CultureInfo.InvariantCulture) < minimumYear)
+            return StyledReportError($"فقط فیش‌های سال {minimumYear} و پس از آن قابل مشاهده هستند.", StatusCodes.Status403Forbidden);
+
         if (string.IsNullOrWhiteSpace(employee.Identifier))
             return StyledReportError("شناسه گزارش این کارمند در اطلاعات کارکنان ثبت نشده است.", StatusCodes.Status422UnprocessableEntity);
 

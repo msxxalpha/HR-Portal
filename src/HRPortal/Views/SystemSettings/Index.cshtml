@@ -103,6 +103,10 @@
             <label>تعداد رکورد در صفحه
                 <input name="ItemsPerPage" type="number" value="@Model.ItemsPerPage" />
             </label>
+            <label>سال شروع مشاهده فیش حقوقی
+                <input name="PayrollMinimumYear" type="number" min="1300" max="1600" step="1" required value="@Model.PayrollMinimumYear" />
+                <small>سال شمسی چهاررقمی؛ فیش‌های مربوط به سال‌های قبل از این مقدار قابل مشاهده نخواهند بود.</small>
+            </label>
         </div>
     </section>
 

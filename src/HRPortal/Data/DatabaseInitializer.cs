@@ -9,6 +9,11 @@ public static class DatabaseInitializer
     {
         await db.Database.EnsureCreatedAsync();
         await EnsureSchemaAsync(db);
+        await db.Database.ExecuteSqlRawAsync(@"
+IF OBJECT_ID(N'dbo.SystemSettings', N'U') IS NOT NULL
+AND COL_LENGTH(N'dbo.SystemSettings', N'PayrollMinimumYear') IS NULL
+    ALTER TABLE [dbo].[SystemSettings] ADD [PayrollMinimumYear] int NOT NULL
+        CONSTRAINT [DF_SystemSettings_PayrollMinimumYear] DEFAULT (1400) WITH VALUES;");
 
         await EnsureAdminTableAsync(db);
         await EnsureAdminColumnsAsync(db);

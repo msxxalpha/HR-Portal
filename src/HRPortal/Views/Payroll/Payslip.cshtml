@@ -99,8 +99,8 @@
             const nodes = [];
             while (walker.nextNode()) nodes.push(walker.currentNode);
             for (const node of nodes) {
-                if (node.nodeValue && /^\\s*\\\\n(?=\\s|[^a-zA-Z])/u.test(node.nodeValue)) {
-                    node.nodeValue = node.nodeValue.replace(/^\\s*\\\\n/u, "");
+                if (node.nodeValue && /^\s*\\n(?=\s|[^a-zA-Z])/u.test(node.nodeValue)) {
+                    node.nodeValue = node.nodeValue.replace(/^\s*\\n/u, "");
                 }
             }
 

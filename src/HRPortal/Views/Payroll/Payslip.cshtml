@@ -93,6 +93,17 @@
 {
     <script>
         (() => {
+            // Remove an accidental literal "\\n" text prefix if it is emitted by a
+            // surrounding template/partial before the payroll period controls.
+            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+            const nodes = [];
+            while (walker.nextNode()) nodes.push(walker.currentNode);
+            for (const node of nodes) {
+                if (node.nodeValue && /^\\s*\\\\n(?=\\s|[^a-zA-Z])/u.test(node.nodeValue)) {
+                    node.nodeValue = node.nodeValue.replace(/^\\s*\\\\n/u, "");
+                }
+            }
+
             // Best-effort protection for the native browser PDF frame.
             // Browser-owned PDF viewer internals may not expose all events to the host page.
             document.addEventListener("contextmenu", (event) => {

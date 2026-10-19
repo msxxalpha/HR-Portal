@@ -39,7 +39,17 @@
                 throw new Error("گزارش با قالب PDF دریافت نشد. قالب گزارش فیش و حکم را روی PDF تنظیم کنید.");
             }
 
-            const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+            const pdf = await pdfjsLib.getDocument({
+                data: bytes,
+                // Enable browser/system font fallback for reports whose PDF does not
+                // embed every glyph (common with Persian fonts such as Tahoma/Vazir).
+                useSystemFonts: true,
+                disableFontFace: false,
+                isEvalSupported: false,
+                cMapUrl: "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/cmaps/",
+                cMapPacked: true,
+                standardFontDataUrl: "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/standard_fonts/"
+            }).promise;
             if (status) status.hidden = true;
 
             for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {

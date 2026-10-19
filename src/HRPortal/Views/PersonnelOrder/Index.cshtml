@@ -54,4 +54,19 @@
         </div>
     }
 }
-\n
+
+@section Scripts
+{
+    <script>
+        (() => {
+            // Best-effort protection for the native browser PDF frame.
+            // Browser-owned PDF viewer internals may not expose all events to the host page.
+            document.addEventListener("contextmenu", (event) => {
+                if (event.target instanceof Element && event.target.closest(".report-frame")) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+            }, true);
+        })();
+    </script>
+}

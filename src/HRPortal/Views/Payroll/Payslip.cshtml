@@ -93,19 +93,23 @@
 {
     <script>
         (() => {
-            // Remove an accidental literal "\\n" text prefix if it is emitted by a
-            // surrounding template/partial before the payroll period controls.
-            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+            // Remove literal backslash-n sequences from visible text in this page.
+            // Prefix-only matching misses a standalone text node containing only "\\n".
+            const content = document.querySelector(".content") || document.body;
+            const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
             const nodes = [];
             while (walker.nextNode()) nodes.push(walker.currentNode);
+
             for (const node of nodes) {
-                if (node.nodeValue && /^\s*\\n(?=\s|[^a-zA-Z])/u.test(node.nodeValue)) {
-                    node.nodeValue = node.nodeValue.replace(/^\s*\\n/u, "");
+                // Never rewrite executable code or editable/user-entered content.
+                if (node.parentElement?.closest("script, style, textarea, input, pre, code")) continue;
+                if (node.nodeValue?.includes("\\n")) {
+                    node.nodeValue = node.nodeValue.replace(/\\\\n/g, "");
                 }
             }
 
-            // Best-effort protection for the native browser PDF frame.
-            // Browser-owned PDF viewer internals may not expose all events to the host page.
+            // Best-effort only: this can suppress host-page context menus around the
+            // report frame, but cannot disable the browser-owned menu inside its PDF viewer.
             document.addEventListener("contextmenu", (event) => {
                 if (event.target instanceof Element && event.target.closest(".report-frame")) {
                     event.preventDefault();

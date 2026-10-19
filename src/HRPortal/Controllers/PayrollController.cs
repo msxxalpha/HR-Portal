@@ -10,7 +10,7 @@ namespace HRPortal.Controllers;
 public class PayrollController(HRPortalDbContext db, ReportService reports) : Controller
 {
     [HttpGet]
-    public IActionResult Payslip(string? yearMonth = null)
+    public async Task<IActionResult> Payslip(string? yearMonth = null)
     {
         if (User.HasClaim("IsAdmin", "1"))
         {

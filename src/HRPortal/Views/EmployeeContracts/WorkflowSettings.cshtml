@@ -1,0 +1,68 @@
+@model HRPortal.Models.ContractRenewalWorkflowSettingsViewModel
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "تنظیم مراحل ثابت گردش کار تمدید قرارداد";
+}
+<div class="page-head">
+    <div>
+        <h1>تنظیم مراحل ثابت گردش کار تمدید قرارداد</h1>
+        <p>تعیین جایگاه حراست و منابع انسانی؛ مدیرعامل از ساختار سازمانی شناسایی می‌شود</p>
+    </div>
+    <a class="btn btn-outline" href="/EmployeeContracts/BasicInformation">بازگشت به اطلاعات پایه</a>
+</div>
+@if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
+@if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
+@if (!ViewData.ModelState.IsValid)
+{
+    <div class="alert error">@foreach (var error in ViewData.ModelState.Values.SelectMany(x => x.Errors)) { <div>@error.ErrorMessage</div> }</div>
+}
+<div class="contract-tabs" role="tablist" aria-label="اطلاعات پایه قراردادها">
+    <a class="contract-tab" href="/EmployeeContracts/BasicInformation" role="tab">پرسش‌های ارزشیابی عملکرد کارکنان</a>
+    <a class="contract-tab active" href="/EmployeeContracts/WorkflowSettings" role="tab" aria-selected="true">جایگاه‌های ثابت گردش کار</a>
+</div>
+<div class="card contract-settings-note">
+    <strong>توجه</strong>
+    <p>مراحل پویا از آخرین نسخه نهایی ساختار سازمانی ساخته می‌شوند و تا بالاترین جایگاه زیر مدیرعامل ادامه پیدا می‌کنند. تنظیمات این صفحه فقط برای سه مرحله ثابت پس از ارزیابی است.</p>
+</div>
+<form method="post" action="/EmployeeContracts/SaveWorkflowSettings" class="card form-stack contract-settings-form">
+    @Html.AntiForgeryToken()
+    <label>جایگاه مدیر حراست *
+        <select name="securityPositionId" required>
+            <option value="">انتخاب جایگاه</option>
+            @foreach (var p in Model.Positions)
+            {
+                <option value="@p.Id" selected="@(Model.Settings.SecurityPositionId == p.Id)">@p.Title — @p.RankType (@p.Code)</option>
+            }
+        </select>
+    </label>
+    <label>جایگاه مدیر منابع انسانی و خدمات پشتیبانی *
+        <select name="humanResourcesPositionId" required>
+            <option value="">انتخاب جایگاه</option>
+            @foreach (var p in Model.Positions)
+            {
+                <option value="@p.Id" selected="@(Model.Settings.HumanResourcesPositionId == p.Id)">@p.Title — @p.RankType (@p.Code)</option>
+            }
+        </select>
+    </label>
+    <div class="contract-ceo-resolution">
+        <strong>مسئول نهایی: مدیرعامل تعیین‌شده در ساختار سازمانی</strong>
+        @if (Model.ChiefExecutiveEmployee is not null)
+        {
+            <p>@Model.ChiefExecutiveEmployee.FirstName @Model.ChiefExecutiveEmployee.LastName — شماره پرسنلی @Model.ChiefExecutiveEmployee.PersonnelNumber</p>
+            <small class="muted">این کارمند از طریق فیلد «جایگاه سازمانی ویژه (مدیرعامل)» در فرم کارکنان شناسایی شده است.</small>
+        }
+        else
+        {
+            <p class="error-text">یک گره فعال با رده مدیرعامل ایجاد و به دقیقاً یک کارمند فعال اختصاص دهید.</p>
+            <a href="/Employees">رفتن به مدیریت کارکنان</a>
+        }
+        @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+        {
+            <p class="error-text">@Model.ErrorMessage</p>
+        }
+    </div>
+    <div class="actions">
+        <button class="btn btn-main" type="submit">ذخیره تنظیمات مسیر ثابت</button>
+        <a class="btn btn-outline" href="/EmployeeContracts/Renewal">بازگشت به تمدید قرارداد</a>
+    </div>
+</form>

@@ -87,4 +87,20 @@
             <iframe src="@($"{ViewBag.ReportEndpoint}#toolbar=0&navpanes=0&scrollbar=1&view=FitH")" title="نمایش فیش حقوقی" loading="lazy"></iframe>
         </div>
     </div>
-}\n
+}
+
+@section Scripts
+{
+    <script>
+        (() => {
+            // Best-effort protection for the native browser PDF frame.
+            // Browser-owned PDF viewer internals may not expose all events to the host page.
+            document.addEventListener("contextmenu", (event) => {
+                if (event.target instanceof Element && event.target.closest(".report-frame")) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+            }, true);
+        })();
+    </script>
+}

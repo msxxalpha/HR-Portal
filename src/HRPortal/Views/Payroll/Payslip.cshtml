@@ -84,7 +84,7 @@
             </div>
         }
         <div class="report-frame">
-            <iframe src="@ViewBag.ReportEndpoint" title="نمایش فیش حقوقی" loading="lazy"></iframe>
+            <iframe src="@($"{ViewBag.ReportEndpoint}#toolbar=0&navpanes=0&scrollbar=1&view=FitH")" title="نمایش فیش حقوقی" loading="lazy"></iframe>
         </div>
     </div>
 }\n

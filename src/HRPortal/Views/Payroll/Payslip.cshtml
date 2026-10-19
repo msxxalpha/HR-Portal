@@ -83,15 +83,8 @@
                 </div>
             </div>
         }
-        <div class="report-frame protected-report-frame">
-            <div class="protected-pdf-viewer" data-pdf-url="@ViewBag.ReportEndpoint" aria-label="نمایش فیش حقوقی">
-                <div class="protected-pdf-status">در حال بارگذاری فیش حقوقی...</div>
-                <div class="protected-pdf-pages"></div>
-            </div>
+        <div class="report-frame">
+            <iframe src="@ViewBag.ReportEndpoint" title="نمایش فیش حقوقی" loading="lazy"></iframe>
         </div>
     </div>
-}
-@section Scripts
-{
-    <script src="~/js/protected-pdf-viewer.js" asp-append-version="true"></script>
-}
+}\n

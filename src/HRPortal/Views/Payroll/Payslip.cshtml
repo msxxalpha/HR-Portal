@@ -104,7 +104,7 @@
                 // Never rewrite executable code or editable/user-entered content.
                 if (node.parentElement?.closest("script, style, textarea, input, pre, code")) continue;
                 if (node.nodeValue?.includes("\\n")) {
-                    node.nodeValue = node.nodeValue.replace(/\\\\n/g, "");
+                    node.nodeValue = node.nodeValue.replace(/\\n/g, "");
                 }
             }
 

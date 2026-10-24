@@ -189,12 +189,12 @@ public class ReportsController(HRPortalDbContext db) : Controller
             allRows = allRows.Where(x => x.WorkflowTitle == model.Workflow).ToList();
         if (model.Employee != "all" && int.TryParse(model.Employee, out var selectedEmployeeId))
         {
-            allRows = allRows.Where(x =>
-                (int.TryParse(x.RequesterPersonnelNumber, out var ignored) && ignored == selectedEmployeeId) ||
-                instances.Any(i => i.Id == x.Id && i.Tasks.Any(t => t.AssignedEmployeeId == selectedEmployeeId ||
-                    (t.AssignedPositionId.HasValue && directNodeIds.Contains(t.AssignedPositionId.Value) &&
-                     (t.AssignedPosition?.PositionHolderEmployeeId == selectedEmployeeId ||
-                      (t.AssignedPosition?.AssignedEmployeeIdsCsv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Contains(selectedEmployeeId.ToString())))))
+            allRows = allRows.Where(x => instances.Any(i => i.Id == x.Id &&
+                (i.RequesterEmployeeId == selectedEmployeeId ||
+                 i.Tasks.Any(t => t.AssignedEmployeeId == selectedEmployeeId ||
+                    (t.AssignedPositionId.HasValue && directNodes.Any(n => n.Id == t.AssignedPositionId.Value &&
+                        (n.PositionHolderEmployeeId == selectedEmployeeId ||
+                         (n.AssignedEmployeeIdsCsv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Contains(selectedEmployeeId.ToString())))))))
             ).ToList();
         }
         if (model.From.HasValue) allRows = allRows.Where(x => x.StartedAt.Date >= model.From.Value.Date).ToList();
@@ -212,7 +212,7 @@ public class ReportsController(HRPortalDbContext db) : Controller
         model.AgingCount = model.Rows.Count(x => x.Status == "InProgress" && x.AgeDays >= 7);
         var completedRows = model.Rows.Where(x => x.CompletedAt.HasValue && x.CompletedAt.Value >= x.StartedAt).ToList();
         model.AverageCompletionDays = completedRows.Count == 0 ? 0 :
-            Math.Round(completedRows.Average(x => (completedRows.Max(y => y.CompletedAt)!.Value - x.StartedAt).TotalDays), 1);
+            Math.Round(completedRows.Average(x => (x.CompletedAt!.Value - x.StartedAt).TotalDays), 1);
 
         model.WorkflowOptions = model.Rows.Select(x => x.WorkflowTitle).Distinct().OrderBy(x => x).ToList();
         model.StatusChart =

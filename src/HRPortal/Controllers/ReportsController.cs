@@ -74,7 +74,7 @@ public class ReportsController(HRPortalDbContext db) : Controller
         var directEmployees = await db.Employees.AsNoTracking()
             .Where(x => directEmployeeIds.Contains(x.Id) && x.Status == "فعال")
             .OrderBy(x => x.LastName).ThenBy(x => x.FirstName)
-            .Select(x => new { x.Id, x.FirstName, x.LastName, x.PersonnelNumber })
+            .Select(x => new { x.Id, x.FirstName, x.LastName, x.PersonnelNumber, x.OrganizationPositionId })
             .ToListAsync(cancellationToken);
         directEmployeeIds = directEmployees.Select(x => x.Id).ToHashSet();
         model.DirectEmployeeCount = directEmployees.Count;
@@ -190,11 +190,13 @@ public class ReportsController(HRPortalDbContext db) : Controller
             allRows = allRows.Where(x => x.WorkflowTitle == model.Workflow).ToList();
         if (model.Employee != "all" && int.TryParse(model.Employee, out var selectedEmployeeId))
         {
+            var selectedPositionId = directEmployees.FirstOrDefault(x => x.Id == selectedEmployeeId)?.OrganizationPositionId;
             allRows = allRows.Where(x => instances.Any(i => i.Id == x.Id &&
                 (i.RequesterEmployeeId == selectedEmployeeId ||
                  i.Tasks.Any(t => t.AssignedEmployeeId == selectedEmployeeId ||
                     (t.AssignedPositionId.HasValue && directNodes.Any(n => n.Id == t.AssignedPositionId.Value &&
                         (n.PositionHolderEmployeeId == selectedEmployeeId ||
+                         n.Id == selectedPositionId ||
                          (n.AssignedEmployeeIdsCsv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Contains(selectedEmployeeId.ToString())))))))
             ).ToList();
         }

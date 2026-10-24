@@ -33,17 +33,14 @@ public class OrganizationController(
         OrganizationStructureRevision? revision;
         if (selected is null)
         {
-            revision = revisions.FirstOrDefault(x => !x.IsFinalized);
-            if (revision is null)
-                revision = canEditStructure ? await service.GetOrCreateDraftAsync() : current;
-        }
-        else if (selected.IsFinalized && canEditStructure && current?.Id == selected.Id)
-        {
-            // Selecting the current finalized version opens its editable working copy for an authorized user.
-            revision = revisions.FirstOrDefault(x => !x.IsFinalized) ?? await service.GetOrCreateDraftAsync();
+            // Opening the page must never create a draft as a side effect.
+            // Prefer an explicitly existing draft; otherwise show the current finalized snapshot read-only.
+            revision = revisions.FirstOrDefault(x => !x.IsFinalized) ?? current;
         }
         else
         {
+            // A finalized revision is always read-only, including the current one.
+            // Editing begins only through the explicit NewRevision action.
             revision = selected;
         }
 
@@ -51,6 +48,17 @@ public class OrganizationController(
             revisions = await service.RevisionsAsync();
 
         ViewBag.CompanyName = (await settings.GetAsync()).System.OrganizationName;
+        var organizationRankTitles = await db.OrganizationRankDefinitions.AsNoTracking()
+            .OrderBy(x => x.SortOrder).ThenBy(x => x.Title)
+            .Select(x => x.Title).ToListAsync();
+        ViewBag.OrganizationRankJson = JsonSerializer.Serialize(organizationRankTitles);
+        var activeEmployees = await db.Employees.AsNoTracking()
+            .Where(x => x.Status == "فعال")
+            .OrderBy(x => x.LastName).ThenBy(x => x.FirstName).ThenBy(x => x.PersonnelNumber)
+            .Select(x => new { id = x.Id, name = x.FirstName + " " + x.LastName, personnelNumber = x.PersonnelNumber })
+            .ToListAsync();
+        ViewBag.PositionHolderEmployeesJson = JsonSerializer.Serialize(activeEmployees);
+        var activeEmployeeNames = activeEmployees.ToDictionary(x => x.id, x => x.name);
         ViewBag.Revisions = revisions;
         ViewBag.IsEditable = revision is not null && !revision.IsFinalized && canEditStructure;
         ViewBag.CanCreate = User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Organization.Create");
@@ -68,11 +76,16 @@ public class OrganizationController(
                 .ThenBy(x => x.Title)
                 .ToListAsync();
 
+            var assignedIdsByNode = nodes.ToDictionary(n => n.Id,
+                n => ParseEmployeeIds(n.AssignedEmployeeIdsCsv, n.PositionHolderEmployeeId));
             var tree = nodes.Select(n => new
             {
                 id = "node-" + n.Id,
                 parent = n.ParentId.HasValue ? "node-" + n.ParentId.Value : "root",
-                text = n.Title + "  [" + n.RankType + "]",
+                text = n.Title + "  [" + n.RankType + "]" +
+                    (assignedIdsByNode[n.Id].Any(id => activeEmployeeNames.ContainsKey(id))
+                        ? " — متصدیان: " + string.Join("، ", assignedIdsByNode[n.Id].Where(activeEmployeeNames.ContainsKey).Select(id => activeEmployeeNames[id]))
+                        : ""),
                 data = new
                 {
                     id = n.Id,
@@ -82,6 +95,8 @@ public class OrganizationController(
                     sortOrder = n.SortOrder,
                     isActive = n.IsActive,
                     notes = n.Notes,
+                    positionHolderEmployeeId = n.PositionHolderEmployeeId,
+                    assignedEmployeeIds = assignedIdsByNode[n.Id],
                     parentId = n.ParentId,
                     revisionId = n.OrganizationStructureRevisionId
                 },
@@ -136,7 +151,9 @@ public class OrganizationController(
         string rankType,
         int sortOrder = 0,
         bool isActive = true,
-        string? notes = null)
+        string? notes = null,
+        int? positionHolderEmployeeId = null,
+        string? assignedEmployeeIdsCsv = null)
     {
         var result = await EnsureEditableRevision(revisionId);
         if (result is not null)
@@ -145,12 +162,27 @@ public class OrganizationController(
         var validation = await ValidateNodeParentAsync(revisionId, parentId, rankType);
         if (validation is not null)
             return Json(new { success = false, message = validation });
+        var assignedEmployeeIds = ParseEmployeeIds(assignedEmployeeIdsCsv, positionHolderEmployeeId);
+        if (rankType == "مدیرعامل" && assignedEmployeeIds.Count != 1)
+            return Json(new { success = false, message = "برای جایگاه مدیرعامل دقیقاً یک کارمند فعال انتخاب کنید." });
+        var assignmentValidation = await ValidateAssignedEmployeesAsync(revisionId, assignedEmployeeIds, null);
+        if (assignmentValidation is not null)
+            return Json(new { success = false, message = assignmentValidation });
 
-        code = code.Trim();
-        title = title.Trim();
+        if (rankType == "مدیرعامل" &&
+            await db.OrganizationNodes.AnyAsync(x => x.OrganizationStructureRevisionId == revisionId && x.RankType == "مدیرعامل"))
+            return Json(new { success = false, message = "در هر نسخه ساختار سازمانی فقط یک گره با رده مدیرعامل مجاز است." });
 
-        if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(title))
-            return Json(new { success = false, message = "کد و عنوان الزامی است." });
+        code = (code ?? "").Trim();
+        title = (title ?? "").Trim();
+
+        // Generate a default when the client submits an empty code; the user can still
+        // change the suggested code before saving it.
+        if (string.IsNullOrWhiteSpace(code))
+            code = await GenerateAvailableNodeCodeAsync(revisionId);
+
+        if (string.IsNullOrWhiteSpace(title))
+            return Json(new { success = false, message = "عنوان گره الزامی است. کد در صورت خالی بودن به‌صورت خودکار تولید می‌شود." });
 
         if (await db.OrganizationNodes.AnyAsync(x =>
                 x.OrganizationStructureRevisionId == revisionId &&
@@ -168,7 +200,9 @@ public class OrganizationController(
             RankType = rankType,
             SortOrder = sortOrder,
             IsActive = isActive,
-            Notes = notes?.Trim()
+            Notes = notes?.Trim(),
+            PositionHolderEmployeeId = assignedEmployeeIds.Count == 1 ? assignedEmployeeIds[0] : null,
+            AssignedEmployeeIdsCsv = assignedEmployeeIds.Count == 0 ? null : string.Join(",", assignedEmployeeIds)
         };
 
         db.OrganizationNodes.Add(node);
@@ -194,7 +228,9 @@ public class OrganizationController(
                 rankType = node.RankType,
                 sortOrder = node.SortOrder,
                 isActive = node.IsActive,
-                notes = node.Notes
+                notes = node.Notes,
+                positionHolderEmployeeId = node.PositionHolderEmployeeId,
+                assignedEmployeeIds
             }
         });
     }
@@ -207,7 +243,9 @@ public class OrganizationController(
         string rankType,
         int sortOrder,
         bool isActive,
-        string? notes)
+        string? notes,
+        int? positionHolderEmployeeId = null,
+        string? assignedEmployeeIdsCsv = null)
     {
         var node = await db.OrganizationNodes
             .Include(x => x.Revision)
@@ -219,12 +257,25 @@ public class OrganizationController(
         if (node.Revision.IsFinalized)
             return Json(new { success = false, message = "نسخه نهایی قابل ویرایش نیست." });
 
-        if (await IsNodeUsedAsync(id))
-            return Json(new { success = false, message = "این گره در اطلاعات کارکنان استفاده شده و قابل ویرایش مستقیم نیست." });
+        var nodeIsUsed = await IsNodeUsedAsync(id) || node.PositionHolderEmployeeId.HasValue || !string.IsNullOrWhiteSpace(node.AssignedEmployeeIdsCsv);
+        if (nodeIsUsed && !string.Equals(node.Code, code?.Trim(), StringComparison.Ordinal))
+            return Json(new { success = false, message = "کد گره‌ای که در کارکنان یا گردش‌های کاری استفاده شده قابل تغییر نیست؛ برای تغییر رده، عنوان یا توضیحات نیازی به تغییر کد نیست." });
+        if (nodeIsUsed && node.IsActive && !isActive)
+            return Json(new { success = false, message = "غیرفعال‌سازی گره‌ای که در کارکنان، متصدی جایگاه یا سوابق گردش کار استفاده شده مجاز نیست." });
 
         var validation = await ValidateNodeParentAsync(node.OrganizationStructureRevisionId, node.ParentId, rankType);
         if (validation is not null)
             return Json(new { success = false, message = validation });
+        var assignedEmployeeIds = ParseEmployeeIds(assignedEmployeeIdsCsv, positionHolderEmployeeId);
+        if (rankType == "مدیرعامل" && assignedEmployeeIds.Count != 1)
+            return Json(new { success = false, message = "برای جایگاه مدیرعامل دقیقاً یک کارمند فعال انتخاب کنید." });
+        var assignmentValidation = await ValidateAssignedEmployeesAsync(node.OrganizationStructureRevisionId, assignedEmployeeIds, node.Id);
+        if (assignmentValidation is not null)
+            return Json(new { success = false, message = assignmentValidation });
+
+        if (rankType == "مدیرعامل" &&
+            await db.OrganizationNodes.AnyAsync(x => x.Id != id && x.OrganizationStructureRevisionId == node.OrganizationStructureRevisionId && x.RankType == "مدیرعامل"))
+            return Json(new { success = false, message = "در هر نسخه ساختار سازمانی فقط یک گره با رده مدیرعامل مجاز است." });
 
         if (await db.OrganizationNodes.AnyAsync(x =>
                 x.Id != id &&
@@ -238,6 +289,8 @@ public class OrganizationController(
         node.SortOrder = sortOrder;
         node.IsActive = isActive;
         node.Notes = notes?.Trim();
+        node.PositionHolderEmployeeId = assignedEmployeeIds.Count == 1 ? assignedEmployeeIds[0] : null;
+        node.AssignedEmployeeIdsCsv = assignedEmployeeIds.Count == 0 ? null : string.Join(",", assignedEmployeeIds);
 
         db.OrganizationChanges.Add(new OrganizationChange
         {
@@ -311,6 +364,9 @@ public class OrganizationController(
         if (node.Revision.IsFinalized)
             return Json(new { success = false, message = "نسخه نهایی قابل حذف نیست." });
 
+        if (node.PositionHolderEmployeeId.HasValue || !string.IsNullOrWhiteSpace(node.AssignedEmployeeIdsCsv))
+            return Json(new { success = false, message = "ابتدا تمام انتساب‌های کارکنان این جایگاه را حذف یا به جایگاه دیگری منتقل کنید." });
+
         if (await IsNodeUsedAsync(id))
             return Json(new { success = false, message = "این گره در اطلاعات کارکنان استفاده شده است." });
 
@@ -331,6 +387,78 @@ public class OrganizationController(
         return Json(new { success = true });
     }
 
+    [HttpPost, Authorize(Policy = "Organization.Delete"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteDraft(int revisionId)
+    {
+        if (!User.HasClaim("IsAdmin", "1"))
+        {
+            return Forbid();
+        }
+
+        var revision = await db.OrganizationStructureRevisions
+            .FirstOrDefaultAsync(x => x.Id == revisionId);
+        if (revision is null)
+        {
+            TempData["Error"] = "نسخه ساختار یافت نشد.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        if (revision.IsFinalized)
+        {
+            TempData["Error"] = "حذف کامل فقط برای نسخه پیشنویس مجاز است؛ نسخه نهایی قابل حذف نیست.";
+            return RedirectToAction(nameof(Index), new { revisionId });
+        }
+
+        var nodeIds = await db.OrganizationNodes
+            .Where(x => x.OrganizationStructureRevisionId == revisionId)
+            .Select(x => x.Id)
+            .ToListAsync();
+
+        if (nodeIds.Count > 0 &&
+            (await db.Employees.AnyAsync(e =>
+                (e.OrganizationUnitId.HasValue && nodeIds.Contains(e.OrganizationUnitId.Value)) ||
+                (e.OrganizationDepartmentId.HasValue && nodeIds.Contains(e.OrganizationDepartmentId.Value)) ||
+                (e.OrganizationSectionId.HasValue && nodeIds.Contains(e.OrganizationSectionId.Value)) ||
+                (e.OrganizationPositionId.HasValue && nodeIds.Contains(e.OrganizationPositionId.Value))) ||
+             await db.WorkflowSteps.AnyAsync(x => x.OrganizationNodeId.HasValue && nodeIds.Contains(x.OrganizationNodeId.Value)) ||
+             await db.WorkflowTasks.AnyAsync(x => x.AssignedPositionId.HasValue && nodeIds.Contains(x.AssignedPositionId.Value)) ||
+             await db.WorkflowHistory.AnyAsync(x => x.ActorPositionId.HasValue && nodeIds.Contains(x.ActorPositionId.Value))))
+        {
+            TempData["Error"] = "این پیش‌نویس به کارکنان یا سوابق گردش کار ارجاع دارد و برای جلوگیری از شکستن ارجاعات حذف نشد.";
+            return RedirectToAction(nameof(Index), new { revisionId });
+        }
+
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        db.OrganizationChanges.RemoveRange(
+            db.OrganizationChanges.Where(x => x.OrganizationStructureRevisionId == revisionId));
+        await db.SaveChangesAsync();
+
+        var remainingNodes = await db.OrganizationNodes
+            .Where(x => x.OrganizationStructureRevisionId == revisionId)
+            .ToListAsync();
+        while (remainingNodes.Count > 0)
+        {
+            var parentIdsWithChildren = remainingNodes
+                .Where(x => x.ParentId.HasValue)
+                .Select(x => x.ParentId!.Value)
+                .ToHashSet();
+            var leaves = remainingNodes.Where(x => !parentIdsWithChildren.Contains(x.Id)).ToList();
+            if (leaves.Count == 0)
+                throw new InvalidOperationException("ساختار پیش‌نویس دارای چرخه است و حذف ایمن انجام نشد.");
+            db.OrganizationNodes.RemoveRange(leaves);
+            await db.SaveChangesAsync();
+            var removedIds = leaves.Select(x => x.Id).ToHashSet();
+            remainingNodes.RemoveAll(x => removedIds.Contains(x.Id));
+        }
+
+        db.OrganizationStructureRevisions.Remove(revision);
+        await db.SaveChangesAsync();
+        await transaction.CommitAsync();
+
+        TempData["Success"] = "پیش‌نویس ساختار سازمانی به‌همراه تمام گره‌ها و تاریخچه تغییرات آن حذف شد.";
+        return RedirectToAction(nameof(Index));
+    }
+
     [HttpPost, Authorize(Policy = "Organization.Finalize"), ValidateAntiForgeryToken]
     public async Task<IActionResult> Finalize(int revisionId)
     {
@@ -347,6 +475,49 @@ public class OrganizationController(
         return RedirectToAction(nameof(Index), new { revisionId });
     }
 
+    private static List<int> ParseEmployeeIds(string? csv, int? legacyEmployeeId)
+    {
+        var ids = (csv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(value => int.TryParse(value, out var id) ? id : 0)
+            .Where(id => id > 0).Distinct().ToList();
+        if (ids.Count == 0 && legacyEmployeeId.HasValue) ids.Add(legacyEmployeeId.Value);
+        return ids;
+    }
+
+    private async Task<string?> ValidateAssignedEmployeesAsync(int revisionId, List<int> employeeIds, int? currentNodeId)
+    {
+        if (employeeIds.Count == 0) return null;
+        var activeIds = await db.Employees.AsNoTracking()
+            .Where(x => x.Status == "فعال" && employeeIds.Contains(x.Id))
+            .Select(x => x.Id).ToListAsync();
+        if (activeIds.Count != employeeIds.Count)
+            return "تمام کارکنان منتسب‌شده باید فعال و معتبر باشند.";
+
+        var otherNodes = await db.OrganizationNodes.AsNoTracking()
+            .Where(x => x.OrganizationStructureRevisionId == revisionId && (!currentNodeId.HasValue || x.Id != currentNodeId.Value))
+            .Select(x => new { x.PositionHolderEmployeeId, x.AssignedEmployeeIdsCsv }).ToListAsync();
+        var alreadyAssigned = otherNodes.SelectMany(x => ParseEmployeeIds(x.AssignedEmployeeIdsCsv, x.PositionHolderEmployeeId)).ToHashSet();
+        if (employeeIds.Any(alreadyAssigned.Contains))
+            return "هر کارمند در هر نسخه ساختار سازمانی فقط می‌تواند به یک جایگاه منتسب شود.";
+        return null;
+    }
+
+    private async Task<string?> ValidatePositionHolderAsync(int revisionId, int? employeeId, int? currentNodeId)
+    {
+        if (!employeeId.HasValue) return null;
+
+        if (!await db.Employees.AnyAsync(x => x.Id == employeeId.Value && x.Status == "فعال"))
+            return "متصدی جایگاه باید یک کارمند فعال باشد.";
+
+        if (await db.OrganizationNodes.AnyAsync(x =>
+                x.OrganizationStructureRevisionId == revisionId &&
+                x.PositionHolderEmployeeId == employeeId.Value &&
+                (!currentNodeId.HasValue || x.Id != currentNodeId.Value)))
+            return "هر کارمند در هر نسخه ساختار سازمانی فقط می‌تواند متصدی یک جایگاه باشد.";
+
+        return null;
+    }
+
     private async Task<IActionResult?> EnsureEditableRevision(int revisionId)
     {
         var revision = await db.OrganizationStructureRevisions.FindAsync(revisionId);
@@ -359,26 +530,50 @@ public class OrganizationController(
         return null;
     }
 
+    private async Task<string> GenerateAvailableNodeCodeAsync(int revisionId)
+    {
+        var used = (await db.OrganizationNodes.AsNoTracking()
+                .Where(x => x.OrganizationStructureRevisionId == revisionId)
+                .Select(x => x.Code)
+                .ToListAsync())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        for (var number = 1; number < int.MaxValue; number++)
+        {
+            var candidate = $"ORG-{number:000}";
+            if (!used.Contains(candidate))
+                return candidate;
+        }
+
+        throw new InvalidOperationException("کد خودکار گره سازمانی قابل تولید نیست؛ ظرفیت کدهای پیش‌فرض تمام شده است.");
+    }
+
     private async Task<string?> ValidateNodeParentAsync(int revisionId, int? parentId, string childRank)
     {
-        if (parentId is null)
-            return OrganizationService.ValidateHierarchy("", childRank, true);
+        if (string.IsNullOrWhiteSpace(childRank) ||
+            !await db.OrganizationRankDefinitions.AnyAsync(x => x.Title == childRank))
+            return "رده انتخاب‌شده در اطلاعات پایه سامانه وجود ندارد؛ ابتدا رده را تعریف کنید.";
 
-        var parent = await db.OrganizationNodes
-            .AsNoTracking()
+        if (parentId is null) return null;
+
+        var parent = await db.OrganizationNodes.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == parentId && x.OrganizationStructureRevisionId == revisionId);
-
         if (parent is null)
-            return "والد انتخاب‌شده یافت نشد.";
+            return "والد انتخاب‌شده یافت نشد یا متعلق به نسخه دیگری از ساختار است.";
 
-        return OrganizationService.ValidateHierarchy(parent.RankType, childRank, false);
+        // Master-data ranks are deliberately not filtered or constrained by parent rank.
+        return null;
     }
 
     private async Task<bool> IsNodeUsedAsync(int id) =>
         await db.Employees.AnyAsync(e =>
             e.OrganizationUnitId == id ||
             e.OrganizationDepartmentId == id ||
-            e.OrganizationSectionId == id);
+            e.OrganizationSectionId == id ||
+            e.OrganizationPositionId == id) ||
+        await db.WorkflowSteps.AnyAsync(x => x.OrganizationNodeId == id) ||
+        await db.WorkflowTasks.AnyAsync(x => x.AssignedPositionId == id) ||
+        await db.WorkflowHistory.AnyAsync(x => x.ActorPositionId == id);
 
     private async Task<bool> WouldCreateCycleAsync(int id, int newParentId)
     {

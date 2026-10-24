@@ -131,6 +131,7 @@ public class EnvironmentSettingsService(HRPortalDbContext db, ReportCredentialPr
             LogoUrl = system.LogoUrl ?? "",
             FaviconUrl = system.FaviconUrl ?? "",
             ItemsPerPage = system.ItemsPerPage,
+            PayrollMinimumYear = system.PayrollMinimumYear,
 
             OtpLength = otp.Length,
             OtpValiditySeconds = otp.ValiditySeconds,
@@ -226,6 +227,7 @@ public class EnvironmentSettingsService(HRPortalDbContext db, ReportCredentialPr
         entity.LogoUrl = model.LogoUrl?.Trim() ?? "";
         entity.FaviconUrl = model.FaviconUrl?.Trim() ?? "";
         entity.ItemsPerPage = model.ItemsPerPage;
+        entity.PayrollMinimumYear = model.PayrollMinimumYear;
         entity.EnableAuditLog = model.EnableAuditLog;
         entity.MaintenanceMode = model.MaintenanceMode;
         entity.MaintenanceMessage = model.MaintenanceMessage?.Trim() ?? "";

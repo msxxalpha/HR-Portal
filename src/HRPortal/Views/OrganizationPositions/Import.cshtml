@@ -1,0 +1,35 @@
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "ورود Excel پست‌های سازمانی";
+    bool canEdit = User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Settings.Edit");
+}
+<div class="page-head"><div><h1>ورود پست‌های سازمانی از Excel</h1><p>فایل قالب را دریافت کنید؛ ستون‌های آن مطابق راهنمای زیر باید حفظ شوند.</p></div><a class="btn btn-outline" href="/OrganizationPositions">بازگشت به فهرست پست‌ها</a></div>
+@if (ViewBag.Success is string success) { <div class="alert success">@success</div> }
+@if (ViewBag.Errors is List<string> errors && errors.Count > 0) { <div class="alert error"><strong>خطاهای فایل</strong>@foreach (var error in errors) { <div>@error</div> }</div> }
+<section class="card">
+    <div class="section-head"><div><h3>انتخاب فایل</h3><span class="muted">ورود مجدد با کد پست موجود، اطلاعات همان پست را به‌روزرسانی می‌کند؛ کد جدید، پست جدید ایجاد می‌کند.</span></div><a class="btn btn-outline" href="/OrganizationPositions/Template">دریافت قالب Excel و راهنما</a></div>
+    @if (canEdit)
+    {
+        <form method="post" action="/OrganizationPositions/Import" enctype="multipart/form-data" class="form-stack">
+            @Html.AntiForgeryToken()
+            <label>فایل Excel (.xlsx) *<input type="file" name="file" accept=".xlsx" required /></label>
+            <button class="btn btn-main" type="submit">بررسی و ورود اطلاعات</button>
+        </form>
+    }
+    else
+    {
+        <div class="note">برای ورود اطلاعات، مجوز ویرایش تنظیمات سامانه لازم است. راهنمای ستون‌ها و قالب Excel در دسترس شماست.</div>
+    }
+</section>
+<section class="card">
+    <h3>راهنمای ستون‌ها</h3>
+    <div class="table-wrap"><table><thead><tr><th>ستون</th><th>اجباری</th><th>شرح</th></tr></thead><tbody>
+        <tr><td>کد پست</td><td>بله</td><td>کد یکتا، حداکثر ۵۰ نویسه؛ کلید به‌روزرسانی هنگام ورود مجدد</td></tr>
+        <tr><td>عنوان پست</td><td>بله</td><td>عنوان یکتا، حداکثر ۱۵۰ نویسه</td></tr>
+        <tr><td>گروه شغلی</td><td>خیر</td><td>مانند منابع انسانی، مالی یا فنی</td></tr>
+        <tr><td>رده/گرید</td><td>خیر</td><td>سطح یا درجه شغلی</td></tr>
+        <tr><td>توضیحات</td><td>خیر</td><td>توضیحات تکمیلی پست</td></tr>
+        <tr><td>ترتیب نمایش</td><td>خیر</td><td>عدد مرتب‌سازی؛ پیش‌فرض ۱۰</td></tr>
+        <tr><td>وضعیت</td><td>خیر</td><td>«فعال» یا «غیرفعال»؛ مقدار خالی به معنی فعال است</td></tr>
+    </tbody></table></div>
+</section>

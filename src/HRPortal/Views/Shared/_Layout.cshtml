@@ -73,7 +73,7 @@
             }
             @if (Can("Reports.View")) {
                 <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Reports") ? "open" : null)">
-                    <summary><span class="nav-icon">▥</span>گزارش‌ها</summary><div class="nav-submenu"><a href="/Reports">گزارش‌ها</a></div>
+                    <summary><span class="nav-icon">▥</span>گزارش‌ها</summary><div class="nav-submenu"><a href="/Reports">فهرست گزارش‌ها</a><a href="/Reports/ExecutiveWorkflow">تحلیل گردش درخواست‌های مرتبط با مدیرعامل</a></div>
                 </details>
             }
             @if (Can("Payroll.View") || Can("PersonnelOrder.View")) {

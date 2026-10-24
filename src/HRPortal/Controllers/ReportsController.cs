@@ -128,6 +128,7 @@ public class ReportsController(HRPortalDbContext db) : Controller
                 "Rejected" => "ردشده؛ بررسی علت",
                 "Returned" => "برگشت برای اصلاح",
                 "Approved" or "Completed" => ageDays <= 3 ? "تکمیل سریع" : "تکمیل‌شده",
+                _ when latestHistory?.Action == "Return" => "برگشت برای اصلاح",
                 _ when currentTasks.Count == 0 => "نیازمند بررسی مالک مرحله",
                 _ when ageDays >= 14 => "ماندگاری بحرانی",
                 _ when ageDays >= 7 => "ماندگاری بالا",
@@ -139,7 +140,7 @@ public class ReportsController(HRPortalDbContext db) : Controller
                 "Returned" => "warning",
                 "Approved" or "Completed" => ageDays <= 3 ? "success" : "neutral",
                 _ when currentTasks.Count == 0 || ageDays >= 14 => "danger",
-                _ when ageDays >= 7 => "warning",
+                _ when latestHistory?.Action == "Return" || ageDays >= 7 => "warning",
                 _ => "info"
             };
             return new ExecutiveWorkflowReportRow
@@ -207,7 +208,8 @@ public class ReportsController(HRPortalDbContext db) : Controller
         model.InProgressCount = model.Rows.Count(x => x.Status == "InProgress");
         model.CompletedCount = model.Rows.Count(x => x.Status == "Approved" || x.Status == "Completed");
         model.RejectedCount = model.Rows.Count(x => x.Status == "Rejected");
-        model.ReturnedCount = model.Rows.Count(x => x.Status == "Returned");
+        model.ReturnedCount = model.Rows.Count(x => x.Status == "Returned" || (x.Status == "InProgress" && x.LastAction == "برگشت"));
+        model.CancelledCount = model.Rows.Count(x => x.Status == "Cancelled");
         model.PendingTaskCount = instances.Where(i => model.Rows.Any(r => r.Id == i.Id)).SelectMany(i => i.Tasks).Count(t => t.Status == "Pending");
         model.AgingCount = model.Rows.Count(x => x.Status == "InProgress" && x.AgeDays >= 7);
         var completedRows = model.Rows.Where(x => x.CompletedAt.HasValue && x.CompletedAt.Value >= x.StartedAt).ToList();
@@ -220,7 +222,8 @@ public class ReportsController(HRPortalDbContext db) : Controller
             new() { Label = "در حال گردش", Count = model.InProgressCount, Color = "#2563eb" },
             new() { Label = "تکمیل/تأیید", Count = model.CompletedCount, Color = "#16a34a" },
             new() { Label = "ردشده", Count = model.RejectedCount, Color = "#dc2626" },
-            new() { Label = "برگشت‌خورده", Count = model.ReturnedCount, Color = "#d97706" }
+            new() { Label = "برگشت‌خورده/اصلاح", Count = model.ReturnedCount, Color = "#d97706" },
+            new() { Label = "لغوشده", Count = model.CancelledCount, Color = "#64748b" }
         ];
         model.DirectionChart =
         [

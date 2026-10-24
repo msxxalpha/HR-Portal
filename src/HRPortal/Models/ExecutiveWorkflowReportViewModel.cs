@@ -19,6 +19,7 @@ public class ExecutiveWorkflowReportViewModel
     public int CompletedCount { get; set; }
     public int RejectedCount { get; set; }
     public int ReturnedCount { get; set; }
+    public int CancelledCount { get; set; }
     public int PendingTaskCount { get; set; }
     public int AgingCount { get; set; }
     public double AverageCompletionDays { get; set; }

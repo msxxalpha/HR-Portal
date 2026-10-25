@@ -42,14 +42,42 @@
 <label>عنوان</label><input class="form-control mb-2" name="title" required maxlength="200" />
 <button class="btn btn-primary">افزودن</button>
 </form>
-<ul class="mt-2">@foreach(var d in Model.Domains){<li>@d.Code — @d.Title</li>}</ul></div></div>
+<div class="perf-edit-list mt-2">
+@foreach(var d in Model.Domains)
+{
+    <details class="perf-edit-row"><summary><b>@d.Code</b> — @d.Title <small>@(d.IsActive ? "فعال" : "غیرفعال")</small></summary>
+        <form method="post" action="/PerformanceAdmin/EditDomain" class="perf-edit-form">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@d.Id" />
+            <label>کد<input name="code" class="form-control" value="@d.Code" maxlength="50" required /></label>
+            <label>عنوان<input name="title" class="form-control" value="@d.Title" maxlength="200" required /></label>
+            <label class="perf-check"><input name="isActive" type="checkbox" value="true" checked="@d.IsActive" /> فعال باشد</label>
+            <button class="btn btn-outline-primary" type="submit">ذخیره تغییرات</button>
+        </form>
+    </details>
+}
+</div></div></div>
 <div class="col-lg-4"><div class="card p-3 h-100"><h3>رده ارزیابی</h3>
 <form method="post" action="/PerformanceAdmin/AddPosition">@Html.AntiForgeryToken()
 <label>کد (قابل ویرایش)</label><input class="form-control mb-2" name="code" value="@Model.PositionCode" maxlength="50" />
 <label>عنوان</label><input class="form-control mb-2" name="title" required maxlength="200" />
 <button class="btn btn-primary">افزودن</button>
 </form>
-<ul class="mt-2">@foreach(var p in Model.Positions){<li>@p.Code — @p.Title</li>}</ul></div></div>
+<div class="perf-edit-list mt-2">
+@foreach(var p in Model.Positions)
+{
+    <details class="perf-edit-row"><summary><b>@p.Code</b> — @p.Title <small>@(p.IsActive ? "فعال" : "غیرفعال")</small></summary>
+        <form method="post" action="/PerformanceAdmin/EditPosition" class="perf-edit-form">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@p.Id" />
+            <label>کد<input name="code" class="form-control" value="@p.Code" maxlength="50" required /></label>
+            <label>عنوان<input name="title" class="form-control" value="@p.Title" maxlength="200" required /></label>
+            <label class="perf-check"><input name="isActive" type="checkbox" value="true" checked="@p.IsActive" /> فعال باشد</label>
+            <button class="btn btn-outline-primary" type="submit">ذخیره تغییرات</button>
+        </form>
+    </details>
+}
+</div></div></div>
 <div class="col-lg-4"><div class="card p-3 h-100"><h3>سؤال جدید</h3>
 <form method="post" action="/PerformanceAdmin/AddQuestion">@Html.AntiForgeryToken()
 <label>کد (قابل ویرایش)</label><input class="form-control mb-2" name="code" value="@Model.QuestionCode" maxlength="50" />
@@ -58,6 +86,30 @@
 <label>شرح سؤال</label><textarea class="form-control mb-2" name="text" maxlength="2000" required></textarea>
 <button class="btn btn-primary">افزودن</button>
 </form></div></div>
+</div>
+
+<div class="card p-3 mb-3">
+<h3>بانک سؤالات — ویرایش، غیرفعال‌سازی و حفظ سوابق</h3>
+<p>ویرایش اطلاعات سؤال فقط برای ارزیابی‌های بعدی اعمال می‌شود؛ متن و سقف امتیاز ثبت‌شده قبلی محفوظ است.</p>
+<div class="perf-edit-list">
+@foreach(var q in Model.Questions)
+{
+<details class="perf-edit-row">
+<summary><b>@q.Code</b> — @q.Title <small>@q.Domain?.Title — @(q.IsActive?"فعال":"غیرفعال")</small></summary>
+<form method="post" action="/PerformanceAdmin/EditQuestion" class="perf-edit-form">
+@Html.AntiForgeryToken()<input type="hidden" name="id" value="@q.Id" />
+<label>کد<input class="form-control" name="code" value="@q.Code" maxlength="50" required /></label>
+<label>عنوان<input class="form-control" name="title" value="@q.Title" maxlength="250" required /></label>
+<label>حوزه<select class="form-select" name="domainId">
+@foreach(var d in Model.Domains){<option value="@d.Id" selected="@(q.DomainId==d.Id)">@d.Title</option>}
+</select></label>
+<label>متن سؤال<textarea class="form-control" name="text" maxlength="2000" required>@q.Text</textarea></label>
+<label class="perf-check"><input type="checkbox" name="isActive" value="true" checked="@q.IsActive" /> فعال باشد</label>
+<button type="submit" class="btn btn-outline-primary">ذخیره تغییرات سؤال</button>
+</form>
+</details>
+}
+</div>
 </div>
 <div class="row g-3 mb-3">
 <div class="col-lg-6"><div class="card p-3 h-100"><h3>سؤال‌های رده پستی</h3>
@@ -68,7 +120,19 @@
 <div class="col-md-3"><label>ترتیب</label><input class="form-control" type="number" min="1" name="sortOrder" value="1" /></div>
 <div class="col-md-4 align-self-end"><button class="btn btn-primary">ثبت/ویرایش</button></div>
 </form>
-<div class="table-responsive mt-2"><table class="table"><thead><tr><th>رده</th><th>سؤال</th><th>سقف</th></tr></thead><tbody>@foreach(var m in Model.Mappings.Where(x=>x.IsActive)){<tr><td>@m.Position?.Title</td><td>@m.Question?.Title</td><td>@m.MaxScore</td></tr>}</tbody></table></div></div></div>
+<div class="table-responsive mt-2"><table class="table"><thead><tr><th>رده</th><th>سؤال</th><th>سقف</th><th>ترتیب</th><th>عملیات</th></tr></thead><tbody>
+@foreach(var m in Model.Mappings.Where(x=>x.IsActive).OrderBy(x=>x.Position?.Title).ThenBy(x=>x.SortOrder))
+{
+<tr><td>@m.Position?.Title</td><td>@m.Question?.Title</td>
+<td colspan="2"><form class="d-flex gap-2 align-items-center" method="post" action="/PerformanceAdmin/MapQuestion">@Html.AntiForgeryToken()
+<input type="hidden" name="positionId" value="@m.PositionId" /><input type="hidden" name="questionId" value="@m.QuestionId" />
+<input type="number" name="maxScore" step="0.01" min="0.01" class="form-control" value="@m.MaxScore.ToString("0.##",System.Globalization.CultureInfo.InvariantCulture)" required />
+<input type="number" name="sortOrder" min="1" class="form-control" value="@m.SortOrder" />
+<button type="submit" class="btn btn-sm btn-outline-primary">ویرایش</button></form></td>
+<td><form method="post" action="/PerformanceAdmin/RemoveQuestionMapping" onsubmit="return confirm('اتصال این سؤال به رده غیرفعال شود؟');">@Html.AntiForgeryToken()
+<input type="hidden" name="id" value="@m.Id" /><button class="btn btn-sm btn-outline-danger" type="submit">حذف</button></form></td></tr>
+}
+</tbody></table></div></div></div>
 <div class="col-lg-6"><div class="card p-3 h-100"><h3>رده ارزیابی کارکنان</h3>
 <p>اطلاعات اصلی کارکنان HRPortal تغییر نمی‌کند؛ تنها نگاشت ارزیابی ذخیره می‌شود.</p>
 <form method="post" action="/PerformanceAdmin/MapEmployeePosition" class="row g-2">@Html.AntiForgeryToken()
@@ -85,7 +149,13 @@
 <div class="col-md-4"><label>ارزیاب</label><select name="evaluatorEmployeeId" class="form-select">@foreach(var e in Model.Employees){<option value="@e.Id">@e.PersonnelNumber — @e.FirstName @e.LastName</option>}</select></div>
 <div class="col-md-2 align-self-end"><button class="btn btn-primary">ثبت تخصیص</button></div>
 </form>
-<div class="table-responsive mt-3"><table class="table"><thead><tr><th>دوره</th><th>کارمند</th><th>ارزیاب</th></tr></thead><tbody>
-@foreach(var a in Model.Assignments){<tr><td>@a.Period</td><td>@a.Employee</td><td>@a.Evaluator</td></tr>}
+<div class="table-responsive mt-3"><table class="table"><thead><tr><th>دوره</th><th>کارمند</th><th>ارزیاب</th><th>عملیات</th></tr></thead><tbody>
+@foreach(var a in Model.Assignments)
+{
+<tr><td>@a.Period</td><td>@a.Employee</td><td>@a.Evaluator</td><td>
+<form action="/PerformanceAdmin/RemoveEvaluatorAssignment" method="post" onsubmit="return confirm('در صورت نداشتن ارزیابی، این تخصیص حذف شود؟');">
+@Html.AntiForgeryToken()<input type="hidden" name="id" value="@a.Id" /><button type="submit" class="btn btn-sm btn-outline-danger">حذف تخصیص</button>
+</form></td></tr>
+}
 </tbody></table></div>
 </div>

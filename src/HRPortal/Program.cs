@@ -73,6 +73,7 @@ builder.Services.AddScoped<EmployeeExcelService>();
 builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<RoleService>();
 builder.Services.AddScoped<PerformanceService>();
+builder.Services.AddScoped<PerformanceAnalyticsService>();
 builder.Services.AddScoped<ISmsService, ConfigurableSmsService>();
 
 builder.Services

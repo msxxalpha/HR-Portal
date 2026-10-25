@@ -98,7 +98,7 @@ public class MonthlyPerformanceAdminController(HRPortalDbContext db) : Controlle
             var entity = id == 0 ? new MonthlyPerformancePeriod() :
                 await db.MonthlyPerformancePeriods.FirstOrDefaultAsync(x => x.Id == id) ??
                 throw new InvalidOperationException("دوره یافت نشد.");
-            if (id != 0 && dates.start <= MonthlyPerformanceService.NowIran() &&
+            if (id != 0 && entity.StartAt <= MonthlyPerformanceService.NowIran() &&
                 await db.MonthlyPerformanceEvaluations.AnyAsync(x => x.PeriodId == id) &&
                 (entity.StartAt != dates.start || entity.EndAt != dates.endExclusive))
                 throw new InvalidOperationException("تغییر محدوده زمانی دوره شروع‌شده و دارای نتایج، مجاز نیست.");

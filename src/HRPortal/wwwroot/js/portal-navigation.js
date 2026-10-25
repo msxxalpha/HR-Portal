@@ -1,26 +1,32 @@
+/* Preserve collapsible HRPortal navigation, including nested module sections. */
 (() => {
-  const groups = [...document.querySelectorAll('.sidebar .nav-group[data-nav-group]')];
+  const groups = [...document.querySelectorAll('.sidebar details[data-nav-group]')];
   if (!groups.length) return;
-  const path = window.location.pathname.toLowerCase();
+  const normalize = value => value.replace(/\/$/, '').toLowerCase() || '/';
+  const path = normalize(window.location.pathname);
   groups.forEach(group => {
-    const name = group.dataset.navGroup;
-    const links = [...group.querySelectorAll('a[href]')];
-    const activeLink = links.find(a => {
-      const href = new URL(a.href).pathname.toLowerCase();
-      return path === href || (href !== '/' && path.startsWith(href + '/'));
+    const key = 'hrportal-nav-' + group.dataset.navGroup;
+    const active = [...group.querySelectorAll('a[href]')].find(a => {
+      const href = normalize(new URL(a.href).pathname);
+      return href === path || (href !== '/' && path.startsWith(href + '/'));
     });
-    if (activeLink) {
+    if (active) {
       group.open = true;
-      activeLink.classList.add('nav-active');
-      activeLink.setAttribute('aria-current', 'page');
     } else {
-      try {
-        group.open = sessionStorage.getItem('hrportal-nav-' + name) === 'open';
-      } catch (_) { /* storage is optional */ }
+      try { group.open = sessionStorage.getItem(key) === 'open'; }
+      catch (_) { /* Storage is optional. */ }
     }
     group.addEventListener('toggle', () => {
-      try { sessionStorage.setItem('hrportal-nav-' + name, group.open ? 'open' : 'closed'); }
-      catch (_) { /* blocked storage should not affect navigation */ }
+      try { sessionStorage.setItem(key, group.open ? 'open' : 'closed'); }
+      catch (_) { /* Navigation works without storage. */ }
     });
+  });
+  document.querySelectorAll('.sidebar a[href]').forEach(a => {
+    const href = normalize(new URL(a.href).pathname);
+    if (href === path) {
+      a.classList.add('nav-active');
+      a.setAttribute('aria-current', 'page');
+      a.closest('details')?.setAttribute('open', '');
+    }
   });
 })();

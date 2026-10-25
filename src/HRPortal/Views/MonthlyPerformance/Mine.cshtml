@@ -48,7 +48,7 @@ else
 <div class="mp-table-wrap"><table class="mp-filter-table"><thead><tr><th>دوره</th><th>رده</th><th>امتیاز کسب‌شده</th><th>سقف</th><th>کسر امتیاز</th><th>درصد عملکرد</th><th>تاریخ آخرین تغییر</th><th>جزئیات</th></tr></thead>
 <tbody>@foreach (var item in Model){
 <tr><td>@item.Period.Title</td><td>@item.RankTitleSnapshot</td><td>@item.TotalScore.ToString("N2")</td><td>@item.MaxScore.ToString("N2")</td><td>@((item.MaxScore-item.TotalScore).ToString("N2"))</td>
-<td>@(item.MaxScore==0?0:Math.Round(item.TotalScore/item.MaxScore*100m,1))٪</td><td>@HRPortal.Services.PersianDateService.Format(item.UpdatedAt.ToLocalTime())</td>
+<td>@(item.MaxScore==0?0:Math.Round(item.TotalScore/item.MaxScore*100m,1))٪</td><td>@HRPortal.Services.PersianDateService.Format(HRPortal.Services.MonthlyPerformanceService.ToIranTime(item.UpdatedAt))</td>
 <td><a class="btn btn-outline btn-sm" href="/MonthlyPerformance/MyDetails?periodId=@item.PeriodId">مشاهده ریز سؤالات</a></td></tr>
 }</tbody></table></div>
 </section>

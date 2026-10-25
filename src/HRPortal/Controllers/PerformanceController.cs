@@ -1,3 +1,4 @@
+using ClosedXML.Excel;
 using HRPortal.Data;
 using HRPortal.Modules.Performance;
 using Microsoft.AspNetCore.Authorization;
@@ -75,6 +76,47 @@ public sealed class PerformanceController(HRPortalDbContext db, PerformanceServi
         return View(new DashboardVm(periods, selected, rows, max, actual,
             Math.Max(0, max - actual), allRows.Count, filtered.Count, page, pageSize, q,
             highest, lowest, questionAverages));
+    }
+
+
+    [HttpGet("ExportMyList")]
+    public async Task<IActionResult> ExportMyList(int periodId)
+    {
+        if (!ActorId.HasValue) return Forbid();
+        var period = await db.PerformancePeriods.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Id == periodId && !x.IsDeleted);
+        if (period == null) return NotFound();
+        var rows = await service.AssignmentRowsAsync(periodId, ActorId.Value);
+
+        using var workbook = new XLWorkbook();
+        var sheet = workbook.Worksheets.Add("کارکنان تحت ارزیابی");
+        sheet.RightToLeft = true;
+        var columns = new[] { "شماره پرسنلی", "نام و نام خانوادگی", "رده ارزیابی",
+            "وضعیت ارزیابی", "امتیاز نهایی", "سقف امتیاز", "امتیاز کسرشده" };
+        for (var i = 0; i < columns.Length; i++)
+            sheet.Cell(1, i + 1).Value = columns[i];
+        var rowNumber = 2;
+        foreach (var row in rows)
+        {
+            sheet.Cell(rowNumber, 1).Value = row.PersonnelNumber;
+            sheet.Cell(rowNumber, 2).Value = row.EmployeeName;
+            sheet.Cell(rowNumber, 3).Value = row.Position;
+            sheet.Cell(rowNumber, 4).Value = row.EvaluationId.HasValue ? "ثبت شده" : "فاقد ارزیابی";
+            sheet.Cell(rowNumber, 5).Value = row.Score;
+            sheet.Cell(rowNumber, 6).Value = row.MaxScore;
+            sheet.Cell(rowNumber, 7).Value = Math.Max(0m, row.MaxScore - row.Score);
+            rowNumber++;
+        }
+        sheet.Range(1, 1, 1, columns.Length).Style.Font.Bold = true;
+        sheet.Range(1, 1, 1, columns.Length).Style.Fill.BackgroundColor = XLColor.LightBlue;
+        sheet.Columns().AdjustToContents();
+        if (rowNumber > 2)
+            sheet.Range(1, 1, rowNumber - 1, columns.Length).SetAutoFilter();
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return File(stream.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"MyPerformanceAssignments-{periodId}.xlsx");
     }
 
     [HttpPost("QuickEvaluateAll"), Authorize(Policy = PerformanceModule.EvaluatePermission), ValidateAntiForgeryToken]

@@ -14,6 +14,10 @@
 <a class="btn btn-outline-secondary" href="/PerformanceReports/Export?periodId=@Model.Selected.Id&amp;q=@System.Net.WebUtility.UrlEncode(Model.Search)">خروجی Excel از کل گزارش</a>
 }
 </form></div>
+@if (Model.Selected != null)
+{
+    <div class="perf-toolbar mb-3"><a class="btn btn-outline-primary" href="/PerformanceReports/Export?periodId=@Model.Selected.Id">دریافت گزارش کامل Excel</a></div>
+}
 @if (Model.Selected is null)
 {
 <div class="card p-3">هنوز دوره‌ای برای گزارش تعریف نشده است.</div>

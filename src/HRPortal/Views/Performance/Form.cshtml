@@ -39,3 +39,18 @@
     }
     @if (Model.Questions.Count == 0) { <p>برای رده این کارمند هنوز سؤالی تعریف نشده است.</p> }
 </form>
+
+@if (Model.History.Count > 0)
+{
+<div class="card p-3 mt-3">
+<h3>تاریخچه تغییر امتیازات</h3>
+<div class="table-responsive"><table class="table">
+<thead><tr><th>سؤال</th><th>قبلی</th><th>جدید</th><th>علت تغییر</th><th>تاریخ</th></tr></thead><tbody>
+@foreach(var h in Model.History)
+{
+    <tr><td>@(Model.Questions.FirstOrDefault(x => x.QuestionId == h.QuestionId)?.Title ?? "سؤال حذف‌شده")</td>
+    <td>@h.OldScore</td><td>@h.NewScore</td><td>@h.Reason</td>
+    <td>@h.ChangedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td></tr>
+}
+</tbody></table></div></div>
+}

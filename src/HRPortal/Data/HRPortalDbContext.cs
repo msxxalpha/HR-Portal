@@ -57,7 +57,8 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
         {
             e.ToTable("MonthlyPerformancePeriods");
             e.HasKey(x => x.Id);
-            e.HasIndex(x => new { x.Year, x.Month }).IsUnique();
+            e.HasIndex(x => new { x.Year, x.Month }).IsUnique()
+                .HasDatabaseName("UX_MPPeriods_ActiveYearMonth").HasFilter("[IsDeleted] = 0");
             e.HasIndex(x => x.Code).IsUnique();
         });
         modelBuilder.Entity<MonthlyPerformanceDomain>(e =>

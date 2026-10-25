@@ -1,0 +1,28 @@
+@model List<HRPortal.Models.MonthlyPerformanceEvaluation>
+<section class="mp-card">
+    <h2>روند امتیاز به تفکیک سؤال در دوره‌های مختلف</h2>
+    <p class="mp-note">هر امتیاز به درصد سقف آن سؤال در همان دوره تبدیل شده است.</p>
+    <div class="mp-toolbar"><input class="mp-search" type="search" placeholder="جستجو در عنوان سؤال..." /></div>
+    <div class="mp-table-wrap">
+    <table class="mp-filter-table">
+        <thead><tr><th>سؤال</th><th>حوزه ارزیابی</th><th>دوره</th><th>امتیاز</th><th>سقف</th><th>درصد</th></tr></thead>
+        <tbody>
+        @foreach (var period in Model.OrderBy(x => x.Period.Year).ThenBy(x => x.Period.Month))
+        {
+            foreach (var question in period.Scores.OrderBy(x => x.QuestionId))
+            {
+                var percentage = question.MaxScore == 0 ? 0 : Math.Round(question.Score * 100m / question.MaxScore, 1);
+                <tr>
+                    <td>@question.QuestionTitleSnapshot</td>
+                    <td>@question.DomainTitleSnapshot</td>
+                    <td>@period.Period.Title</td>
+                    <td>@question.Score.ToString("N2")</td>
+                    <td>@question.MaxScore.ToString("N2")</td>
+                    <td><span class="mp-tag @(percentage >= 80 ? "good" : percentage >= 60 ? "info" : "warn")">@percentage٪</span></td>
+                </tr>
+            }
+        }
+        </tbody>
+    </table>
+    </div>
+</section>

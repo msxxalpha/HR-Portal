@@ -19,15 +19,16 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
     {
         if (!TryEmployee(out var actor) || !await performance.IsEvaluatorAsync(actor)) return Forbid();
         var scoped = await performance.ScopeAsync(actor);
+        var scopedIds = scoped.Select(s => s.EmployeeId).ToArray();
         var periods = await performance.PeriodsAsync();
         var active = await performance.ActivePeriodAsync();
-        var historicalIds = await db.MonthlyPerformanceEvaluations.AsNoTracking()
-            .Where(x => x.OriginalEvaluatorId == actor || x.LastEvaluatorId == actor)
+        var historyPeriodIds = await db.MonthlyPerformanceEvaluations.AsNoTracking()
+            .Where(x => x.OriginalEvaluatorId == actor || x.LastEvaluatorId == actor ||
+                scopedIds.Contains(x.EmployeeId) ||
+                db.MonthlyPerformanceRevisions.Any(r => r.EvaluationId == x.Id && r.ChangedByEmployeeId == actor))
             .Select(x => x.PeriodId).Distinct().ToListAsync();
-        var chosenPeriods = periods.Where(x => (active?.Id == x.Id) || historicalIds.Contains(x.Id) ||
-            (x.StartAt <= MonthlyPerformanceService.NowIran() && x.EndAt < MonthlyPerformanceService.NowIran()
-             && db.MonthlyPerformanceEvaluations.Any(e => e.PeriodId == x.Id &&
-                scoped.Select(s => s.EmployeeId).Contains(e.EmployeeId)))).ToList();
+        var chosenPeriods = periods.Where(x => (active?.Id == x.Id) ||
+            (x.StartAt <= MonthlyPerformanceService.NowIran() && historyPeriodIds.Contains(x.Id))).ToList();
         var period = chosenPeriods.FirstOrDefault(x => x.Id == periodId) ??
             chosenPeriods.FirstOrDefault(x => x.Id == active?.Id) ?? chosenPeriods.FirstOrDefault();
         var model = new MonthlyPerformanceDashboardVm
@@ -37,14 +38,14 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
             Message = active is null ? "دوره فعال برای ارزیابی وجود ندارد. فقط سوابق دوره‌های پیشین قابل مشاهده هستند." : ""
         };
         if (period is null) return View(model);
-        var scopedIds = scoped.Select(x => x.EmployeeId).ToHashSet();
+        var scopedSet = scopedIds.ToHashSet();
         var evals = await db.MonthlyPerformanceEvaluations.AsNoTracking()
             .Where(x => x.PeriodId == period.Id &&
-                (scopedIds.Contains(x.EmployeeId) ||
+                (scopedSet.Contains(x.EmployeeId) ||
                  x.OriginalEvaluatorId == actor || x.LastEvaluatorId == actor ||
                  db.MonthlyPerformanceRevisions.Any(r => r.EvaluationId == x.Id && r.ChangedByEmployeeId == actor)))
             .Include(x => x.Employee).Include(x => x.Scores).ToListAsync();
-        var shownIds = model.CanEdit ? scopedIds : evals.Select(x => x.EmployeeId).ToHashSet();
+        var shownIds = model.CanEdit ? scopedSet : evals.Select(x => x.EmployeeId).ToHashSet();
         var employees = await db.Employees.AsNoTracking().Where(e => shownIds.Contains(e.Id))
             .OrderBy(e => e.LastName).ThenBy(e => e.FirstName).ToListAsync();
         var evaluatorIds = evals.Select(e => e.LastEvaluatorId).Distinct().ToList();
@@ -67,7 +68,7 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
                 Score = ev?.TotalScore ?? 0, MaxScore = ev?.MaxScore ?? 0,
                 UpdatedAt = ev?.UpdatedAt,
                 EvaluatorName = ev is null ? "ثبت نشده" : names.GetValueOrDefault(ev.LastEvaluatorId, "—"),
-                CanEdit = model.CanEdit && scopedIds.Contains(employee.Id) &&
+                CanEdit = model.CanEdit && scopedSet.Contains(employee.Id) &&
                     (ev is null || ev.LastEvaluatorId == actor || upperIds.Contains(ev.LastEvaluatorId))
             };
         }).ToList();

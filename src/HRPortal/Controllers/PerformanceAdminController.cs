@@ -260,10 +260,17 @@ public sealed class PerformanceAdminController(HRPortalDbContext db, Organizatio
     }
 
     [HttpPost("CreatePeriod"), ValidateAntiForgeryToken]
-    public async Task<IActionResult> CreatePeriod(string title, DateTime startAt, DateTime endAt)
+    public async Task<IActionResult> CreatePeriod(string title, string startJalali, string endJalali)
     {
-        startAt = startAt.Date;
-        endAt = endAt.Date.AddDays(1).AddTicks(-1);
+        var validStart = PersianDateService.TryParse(startJalali, out var startDate);
+        var validEnd = PersianDateService.TryParse(endJalali, out var endDate);
+        if (!validStart || !validEnd || endDate < startDate)
+        {
+            TempData["Error"] = "تاریخ‌های شروع و پایان را به‌صورت شمسی (۱۴۰۵/۰۸/۰۱) و با ترتیب صحیح وارد کنید.";
+            return RedirectToAction(nameof(Index));
+        }
+        var startAt = startDate.Date;
+        var endAt = endDate.Date.AddDays(1).AddTicks(-1);
         var revision = await organization.CurrentAsync();
         if (revision == null || string.IsNullOrWhiteSpace(title) || startAt >= endAt ||
             await db.PerformancePeriods.AnyAsync(p => !p.IsDeleted && p.IsOpen &&

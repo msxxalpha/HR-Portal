@@ -1,17 +1,3 @@
-/* Collapsible HRPortal navigation. Existing links, order and homepage remain unchanged. */
-.sidebar{overflow-y:auto;overscroll-behavior:contain}
-.sidebar .nav-group{border-bottom:1px solid rgba(255,255,255,.075);margin-top:4px}
-.sidebar .nav-group-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;padding:14px 11px;color:#c1d2dc;font-size:11px;font-weight:700;list-style:none;border-radius:9px;transition:background .15s ease,color .15s ease;line-height:1.8}
-.sidebar .nav-group-heading::-webkit-details-marker{display:none}
-.sidebar .nav-group-heading::after{content:"⌄";display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;flex:none;font-size:16px;transition:transform .18s ease;color:#a2c6db}
-.sidebar .nav-group[open]>.nav-group-heading::after{transform:rotate(180deg)}
-.sidebar .nav-group-heading:hover,.sidebar .nav-group[open]>.nav-group-heading{background:rgba(255,255,255,.075);color:#fff}
-.sidebar .nav-group-heading:focus-visible,.sidebar .nav-group a:focus-visible{outline:2px solid #a9d6ee;outline-offset:2px}
-.sidebar .nav-group-links{padding:2px 8px 10px}
-.sidebar .nav-group-links a{font-size:11px;line-height:1.8;padding:9px 12px;margin:2px 0;color:#d6e3ea}
-.sidebar .nav-group-links a.nav-active{background:rgba(255,255,255,.14);color:#fff;border-right:3px solid #b5dceb}
-@media(max-width:800px){.sidebar{overflow:visible}.sidebar .nav-group-links{padding-bottom:7px}}
-
 /* Every following rule is scoped to the performance module; no existing HRPortal dashboard or other forms change. */
 .performance-module{--perf-accent:#245678;--perf-border:#dce5eb;--perf-soft:#f5f8fa}
 .performance-module .content{max-width:1500px;padding:28px 30px 42px}
@@ -101,4 +87,56 @@
 .performance-module form.d-flex>.form-control,.performance-module form.d-flex>.form-select{width:100%;max-width:none;flex-basis:100%}
 .performance-module .content h2{font-size:19px}
 .performance-module .content .d-flex.justify-content-between{flex-wrap:wrap}
+}
+
+/* UI fixes: scoped to Performance screens to prevent regressions elsewhere. */
+.performance-module{overflow-x:hidden}
+.performance-module .main{min-width:0}
+.performance-module .content{width:100%;max-width:1500px}
+.performance-module .content>h2:first-child{margin-top:0;margin-bottom:8px}
+.performance-module .content>p:first-of-type{margin-bottom:20px;line-height:2}
+.performance-module .card{overflow-wrap:anywhere}
+.performance-module .row{margin-right:-8px;margin-left:-8px}
+.performance-module .row>[class*="col-"]{min-width:0}
+.performance-module .card .table-responsive{max-width:100%;overscroll-behavior-x:contain}
+.performance-module .table td{overflow-wrap:break-word}
+.performance-module .table th,.performance-module .table td{min-width:0}
+.performance-module .table tbody tr:focus-within{background:#f4f8fb}
+.performance-module label[for]{cursor:pointer}
+.performance-module .card form.d-flex{align-items:end;min-width:0}
+.performance-module .card form.d-flex>label{margin-bottom:0;flex:0 0 auto}
+.performance-module .card form.d-flex>.form-select{min-width:160px}
+.performance-module .card form.d-flex>.form-control{min-width:160px}
+.performance-module .card .btn:focus-visible{outline:2px solid var(--perf-accent);outline-offset:3px}
+.performance-module .perf-page-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:20px}
+.performance-module .perf-page-header h2{margin-bottom:4px}
+.performance-module .perf-page-header p{margin:0}
+.performance-module .perf-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.performance-module .perf-toolbar .form-control{flex:1 1 240px}
+.performance-module .perf-toolbar .form-select{flex:0 1 175px}
+.performance-module .perf-metric-grid .card{border-top:3px solid #b7cbd8;min-height:105px}
+.performance-module .perf-metric-grid .card small{display:block}
+.performance-module .perf-metric-grid .card h3{font-size:24px!important;line-height:1.25}
+.performance-module .perf-help{padding:12px 14px;border-right:3px solid #739db7;background:#f2f7fa;border-radius:9px;color:#456176;font-size:12px;line-height:2;margin-bottom:16px}
+.performance-module .perf-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.performance-module .perf-actions form{display:inline-flex;margin:0}
+.performance-module .perf-actions .btn{margin:0!important}
+.performance-module .perf-empty{text-align:center;color:#708492;padding:25px 16px}
+.performance-module .perf-section-nav{display:flex;flex-wrap:wrap;gap:8px;position:relative;margin:14px 0 22px}
+.performance-module .perf-section-nav a{background:#f2f6f9;border:1px solid #dbe6ec;border-radius:9px;padding:9px 13px;color:#385c74;text-decoration:none;font-weight:700;font-size:11px}
+.performance-module .perf-section-nav a:hover{background:#e7f0f5}
+.performance-module [id^="perf-admin-"]{scroll-margin-top:22px}
+.performance-module .perf-status{display:inline-block;padding:4px 10px;border-radius:100px;font-size:11px;background:#e7f5ed;color:#236740}
+.performance-module .perf-status.closed{background:#f0f2f4;color:#586d7b}
+.performance-module .perf-status.archived{background:#fff1eb;color:#a65c38}
+.performance-module .perf-percent-bar{height:8px;min-width:70px;background:#e6edf1;border-radius:20px;overflow:hidden}
+.performance-module .perf-percent-bar>span{display:block;height:100%;background:#5a90ae;border-radius:inherit}
+@media(max-width:767px){
+ .performance-module .row>[class*="col-"]{width:100%}
+ .performance-module .content{padding:16px 12px 30px}
+ .performance-module .card{padding:15px;border-radius:12px}
+ .performance-module .table-responsive{margin-left:0;margin-right:0}
+ .performance-module .card form.d-flex{align-items:stretch}
+ .performance-module .card form.d-flex>.form-control,.performance-module .card form.d-flex>.form-select{width:100%;max-width:none;flex-basis:100%}
+ .performance-module .perf-toolbar>*{flex-basis:100%}
 }

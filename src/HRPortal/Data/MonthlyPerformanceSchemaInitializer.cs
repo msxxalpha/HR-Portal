@@ -32,6 +32,17 @@ IF COL_LENGTH(N'dbo.MonthlyPerformancePeriods',N'DeletedByAdminId') IS NULL
  ALTER TABLE dbo.MonthlyPerformancePeriods ADD DeletedByAdminId int NULL;
 IF COL_LENGTH(N'dbo.MonthlyPerformancePeriods',N'DeletionReason') IS NULL
  ALTER TABLE dbo.MonthlyPerformancePeriods ADD DeletionReason nvarchar(500) NULL;
+-- Permit reusing a Jalali month after an administrator archives its old period.
+-- The archived row (with all evaluations and audit history) still exists.
+IF EXISTS (SELECT 1 FROM sys.key_constraints
+           WHERE parent_object_id=OBJECT_ID(N'dbo.MonthlyPerformancePeriods')
+             AND name=N'UQ_MonthlyPerformancePeriods_YearMonth')
+ ALTER TABLE dbo.MonthlyPerformancePeriods DROP CONSTRAINT UQ_MonthlyPerformancePeriods_YearMonth;
+IF NOT EXISTS (SELECT 1 FROM sys.indexes
+               WHERE object_id=OBJECT_ID(N'dbo.MonthlyPerformancePeriods')
+                 AND name=N'UX_MPPeriods_ActiveYearMonth')
+ CREATE UNIQUE INDEX UX_MPPeriods_ActiveYearMonth
+ ON dbo.MonthlyPerformancePeriods([Year],[Month]) WHERE IsDeleted=0;
 IF OBJECT_ID(N'dbo.MonthlyPerformanceDomains',N'U') IS NULL
  CREATE TABLE dbo.MonthlyPerformanceDomains(
  Id int IDENTITY(1,1) PRIMARY KEY, Code nvarchar(50) NOT NULL UNIQUE,

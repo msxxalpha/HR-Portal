@@ -1,4 +1,5 @@
 using HRPortal.Data;
+using HRPortal.Modules.Performance;
 using HRPortal.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
@@ -71,6 +72,7 @@ builder.Services.AddScoped<AnnouncementService>();
 builder.Services.AddScoped<EmployeeExcelService>();
 builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<RoleService>();
+builder.Services.AddScoped<PerformanceService>();
 builder.Services.AddScoped<ISmsService, ConfigurableSmsService>();
 
 builder.Services
@@ -106,6 +108,7 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<HRPortalDbContext>();
     await DatabaseInitializer.InitializeAsync(db);
+    await PerformanceSchemaInitializer.EnsureAsync(db);
 }
 
 if (!app.Environment.IsDevelopment())

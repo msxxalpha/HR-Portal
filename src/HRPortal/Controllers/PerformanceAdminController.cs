@@ -171,6 +171,8 @@ public sealed class PerformanceAdminController(HRPortalDbContext db, Organizatio
     [HttpPost("CreatePeriod"), ValidateAntiForgeryToken]
     public async Task<IActionResult> CreatePeriod(string title, DateTime startAt, DateTime endAt)
     {
+        startAt = startAt.Date;
+        endAt = endAt.Date.AddDays(1).AddTicks(-1);
         var revision = await organization.CurrentAsync();
         if (revision == null || string.IsNullOrWhiteSpace(title) || startAt >= endAt ||
             await db.PerformancePeriods.AnyAsync(p => !p.IsDeleted && p.IsOpen &&

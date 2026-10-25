@@ -19,10 +19,10 @@
 <div class="mp-table-wrap"><table class="mp-filter-table"><thead><tr><th>حوزه</th><th>سؤال</th><th>سقف</th><th>امتیاز</th><th>کسر</th><th>توضیحات</th></tr></thead>
 <tbody>@foreach(var s in Model.Scores){<tr><td>@s.DomainTitleSnapshot</td><td>@s.QuestionTitleSnapshot</td><td>@s.MaxScore.ToString("N2")</td><td>@s.Score.ToString("N2")</td><td>@((s.MaxScore-s.Score).ToString("N2"))</td><td>@s.Note</td></tr>}</tbody></table></div></section>
 <section class="mp-card"><div class="mp-toolbar"><h2>تاریخچه تغییرات</h2><input class="mp-search" placeholder="جست‌وجو در تاریخچه..." /></div>
-<div class="mp-table-wrap"><table class="mp-filter-table"><thead><tr><th>زمان</th><th>شناسه ارزیاب تغییر‌دهنده</th><th>سؤال</th><th>از امتیاز</th><th>به امتیاز</th><th>دلیل</th></tr></thead>
+<div class="mp-table-wrap"><table class="mp-filter-table"><thead><tr><th>زمان</th><th>شناسه ارزیاب تغییر‌دهنده</th><th>سؤال</th><th>از امتیاز</th><th>به امتیاز</th><th>توضیح پیشین</th><th>توضیح جدید</th><th>دلیل</th></tr></thead>
 <tbody>@foreach(var h in history){<tr>
 <td>@HRPortal.Services.PersianDateService.FormatDateTime(HRPortal.Services.MonthlyPerformanceService.ToIranTime(h.ChangedAt))</td><td>@h.ChangedByEmployeeId</td>
 <td>@(Model.Scores.FirstOrDefault(x=>x.QuestionId==h.QuestionId)?.QuestionTitleSnapshot??"—")</td>
-<td>@(h.OldScore?.ToString("N2")??"ثبت اولیه")</td><td>@h.NewScore.ToString("N2")</td><td>@h.Reason</td>
+<td>@(h.OldScore?.ToString("N2")??"ثبت اولیه")</td><td>@h.NewScore.ToString("N2")</td><td>@h.OldNote</td><td>@h.NewNote</td><td>@h.Reason</td>
 </tr>}</tbody></table></div></section>
 </div><script src="~/js/monthly-performance-table.js" asp-append-version="true"></script>

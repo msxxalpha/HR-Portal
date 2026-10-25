@@ -130,9 +130,12 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         if (!ModelState.IsValid)
             return View("Form", await BuildFormVmAsync(employee));
 
+        // Security-only state is not editable through the employee profile form.
+        var initialPasswordResetRequired = existing.MustChangeInitialPassword;
         var personalPasswordHash = existing.PersonalPasswordHash;
         db.Entry(existing).CurrentValues.SetValues(employee);
         existing.PersonalPasswordHash = personalPasswordHash;
+        existing.MustChangeInitialPassword = initialPasswordResetRequired;
         existing.IsSystemUser = existing.Status == "فعال";
         existing.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();

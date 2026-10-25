@@ -164,3 +164,9 @@
 .performance-module .perf-statline b{font-size:12px;color:var(--navy)}
 .performance-module .card table form.d-flex{flex-wrap:wrap}
 .performance-module .card table form.d-flex .form-control{width:80px;max-width:100px;min-width:75px;flex:0 0 auto}
+
+.performance-module .perf-trend-list{display:grid;gap:12px}
+.performance-module .perf-trend-row{display:grid;grid-template-columns:minmax(130px,2fr) minmax(120px,4fr) 65px;gap:12px;align-items:center;font-size:12px;color:#50697a}
+.performance-module .perf-trend-row strong{white-space:nowrap;direction:ltr;text-align:left}
+.performance-module .perf-trend-row .perf-percent-bar{width:100%;height:12px}
+@media(max-width:600px){.performance-module .perf-trend-row{grid-template-columns:1fr 2fr 55px;gap:8px;font-size:10px}}

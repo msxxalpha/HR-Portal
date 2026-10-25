@@ -1,0 +1,147 @@
+@model HRPortal.Models.MonthlyPerformanceBasicVm
+@{
+ Layout = "~/Views/Shared/_Layout.cshtml";
+ ViewData["Title"] = "اطلاعات پایه ارزیابی عملکرد";
+ var current = Model.EditPeriod;
+ var now = HRPortal.Services.MonthlyPerformanceService.NowIran();
+ var tabs = new (string code,string title)[]{("periods","دوره‌ها"),("ranks","رده‌های پستی"),("domains","حوزه‌ها"),("questions","سؤالات"),("mappings","سقف امتیاز هر رده"),("evaluators","ارزیابان")};
+}
+<link rel="stylesheet" href="~/css/monthly-performance.css" asp-append-version="true" />
+<div class="mp">
+<section class="mp-hero"><div><h1>اطلاعات پایه ارزیابی عملکرد</h1><p>دوره‌ها، رده‌های سازمانی، حوزه‌ها، سؤالات و سقف امتیاز؛ مدیریت فقط توسط مدیر سامانه</p></div><div class="mp-head-actions"><a class="btn btn-outline" href="/MonthlyPerformance/Mine">داشبورد شخصی</a><a class="btn btn-outline" href="/MonthlyPerformanceAdmin/Export?tab=@Model.Tab">دریافت اکسل این بخش</a></div></section>
+@if(TempData["Success"] != null){<div class="mp-success">@TempData["Success"]</div>}
+@if(TempData["Error"] != null){<div class="mp-error">@TempData["Error"]</div>}
+<div class="mp-tabs">
+@foreach(var tab in tabs){<a class="@(Model.Tab==tab.code?"current":"")" href="/MonthlyPerformanceAdmin/Basic?tab=@tab.code">@tab.title</a>}
+</div>
+@if(Model.Tab=="periods"){
+<section class="mp-card">
+<h2>@(current != null ? "ویرایش دوره: "+current.Title : "تعریف دوره ارزیابی جدید")</h2>
+<div class="mp-note">تاریخ پایان شامل کل روز انتخاب‌شده است. پس از پایان دوره، ثبت و ویرایش امتیاز حتی برای مدیر سامانه متوقف می‌شود.</div>
+<form method="post" action="/MonthlyPerformanceAdmin/SavePeriod">
+@Html.AntiForgeryToken()
+<input type="hidden" name="id" value="@(current?.Id??0)" />
+<div class="mp-form-grid">
+<label class="mp-field">کد دوره (تولید خودکار؛ قابل ویرایش)<input name="code" value="@current?.Code" placeholder="PER-001" maxlength="100" /></label>
+<label class="mp-field">عنوان دوره<input name="title" value="@current?.Title" required maxlength="150" placeholder="شهریور ۱۴۰۵" /></label>
+<label class="mp-field">سال شمسی<input name="year" value="@(current?.Year??1405)" type="number" min="1300" max="1600" required /></label>
+<label class="mp-field">ماه شمسی<input name="month" value="@(current?.Month??6)" type="number" min="1" max="12" required /></label>
+<label class="mp-field">تاریخ شروع (شمسی)<input name="startJalali" placeholder="۱۴۰۵/۰۶/۲۱" value="@(current is null?"":HRPortal.Services.PersianDateService.Format(current.StartAt))" required /></label>
+<label class="mp-field">تاریخ پایان (شمسی)<input name="endJalali" placeholder="۱۴۰۵/۰۶/۲۵" value="@(current is null?"":HRPortal.Services.PersianDateService.Format(current.EndAt.AddDays(-1)))" required /></label>
+<label class="mp-field">توضیحات<input name="description" value="@current?.Description" maxlength="1000" /></label>
+<label class="mp-field">وضعیت مجاز به شروع و ثبت <span><input type="checkbox" name="isEnabled" value="true" checked="@(current?.IsEnabled??true)" /> فعال</span></label>
+</div>
+<div class="mp-controls" style="margin-top:14px"><button type="submit" class="btn btn-main">@(current is null?"ثبت دوره":"ذخیره تغییرات")</button>@if(current is not null){<a class="btn btn-outline" href="/MonthlyPerformanceAdmin/Basic?tab=periods">انصراف از ویرایش</a>}</div>
+</form>
+</section>
+<section class="mp-card">
+<div class="mp-toolbar"><h2>فهرست دوره‌های ارزیابی</h2><input class="mp-search" type="search" placeholder="جستجو در دوره‌ها..." /></div>
+<div class="mp-table-wrap"><table class="mp-filter-table"><thead><tr><th>کد</th><th>عنوان</th><th>سال و ماه</th><th>شروع</th><th>پایان</th><th>وضعیت خودکار</th><th>نتایج / ویرایش</th></tr></thead>
+<tbody>@foreach(var p in Model.Periods){var active=HRPortal.Services.MonthlyPerformanceService.IsOpen(p,now);
+<tr><td>@p.Code</td><td>@p.Title</td><td>@p.Year/@p.Month.ToString("00")</td>
+<td>@HRPortal.Services.PersianDateService.Format(p.StartAt)</td><td>@HRPortal.Services.PersianDateService.Format(p.EndAt.AddDays(-1))</td>
+<td><span class="mp-tag @(active?"open":"warn")">@HRPortal.Services.MonthlyPerformanceService.PeriodState(p,now)</span></td>
+<td><a class="btn btn-outline btn-sm" href="/MonthlyPerformanceAdmin/PeriodDetails/@p.Id">جزئیات</a>
+<a class="btn btn-outline btn-sm" href="/MonthlyPerformanceAdmin/Basic?tab=periods&editPeriodId=@p.Id">ویرایش</a></td></tr>
+}</tbody></table></div>
+</section>
+}
+else if(Model.Tab=="ranks"){
+<section class="mp-card">
+<h2>افزودن رده پستی</h2><div class="mp-note">رده‌ها از ساختار سازمانی خوانده می‌شوند؛ برای سؤال‌های مستقل رده‌های جدید قابل ثبت هستند. کد به شکل R-001 تولید می‌شود.</div>
+<form method="post" action="/MonthlyPerformanceAdmin/SaveRank" class="mp-controls">
+@Html.AntiForgeryToken()<input type="hidden" name="id" value="0" />
+<label class="mp-field">کد رده<input name="code" placeholder="خودکار" /></label>
+<label class="mp-field">عنوان دقیق رده<input name="title" required /></label>
+<label class="mp-field"><span><input type="checkbox" name="isActive" value="true" checked /> فعال</span></label>
+<button class="btn btn-main" type="submit">ثبت رده</button>
+</form>
+</section>
+<section class="mp-card"><div class="mp-toolbar"><h2>رده‌ها</h2><input class="mp-search" placeholder="فیلتر..." /></div>
+<div class="mp-table-wrap"><table class="mp-filter-table"><thead><tr><th>کد</th><th>عنوان</th><th>فعال</th><th>ذخیره</th></tr></thead>
+<tbody>@foreach(var r in Model.Ranks){<tr>
+<td><form method="post" action="/MonthlyPerformanceAdmin/SaveRank" id="rank-@r.Id">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@r.Id" /></form><input form="rank-@r.Id" name="code" value="@r.Code" required /></td>
+<td><input form="rank-@r.Id" name="title" value="@r.Title" required /></td>
+<td><input form="rank-@r.Id" name="isActive" value="true" type="checkbox" checked="@r.IsActive" /></td>
+<td><button form="rank-@r.Id" class="btn btn-outline btn-sm">ثبت تغییر</button></td>
+</tr>}</tbody></table></div></section>
+}
+else if(Model.Tab=="domains"){
+<section class="mp-card"><h2>تعریف حوزه ارزیابی</h2>
+<form method="post" action="/MonthlyPerformanceAdmin/SaveDomain" class="mp-controls">
+@Html.AntiForgeryToken()<input type="hidden" name="id" value="0" />
+<label class="mp-field">کد حوزه<input name="code" placeholder="خودکار: D-001" /></label>
+<label class="mp-field">عنوان حوزه<input name="title" required /></label>
+<label class="mp-field">ترتیب<input name="sortOrder" type="number" value="10" /></label>
+<label class="mp-field"><span><input type="checkbox" name="isActive" value="true" checked /> فعال</span></label>
+<button type="submit" class="btn btn-main">ثبت حوزه</button></form>
+</section>
+<section class="mp-card"><div class="mp-toolbar"><h2>حوزه‌های ارزیابی</h2><input class="mp-search" placeholder="فیلتر..." /></div>
+<div class="mp-table-wrap"><table class="mp-filter-table"><thead><tr><th>کد</th><th>عنوان</th><th>ترتیب</th><th>فعال</th><th>ذخیره</th></tr></thead>
+<tbody>@foreach(var d in Model.Domains){<tr>
+<td><form method="post" action="/MonthlyPerformanceAdmin/SaveDomain" id="domain-@d.Id">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@d.Id" /></form><input form="domain-@d.Id" name="code" value="@d.Code" required /></td>
+<td><input form="domain-@d.Id" name="title" value="@d.Title" required /></td>
+<td><input form="domain-@d.Id" name="sortOrder" type="number" value="@d.SortOrder" /></td>
+<td><input form="domain-@d.Id" name="isActive" type="checkbox" value="true" checked="@d.IsActive" /></td>
+<td><button form="domain-@d.Id" class="btn btn-outline btn-sm">ثبت تغییر</button></td>
+</tr>}</tbody></table></div></section>
+}
+else if(Model.Tab=="questions"){
+<section class="mp-card"><h2>تعریف سؤال عملکرد</h2>
+<form method="post" action="/MonthlyPerformanceAdmin/SaveQuestion" class="mp-form-grid">
+@Html.AntiForgeryToken()<input type="hidden" name="id" value="0" />
+<label class="mp-field">کد سؤال<input name="code" placeholder="خودکار: Q-001" /></label>
+<label class="mp-field">متن سؤال<input name="title" required maxlength="500" /></label>
+<label class="mp-field">حوزه<select name="domainId" required>@foreach(var d in Model.Domains.Where(x=>x.IsActive)){<option value="@d.Id">@d.Title</option>}</select></label>
+<label class="mp-field">ترتیب<input name="sortOrder" type="number" value="10" /></label>
+<label class="mp-field"><span><input type="checkbox" name="isActive" value="true" checked /> فعال</span></label>
+<button type="submit" class="btn btn-main">ثبت سؤال</button></form>
+</section>
+<section class="mp-card"><div class="mp-toolbar"><h2>سؤالات</h2><input class="mp-search" placeholder="فیلتر سؤال..." /></div>
+<div class="mp-table-wrap"><table class="mp-filter-table"><thead><tr><th>کد</th><th>متن سؤال</th><th>حوزه</th><th>ترتیب</th><th>فعال</th><th>ثبت</th></tr></thead>
+<tbody>@foreach(var q in Model.Questions){<tr>
+<td><form method="post" action="/MonthlyPerformanceAdmin/SaveQuestion" id="question-@q.Id">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@q.Id" /></form><input form="question-@q.Id" name="code" value="@q.Code" /></td>
+<td><input form="question-@q.Id" name="title" value="@q.Title" /></td>
+<td><select form="question-@q.Id" name="domainId">@foreach(var d in Model.Domains){<option value="@d.Id" selected="@(q.DomainId==d.Id)">@d.Title</option>}</select></td>
+<td><input form="question-@q.Id" name="sortOrder" value="@q.SortOrder" type="number" /></td>
+<td><input form="question-@q.Id" name="isActive" value="true" type="checkbox" checked="@q.IsActive" /></td>
+<td><button form="question-@q.Id" class="btn btn-outline btn-sm">ثبت تغییر</button></td></tr>
+}</tbody></table></div></section>
+}
+else if(Model.Tab=="mappings"){
+<section class="mp-card"><h2>تعریف سقف امتیاز سؤال برای هر رده</h2>
+<div class="mp-note">یک سؤال می‌تواند برای چند رده سقف امتیاز متفاوتی داشته باشد. مجموع سقف‌ها برابر حداکثر امتیاز رده است. سقف امتیاز هنگام نخستین ثبت برای دوره در سوابق ذخیره می‌شود.</div>
+<form method="post" action="/MonthlyPerformanceAdmin/SaveMapping" class="mp-controls">
+@Html.AntiForgeryToken()
+<label class="mp-field">رده<select name="rankId">@foreach(var r in Model.Ranks.Where(x=>x.IsActive)){<option value="@r.Id">@r.Title (@r.Code)</option>}</select></label>
+<label class="mp-field">سؤال<select name="questionId">@foreach(var q in Model.Questions.Where(x=>x.IsActive)){<option value="@q.Id">@q.Title</option>}</select></label>
+<label class="mp-field">سقف امتیاز<input name="maxScore" type="number" min="0.01" step="0.01" required /></label>
+<label class="mp-field"><span><input type="checkbox" name="isActive" value="true" checked /> فعال</span></label>
+<button class="btn btn-main" type="submit">ثبت / بروزرسانی</button></form>
+</section>
+<section class="mp-card">
+<div class="mp-toolbar"><h2>ماتریس سؤالات و رده‌ها</h2><input class="mp-search" placeholder="فیلتر ماتریس..." /></div>
+<div class="mp-table-wrap"><table class="mp-filter-table"><thead><tr><th>رده</th><th>سؤال</th><th>سقف</th><th>فعال</th><th>ثبت</th></tr></thead>
+<tbody>@foreach(var m in Model.Mappings){<tr>
+<td><form method="post" action="/MonthlyPerformanceAdmin/SaveMapping" id="mapping-@m.Id">@Html.AntiForgeryToken()
+<input type="hidden" name="rankId" value="@m.RankId"/><input type="hidden" name="questionId" value="@m.QuestionId"/></form>@m.Rank.Title</td>
+<td>@m.Question.Title</td><td><input form="mapping-@m.Id" name="maxScore" type="number" min="0.01" step="0.01" value="@m.MaxScore.ToString(System.Globalization.CultureInfo.InvariantCulture)" /></td>
+<td><input form="mapping-@m.Id" type="checkbox" name="isActive" value="true" checked="@m.IsActive" /></td>
+<td><button form="mapping-@m.Id" class="btn btn-outline btn-sm">ثبت تغییر</button></td></tr>}
+</tbody></table></div></section>
+}
+else if(Model.Tab=="evaluators"){
+<section class="mp-card">
+<h2>ویژگی ارزیاب در اطلاعات کارکنان</h2>
+<div class="mp-note">تنها کارکنان فعال دارای علامت ارزیاب، فهرست کارکنان هم‌سطح و زیرمجموعه مرتبط با گره سازمانی خود را برای ارزیابی خواهند دید. تغییر این ویژگی در فرم اطلاعات کارمند نیز امکان‌پذیر است.</div>
+<div class="mp-toolbar"><input class="mp-search" placeholder="جستجوی نام یا شماره پرسنلی..." /></div>
+<div class="mp-table-wrap"><table class="mp-filter-table"><thead><tr><th>شماره پرسنلی</th><th>نام</th><th>ارزیاب فعال</th><th>ویرایش</th></tr></thead>
+<tbody>@foreach(var e in Model.Evaluators){<tr><td>@e.Number</td><td>@e.Name</td>
+<td><form method="post" action="/MonthlyPerformanceAdmin/SetEvaluator" id="evaluator-@e.Id">@Html.AntiForgeryToken()<input name="employeeId" type="hidden" value="@e.Id" /></form>
+<input form="evaluator-@e.Id" type="checkbox" name="isEvaluator" value="true" checked="@e.IsEvaluator" /></td>
+<td><button form="evaluator-@e.Id" class="btn btn-outline btn-sm">ذخیره</button></td>
+</tr>}</tbody></table></div>
+</section>
+}
+</div>
+<script src="~/js/monthly-performance-table.js" asp-append-version="true"></script>

@@ -139,7 +139,7 @@
             <div class="exec-kpi" style="--accent:#475569"><span class="kpi-label">میانگین زمان تکمیل</span><strong>@Model.AverageCompletionDays.ToString("N1")</strong><small>روز؛ فقط درخواست‌های دارای زمان تکمیل معتبر</small></div>
             <div class="exec-kpi" style="--accent:#64748b"><span class="kpi-label">در گردش</span><strong>@Model.InProgressCount.ToString("N0")</strong><small>نیازمند پیگیری کارتابلی</small></div>
             <div class="exec-kpi" style="--accent:#dc2626"><span class="kpi-label">نیازمند توجه کیفی</span><strong>@Model.Rows.Count(x => x.QualityClass == "danger" || x.QualityClass == "warning")</strong><small>رد، برگشت، ماندگاری بالا یا مالک مرحله نامشخص</small></div>
-            <div class="exec-kpi" style="--accent:#0f766e"><span class="kpi-label">دوره گزارش</span><strong style="font-size:1.1rem">@((Model.From?.ToString("yyyy/MM/dd") ?? "ابتدا")) تا @((Model.To?.ToString("yyyy/MM/dd") ?? "اکنون"))</strong><small>بر اساس تاریخ ثبت درخواست</small></div>
+            <div class="exec-kpi" style="--accent:#0f766e"><span class="kpi-label">دوره گزارش</span><strong style="font-size:1.1rem">@(Model.From.HasValue ? HRPortal.Services.PersianDateService.Format(Model.From.Value) : "ابتدا") تا @(Model.To.HasValue ? HRPortal.Services.PersianDateService.Format(Model.To.Value) : "اکنون")</strong><small>بر اساس تاریخ ثبت درخواست</small></div>
         </section>
 
         <section class="card">

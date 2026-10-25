@@ -79,6 +79,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.ToTable("MonthlyPerformanceRankQuestions"); e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.RankId, x.QuestionId }).IsUnique();
             e.Property(x => x.MaxScore).HasPrecision(12, 2);
+            e.Property(x => x.SortOrder).HasDefaultValue(1);
             e.HasOne(x => x.Rank).WithMany().HasForeignKey(x => x.RankId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Question).WithMany().HasForeignKey(x => x.QuestionId).OnDelete(DeleteBehavior.Restrict);
         });

@@ -18,8 +18,58 @@ public sealed class PerformanceService(HRPortalDbContext db)
     public static bool IsEditable(PerformancePeriod period, DateTime now) =>
         !period.IsDeleted && period.IsOpen && period.StartAt <= now && period.EndAt >= now;
 
+
+    /// <summary>
+    /// Evaluator + all downstream evaluators in the period-specific, explicitly approved chain.
+    /// This does not infer supervisory rights from a shared department.
+    /// </summary>
+    public async Task<HashSet<int>> EligibleEvaluatorIdsAsync(int periodId, int actorId)
+    {
+        var links = await db.PerformanceEvaluatorChains.AsNoTracking()
+            .Where(x => x.PeriodId == periodId)
+            .Select(x => new { x.SubordinateEvaluatorEmployeeId, x.SuperiorEvaluatorEmployeeId })
+            .ToListAsync();
+        var visible = new HashSet<int> { actorId };
+        var frontier = new Queue<int>();
+        frontier.Enqueue(actorId);
+        while (frontier.Count > 0)
+        {
+            var current = frontier.Dequeue();
+            foreach (var link in links.Where(x => x.SuperiorEvaluatorEmployeeId == current))
+            {
+                if (visible.Add(link.SubordinateEvaluatorEmployeeId))
+                    frontier.Enqueue(link.SubordinateEvaluatorEmployeeId);
+            }
+        }
+        return visible;
+    }
+
+    public async Task<bool> CanViewAsync(int periodId, int employeeId, int actorId)
+    {
+        var assignedTo = await db.PerformanceAssignments.AsNoTracking()
+            .Where(x => x.PeriodId == periodId && x.EmployeeId == employeeId)
+            .Select(x => (int?)x.EvaluatorEmployeeId).SingleOrDefaultAsync();
+        if (assignedTo == null) return false;
+        var evaluators = await EligibleEvaluatorIdsAsync(periodId, actorId);
+        return evaluators.Contains(assignedTo.Value);
+    }
+
+    public async Task<bool> CanEditAsync(int periodId, int employeeId, int actorId)
+    {
+        if (!await CanViewAsync(periodId, employeeId, actorId)) return false;
+        var previous = await db.PerformanceEvaluations.AsNoTracking()
+            .Where(x => x.PeriodId == periodId && x.EmployeeId == employeeId)
+            .Select(x => new { x.EvaluatorEmployeeId, x.LastReviewedByEmployeeId })
+            .SingleOrDefaultAsync();
+        if (previous == null) return true;
+        var lastResponsible = previous.LastReviewedByEmployeeId ?? previous.EvaluatorEmployeeId;
+        var descendants = await EligibleEvaluatorIdsAsync(periodId, actorId);
+        return descendants.Contains(lastResponsible);
+    }
+
     public async Task<List<AssignmentRow>> AssignmentRowsAsync(int periodId, int evaluatorId)
     {
+        var subordinateIds = (await EligibleEvaluatorIdsAsync(periodId, evaluatorId)).ToList();
         var raw = await (
             from a in db.PerformanceAssignments.AsNoTracking()
             join e in db.Employees.AsNoTracking() on a.EmployeeId equals e.Id
@@ -27,7 +77,7 @@ public sealed class PerformanceService(HRPortalDbContext db)
             from mapping in leftMaps.DefaultIfEmpty()
             join p in db.PerformancePositions.AsNoTracking() on mapping.PositionId equals p.Id into leftPositions
             from p in leftPositions.DefaultIfEmpty()
-            where a.PeriodId == periodId && a.EvaluatorEmployeeId == evaluatorId
+            where a.PeriodId == periodId && subordinateIds.Contains(a.EvaluatorEmployeeId)
             select new { e.Id, e.PersonnelNumber, e.FirstName, e.LastName, Position = p == null ? e.PositionTitle : p.Title }
         ).OrderBy(x => x.LastName).ThenBy(x => x.FirstName).ToListAsync();
 
@@ -63,8 +113,8 @@ public sealed class PerformanceService(HRPortalDbContext db)
 
     public async Task<List<ScoreDisplay>> ScoreRowsAsync(int periodId, int employeeId, int evaluatorId)
     {
-        if (!await HasAssignmentAsync(periodId, employeeId, evaluatorId))
-            throw new UnauthorizedAccessException("این کارمند در فهرست ارزیابی شما نیست.");
+        if (!await CanViewAsync(periodId, employeeId, evaluatorId))
+            throw new UnauthorizedAccessException("این کارمند در فهرست ارزیابی مجاز شما نیست.");
 
         var existing = await db.PerformanceEvaluations.AsNoTracking().Include(x => x.Scores)
             .SingleOrDefaultAsync(x => x.PeriodId == periodId && x.EmployeeId == employeeId);
@@ -86,8 +136,9 @@ public sealed class PerformanceService(HRPortalDbContext db)
         if (!IsEditable(period, DateTime.Now))
             throw new InvalidOperationException("دوره برای ثبت ارزیابی باز نیست.");
 
+        var subordinateIds = (await EligibleEvaluatorIdsAsync(periodId, evaluatorId)).ToList();
         var assignments = await db.PerformanceAssignments.Where(x =>
-            x.PeriodId == periodId && x.EvaluatorEmployeeId == evaluatorId).ToListAsync();
+            x.PeriodId == periodId && subordinateIds.Contains(x.EvaluatorEmployeeId)).ToListAsync();
         var existing = (await db.PerformanceEvaluations.AsNoTracking()
             .Where(x => x.PeriodId == periodId).Select(x => x.EmployeeId).ToListAsync()).ToHashSet();
 
@@ -140,14 +191,11 @@ public sealed class PerformanceService(HRPortalDbContext db)
             ?? throw new InvalidOperationException("دوره یافت نشد.");
         if (!IsEditable(period, DateTime.Now))
             throw new InvalidOperationException("دوره بسته است و امکان ویرایش وجود ندارد.");
-        if (!await HasAssignmentAsync(periodId, employeeId, evaluatorId))
-            throw new UnauthorizedAccessException("مجوز ارزیابی این کارمند را ندارید.");
+        if (!await CanEditAsync(periodId, employeeId, evaluatorId))
+            throw new UnauthorizedAccessException("این ارزیابی توسط مدیر بالادست ثبت یا بازنگری شده و شما مجاز به ویرایش آن نیستید.");
 
         var existing = await db.PerformanceEvaluations.Include(x => x.Scores)
             .SingleOrDefaultAsync(x => x.PeriodId == periodId && x.EmployeeId == employeeId);
-        if (existing != null && existing.EvaluatorEmployeeId != evaluatorId)
-            throw new UnauthorizedAccessException("این ارزیابی متعلق به ارزیاب دیگری است.");
-
         var normalized = values.ToList();
         if (normalized.Select(x => x.QuestionId).Distinct().Count() != normalized.Count)
             throw new InvalidOperationException("شناسه سؤال تکراری است.");
@@ -212,6 +260,11 @@ public sealed class PerformanceService(HRPortalDbContext db)
             }
         }
 
+        if (existing.EvaluatorEmployeeId != evaluatorId)
+        {
+            existing.LastReviewedByEmployeeId = evaluatorId;
+            existing.Status = "Reviewed";
+        }
         existing.FinalScore = existing.Scores.Sum(x => x.Score);
         existing.FinalMaxScore = existing.Scores.Sum(x => x.MaxScore);
         existing.UpdatedAt = DateTime.UtcNow;

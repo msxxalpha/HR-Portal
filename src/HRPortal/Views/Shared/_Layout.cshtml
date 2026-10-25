@@ -74,8 +74,11 @@
                         <details class="nav-subgroup" open="@(Context.Request.Path.StartsWithSegments("/MonthlyPerformance") ? "open" : null)">
                             <summary>ارزیابی عملکرد کارکنان</summary>
                             <div class="nav-submenu nav-submenu-nested">
-                                @if (isAdmin) { <a href="/MonthlyPerformanceAdmin/Basic">اطلاعات پایه و دوره‌های ارزیابی</a> }
-                                @if (isAdmin) { <a href="/MonthlyPerformanceAdmin/Basic?tab=evaluators">تعریف ارزیابان</a> }
+                                @if (isAdmin) { <a href="/MonthlyPerformanceAdmin/Basic">اطلاعات پایه ماژول</a> }
+                                @if (isAdmin) { <a href="/MonthlyPerformanceAdmin/Periods">دوره‌های ارزیابی</a> }
+                                @if (isAdmin) { <a href="/MonthlyPerformanceAdmin/Ranks">رده‌های پستی</a> }
+                                @if (isAdmin) { <a href="/MonthlyPerformanceAdmin/Questions">بانک سؤالات</a> }
+                                @if (isAdmin) { <a href="/MonthlyPerformanceReports/Index">گزارش‌های مدیریتی عملکرد</a> }
                                 @if (User.HasClaim("IsPerformanceEvaluator","1")) { <a href="/MonthlyPerformance/Dashboard">داشبورد ارزیاب و کارتابل عملکرد</a> }
                                 @if (User.HasClaim("UserType","Employee")) { <a href="/MonthlyPerformance/Mine">داشبورد عملکرد شخصی</a> }
                             </div>

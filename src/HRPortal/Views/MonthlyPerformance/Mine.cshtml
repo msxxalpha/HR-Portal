@@ -1,7 +1,7 @@
 @model List<HRPortal.Models.MonthlyPerformanceEvaluation>
 @{
  Layout = "~/Views/Shared/_Layout.cshtml";
- ViewData["Title"] = "داشبورد عملکرد شخصی";
+ ViewData["Title"] = "داشبورد عملکرد شخصی و روند سؤالات";
  var ordered = Model.OrderBy(x => x.Period.Year).ThenBy(x => x.Period.Month).ToList();
  var latest = Model.FirstOrDefault();
  var average = Model.Count == 0 ? 0m : Math.Round(Model.Where(x => x.MaxScore > 0).DefaultIfEmpty().Average(x => x is null || x.MaxScore == 0 ? 0 : 100m * x.TotalScore / x.MaxScore),1);

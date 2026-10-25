@@ -122,4 +122,56 @@ public sealed class PerformanceIntegrationTests
             [new PerformanceService.ScoreInput(1, 10m, null), new PerformanceService.ScoreInput(2, 20m, null)], ""));
         Assert.Equal(100m, (await db.PerformanceEvaluations.SingleAsync()).FinalScore);
     }
+    [Fact]
+    public async Task UpperReviewersCanReviseWhileLowerReviewerBecomesReadOnly()
+    {
+        await using var db = CreateDb();
+        await SeedAsync(db);
+        db.Employees.AddRange(
+            new Employee { Id = 30, PersonnelNumber = "303", NationalId = "1234567892",
+                FirstName = "رئیس", LastName = "مستقیم", Mobile = "09123456787", Gender = "مرد", Status = "فعال" },
+            new Employee { Id = 40, PersonnelNumber = "404", NationalId = "1234567893",
+                FirstName = "مدیر", LastName = "ارشد", Mobile = "09123456786", Gender = "مرد", Status = "فعال" }
+        );
+        db.PerformanceEvaluatorChains.AddRange(
+            new PerformanceEvaluatorChain { PeriodId = 1, SubordinateEvaluatorEmployeeId = 20, SuperiorEvaluatorEmployeeId = 30 },
+            new PerformanceEvaluatorChain { PeriodId = 1, SubordinateEvaluatorEmployeeId = 30, SuperiorEvaluatorEmployeeId = 40 }
+        );
+        await db.SaveChangesAsync();
+
+        var service = new PerformanceService(db);
+        await service.QuickEvaluateAsync(1, 20);
+        Assert.Single(await service.AssignmentRowsAsync(1, 40));
+        Assert.True(await service.CanViewAsync(1, 10, 30));
+        Assert.True(await service.CanEditAsync(1, 10, 30));
+        Assert.False(await service.CanViewAsync(1, 10, 999));
+
+        await service.SaveAsync(1, 10, 30,
+        [
+            new PerformanceService.ScoreInput(1, 70m, "بازبینی رئیس"),
+            new PerformanceService.ScoreInput(2, 20m, null)
+        ], "بازنگری رئیس");
+        Assert.True(await service.CanViewAsync(1, 10, 20));
+        Assert.False(await service.CanEditAsync(1, 10, 20));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.SaveAsync(1, 10, 20,
+        [
+            new PerformanceService.ScoreInput(1, 80m, null),
+            new PerformanceService.ScoreInput(2, 20m, null)
+        ], "بازگردانی توسط ارزیاب پایین‌تر"));
+
+        await service.SaveAsync(1, 10, 40,
+        [
+            new PerformanceService.ScoreInput(1, 60m, "بازنگری مدیر ارشد"),
+            new PerformanceService.ScoreInput(2, 20m, null)
+        ], "بازنگری نهایی");
+        Assert.False(await service.CanEditAsync(1, 10, 30));
+        Assert.True(await service.CanEditAsync(1, 10, 40));
+        var ev = await db.PerformanceEvaluations.SingleAsync();
+        Assert.Equal("Reviewed", ev.Status);
+        Assert.Equal(40, ev.LastReviewedByEmployeeId);
+        Assert.Equal(80m, ev.FinalScore);
+        Assert.Equal(2, await db.PerformanceScoreChanges.CountAsync());
+    }
+
+
 }

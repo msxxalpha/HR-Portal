@@ -10,6 +10,8 @@ public static class MonthlyPerformanceSchemaInitializer
         await db.Database.ExecuteSqlRawAsync(@"
 IF COL_LENGTH(N'dbo.Employees', N'IsPerformanceEvaluator') IS NULL
     ALTER TABLE dbo.Employees ADD IsPerformanceEvaluator bit NOT NULL CONSTRAINT DF_Employees_IsPerformanceEvaluator DEFAULT(0) WITH VALUES;
+IF COL_LENGTH(N'dbo.Employees', N'PerformanceRankId') IS NULL
+    ALTER TABLE dbo.Employees ADD PerformanceRankId int NULL;
 IF COL_LENGTH(N'dbo.Employees', N'MustChangeInitialPassword') IS NULL
     ALTER TABLE dbo.Employees ADD MustChangeInitialPassword bit NOT NULL CONSTRAINT DF_Employees_MustChangeInitialPassword DEFAULT(0) WITH VALUES;
 

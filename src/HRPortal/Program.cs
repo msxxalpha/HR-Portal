@@ -24,6 +24,7 @@ builder.Services.AddControllersWithViews(options =>
     options.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true;
 });
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient();
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(o =>
@@ -75,6 +76,7 @@ builder.Services.AddScoped<EmployeeExcelService>();
 builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<RoleService>();
 builder.Services.AddScoped<WorkflowService>();
+builder.Services.AddScoped<MonthlyPerformanceService>();
 builder.Services.AddScoped<ContractRenewalWorkflowService>();
 builder.Services.AddScoped<ContractRenewalPdfService>();
 builder.Services.AddScoped<ISmsService, ConfigurableSmsService>();
@@ -148,6 +150,20 @@ app.Use(async (ctx, next) =>
 app.UseRouting();
 app.UseSession();
 app.UseAuthentication();
+app.Use(async (ctx, next) =>
+{
+    // First-login national ID credentials are temporary. Only password change and logout
+    // are accessible until a personal password is set.
+    if (ctx.User.Identity?.IsAuthenticated == true &&
+        ctx.User.HasClaim("MustChangeInitialPassword", "1") &&
+        !ctx.Request.Path.StartsWithSegments("/Account/PersonalPassword") &&
+        !ctx.Request.Path.StartsWithSegments("/Account/Logout"))
+    {
+        ctx.Response.Redirect("/Account/PersonalPassword");
+        return;
+    }
+    await next();
+});
 app.UseAuthorization();
 
 app.MapControllerRoute(

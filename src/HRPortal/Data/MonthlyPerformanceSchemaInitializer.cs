@@ -108,6 +108,10 @@ IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name = N'IX_MPRevisions_Evaluation
 
         // Only add missing rank titles. Existing codes and mappings are never rewritten.
         var titles = await db.OrganizationRankDefinitions.AsNoTracking().Select(x => x.Title).ToListAsync();
+        var grades = await db.OrganizationPositionDefinitions.AsNoTracking()
+            .Where(x => x.Grade != null && x.Grade != "")
+            .Select(x => x.Grade!).Distinct().ToListAsync();
+        titles.AddRange(grades.Where(x => x.Length <= 100));
         var existing = (await db.MonthlyPerformanceRanks.AsNoTracking().Select(x => x.Title).ToListAsync())
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var codes = (await db.MonthlyPerformanceRanks.AsNoTracking().Select(x => x.Code).ToListAsync())
@@ -122,5 +126,13 @@ IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name = N'IX_MPRevisions_Evaluation
             existing.Add(title);
         }
         await db.SaveChangesAsync();
+
+        await db.Database.ExecuteSqlRawAsync(@"
+IF NOT EXISTS(SELECT 1 FROM sys.foreign_keys
+              WHERE name=N'FK_Employees_MonthlyPerformanceRank')
+    ALTER TABLE dbo.Employees WITH CHECK
+    ADD CONSTRAINT FK_Employees_MonthlyPerformanceRank
+        FOREIGN KEY(PerformanceRankId) REFERENCES dbo.MonthlyPerformanceRanks(Id);
+");
     }
 }

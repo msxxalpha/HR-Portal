@@ -42,3 +42,26 @@
 @media(max-width:1100px){.mp-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.mp .mp-form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.mp .mp-grid-2{grid-template-columns:1fr}}
 @media(max-width:650px){.mp .mp-form-grid,.mp-kpis{grid-template-columns:1fr}.mp-hero{padding:18px}.mp .mp-bar{grid-template-columns:100px 1fr 38px}}
 @media print{.sidebar,.topbar,.mp-head-actions,.mp-tabs,.mp-toolbar,.app-footer{display:none!important}.main{width:100%!important}.mp .mp-card{box-shadow:none}}
+
+/* Reference-system-style rank cards and question mappings */
+.mp-rank-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.mp-rank-grid .mp-card{min-width:0}
+.mp-rank-total{min-width:100px;border-radius:12px;background:#eef6fb;border:1px solid #d2e8f4;padding:10px 18px;text-align:center;color:#34516a}
+.mp-rank-total span,.mp-rank-total small{display:block;font-size:.78rem}
+.mp-rank-total strong{font-size:1.85rem;color:#0c4771}
+.mp-assign{border-radius:12px;background:#f5f8fc;border:1px solid #e1e8f1;padding:16px;margin:18px 0}
+.mp-assign-title{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;color:#1b344c}
+.mp-assign-title small{color:#64748b}
+.mp .mp-assign-form{grid-template-columns:repeat(2,minmax(0,1fr));align-items:end}
+.mp .mp-wide{grid-column:span 2}
+.mp .mp-assign-form button{align-self:end;justify-self:start}
+.mp-inline-details{border-radius:8px;background:#fafcfe;border:1px solid #e2e8f0;padding:9px 12px}
+.mp-inline-details summary{cursor:pointer;color:#1e4a75;font-weight:600}
+.mp-edit-stack{display:grid;gap:8px;margin-top:10px}
+.mp-mapping-line{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:5px 0}
+.mp .jalali-date-input{display:flex;width:100%;position:relative;gap:6px;min-width:0}
+.mp .jalali-date-input input{flex:1;min-width:0}
+.mp .jalali-date-input button{flex:none}
+.mp .jalali-picker,.exec-report .jalali-picker{top:calc(100% + 6px);right:0}
+@media(max-width:1000px){.mp-rank-grid{grid-template-columns:1fr}}
+@media(max-width:600px){.mp .mp-assign-form{grid-template-columns:1fr}.mp .mp-wide{grid-column:span 1}}

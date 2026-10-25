@@ -138,6 +138,30 @@ BEGIN
     );
 END;
 
+
+IF OBJECT_ID(N'dbo.PerformanceEvaluatorChains', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.PerformanceEvaluatorChains(
+        Id int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        PeriodId int NOT NULL,
+        SubordinateEvaluatorEmployeeId int NOT NULL,
+        SuperiorEvaluatorEmployeeId int NOT NULL,
+        CONSTRAINT FK_PerformanceEvaluatorChains_Periods FOREIGN KEY(PeriodId) REFERENCES dbo.PerformancePeriods(Id),
+        CONSTRAINT FK_PerformanceEvaluatorChains_Subordinates FOREIGN KEY(SubordinateEvaluatorEmployeeId) REFERENCES dbo.Employees(Id),
+        CONSTRAINT FK_PerformanceEvaluatorChains_Superiors FOREIGN KEY(SuperiorEvaluatorEmployeeId) REFERENCES dbo.Employees(Id)
+    );
+END;
+IF COL_LENGTH(N'dbo.PerformanceEvaluations', N'LastReviewedByEmployeeId') IS NULL
+BEGIN
+    ALTER TABLE dbo.PerformanceEvaluations ADD LastReviewedByEmployeeId int NULL;
+    ALTER TABLE dbo.PerformanceEvaluations ADD CONSTRAINT FK_PerformanceEvaluations_LastReviewers
+        FOREIGN KEY(LastReviewedByEmployeeId) REFERENCES dbo.Employees(Id);
+END;
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.PerformanceEvaluatorChains')
+    AND name=N'IX_PerformanceEvaluatorChains_PeriodId_SubordinateEvaluatorEmployeeId')
+    CREATE UNIQUE INDEX IX_PerformanceEvaluatorChains_PeriodId_SubordinateEvaluatorEmployeeId
+    ON dbo.PerformanceEvaluatorChains(PeriodId,SubordinateEvaluatorEmployeeId);
+
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.PerformanceDomains') AND name=N'IX_PerformanceDomains_Code')
     CREATE UNIQUE INDEX IX_PerformanceDomains_Code ON dbo.PerformanceDomains(Code);
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.PerformancePositions') AND name=N'IX_PerformancePositions_Code')

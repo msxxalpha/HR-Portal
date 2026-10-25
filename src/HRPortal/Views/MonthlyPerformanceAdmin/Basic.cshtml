@@ -4,7 +4,7 @@
  ViewData["Title"] = "اطلاعات پایه ارزیابی عملکرد";
  var current = Model.EditPeriod;
  var now = HRPortal.Services.MonthlyPerformanceService.NowIran();
- var tabs = new (string code,string title)[]{("periods","دوره‌ها"),("ranks","رده‌های پستی"),("domains","حوزه‌ها"),("questions","سؤالات"),("mappings","سقف امتیاز هر رده"),("evaluators","ارزیابان")};
+ var tabs = new (string code,string title)[]{("periods","دوره‌ها"),("units","واحدهای سازمانی"),("ranks","رده‌های پستی"),("domains","حوزه‌ها"),("questions","سؤالات"),("mappings","سقف امتیاز هر رده"),("evaluators","ارزیابان")};
 }
 <link rel="stylesheet" href="~/css/monthly-performance.css" asp-append-version="true" />
 <div class="mp">
@@ -44,6 +44,17 @@
 <td><a class="btn btn-outline btn-sm" href="/MonthlyPerformanceAdmin/PeriodDetails/@p.Id">جزئیات</a>
 <a class="btn btn-outline btn-sm" href="/MonthlyPerformanceAdmin/Basic?tab=periods&editPeriodId=@p.Id">ویرایش</a></td></tr>
 }</tbody></table></div>
+</section>
+}
+else if(Model.Tab=="units"){
+<section class="mp-card">
+<div class="mp-toolbar"><div><h2>کد واحدها و گره‌های سازمانی</h2><p class="mp-note">این اطلاعات مستقیماً از آخرین ساختار سازمانی نهایی‌شده سامانه خوانده می‌شوند. کد واحد هنگام ایجاد گره به‌صورت خودکار پیشنهاد می‌شود و در نسخه قابل‌ویرایش ساختار، تا پیش از استفاده عملیاتی قابل اصلاح است.</p></div>
+<div class="mp-controls"><input type="search" class="mp-search" placeholder="جستجو بر اساس کد، نام یا رده..." />
+<a class="btn btn-outline" href="/Organization">مدیریت ساختار و کد واحد</a></div></div>
+<div class="mp-table-wrap"><table class="mp-filter-table"><thead><tr><th>کد واحد / گره</th><th>عنوان</th><th>رده سازمانی</th><th>والد</th><th>فعال</th></tr></thead>
+<tbody>@foreach(var node in Model.Units){<tr><td><span class="mp-code">@node.Code</span></td><td>@node.Title</td>
+<td>@node.RankType</td><td>@(Model.Units.FirstOrDefault(x=>x.Id==node.ParentId)?.Title??"ریشه")</td>
+<td><span class="mp-tag @(node.IsActive?"good":"warn")">@(node.IsActive?"فعال":"غیرفعال")</span></td></tr>}</tbody></table></div>
 </section>
 }
 else if(Model.Tab=="ranks"){

@@ -17,9 +17,11 @@
 <form method="post" action="/MonthlyPerformanceAdmin/SaveQuestion" class="mp-form-grid">
 @Html.AntiForgeryToken()<input type="hidden" name="id" value="0" />
 <label class="mp-field">کد سؤال<input name="code" maxlength="50" placeholder="تولید خودکار" /></label>
-<label class="mp-field mp-wide">عنوان / متن سؤال<input name="title" required maxlength="500" placeholder="رعایت الزامات کیفیت محصول و فرآیند" /></label>
+<label class="mp-field mp-wide">عنوان کوتاه سؤال<input name="title" required maxlength="500" placeholder="رعایت الزامات کیفیت محصول و فرآیند" /></label>
 <label class="mp-field">حوزه ارزیابی<select name="domainId" required><option value="">انتخاب حوزه</option>@foreach(var d in Model.Domains.Where(x=>x.IsActive)){<option value="@d.Id">@d.Code — @d.Title</option>}</select></label>
 <label class="mp-field">ترتیب بانک<input name="sortOrder" type="number" min="0" step="1" value="10" /></label>
+<label class="mp-field mp-wide">راهنمای ارزیاب <input name="description" maxlength="1000" placeholder="معیارها و راهنمای امتیازدهی" /></label>
+<label class="mp-field mp-wide">شرح کامل سؤال <textarea name="text" rows="3" maxlength="1000" placeholder="متن تفصیلی سؤال و رفتار یا نتیجه مورد انتظار"></textarea></label>
 <input name="isActive" type="hidden" value="true" />
 <div class="mp-controls"><button class="btn btn-main" type="submit">افزودن سؤال</button></div>
 </form>
@@ -44,7 +46,8 @@
 <div class="mp-table-wrap"><table class="mp-filter-table"><thead><tr><th>کد</th><th>سؤال</th><th>حوزه</th><th>رده‌های متصل و سقف</th><th>ویرایش سؤال</th></tr></thead>
 <tbody>@foreach(var q in Model.Questions){
  var mappings=Model.Mappings.Where(x=>x.QuestionId==q.Id&&x.IsActive).OrderBy(x=>x.Rank.Title).ToList();
- <tr><td><span class="mp-code">@q.Code</span></td><td><strong>@q.Title</strong><div class="mp-note">ترتیب: @q.SortOrder · @(q.IsActive?"فعال":"غیرفعال")</div></td><td>@q.Domain.Title</td>
+ <tr><td><span class="mp-code">@q.Code</span></td><td><strong>@q.Title</strong><div class="mp-note">@(q.Text??q.Title)</div><div class="mp-note">راهنما: @(q.Description??"—")</div>
+<div class="mp-note">ترتیب: @q.SortOrder · @(q.IsActive?"فعال":"غیرفعال")</div></td><td>@q.Domain.Title</td>
  <td>@if(mappings.Count==0){<span class="mp-muted">بدون اتصال</span>}
  else {@foreach(var m in mappings){<div class="mp-mapping-line">@m.Rank.Title <span class="mp-tag info">سقف @m.MaxScore.ToString("0")</span> <span class="mp-note">ترتیب @m.SortOrder</span></div>}}</td>
  <td><details class="mp-inline-details"><summary>ویرایش</summary>
@@ -52,6 +55,8 @@
  @Html.AntiForgeryToken()<input type="hidden" name="id" value="@q.Id" />
  <label class="mp-field">کد<input name="code" value="@q.Code" required /></label>
  <label class="mp-field">عنوان<input name="title" value="@q.Title" required maxlength="500" /></label>
+<label class="mp-field">شرح سؤال<textarea name="text" maxlength="1000" rows="3">@(q.Text??q.Title)</textarea></label>
+<label class="mp-field">راهنمای ارزیاب<textarea name="description" maxlength="1000" rows="2">@q.Description</textarea></label>
  <label class="mp-field">حوزه<select name="domainId">@foreach(var d in Model.Domains){<option value="@d.Id" selected="@(d.Id==q.DomainId)">@d.Title</option>}</select></label>
  <label class="mp-field">ترتیب<input name="sortOrder" value="@q.SortOrder" min="0" step="1" type="number" /></label>
  <label class="mp-field">فعال<input type="checkbox" name="isActive" value="true" checked="@q.IsActive" /></label>

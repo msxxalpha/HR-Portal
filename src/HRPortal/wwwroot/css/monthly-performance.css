@@ -1,0 +1,44 @@
+/* Module-scoped styles: intentionally does not alter HRPortal global navigation or cards. */
+.mp{display:grid;gap:18px;min-width:0;direction:rtl}
+.mp-hero{background:linear-gradient(120deg,#142842,#1b4d6e);color:#fff;padding:25px;border-radius:18px;display:flex;justify-content:space-between;gap:18px;align-items:center;flex-wrap:wrap}
+.mp-hero h1{margin:0;font-size:1.5rem;color:#fff}.mp-hero p{color:#dce8f6;margin:9px 0 0;line-height:2}
+.mp-head-actions{display:flex;gap:9px;flex-wrap:wrap}
+.mp .mp-card{background:#fff;border:1px solid #e2e8f0;border-radius:15px;padding:18px;min-width:0;box-shadow:0 3px 18px #0f172a09}
+.mp .mp-card h2{font-size:1.05rem;margin:0 0 14px;color:#132b48}
+.mp-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.mp-kpi{position:relative;border:1px solid #e2e8f0;border-radius:14px;background:#fff;padding:16px 20px;overflow:hidden}
+.mp-kpi::before{content:"";height:4px;position:absolute;top:0;right:0;left:0;background:var(--mp-color,#1d4ed8)}
+.mp-kpi .caption{color:#64748b;font-size:.87rem}.mp-kpi strong{display:block;font-size:1.8rem;color:#10243e;margin:10px 0}.mp-kpi small{color:#64748b}
+.mp .mp-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px}
+.mp .mp-field{display:grid;gap:6px;font-size:.84rem;color:#475569}
+.mp input:not([type=checkbox]),.mp select,.mp textarea{font:inherit;border:1px solid #cbd5e1;border-radius:9px;padding:9px 10px;background:#fff;min-width:0;max-width:100%}
+.mp input[type=number]{width:110px}.mp .mp-controls{display:flex;align-items:end;gap:10px;flex-wrap:wrap}
+.mp .mp-form-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.mp .mp-table-wrap{overflow:auto;max-width:100%}
+.mp table{width:100%;min-width:780px;border-collapse:collapse;font-size:.86rem}
+.mp th{background:#edf2f8;color:#334155;white-space:nowrap;text-align:right;padding:12px;position:sticky;top:0;cursor:pointer}
+.mp td{border-bottom:1px solid #e9eef5;padding:12px;text-align:right;vertical-align:middle}
+.mp tr:hover td{background:#f8fafc}.mp .mp-note{font-size:.8rem;color:#64748b;margin:6px 0}
+.mp-tag{display:inline-block;border-radius:30px;padding:5px 9px;font-size:.79rem;font-weight:700;background:#e2e8f0;color:#334155}
+.mp-tag.open,.mp-tag.good{background:#dcfce7;color:#166534}
+.mp-tag.warn{background:#fef3c7;color:#92400e}
+.mp-tag.danger{background:#fee2e2;color:#991b1b}
+.mp-tag.info{background:#dbeafe;color:#1d4ed8}
+.mp .mp-bars{display:grid;gap:12px}
+.mp .mp-bar{display:grid;grid-template-columns:minmax(140px,1fr) minmax(150px,2fr) 55px;gap:12px;align-items:center;font-size:.86rem}
+.mp .mp-track{height:13px;background:#e2e8f0;border-radius:30px;overflow:hidden}
+.mp .mp-fill{background:linear-gradient(90deg,#2563eb,#0d9488);height:100%;border-radius:30px}
+.mp .mp-grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.mp .mp-tabs{display:flex;gap:8px;flex-wrap:wrap}
+.mp .mp-tabs a{border-radius:12px;padding:10px 14px;text-decoration:none;color:#1e3a5f;background:#edf2f7}
+.mp .mp-tabs a.current{background:#1c4167;color:#fff;font-weight:700}
+.mp .mp-muted{color:#64748b}.mp .mp-error{color:#991b1b;background:#fee2e2;border-radius:10px;padding:10px}
+.mp .mp-success{color:#166534;background:#dcfce7;border-radius:10px;padding:10px}
+.mp .mp-empty{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:12px;padding:22px;text-align:center;color:#64748b}
+.mp .mp-chart-highlight{font-size:2rem;font-weight:bold;color:#115e59}
+.mp .mp-rank{font-size:.8rem;color:#64748b}
+.mp .mp-code{font-family:Consolas,monospace;direction:ltr;display:inline-block}
+.mp .mp-score{width:100px}.mp .mp-delta{font-size:1.3rem;font-weight:bold;color:#dc2626}
+@media(max-width:1100px){.mp-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.mp .mp-form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.mp .mp-grid-2{grid-template-columns:1fr}}
+@media(max-width:650px){.mp .mp-form-grid,.mp-kpis{grid-template-columns:1fr}.mp-hero{padding:18px}.mp .mp-bar{grid-template-columns:100px 1fr 38px}}
+@media print{.sidebar,.topbar,.mp-head-actions,.mp-tabs,.mp-toolbar,.app-footer{display:none!important}.main{width:100%!important}.mp .mp-card{box-shadow:none}}

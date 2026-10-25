@@ -28,6 +28,7 @@ else
 @Html.AntiForgeryToken()
 <input type="hidden" name="employeeId" value="@Model.Employee.Id" />
 <input type="hidden" name="periodId" value="@Model.Period.Id" />
+<input type="hidden" name="expectedVersion" value="@Model.EvaluationVersion" />
 <div class="mp-toolbar"><input type="search" class="mp-search" placeholder="جست‌وجو در سؤالات..." /></div>
 <div class="mp-table-wrap"><table class="mp-filter-table" id="mp-score-table">
 <thead><tr><th>کد</th><th>حوزه ارزیابی</th><th>متن سؤال</th><th>حداکثر</th><th>امتیاز تخصیصی</th><th>میزان کسر</th><th>توضیح</th></tr></thead>

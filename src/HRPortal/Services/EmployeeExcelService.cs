@@ -14,7 +14,7 @@ public class EmployeeExcelService(HRPortalDbContext db)
     [
         "شماره پرسنلی", "شناسه", "کد ملی", "نام", "نام خانوادگی", "موبایل", "جنسیت",
         "واحد سازمانی", "اداره", "بخش", "سمت", "نوع استخدام", "ایمیل", "نام پدر",
-        "وضعیت", "تاریخ پایان قرارداد", "ارزیاب عملکرد"
+        "وضعیت", "تاریخ پایان قرارداد", "ارزیاب عملکرد", "رده ارزیابی عملکرد"
     ];
 
     public async Task<byte[]> ExportAsync(IQueryable<Employee> query)
@@ -25,6 +25,8 @@ public class EmployeeExcelService(HRPortalDbContext db)
             .Include(x => x.OrganizationSection)
             .ToListAsync();
 
+        var ranks = await db.MonthlyPerformanceRanks.AsNoTracking()
+            .ToDictionaryAsync(x => x.Id, x => x.Code);
         using var wb = new XLWorkbook();
         var ws = wb.Worksheets.Add("کارکنان");
         for (var i = 0; i < Headers.Length; i++)
@@ -40,7 +42,8 @@ public class EmployeeExcelService(HRPortalDbContext db)
                 e.OrganizationSection?.Code, e.PositionTitle, NormalizeEmploymentType(e.EmploymentType),
                 e.Email, e.FatherName, e.Status,
                 e.ContractEndDate.HasValue ? PersianDateService.Format(e.ContractEndDate.Value) : "",
-                e.IsPerformanceEvaluator ? "بله" : "خیر"
+                e.IsPerformanceEvaluator ? "بله" : "خیر",
+                e.PerformanceRankId.HasValue ? ranks.GetValueOrDefault(e.PerformanceRankId.Value, "") : ""
             };
             for (var c = 0; c < values.Length; c++)
                 ws.Cell(r + 2, c + 1).Value = values[c]?.ToString() ?? "";
@@ -79,6 +82,8 @@ public class EmployeeExcelService(HRPortalDbContext db)
         var activePositionTitles = await db.OrganizationPositionDefinitions.AsNoTracking()
             .Where(x => x.IsActive).Select(x => x.Title).ToListAsync();
         var activePositionSet = activePositionTitles.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var performanceRanks = await db.MonthlyPerformanceRanks.AsNoTracking()
+            .Where(x => x.IsActive).ToListAsync();
         var employees = await db.Employees.ToListAsync();
         var newEmployees = new List<Employee>();
         var seenPersonnelNumbers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -227,6 +232,19 @@ public class EmployeeExcelService(HRPortalDbContext db)
             target.Email = EmptyToNull(Cell(13));
             target.FatherName = EmptyToNull(Cell(14));
             target.Status = string.IsNullOrWhiteSpace(Cell(15)) ? (isNew ? "فعال" : target.Status) : Cell(15);
+            var rankCell = Cell(18);
+            if (!string.IsNullOrWhiteSpace(rankCell))
+            {
+                var rank = performanceRanks.FirstOrDefault(x =>
+                    x.Code.Equals(rankCell, StringComparison.OrdinalIgnoreCase) ||
+                    x.Title.Equals(rankCell, StringComparison.OrdinalIgnoreCase));
+                if (rank is null)
+                {
+                    errors.Add($"ردیف {row}: کد یا عنوان رده ارزیابی «{rankCell}» معتبر نیست.");
+                    continue;
+                }
+                target.PerformanceRankId = rank.Id;
+            }
             target.IsSystemUser = target.Status == "فعال";
             // Optional 17th column. Legacy 16-column imports retain the existing evaluator flag.
             var evaluatorCell = Cell(17);

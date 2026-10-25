@@ -131,6 +131,7 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
             new("PersonnelNumber", employee.PersonnelNumber),
             new("IsAdmin", "0"),
             new("UserType", "Employee"),
+            new("IsPerformanceEvaluator", employee.IsPerformanceEvaluator ? "1" : "0"),
             new("LoginMethod", "Password"),
             new("MustChangeInitialPassword", employee.MustChangeInitialPassword ? "1" : "0")
         };
@@ -152,7 +153,7 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
         if (employee.MustChangeInitialPassword)
             return RedirectToAction(nameof(PersonalPassword));
         var landing = employee.IsPerformanceEvaluator && await db.MonthlyPerformancePeriods.AnyAsync(p =>
-            p.IsEnabled && p.StartAt <= DateTime.Now && p.EndAt > DateTime.Now)
+            p.IsEnabled && p.StartAt <= MonthlyPerformanceService.NowIran() && p.EndAt > MonthlyPerformanceService.NowIran())
             ? "/MonthlyPerformance/Dashboard" : "/MonthlyPerformance/Mine";
         return Redirect(!string.IsNullOrWhiteSpace(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl) ? model.ReturnUrl : landing);
     }
@@ -270,6 +271,7 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
             new("PersonnelNumber", employee.PersonnelNumber),
             new("IsAdmin", "0"),
             new("UserType", "Employee"),
+            new("IsPerformanceEvaluator", employee.IsPerformanceEvaluator ? "1" : "0"),
             new("LoginMethod", "Otp")
         };
 
@@ -290,7 +292,7 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
 
         await audit.WriteAsync("ورود موفق کارمند", "Account", employee.Id.ToString(), employee.PersonnelNumber, employee.Id);
         var landing = employee.IsPerformanceEvaluator && await db.MonthlyPerformancePeriods.AnyAsync(p =>
-            p.IsEnabled && p.StartAt <= DateTime.Now && p.EndAt > DateTime.Now)
+            p.IsEnabled && p.StartAt <= MonthlyPerformanceService.NowIran() && p.EndAt > MonthlyPerformanceService.NowIran())
             ? "/MonthlyPerformance/Dashboard" : "/MonthlyPerformance/Mine";
         return Redirect(!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl) ? returnUrl : landing);
     }

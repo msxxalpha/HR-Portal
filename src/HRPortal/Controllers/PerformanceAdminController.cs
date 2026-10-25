@@ -316,7 +316,7 @@ public sealed class PerformanceAdminController(HRPortalDbContext db, Organizatio
         int periodId, int subordinateEvaluatorEmployeeId, int superiorEvaluatorEmployeeId)
     {
         var period = await db.PerformancePeriods.SingleOrDefaultAsync(x => x.Id == periodId);
-        if (period == null || !PerformanceService.IsEditable(period, DateTime.Now) ||
+        if (period == null || period.IsDeleted || !period.IsOpen || period.EndAt < DateTime.Now ||
             subordinateEvaluatorEmployeeId == superiorEvaluatorEmployeeId ||
             !await db.Employees.AnyAsync(x => x.Id == subordinateEvaluatorEmployeeId && x.Status == "فعال") ||
             !await db.Employees.AnyAsync(x => x.Id == superiorEvaluatorEmployeeId && x.Status == "فعال"))

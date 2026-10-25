@@ -6,10 +6,13 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace HRPortal.Controllers;
 
-public class AccountController(HRPortalDbContext db, OtpService otp, AuditService audit, AdminService admins, RoleService roleService) : Controller
+public class AccountController(HRPortalDbContext db, OtpService otp, AuditService audit, AdminService admins, RoleService roleService, IMemoryCache loginAttempts) : Controller
 {
     [HttpGet, AllowAnonymous]
     public IActionResult Login(string? returnUrl = null, string? mode = null)
@@ -91,17 +94,34 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
             return View("Login", model);
         }
 
-        if (string.IsNullOrWhiteSpace(employee.PersonalPasswordHash))
+        // Legacy employees with no personal password get a one-time national-ID initial
+        // credential. Never change an existing personal password, and require a reset.
+        var limitKey = "password-login:" + personnelNumber + ":" + (HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown");
+        var failures = loginAttempts.Get<int>(limitKey);
+        if (failures >= 5)
         {
-            ModelState.AddModelError("", "برای این کاربر هنوز رمز عبور شخصی تعیین نشده است. از گزینه «ورود با رمز یکبارمصرف» استفاده کنید.");
+            ModelState.AddModelError("", "به دلیل تلاش‌های ناموفق، ورود با رمز این حساب برای ۱۵ دقیقه محدود شده است. می‌توانید از رمز یکبارمصرف استفاده کنید.");
             return View("Login", model);
         }
-
-        if (!PasswordHasher.Verify(model.Password, employee.PersonalPasswordHash))
+        var hasSavedPassword = !string.IsNullOrWhiteSpace(employee.PersonalPasswordHash);
+        var bootstrap = !hasSavedPassword;
+        var valid = hasSavedPassword
+            ? PasswordHasher.Verify(model.Password, employee.PersonalPasswordHash!)
+            : EqualFixedTime(model.Password, employee.NationalId);
+        if (!valid)
         {
+            loginAttempts.Set(limitKey, failures + 1, TimeSpan.FromMinutes(15));
             await audit.WriteAsync("ورود ناموفق کارکنان با رمز شخصی", "Account", employee.Id.ToString(), "نام کاربری یا رمز عبور نادرست است.", employee.Id);
             ModelState.AddModelError("", "نام کاربری یا رمز عبور صحیح نیست.");
             return View("Login", model);
+        }
+        loginAttempts.Remove(limitKey);
+        if (bootstrap)
+        {
+            employee.PersonalPasswordHash = PasswordHasher.Hash(model.Password);
+            employee.MustChangeInitialPassword = true;
+            employee.UpdatedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync();
         }
 
         var claims = new List<System.Security.Claims.Claim>
@@ -111,7 +131,8 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
             new("PersonnelNumber", employee.PersonnelNumber),
             new("IsAdmin", "0"),
             new("UserType", "Employee"),
-            new("LoginMethod", "Password")
+            new("LoginMethod", "Password"),
+            new("MustChangeInitialPassword", employee.MustChangeInitialPassword ? "1" : "0")
         };
 
         var permissions = await roleService.GetEmployeePermissionsAsync(employee.Id);
@@ -128,7 +149,12 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
 
         await audit.WriteAsync("ورود موفق کارمند با رمز شخصی", "Account", employee.Id.ToString(), employee.PersonnelNumber, employee.Id);
 
-        return Redirect(!string.IsNullOrWhiteSpace(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl) ? model.ReturnUrl : "/");
+        if (employee.MustChangeInitialPassword)
+            return RedirectToAction(nameof(PersonalPassword));
+        var landing = employee.IsPerformanceEvaluator && await db.MonthlyPerformancePeriods.AnyAsync(p =>
+            p.IsEnabled && p.StartAt <= DateTime.Now && p.EndAt > DateTime.Now)
+            ? "/MonthlyPerformance/Dashboard" : "/MonthlyPerformance/Mine";
+        return Redirect(!string.IsNullOrWhiteSpace(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl) ? model.ReturnUrl : landing);
     }
 
     [HttpPost, AllowAnonymous, ValidateAntiForgeryToken]
@@ -263,8 +289,10 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
         HttpContext.Session.Remove("PendingReturnUrl");
 
         await audit.WriteAsync("ورود موفق کارمند", "Account", employee.Id.ToString(), employee.PersonnelNumber, employee.Id);
-
-        return Redirect(!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl) ? returnUrl : "/");
+        var landing = employee.IsPerformanceEvaluator && await db.MonthlyPerformancePeriods.AnyAsync(p =>
+            p.IsEnabled && p.StartAt <= DateTime.Now && p.EndAt > DateTime.Now)
+            ? "/MonthlyPerformance/Dashboard" : "/MonthlyPerformance/Mine";
+        return Redirect(!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl) ? returnUrl : landing);
     }
 
     [HttpGet, Authorize]
@@ -282,7 +310,7 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
         return View(new PersonalPasswordVm
         {
             HasExistingPassword = hasExistingPassword,
-            CurrentPasswordRequired = hasExistingPassword && !isOtpSession
+            CurrentPasswordRequired = hasExistingPassword && !isOtpSession && !employee.MustChangeInitialPassword
         });
     }
 
@@ -332,7 +360,7 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
         if (passwordValid &&
             string.Equals(suppliedNewPassword, suppliedConfirmation, StringComparison.Ordinal) &&
             hasExistingPassword &&
-            !isOtpSession)
+            !isOtpSession && !employee.MustChangeInitialPassword)
         {
             currentPasswordValid = PasswordHasher.Verify(
                 suppliedCurrentPassword,
@@ -346,7 +374,7 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
             }
         }
 
-        var currentPasswordRequired = hasExistingPassword && !isOtpSession;
+        var currentPasswordRequired = hasExistingPassword && !isOtpSession && !employee.MustChangeInitialPassword;
         if (!ModelState.IsValid)
         {
             // Never return password values back to the browser.
@@ -357,7 +385,14 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
             });
         }
 
+        if (string.Equals(suppliedNewPassword, employee.NationalId, StringComparison.Ordinal))
+        {
+            ModelState.AddModelError("NewPassword", "رمز عبور جدید نباید همان کد ملی شما باشد.");
+            return View(new PersonalPasswordVm { HasExistingPassword = hasExistingPassword, CurrentPasswordRequired = currentPasswordRequired });
+        }
+        var hadInitialPassword = employee.MustChangeInitialPassword;
         employee.PersonalPasswordHash = PasswordHasher.Hash(suppliedNewPassword);
+        employee.MustChangeInitialPassword = false;
         employee.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
 
@@ -374,6 +409,12 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
             ? "رمز عبور شخصی شما با موفقیت تغییر کرد."
             : "رمز عبور شخصی شما با موفقیت تعیین شد.";
 
+        if (hadInitialPassword)
+        {
+            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            TempData["Success"] = "رمز شخصی شما ثبت شد. اکنون دوباره با رمز جدید وارد شوید.";
+            return RedirectToAction(nameof(Login));
+        }
         return RedirectToAction("Index", "Home");
     }
 
@@ -440,6 +481,13 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
 
         var seconds = (expiresAt.Value - DateTime.UtcNow).TotalSeconds;
         return seconds <= 0 ? 0 : (int)Math.Ceiling(seconds);
+    }
+
+    private static bool EqualFixedTime(string candidate, string expected)
+    {
+        var a = SHA256.HashData(Encoding.UTF8.GetBytes(candidate));
+        var b = SHA256.HashData(Encoding.UTF8.GetBytes(expected));
+        return CryptographicOperations.FixedTimeEquals(a, b);
     }
 
     public sealed class LoginVm

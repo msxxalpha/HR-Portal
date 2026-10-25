@@ -40,6 +40,8 @@ public class MonthlyPerformanceQuestion
     public int Id { get; set; }
     [MaxLength(50)] public string Code { get; set; } = "";
     [MaxLength(500)] public string Title { get; set; } = "";
+    [MaxLength(1000)] public string? Text { get; set; }
+    [MaxLength(1000)] public string? Description { get; set; }
     public int DomainId { get; set; }
     public MonthlyPerformanceDomain Domain { get; set; } = null!;
     public bool IsActive { get; set; } = true;

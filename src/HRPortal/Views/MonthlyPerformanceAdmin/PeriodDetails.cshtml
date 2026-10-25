@@ -9,7 +9,7 @@
 <div class="mp">
 <section class="mp-hero"><div><h1>@Model.Title</h1>
 <p>دوره @Model.Year/@Model.Month.ToString("00") · @HRPortal.Services.PersianDateService.Format(Model.StartAt) تا @HRPortal.Services.PersianDateService.Format(Model.EndAt.AddDays(-1))</p>
-</div><div class="mp-head-actions"><a class="btn btn-outline" href="/MonthlyPerformanceAdmin/Basic?tab=periods">بازگشت به دوره‌ها</a><a class="btn btn-outline" href="/MonthlyPerformanceAdmin/Basic?tab=periods&editPeriodId=@Model.Id">ویرایش دوره</a></div></section>
+</div><div class="mp-head-actions"><a class="btn btn-outline" href="/MonthlyPerformanceAdmin/ExportPeriod?periodId=@Model.Id">خروجی کامل اکسل</a><a class="btn btn-outline" href="/MonthlyPerformanceAdmin/Basic?tab=periods">بازگشت به دوره‌ها</a><a class="btn btn-outline" href="/MonthlyPerformanceAdmin/Basic?tab=periods&editPeriodId=@Model.Id">ویرایش دوره</a></div></section>
 <div class="mp-kpis">
 <div class="mp-kpi" style="--mp-color:#2563eb"><span class="caption">تعداد ارزیابی‌ها</span><strong>@rows.Count</strong></div>
 <div class="mp-kpi" style="--mp-color:#16a34a"><span class="caption">امتیاز استفاده‌شده</span><strong>@rows.Sum(x=>x.TotalScore).ToString("N2")</strong></div>

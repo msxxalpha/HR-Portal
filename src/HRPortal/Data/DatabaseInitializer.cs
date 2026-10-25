@@ -24,6 +24,7 @@ AND COL_LENGTH(N'dbo.SystemSettings', N'PayrollMinimumYear') IS NULL
         await ContractRenewalRequestRevisionSchemaInitializer.InitializeAsync(db);
         await OrganizationRankSchemaInitializer.InitializeAsync(db);
         await OrganizationPositionSchemaInitializer.InitializeAsync(db);
+        await MonthlyPerformanceSchemaInitializer.InitializeAsync(db);
         await SeedLegacyOrganizationPositionsAsync(db);
 
         if (!await db.ContractRenewalWorkflowSettings.AnyAsync())

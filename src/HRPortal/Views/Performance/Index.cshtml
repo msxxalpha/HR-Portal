@@ -43,6 +43,42 @@ else
             <button type="submit" class="btn btn-primary">ارزیابی سریع تمام افراد فاقد امتیاز</button>
         </form>
     }
+
+    <div class="row g-3 mb-3">
+        <div class="col-lg-4"><div class="card p-3 h-100">
+            <h3>بالاترین امتیازهای زیرمجموعه</h3>
+            @foreach(var item in Model.TopPerformers)
+            {
+                var p = Math.Round(item.Score * 100m / item.MaxScore, 2);
+                var width = Math.Clamp(p,0m,100m).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+                <div class="perf-bar-row"><div><b>@item.EmployeeName</b><span>@p.ToString("N2")٪</span></div>
+                    <div class="perf-bar-track"><div class="perf-bar-fill" style="width:@width%"></div></div>
+                </div>
+            }
+            @if(Model.TopPerformers.Count==0){<p>هنوز امتیازی ثبت نشده است.</p>}
+        </div></div>
+        <div class="col-lg-4"><div class="card p-3 h-100">
+            <h3>نفرات نیازمند بهبود</h3>
+            @foreach(var item in Model.ImprovementCandidates)
+            {
+                var p = Math.Round(item.Score * 100m / item.MaxScore, 2);
+                var width = Math.Clamp(p,0m,100m).ToString("0.##",System.Globalization.CultureInfo.InvariantCulture);
+                <div class="perf-bar-row"><div><b>@item.EmployeeName</b><span>@p.ToString("N2")٪</span></div>
+                    <div class="perf-bar-track"><div class="perf-bar-fill" style="width:@width%"></div></div>
+                </div>
+            }
+        </div></div>
+        <div class="col-lg-4"><div class="card p-3 h-100">
+            <h3>میانگین تحقق به تفکیک سؤال</h3>
+            @foreach(var item in Model.QuestionAverages)
+            {
+                var width = Math.Clamp(item.Percent,0m,100m).ToString("0.##",System.Globalization.CultureInfo.InvariantCulture);
+                <div class="perf-bar-row"><div><b>@item.Title</b><span>@item.Percent.ToString("N2")٪</span></div>
+                    <div class="perf-bar-track"><div class="perf-bar-fill" style="width:@width%"></div></div>
+                </div>
+            }
+        </div></div>
+    </div>
     <div class="card p-3">
         <h3>افراد تحت ارزیابی</h3>
         <form method="get" action="/Performance" class="d-flex align-items-center gap-2 flex-wrap mb-2">

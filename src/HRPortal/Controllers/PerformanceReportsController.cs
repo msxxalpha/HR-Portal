@@ -1,4 +1,5 @@
 using ClosedXML.Excel;
+using ClosedXML.Excel;
 using HRPortal.Data;
 using HRPortal.Modules.Performance;
 using Microsoft.AspNetCore.Authorization;
@@ -112,6 +113,61 @@ public sealed class PerformanceReportsController(HRPortalDbContext db, Performan
         return File(buffer.ToArray(),
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             $"Performance-{periodId}.xlsx");
+    }
+
+    [HttpGet("Export")]
+    public async Task<IActionResult> Export(int periodId)
+    {
+        var period = await db.PerformancePeriods.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Id == periodId && !x.IsDeleted);
+        if (period == null) return NotFound();
+
+        var data = await (
+            from ev in db.PerformanceEvaluations.AsNoTracking()
+            join emp in db.Employees.AsNoTracking() on ev.EmployeeId equals emp.Id
+            join evaluator in db.Employees.AsNoTracking() on ev.EvaluatorEmployeeId equals evaluator.Id
+            where ev.PeriodId == periodId
+            orderby emp.LastName, emp.FirstName
+            select new
+            {
+                emp.PersonnelNumber, emp.FirstName, emp.LastName,
+                EvaluatorFirst = evaluator.FirstName, EvaluatorLast = evaluator.LastName,
+                ev.FinalScore, ev.FinalMaxScore
+            }
+        ).ToListAsync();
+
+        using var book = new XLWorkbook();
+        var sheet = book.Worksheets.Add("نتایج ارزیابی");
+        sheet.RightToLeft = true;
+        var headers = new[] { "شماره پرسنلی", "نام و نام خانوادگی", "ارزیاب",
+            "امتیاز نهایی", "سقف امتیاز", "امتیاز کسرشده", "درصد عملکرد" };
+        for (var col = 0; col < headers.Length; col++)
+            sheet.Cell(1, col + 1).Value = headers[col];
+
+        var row = 2;
+        foreach (var item in data)
+        {
+            sheet.Cell(row, 1).Value = item.PersonnelNumber;
+            sheet.Cell(row, 2).Value = $"{item.FirstName} {item.LastName}";
+            sheet.Cell(row, 3).Value = $"{item.EvaluatorFirst} {item.EvaluatorLast}";
+            sheet.Cell(row, 4).Value = item.FinalScore;
+            sheet.Cell(row, 5).Value = item.FinalMaxScore;
+            sheet.Cell(row, 6).Value = Math.Max(0m, item.FinalMaxScore - item.FinalScore);
+            sheet.Cell(row, 7).Value = item.FinalMaxScore > 0m
+                ? Math.Round(100m * item.FinalScore / item.FinalMaxScore, 2) : 0m;
+            row++;
+        }
+        sheet.Range(1, 1, 1, headers.Length).Style.Font.Bold = true;
+        sheet.Range(1, 1, 1, headers.Length).Style.Fill.BackgroundColor = XLColor.LightBlue;
+        sheet.Columns().AdjustToContents();
+        if (row > 2)
+            sheet.Range(1, 1, row - 1, headers.Length).SetAutoFilter();
+
+        using var stream = new MemoryStream();
+        book.SaveAs(stream);
+        return File(stream.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"PerformanceReport-{periodId}.xlsx");
     }
 
 }

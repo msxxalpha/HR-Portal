@@ -21,8 +21,8 @@
 <form method="post" action="/PerformanceAdmin/CreatePeriod" class="row g-2">
 @Html.AntiForgeryToken()
 <div class="col-md-4"><label>عنوان</label><input class="form-control" name="title" maxlength="200" required /></div>
-<div class="col-md-3"><label>شروع (شمسی)</label><input class="form-control" name="startJalali" type="text" inputmode="numeric" placeholder="۱۴۰۵/۰۸/۰۱" pattern="[0-9۰-۹٠-٩]{4}/[0-9۰-۹٠-٩]{1,2}/[0-9۰-۹٠-٩]{1,2}" required /></div>
-<div class="col-md-3"><label>پایان (شمسی)</label><input class="form-control" name="endJalali" type="text" inputmode="numeric" placeholder="۱۴۰۵/۰۸/۳۰" pattern="[0-9۰-۹٠-٩]{4}/[0-9۰-۹٠-٩]{1,2}/[0-9۰-۹٠-٩]{1,2}" required /></div>
+<div class="col-md-3"><label>شروع (شمسی)</label><div class="perf-jalali-field"><input class="form-control" name="startJalali" type="text" inputmode="numeric" placeholder="۱۴۰۵/۰۸/۰۱" data-jalali-date required /><button type="button" data-jalali-trigger aria-label="انتخاب تاریخ شروع" class="perf-calendar-trigger">📅</button></div></div>
+<div class="col-md-3"><label>پایان (شمسی)</label><div class="perf-jalali-field"><input class="form-control" name="endJalali" type="text" inputmode="numeric" placeholder="۱۴۰۵/۰۸/۳۰" data-jalali-date required /><button type="button" data-jalali-trigger aria-label="انتخاب تاریخ پایان" class="perf-calendar-trigger">📅</button></div></div>
 <div class="col-md-2 align-self-end"><button class="btn btn-primary">ایجاد دوره</button></div>
 </form>
 <div class="table-responsive mt-3"><table class="table"><thead><tr><th>دوره</th><th>بازه</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody>
@@ -192,3 +192,5 @@
         </tbody></table>
     </div>
 </div>
+
+@section Scripts { <script src="@Url.Content("~/js/performance-jalali-datepicker.js")" asp-append-version="true"></script> }

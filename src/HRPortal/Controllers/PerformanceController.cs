@@ -10,9 +10,13 @@ namespace HRPortal.Controllers;
 [Route("Performance")]
 public sealed class PerformanceController(HRPortalDbContext db, PerformanceService service) : Controller
 {
+    public sealed record QuestionAverage(string Title, int Evaluations, decimal Percent);
     public sealed record DashboardVm(List<PerformancePeriod> Periods, PerformancePeriod? Selected,
         List<PerformanceService.AssignmentRow> Rows, decimal TotalMax, decimal TotalScore, decimal Deducted,
-        int TotalAssignments, int FilteredCount, int Page, int PageSize, string Search);
+        int TotalAssignments, int FilteredCount, int Page, int PageSize, string Search,
+        List<PerformanceService.AssignmentRow> TopPerformers,
+        List<PerformanceService.AssignmentRow> ImprovementCandidates,
+        List<QuestionAverage> QuestionAverages);
     public sealed record EvaluationFormVm(int EmployeeId, string EmployeeName, PerformancePeriod Period,
         bool CanEdit, List<PerformanceService.ScoreDisplay> Questions,
         List<PerformanceScoreChange> History);
@@ -41,7 +45,7 @@ public sealed class PerformanceController(HRPortalDbContext db, PerformanceServi
             ?? periods.FirstOrDefault(x => PerformanceService.IsEditable(x, DateTime.Now))
             ?? periods.FirstOrDefault();
         if (!ActorId.HasValue)
-            return View(new DashboardVm(periods, selected, [], 0, 0, 0, 0, 0, 1, 25, ""));
+            return View(new DashboardVm(periods, selected, [], 0, 0, 0, 0, 0, 1, 25, "", [], [], []));
 
         var allRows = selected == null ? [] : await service.AssignmentRowsAsync(selected.Id, ActorId.Value);
         var max = allRows.Sum(x => x.MaxScore);
@@ -55,8 +59,22 @@ public sealed class PerformanceController(HRPortalDbContext db, PerformanceServi
         var totalPages = Math.Max(1, (int)Math.Ceiling(filtered.Count / (double)pageSize));
         page = Math.Clamp(page, 1, totalPages);
         var rows = filtered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        var evaluated = allRows.Where(x => x.EvaluationId.HasValue && x.MaxScore > 0m).ToList();
+        var highest = evaluated.OrderByDescending(x => x.Score / x.MaxScore).Take(5).ToList();
+        var lowest = evaluated.OrderBy(x => x.Score / x.MaxScore).Take(5).ToList();
+        var evaluationIds = allRows.Where(x => x.EvaluationId.HasValue)
+            .Select(x => x.EvaluationId!.Value).ToList();
+        var scoreRows = await db.PerformanceScores.AsNoTracking()
+            .Where(x => evaluationIds.Contains(x.EvaluationId))
+            .Select(x => new { x.QuestionTitleSnapshot, x.Score, x.MaxScore })
+            .ToListAsync();
+        var questionAverages = scoreRows.GroupBy(x => x.QuestionTitleSnapshot)
+            .Select(g => new QuestionAverage(g.Key, g.Count(),
+                g.Sum(x => x.MaxScore) == 0 ? 0m : Math.Round(g.Sum(x => x.Score) * 100m / g.Sum(x => x.MaxScore), 2)))
+            .OrderBy(x => x.Percent).ThenBy(x => x.Title).Take(15).ToList();
         return View(new DashboardVm(periods, selected, rows, max, actual,
-            Math.Max(0, max - actual), allRows.Count, filtered.Count, page, pageSize, q));
+            Math.Max(0, max - actual), allRows.Count, filtered.Count, page, pageSize, q,
+            highest, lowest, questionAverages));
     }
 
     [HttpPost("QuickEvaluateAll"), Authorize(Policy = PerformanceModule.EvaluatePermission), ValidateAntiForgeryToken]

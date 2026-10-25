@@ -380,15 +380,15 @@ public class MonthlyPerformanceAdminController(HRPortalDbContext db) : Controlle
                     .Select(x => new string[] { x.Code, x.Title, x.IsActive ? "بله" : "خیر" }).ToListAsync());
                 break;
             case "questions":
-                table.Add(["کد سؤال", "متن", "حوزه", "فعال"]);
+                table.Add(["کد سؤال", "عنوان", "شرح کامل", "راهنمای ارزیاب", "حوزه", "فعال"]);
                 table.AddRange(await db.MonthlyPerformanceQuestions.AsNoTracking()
-                    .Select(x => new string[] { x.Code, x.Title, x.Domain.Title, x.IsActive ? "بله" : "خیر" }).ToListAsync());
+                    .Select(x => new string[] { x.Code, x.Title, x.Text ?? "", x.Description ?? "", x.Domain.Title, x.IsActive ? "بله" : "خیر" }).ToListAsync());
                 break;
             case "mappings":
-                table.Add(["رده", "سؤال", "سقف", "فعال"]);
+                table.Add(["رده", "سؤال", "سقف", "ترتیب", "فعال"]);
                 var mapping = await db.MonthlyPerformanceRankQuestions.AsNoTracking().Include(x => x.Rank)
                     .Include(x => x.Question).ToListAsync();
-                table.AddRange(mapping.Select(x => new[] { x.Rank.Title, x.Question.Title, x.MaxScore.ToString(), x.IsActive ? "بله" : "خیر" }));
+                table.AddRange(mapping.Select(x => new[] { x.Rank.Title, x.Question.Title, x.MaxScore.ToString("0"), x.SortOrder.ToString(), x.IsActive ? "بله" : "خیر" }));
                 break;
             case "units":
                 table.Add(["کد واحد", "عنوان", "رده", "فعال"]);
@@ -404,11 +404,12 @@ public class MonthlyPerformanceAdminController(HRPortalDbContext db) : Controlle
                     new string[] { x.PersonnelNumber, x.FirstName + " " + x.LastName, x.IsPerformanceEvaluator ? "بله" : "خیر" }).ToListAsync());
                 break;
             default:
-                table.Add(["کد دوره", "عنوان", "سال", "ماه", "شروع", "پایان", "فعال"]);
+                table.Add(["کد دوره", "عنوان", "شروع", "پایان", "وضعیت", "حذف‌شده"]);
                 var periods = await db.MonthlyPerformancePeriods.AsNoTracking().ToListAsync();
-                table.AddRange(periods.Select(x => new[] { x.Code, x.Title, x.Year.ToString(), x.Month.ToString(),
+                table.AddRange(periods.Select(x => new[] { x.Code, x.Title,
                     PersianDateService.Format(x.StartAt), PersianDateService.Format(x.EndAt.AddDays(-1)),
-                    x.IsEnabled ? "بله" : "خیر" }));
+                    MonthlyPerformanceService.PeriodState(x, MonthlyPerformanceService.NowIran()),
+                    x.IsDeleted ? "بله" : "خیر" }));
                 break;
         }
         for (int r = 0; r < table.Count; r++)

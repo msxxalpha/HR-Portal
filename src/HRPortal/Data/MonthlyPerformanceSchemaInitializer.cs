@@ -49,11 +49,13 @@ IF OBJECT_ID(N'dbo.MonthlyPerformanceEvaluations',N'U') IS NULL
  Id int IDENTITY(1,1) PRIMARY KEY, PeriodId int NOT NULL, EmployeeId int NOT NULL,
  OriginalEvaluatorId int NOT NULL, LastEvaluatorId int NOT NULL,
  RankTitleSnapshot nvarchar(100) NOT NULL, MaxScore decimal(12,2) NOT NULL,
- TotalScore decimal(12,2) NOT NULL, CreatedAt datetime2 NOT NULL, UpdatedAt datetime2 NOT NULL,
+ TotalScore decimal(12,2) NOT NULL, RowVersion rowversion NOT NULL, CreatedAt datetime2 NOT NULL, UpdatedAt datetime2 NOT NULL,
  CONSTRAINT UQ_MPEvaluations_PeriodEmployee UNIQUE(PeriodId,EmployeeId),
  CONSTRAINT CK_MPEvaluations_Range CHECK(TotalScore >= 0 AND TotalScore <= MaxScore),
  CONSTRAINT FK_MPEvaluations_Period FOREIGN KEY(PeriodId) REFERENCES dbo.MonthlyPerformancePeriods(Id),
  CONSTRAINT FK_MPEvaluations_Employee FOREIGN KEY(EmployeeId) REFERENCES dbo.Employees(Id));
+IF COL_LENGTH(N'dbo.MonthlyPerformanceEvaluations', N'RowVersion') IS NULL
+ ALTER TABLE dbo.MonthlyPerformanceEvaluations ADD RowVersion rowversion;
 IF OBJECT_ID(N'dbo.MonthlyPerformanceScores',N'U') IS NULL
  CREATE TABLE dbo.MonthlyPerformanceScores(
  Id int IDENTITY(1,1) PRIMARY KEY, EvaluationId int NOT NULL, QuestionId int NOT NULL,

@@ -1,0 +1,29 @@
+@model HRPortal.Models.MonthlyPerformancePeriod
+@{
+ Layout = "~/Views/Shared/_Layout.cshtml";
+ ViewData["Title"] = "جزئیات دوره ارزیابی عملکرد";
+ var rows = ViewBag.Evaluations as List<HRPortal.Models.MonthlyPerformanceEvaluation> ?? [];
+ var now = HRPortal.Services.MonthlyPerformanceService.NowIran();
+}
+<link rel="stylesheet" href="~/css/monthly-performance.css" asp-append-version="true" />
+<div class="mp">
+<section class="mp-hero"><div><h1>@Model.Title</h1>
+<p>دوره @Model.Year/@Model.Month.ToString("00") · @HRPortal.Services.PersianDateService.Format(Model.StartAt) تا @HRPortal.Services.PersianDateService.Format(Model.EndAt.AddDays(-1))</p>
+</div><div class="mp-head-actions"><a class="btn btn-outline" href="/MonthlyPerformanceAdmin/Basic?tab=periods">بازگشت به دوره‌ها</a><a class="btn btn-outline" href="/MonthlyPerformanceAdmin/Basic?tab=periods&editPeriodId=@Model.Id">ویرایش دوره</a></div></section>
+<div class="mp-kpis">
+<div class="mp-kpi" style="--mp-color:#2563eb"><span class="caption">تعداد ارزیابی‌ها</span><strong>@rows.Count</strong></div>
+<div class="mp-kpi" style="--mp-color:#16a34a"><span class="caption">امتیاز استفاده‌شده</span><strong>@rows.Sum(x=>x.TotalScore).ToString("N2")</strong></div>
+<div class="mp-kpi" style="--mp-color:#dc2626"><span class="caption">امتیاز کسرشده</span><strong>@rows.Sum(x=>x.MaxScore-x.TotalScore).ToString("N2")</strong></div>
+<div class="mp-kpi" style="--mp-color:#0d9488"><span class="caption">وضعیت زمانی</span><strong style="font-size:1.1rem">@HRPortal.Services.MonthlyPerformanceService.PeriodState(Model,now)</strong></div>
+</div>
+<section class="mp-card">
+<div class="mp-toolbar"><h2>نتایج ارزیابی‌های این دوره</h2><input class="mp-search" type="search" placeholder="فیلتر افراد..." /></div>
+<div class="mp-table-wrap"><table class="mp-filter-table"><thead><tr><th>شماره پرسنلی</th><th>نام</th><th>رده</th><th>امتیاز</th><th>سقف</th><th>کسر امتیاز</th><th>درصد</th><th>آخرین ثبت</th><th>جزئیات</th></tr></thead>
+<tbody>@foreach(var e in rows){
+<tr><td>@e.Employee.PersonnelNumber</td><td>@e.Employee.FirstName @e.Employee.LastName</td><td>@e.RankTitleSnapshot</td><td>@e.TotalScore.ToString("N2")</td><td>@e.MaxScore.ToString("N2")</td><td>@((e.MaxScore-e.TotalScore).ToString("N2"))</td>
+<td>@(e.MaxScore==0?0:Math.Round(e.TotalScore*100m/e.MaxScore,1))٪</td><td>@HRPortal.Services.PersianDateService.FormatDateTime(e.UpdatedAt.ToLocalTime())</td>
+<td><a class="btn btn-outline btn-sm" href="/MonthlyPerformanceAdmin/EvaluationDetails/@e.Id">مشاهده ریز امتیازها</a></td></tr>
+}</tbody></table></div>
+</section>
+</div>
+<script src="~/js/monthly-performance-table.js" asp-append-version="true"></script>

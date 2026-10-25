@@ -79,6 +79,7 @@ public class MonthlyPerformanceBasicVm
     public List<MonthlyPerformanceQuestion> Questions { get; set; } = [];
     public List<MonthlyPerformanceRankQuestion> Mappings { get; set; } = [];
     public List<MonthlyPerformanceEmployeeVm> Evaluators { get; set; } = [];
+    public List<OrganizationNode> Units { get; set; } = [];
     public string Tab { get; set; } = "periods";
     public int? EditPeriodId { get; set; }
     public MonthlyPerformancePeriod? EditPeriod { get; set; }

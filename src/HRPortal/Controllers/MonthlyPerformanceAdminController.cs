@@ -21,8 +21,12 @@ public class MonthlyPerformanceAdminController(HRPortalDbContext db) : Controlle
     }
 
     [HttpGet]
-    public async Task<IActionResult> Basic(string tab = "periods", int? editPeriodId = null)
+    public async Task<IActionResult> Basic(string tab = "domains", int? editPeriodId = null)
     {
+        if (tab == "periods") return RedirectToAction(nameof(Periods), new { editId = editPeriodId });
+        if (tab is "ranks" or "mappings") return RedirectToAction(nameof(Ranks));
+        if (tab == "questions") return RedirectToAction(nameof(Questions));
+        if (tab == "evaluators") return RedirectToAction("Index", "Employees");
         var model = new MonthlyPerformanceBasicVm
         {
             Tab = tab, EditPeriodId = editPeriodId,
@@ -296,7 +300,7 @@ public class MonthlyPerformanceAdminController(HRPortalDbContext db) : Controlle
         employee.IsPerformanceEvaluator = isEvaluator;
         await db.SaveChangesAsync();
         TempData["Success"] = "ویژگی ارزیاب کارمند ذخیره شد.";
-        return RedirectToAction(nameof(Basic), new { tab = "evaluators" });
+        return RedirectToAction("Index", "Employees");
     }
 
     [HttpGet]

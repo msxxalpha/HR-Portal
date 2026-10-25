@@ -21,6 +21,8 @@
 </form>
 <p class="mp-note">برای هر رده می‌توانید هر تعداد سؤال فعال از بانک سؤالات انتخاب کنید. سقف کل خودکار برابر مجموع سقف سؤال‌های فعال همان رده است.</p>
 </section>
+<div class="mp-toolbar"><label class="mp-field">جستجو و فیلتر رده‌ها<input type="search" id="mp-rank-search" placeholder="عنوان، کد یا متن سؤال..." /></label>
+<span class="mp-muted">برای مرتب‌سازی سؤال‌های هر رده روی عنوان ستون کلیک کنید.</span></div>
 <div class="mp-rank-grid">
 @foreach(var rank in Model.Ranks){
  var activeMappings = Model.Mappings.Where(x=>x.RankId==rank.Id && x.IsActive && x.Question.IsActive && x.Question.Domain.IsActive).OrderBy(x=>x.SortOrder).ThenBy(x=>x.Question.Title).ToList();
@@ -71,3 +73,13 @@
 </div>
 </div>
 <script src="~/js/monthly-performance-table.js" asp-append-version="true"></script>
+<script>
+(function(){
+ const search=document.getElementById('mp-rank-search');
+ const cards=[...document.querySelectorAll('.mp-rank-grid > .mp-card')];
+ search?.addEventListener('input',()=>{
+  const term=search.value.trim().toLocaleLowerCase('fa');
+  cards.forEach(card=>{card.hidden=!!term&&!card.textContent.toLocaleLowerCase('fa').includes(term)});
+ });
+})();
+</script>

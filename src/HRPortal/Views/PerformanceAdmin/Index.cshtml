@@ -1,0 +1,91 @@
+@model HRPortal.Controllers.PerformanceAdminController.AdminVm
+@using HRPortal.Modules.Performance
+@{
+    ViewData["Title"] = "مدیریت ارزیابی عملکرد";
+    var openPeriods = Model.Periods.Where(x => PerformanceService.IsEditable(x, DateTime.Now)).ToList();
+}
+<h2>مدیریت ماژول ارزیابی عملکرد کارکنان</h2>
+<p>کارکنان و ساختار سازمانی از HRPortal خوانده می‌شوند. نسخه مبنای ساختار: @Model.RevisionTitle</p>
+@if (TempData["Result"] is string success) { <div class="alert alert-success">@success</div> }
+@if (TempData["Error"] is string error) { <div class="alert alert-danger">@error</div> }
+
+<div class="card p-3 mb-3">
+<h3>دوره‌های ارزیابی</h3>
+<form method="post" action="/PerformanceAdmin/CreatePeriod" class="row g-2">
+@Html.AntiForgeryToken()
+<div class="col-md-4"><label>عنوان</label><input class="form-control" name="title" maxlength="200" required /></div>
+<div class="col-md-3"><label>شروع (میلادی)</label><input class="form-control" name="startAt" type="date" required /></div>
+<div class="col-md-3"><label>پایان (میلادی)</label><input class="form-control" name="endAt" type="date" required /></div>
+<div class="col-md-2 align-self-end"><button class="btn btn-primary">ایجاد دوره</button></div>
+</form>
+<div class="table-responsive mt-3"><table class="table"><thead><tr><th>دوره</th><th>بازه</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody>
+@foreach (var p in Model.Periods)
+{
+<tr><td>@p.Title</td><td>@p.StartAt.ToString("yyyy/MM/dd") تا @p.EndAt.ToString("yyyy/MM/dd")</td><td>@(p.IsDeleted ? "بایگانی" : p.IsOpen ? "باز" : "بسته")</td>
+<td>
+@if (!p.IsDeleted && p.IsOpen)
+{
+<form action="/PerformanceAdmin/ClosePeriod" method="post" class="d-inline">@Html.AntiForgeryToken()<input type="hidden" name="periodId" value="@p.Id" /><button class="btn btn-sm btn-outline-secondary">بستن</button></form>
+}
+@if (!p.IsDeleted)
+{
+<form action="/PerformanceAdmin/DeletePeriod" method="post" class="d-inline" onsubmit="return confirm('دوره از گزارش‌های جاری کنار گذاشته و آرشیو شود؟');">@Html.AntiForgeryToken()<input type="hidden" name="periodId" value="@p.Id" /><button class="btn btn-sm btn-outline-danger">آرشیو</button></form>
+}
+</td></tr>
+}
+</tbody></table></div>
+</div>
+<div class="row g-3 mb-3">
+<div class="col-lg-4"><div class="card p-3 h-100"><h3>حوزه ارزیابی</h3>
+<form method="post" action="/PerformanceAdmin/AddDomain">@Html.AntiForgeryToken()
+<label>کد (قابل ویرایش)</label><input class="form-control mb-2" name="code" value="@Model.DomainCode" maxlength="50" />
+<label>عنوان</label><input class="form-control mb-2" name="title" required maxlength="200" />
+<button class="btn btn-primary">افزودن</button>
+</form>
+<ul class="mt-2">@foreach(var d in Model.Domains){<li>@d.Code — @d.Title</li>}</ul></div></div>
+<div class="col-lg-4"><div class="card p-3 h-100"><h3>رده ارزیابی</h3>
+<form method="post" action="/PerformanceAdmin/AddPosition">@Html.AntiForgeryToken()
+<label>کد (قابل ویرایش)</label><input class="form-control mb-2" name="code" value="@Model.PositionCode" maxlength="50" />
+<label>عنوان</label><input class="form-control mb-2" name="title" required maxlength="200" />
+<button class="btn btn-primary">افزودن</button>
+</form>
+<ul class="mt-2">@foreach(var p in Model.Positions){<li>@p.Code — @p.Title</li>}</ul></div></div>
+<div class="col-lg-4"><div class="card p-3 h-100"><h3>سؤال جدید</h3>
+<form method="post" action="/PerformanceAdmin/AddQuestion">@Html.AntiForgeryToken()
+<label>کد (قابل ویرایش)</label><input class="form-control mb-2" name="code" value="@Model.QuestionCode" maxlength="50" />
+<label>عنوان</label><input class="form-control mb-2" name="title" maxlength="250" required />
+<label>حوزه</label><select class="form-select mb-2" name="domainId">@foreach(var d in Model.Domains.Where(x=>x.IsActive)){<option value="@d.Id">@d.Title</option>}</select>
+<label>شرح سؤال</label><textarea class="form-control mb-2" name="text" maxlength="2000" required></textarea>
+<button class="btn btn-primary">افزودن</button>
+</form></div></div>
+</div>
+<div class="row g-3 mb-3">
+<div class="col-lg-6"><div class="card p-3 h-100"><h3>سؤال‌های رده پستی</h3>
+<form method="post" action="/PerformanceAdmin/MapQuestion" class="row g-2">@Html.AntiForgeryToken()
+<div class="col-md-6"><label>رده</label><select name="positionId" class="form-select">@foreach(var p in Model.Positions.Where(x=>x.IsActive)){<option value="@p.Id">@p.Title</option>}</select></div>
+<div class="col-md-6"><label>سؤال</label><select name="questionId" class="form-select">@foreach(var q in Model.Questions.Where(x=>x.IsActive)){<option value="@q.Id">@q.Title</option>}</select></div>
+<div class="col-md-5"><label>سقف امتیاز</label><input class="form-control" type="number" step=".01" min=".01" name="maxScore" required /></div>
+<div class="col-md-3"><label>ترتیب</label><input class="form-control" type="number" min="1" name="sortOrder" value="1" /></div>
+<div class="col-md-4 align-self-end"><button class="btn btn-primary">ثبت/ویرایش</button></div>
+</form>
+<div class="table-responsive mt-2"><table class="table"><thead><tr><th>رده</th><th>سؤال</th><th>سقف</th></tr></thead><tbody>@foreach(var m in Model.Mappings.Where(x=>x.IsActive)){<tr><td>@m.Position?.Title</td><td>@m.Question?.Title</td><td>@m.MaxScore</td></tr>}</tbody></table></div></div></div>
+<div class="col-lg-6"><div class="card p-3 h-100"><h3>رده ارزیابی کارکنان</h3>
+<p>اطلاعات اصلی کارکنان HRPortal تغییر نمی‌کند؛ تنها نگاشت ارزیابی ذخیره می‌شود.</p>
+<form method="post" action="/PerformanceAdmin/MapEmployeePosition" class="row g-2">@Html.AntiForgeryToken()
+<div class="col-md-6"><label>کارمند</label><select name="employeeId" class="form-select">@foreach(var e in Model.Employees){<option value="@e.Id">@e.PersonnelNumber — @e.FirstName @e.LastName</option>}</select></div>
+<div class="col-md-4"><label>رده</label><select name="positionId" class="form-select">@foreach(var p in Model.Positions.Where(x=>x.IsActive)){<option value="@p.Id">@p.Title</option>}</select></div>
+<div class="col-md-2 align-self-end"><button class="btn btn-primary">ثبت</button></div></form>
+<p class="mt-2">تعداد نگاشت‌ها: @Model.EmployeePositions.Count</p></div></div>
+</div>
+<div class="card p-3 mb-3"><h3>تخصیص ارزیاب به کارکنان</h3>
+<p>ارتباط مستقیم ارزیابی تا تکمیل متصدیان ساختار به شکل صریح ثبت می‌شود؛ صرف هم‌واحد بودن ملاک نیست.</p>
+<form method="post" action="/PerformanceAdmin/AssignEvaluator" class="row g-2">@Html.AntiForgeryToken()
+<div class="col-md-3"><label>دوره باز</label><select name="periodId" class="form-select">@foreach(var p in openPeriods){<option value="@p.Id">@p.Title</option>}</select></div>
+<div class="col-md-3"><label>کارمند</label><select name="employeeId" class="form-select">@foreach(var e in Model.Employees){<option value="@e.Id">@e.PersonnelNumber — @e.FirstName @e.LastName</option>}</select></div>
+<div class="col-md-4"><label>ارزیاب</label><select name="evaluatorEmployeeId" class="form-select">@foreach(var e in Model.Employees){<option value="@e.Id">@e.PersonnelNumber — @e.FirstName @e.LastName</option>}</select></div>
+<div class="col-md-2 align-self-end"><button class="btn btn-primary">ثبت تخصیص</button></div>
+</form>
+<div class="table-responsive mt-3"><table class="table"><thead><tr><th>دوره</th><th>کارمند</th><th>ارزیاب</th></tr></thead><tbody>
+@foreach(var a in Model.Assignments){<tr><td>@a.Period</td><td>@a.Employee</td><td>@a.Evaluator</td></tr>}
+</tbody></table></div>
+</div>

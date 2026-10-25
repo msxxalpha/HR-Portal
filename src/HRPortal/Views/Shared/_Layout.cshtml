@@ -3,7 +3,7 @@
     var cfg = await SettingsService.GetAsync();
     var company = cfg.System;
     var isAdmin = User.HasClaim("IsAdmin", "1");
-    var isPerformancePage = Context.Request.Path.StartsWithSegments("/Performance") || Context.Request.Path.StartsWithSegments("/PerformanceAdmin") || Context.Request.Path.StartsWithSegments("/PerformanceReports");
+    var isPerformancePage = Context.Request.Path.StartsWithSegments("/Performance") || Context.Request.Path.StartsWithSegments("/PerformanceAdmin") || Context.Request.Path.StartsWithSegments("/PerformanceReports") || Context.Request.Path.StartsWithSegments("/PerformanceSelf");
     bool Can(string permission) => isAdmin || User.HasClaim("Permission", permission);
 }
 <!DOCTYPE html>
@@ -84,12 +84,13 @@
                     <div class="nav-group-links"><a href="/SystemSettings">تنظیمات سامانه</a></div>
                 </details>
             }
-            @if (Can("Payroll.View"))
+            @if (Can("Payroll.View") || User.HasClaim("UserType", "Employee"))
             {
                 <details class="nav-group" data-nav-group="services">
                     <summary class="nav-group-heading">خدمات کارکنان</summary>
                     <div class="nav-group-links">
-                        <a href="/Payroll/Payslip">فیش حقوقی</a>
+                        @if (Can("Payroll.View")) { <a href="/Payroll/Payslip">فیش حقوقی</a> }
+                        @if (User.HasClaim("UserType", "Employee")) { <a href="/PerformanceSelf">کارنامه ارزیابی عملکرد من</a> }
                         @if (Can("PersonnelOrder.View")) { <a href="/PersonnelOrder">حکم کارگزینی</a> }
                     </div>
                 </details>

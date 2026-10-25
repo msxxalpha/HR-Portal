@@ -11,6 +11,8 @@ for(let i=0;i<offset;i++){const e=document.createElement("button");e.type="butto
 for(let d=1;d<=total;d++){const b=document.createElement("button");b.type="button";b.className="jp-cell";b.textContent=fa(d);if(d===j.day)b.classList.add("selected");if(today.y===j.y&&today.m===j.m&&today.day===d)b.classList.add("today");b.onclick=()=>{j={...j,day:d};input.value=j.y+"/"+String(j.m).padStart(2,"0")+"/"+String(j.day).padStart(2,"0");picker.classList.remove("open");input.dispatchEvent(new Event("change",{bubbles:true}))};grid.appendChild(b)}
 picker.querySelector("[data-prev]").onclick=()=>{j.m--;if(j.m<1){j.m=12;j.y--}j.day=Math.min(j.day,dim(j.y,j.m));render()};picker.querySelector("[data-next]").onclick=()=>{j.m++;if(j.m>12){j.m=1;j.y++}j.day=Math.min(j.day,dim(j.y,j.m));render()}}
 trigger.addEventListener("click",e=>{e.preventDefault();const p=parse(input.value);if(p)j=p;render();document.querySelectorAll(".jalali-picker").forEach(x=>x!==picker&&x.classList.remove("open"));picker.classList.toggle("open")});input.addEventListener("focus",()=>{const p=parse(input.value);if(p)j=p;render();picker.classList.add("open")});document.addEventListener("click",e=>{if(!wrap.contains(e.target))picker.classList.remove("open")})}
+// Pure calendar helpers are exposed for deterministic regression tests.
+if(typeof window !== "undefined") window.HRPortalJalali = Object.freeze({g2j,j2g,parse,dim});
 document.addEventListener("DOMContentLoaded",()=>{
 document.querySelectorAll("input").forEach(input=>{
  if(input.type!=="text"||input.disabled||input.readOnly||input.closest(".jalali-picker"))return;

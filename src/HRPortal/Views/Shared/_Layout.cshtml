@@ -59,7 +59,7 @@
                     </div>
                 </details>
             }
-            @if (User.HasClaim("EmployeeId"))
+            @if (User.HasClaim(claim => claim.Type == "EmployeeId"))
             {
                 <details class="nav-group" data-nav-group="personal-performance">
                     <summary><span class="nav-icon" aria-hidden="true">◉</span>عملکرد من</summary>

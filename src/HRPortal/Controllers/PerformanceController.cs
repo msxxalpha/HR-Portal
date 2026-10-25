@@ -11,7 +11,8 @@ namespace HRPortal.Controllers;
 public sealed class PerformanceController(HRPortalDbContext db, PerformanceService service) : Controller
 {
     public sealed record DashboardVm(List<PerformancePeriod> Periods, PerformancePeriod? Selected,
-        List<PerformanceService.AssignmentRow> Rows, decimal TotalMax, decimal TotalScore, decimal Deducted);
+        List<PerformanceService.AssignmentRow> Rows, decimal TotalMax, decimal TotalScore, decimal Deducted,
+        int TotalAssignments, int FilteredCount, int Page, int PageSize, string Search);
     public sealed record EvaluationFormVm(int EmployeeId, string EmployeeName, PerformancePeriod Period,
         bool CanEdit, List<PerformanceService.ScoreDisplay> Questions,
         List<PerformanceScoreChange> History);
@@ -33,19 +34,29 @@ public sealed class PerformanceController(HRPortalDbContext db, PerformanceServi
 
     [HttpGet("")]
     [HttpGet("Index")]
-    public async Task<IActionResult> Index(int? periodId)
+    public async Task<IActionResult> Index(int? periodId, string? q, int page = 1, int pageSize = 25)
     {
         var periods = await service.PeriodsAsync();
         var selected = periods.FirstOrDefault(x => x.Id == periodId)
             ?? periods.FirstOrDefault(x => PerformanceService.IsEditable(x, DateTime.Now))
             ?? periods.FirstOrDefault();
         if (!ActorId.HasValue)
-            return View(new DashboardVm(periods, selected, [], 0, 0, 0));
+            return View(new DashboardVm(periods, selected, [], 0, 0, 0, 0, 0, 1, 25, ""));
 
-        var rows = selected == null ? [] : await service.AssignmentRowsAsync(selected.Id, ActorId.Value);
-        var max = rows.Sum(x => x.MaxScore);
-        var actual = rows.Sum(x => x.Score);
-        return View(new DashboardVm(periods, selected, rows, max, actual, Math.Max(0, max - actual)));
+        var allRows = selected == null ? [] : await service.AssignmentRowsAsync(selected.Id, ActorId.Value);
+        var max = allRows.Sum(x => x.MaxScore);
+        var actual = allRows.Sum(x => x.Score);
+        q = (q ?? "").Trim();
+        var filtered = q == "" ? allRows : allRows.Where(x =>
+            x.EmployeeName.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+            x.PersonnelNumber.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+            x.Position.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
+        pageSize = pageSize is 25 or 50 or 75 or 100 ? pageSize : 25;
+        var totalPages = Math.Max(1, (int)Math.Ceiling(filtered.Count / (double)pageSize));
+        page = Math.Clamp(page, 1, totalPages);
+        var rows = filtered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        return View(new DashboardVm(periods, selected, rows, max, actual,
+            Math.Max(0, max - actual), allRows.Count, filtered.Count, page, pageSize, q));
     }
 
     [HttpPost("QuickEvaluateAll"), Authorize(Policy = PerformanceModule.EvaluatePermission), ValidateAntiForgeryToken]

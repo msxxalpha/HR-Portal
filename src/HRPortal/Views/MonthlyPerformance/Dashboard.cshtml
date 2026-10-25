@@ -1,0 +1,91 @@
+@model HRPortal.Models.MonthlyPerformanceDashboardVm
+@{
+ Layout = "~/Views/Shared/_Layout.cshtml";
+ ViewData["Title"] = "داشبورد ارزیابی عملکرد";
+ var evaluated = Model.People.Where(x => x.EvaluationId.HasValue).ToList();
+ var top = evaluated.Where(x => x.MaxScore > 0).OrderByDescending(x => x.Percent).ThenBy(x => x.FullName).Take(5).ToList();
+ var improvement = evaluated.Where(x => x.MaxScore > 0).OrderBy(x => x.Percent).ThenBy(x => x.FullName).Take(5).ToList();
+}
+<link rel="stylesheet" href="~/css/monthly-performance.css" asp-append-version="true" />
+<div class="mp">
+<section class="mp-hero">
+ <div><h1>داشبورد ارزیابی عملکرد کارکنان</h1><p>ارزیابی ماهانه نفرات مرتبط با جایگاه شما؛ همراه با روند و تحلیل نتایج دوره</p></div>
+ <div class="mp-head-actions"><a href="/MonthlyPerformance/Mine" class="btn btn-outline">داشبورد شخصی من</a><a href="/MonthlyPerformance/Export?periodId=@Model.PeriodId" class="btn btn-outline">خروجی اکسل</a></div>
+</section>
+@if (TempData["Success"] != null) { <div class="mp-success">@TempData["Success"]</div> }
+@if (TempData["Error"] != null) { <div class="mp-error">@TempData["Error"]</div> }
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="alert warning">@Model.Message</div> }
+<section class="mp-card">
+ <form method="get" class="mp-controls" action="/MonthlyPerformance/Dashboard">
+ <label class="mp-field">دوره ارزیابی
+ <select name="periodId" onchange="this.form.submit()">
+ @foreach (var p in Model.Periods) { <option value="@p.Id" selected="@(Model.PeriodId == p.Id)">@p.Title — @p.Year/@p.Month.ToString("00")</option> }
+ </select></label>
+ @if(Model.SelectedPeriod != null)
+ { <span class="mp-tag @(Model.CanEdit ? "open" : "warn")">@(Model.CanEdit ? "دوره فعال؛ امکان ثبت و اصلاح امتیاز" : "دوره بسته / فقط مشاهده")</span>
+ <span class="mp-muted">بازه: @HRPortal.Services.PersianDateService.Format(Model.SelectedPeriod.StartAt) تا @HRPortal.Services.PersianDateService.Format(Model.SelectedPeriod.EndAt.AddDays(-1))</span>}
+ </form>
+</section>
+@if (Model.SelectedPeriod == null) { <div class="mp-empty">هنوز دوره قابل مشاهده‌ای برای شما وجود ندارد.</div> }
+else
+{
+<section class="mp-kpis">
+ <div class="mp-kpi" style="--mp-color:#2563eb"><div class="caption">نفرات تحت پوشش</div><strong>@Model.People.Count</strong><small>تعداد پرسنل فهرست این دوره</small></div>
+ <div class="mp-kpi" style="--mp-color:#16a34a"><div class="caption">ارزیابی‌های ثبت‌شده</div><strong>@evaluated.Count</strong><small>از @Model.People.Count نفر</small></div>
+ <div class="mp-kpi" style="--mp-color:#0d9488"><div class="caption">مجموع امتیاز تخصیص‌یافته</div><strong>@Model.UsedScore.ToString("N2")</strong><small>از سقف @Model.TotalCapacity.ToString("N2")</small></div>
+ <div class="mp-kpi" style="--mp-color:#dc2626"><div class="caption">مجموع امتیازهای کسرشده</div><strong>@Model.DeductedScore.ToString("N2")</strong><small>میانگین عملکرد @Model.AveragePercent.ToString("N1") درصد</small></div>
+</section>
+<div class="mp-grid-2">
+<section class="mp-card">
+<h2>برترین نفرات دوره</h2>
+@if(top.Count == 0) { <p class="mp-muted">داده‌ای برای نمایش وجود ندارد.</p> }
+@foreach (var p in top) { <div class="mp-bar"><span>@p.FullName</span><div class="mp-track"><div class="mp-fill" style="width:@p.Percent.ToString(System.Globalization.CultureInfo.InvariantCulture)%"></div></div><strong>@p.Percent٪</strong></div> }
+</section>
+<section class="mp-card">
+<h2>نفرات نیازمند توجه و بهبود</h2>
+@if(improvement.Count == 0) { <p class="mp-muted">داده‌ای برای نمایش وجود ندارد.</p> }
+@foreach (var p in improvement) { <div class="mp-bar"><span>@p.FullName</span><div class="mp-track"><div class="mp-fill" style="width:@p.Percent.ToString(System.Globalization.CultureInfo.InvariantCulture)%"></div></div><strong>@p.Percent٪</strong></div> }
+</section>
+</div>
+<section class="mp-card">
+<h2>میانگین کسب امتیاز به تفکیک سؤال</h2>
+<div class="mp-bars">
+@foreach (var q in Model.QuestionAverages) {
+<div class="mp-bar"><span title="@q.Domain">@q.Title</span><div class="mp-track"><div class="mp-fill" style="width:@q.AveragePercent.ToString(System.Globalization.CultureInfo.InvariantCulture)%"></div></div><strong>@q.AveragePercent٪</strong></div>
+}
+@if(!Model.QuestionAverages.Any()) { <div class="mp-empty">هنوز ارزیابی‌ای ثبت نشده است.</div> }
+</div>
+</section>
+<section class="mp-card">
+<div class="mp-toolbar">
+ <div><h2>نفرات قابل ارزیابی و نتایج دوره</h2><div class="mp-note">ارزیابی گروهی فقط برای افراد فاقد ارزیابی انجام می‌شود و هیچ امتیاز قبلی را بازنویسی نمی‌کند.</div></div>
+ <div class="mp-controls">
+ @if(Model.CanEdit) {
+ <form method="post" action="/MonthlyPerformance/QuickAll" onsubmit="return confirm('فقط برای نفرات فاقد امتیاز، ارزیابی با سقف کامل سؤال‌ها ثبت شود؟');">
+ @Html.AntiForgeryToken()<input type="hidden" name="periodId" value="@Model.PeriodId" />
+ <button class="btn btn-main" type="submit">✓ ثبت گروهی امتیاز کامل</button>
+ </form>
+ }
+ <input type="search" class="mp-search" placeholder="جستجو و فیلتر در جدول..." aria-label="فیلتر جدول" />
+ <button type="button" class="btn btn-outline" onclick="window.print()">چاپ</button>
+ </div>
+</div>
+<div class="mp-table-wrap">
+<table class="mp-filter-table">
+<thead><tr><th>کارمند</th><th>کد پرسنلی</th><th>رده سازمانی</th><th>سمت</th><th>امتیاز</th><th>سقف</th><th>کسر امتیاز</th><th>درصد</th><th>آخرین ارزیاب</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+<tbody>
+@foreach (var p in Model.People) {
+<tr><td><strong>@p.FullName</strong></td><td>@p.PersonnelNumber</td><td>@p.Rank</td><td>@p.Unit</td>
+<td>@p.Score.ToString("N2")</td><td>@p.MaxScore.ToString("N2")</td><td>@p.Deducted.ToString("N2")</td><td>@p.Percent٪</td><td>@p.EvaluatorName</td>
+<td><span class="mp-tag @(p.EvaluationId.HasValue ? "good" : "warn")">@(p.EvaluationId.HasValue ? "ثبت‌شده" : "ثبت‌نشده")</span></td>
+<td>@if (p.CanEdit || p.EvaluationId.HasValue) {
+<a href="/MonthlyPerformance/Evaluate?employeeId=@p.EmployeeId&periodId=@Model.PeriodId" class="btn btn-outline btn-sm">@(p.CanEdit ? "مشاهده/ویرایش" : "مشاهده جزئیات")</a>
+} else {<span class="mp-muted">بدون دسترسی</span>}</td></tr>
+}
+</tbody>
+</table>
+</div>
+</section>
+}
+</div>
+<script src="~/js/monthly-performance-table.js" asp-append-version="true"></script>

@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="~/css/monthly-performance.css" asp-append-version="true" />
 <div class="mp">
 <section class="mp-hero"><div><h1>داشبورد عملکرد شخصی من</h1><p>سوابق امتیازها، نقاط قوت و فرصت‌های بهبود در دوره‌های ماهانه</p></div>
-<div class="mp-head-actions">@if(User.HasClaim("IsAdmin","1") || User.HasClaim("Performance.Evaluator","1")){<a href="/MonthlyPerformance/Dashboard" class="btn btn-outline">کارتابل ارزیابی</a>}</div></section>
+<div class="mp-head-actions"><a href="/MonthlyPerformance/ExportMine" class="btn btn-outline">خروجی اکسل شخصی</a>@if(User.HasClaim("IsAdmin","1") || User.HasClaim("Performance.Evaluator","1")){<a href="/MonthlyPerformance/Dashboard" class="btn btn-outline">کارتابل ارزیابی</a>}</div></section>
 <section class="mp-kpis">
 <div class="mp-kpi" style="--mp-color:#1d4ed8"><div class="caption">دوره‌های ارزیابی‌شده</div><strong>@Model.Count</strong></div>
 <div class="mp-kpi" style="--mp-color:#16a34a"><div class="caption">آخرین امتیاز</div><strong>@(latest?.TotalScore.ToString("N2") ?? "—")</strong><small>از @(latest?.MaxScore.ToString("N2") ?? "—")</small></div>

@@ -13,17 +13,18 @@ public sealed class PerformanceReportsController(HRPortalDbContext db) : Control
     public sealed record ReportRow(string Employee, string PersonnelNumber, string Evaluator,
         decimal Score, decimal Maximum, decimal Deducted, decimal Percentage);
     public sealed record ReportVm(List<PerformancePeriod> Periods, PerformancePeriod? Selected,
-        List<ReportRow> Rows, decimal TotalMax, decimal TotalScore, decimal Deducted);
+        List<ReportRow> Rows, decimal TotalMax, decimal TotalScore, decimal Deducted,
+        int TotalCount, int FilteredCount, int Page, int PageSize, string Search);
 
     [HttpGet("")]
     [HttpGet("Index")]
-    public async Task<IActionResult> Index(int? periodId)
+    public async Task<IActionResult> Index(int? periodId, string? q, int page = 1, int pageSize = 25)
     {
         var periods = await db.PerformancePeriods.AsNoTracking()
             .Where(x => !x.IsDeleted).OrderByDescending(x => x.StartAt).ToListAsync();
         var selected = periods.FirstOrDefault(x => x.Id == periodId) ?? periods.FirstOrDefault();
 
-        if (selected == null) return View(new ReportVm(periods, null, [], 0, 0, 0));
+        if (selected == null) return View(new ReportVm(periods, null, [], 0, 0, 0, 0, 0, 1, 25, ""));
 
         var rawRows = await (
             from ev in db.PerformanceEvaluations.AsNoTracking()
@@ -44,6 +45,16 @@ public sealed class PerformanceReportsController(HRPortalDbContext db) : Control
 
         var maximum = rows.Sum(x => x.Maximum);
         var total = rows.Sum(x => x.Score);
-        return View(new ReportVm(periods, selected, rows, maximum, total, Math.Max(0, maximum - total)));
+        q = (q ?? "").Trim();
+        var filtered = q == "" ? rows : rows.Where(x =>
+            x.Employee.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+            x.Evaluator.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+            x.PersonnelNumber.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
+        pageSize = pageSize is 25 or 50 or 75 or 100 ? pageSize : 25;
+        var totalPages = Math.Max(1, (int)Math.Ceiling(filtered.Count / (double)pageSize));
+        page = Math.Clamp(page, 1, totalPages);
+        var pageRows = filtered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        return View(new ReportVm(periods, selected, pageRows, maximum, total, Math.Max(0, maximum - total),
+            rows.Count, filtered.Count, page, pageSize, q));
     }
 }

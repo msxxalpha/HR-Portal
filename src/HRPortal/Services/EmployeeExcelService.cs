@@ -228,6 +228,10 @@ public class EmployeeExcelService(HRPortalDbContext db)
             target.FatherName = EmptyToNull(Cell(14));
             target.Status = string.IsNullOrWhiteSpace(Cell(15)) ? (isNew ? "فعال" : target.Status) : Cell(15);
             target.IsSystemUser = target.Status == "فعال";
+            // Optional 17th column. Legacy 16-column imports retain the existing evaluator flag.
+            var evaluatorCell = Cell(17);
+            if (evaluatorCell is "بله" or "خیر" or "true" or "false" or "1" or "0")
+                target.IsPerformanceEvaluator = evaluatorCell is "بله" or "true" or "1";
             target.UpdatedAt = DateTime.UtcNow;
 
             if (isNew)

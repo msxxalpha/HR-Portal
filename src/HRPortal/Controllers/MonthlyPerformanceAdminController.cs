@@ -200,6 +200,60 @@ public class MonthlyPerformanceAdminController(HRPortalDbContext db) : Controlle
     }
 
     [HttpGet]
+    public async Task<IActionResult> ExportPeriod(int periodId)
+    {
+        var evals = await db.MonthlyPerformanceEvaluations.AsNoTracking()
+            .Where(x => x.PeriodId == periodId).Include(x => x.Employee).Include(x => x.Scores).ToListAsync();
+        using var wb = new XLWorkbook();
+        var summary = wb.AddWorksheet("نتایج دوره");
+        var cols = new[] { "شماره پرسنلی", "نام", "رده", "امتیاز", "سقف", "کسر", "درصد" };
+        for (int i = 0; i < cols.Length; i++) summary.Cell(1, i + 1).Value = cols[i];
+        for (int i = 0; i < evals.Count; i++)
+        {
+            var e = evals[i]; var r = i + 2;
+            summary.Cell(r, 1).Value = e.Employee.PersonnelNumber;
+            summary.Cell(r, 2).Value = e.Employee.FirstName + " " + e.Employee.LastName;
+            summary.Cell(r, 3).Value = e.RankTitleSnapshot;
+            summary.Cell(r, 4).Value = e.TotalScore; summary.Cell(r, 5).Value = e.MaxScore;
+            summary.Cell(r, 6).Value = e.MaxScore - e.TotalScore;
+            summary.Cell(r, 7).Value = e.MaxScore == 0 ? 0 : e.TotalScore / e.MaxScore * 100m;
+        }
+        var details = wb.AddWorksheet("ریز امتیازها");
+        var dh = new[] { "شماره پرسنلی", "نام", "حوزه", "سؤال", "سقف", "امتیاز", "کسر", "توضیحات" };
+        for (int i = 0; i < dh.Length; i++) details.Cell(1, i + 1).Value = dh[i];
+        int row = 2;
+        foreach (var e in evals)
+            foreach (var s in e.Scores)
+            {
+                details.Cell(row, 1).Value = e.Employee.PersonnelNumber;
+                details.Cell(row, 2).Value = e.Employee.FirstName + " " + e.Employee.LastName;
+                details.Cell(row, 3).Value = s.DomainTitleSnapshot;
+                details.Cell(row, 4).Value = s.QuestionTitleSnapshot;
+                details.Cell(row, 5).Value = s.MaxScore; details.Cell(row, 6).Value = s.Score;
+                details.Cell(row, 7).Value = s.MaxScore - s.Score;
+                details.Cell(row, 8).Value = s.Note ?? ""; row++;
+            }
+        var history = wb.AddWorksheet("تاریخچه تغییرات");
+        var hh = new[] { "شناسه ارزیابی", "شناسه ارزیاب", "شناسه سؤال", "امتیاز قبلی", "امتیاز جدید", "علت", "تاریخ UTC" };
+        for (int i = 0; i < hh.Length; i++) history.Cell(1, i + 1).Value = hh[i];
+        var evalIds = evals.Select(x => x.Id).ToArray();
+        var changes = await db.MonthlyPerformanceRevisions.AsNoTracking()
+            .Where(x => evalIds.Contains(x.EvaluationId)).OrderBy(x => x.ChangedAt).ToListAsync();
+        for (int i = 0; i < changes.Count; i++)
+        {
+            var x = changes[i]; var r = i + 2;
+            history.Cell(r, 1).Value = x.EvaluationId; history.Cell(r, 2).Value = x.ChangedByEmployeeId;
+            history.Cell(r, 3).Value = x.QuestionId; history.Cell(r, 4).Value = x.OldScore?.ToString() ?? "اولیه";
+            history.Cell(r, 5).Value = x.NewScore; history.Cell(r, 6).Value = x.Reason;
+            history.Cell(r, 7).Value = x.ChangedAt.ToString("yyyy-MM-dd HH:mm");
+        }
+        foreach (var sheet in wb.Worksheets) { sheet.Row(1).Style.Font.Bold = true; sheet.SheetView.FreezeRows(1); sheet.Columns().AdjustToContents(); }
+        using var stream = new MemoryStream(); wb.SaveAs(stream);
+        return File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"monthly-performance-period-{periodId}.xlsx");
+    }
+
+    [HttpGet]
     public async Task<IActionResult> Export(string tab = "periods")
     {
         using var wb = new XLWorkbook();

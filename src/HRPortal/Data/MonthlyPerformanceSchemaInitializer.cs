@@ -54,9 +54,13 @@ IF OBJECT_ID(N'dbo.MonthlyPerformanceRanks',N'U') IS NULL
 IF OBJECT_ID(N'dbo.MonthlyPerformanceQuestions',N'U') IS NULL
  CREATE TABLE dbo.MonthlyPerformanceQuestions(
  Id int IDENTITY(1,1) PRIMARY KEY, Code nvarchar(50) NOT NULL UNIQUE,
- Title nvarchar(500) NOT NULL, DomainId int NOT NULL,
+ Title nvarchar(500) NOT NULL, [Text] nvarchar(1000) NULL, Description nvarchar(1000) NULL, DomainId int NOT NULL,
  IsActive bit NOT NULL DEFAULT(1), SortOrder int NOT NULL DEFAULT(0),
  CONSTRAINT FK_MPQuestions_Domain FOREIGN KEY(DomainId) REFERENCES dbo.MonthlyPerformanceDomains(Id));
+IF COL_LENGTH(N'dbo.MonthlyPerformanceQuestions',N'Text') IS NULL
+ ALTER TABLE dbo.MonthlyPerformanceQuestions ADD [Text] nvarchar(1000) NULL;
+IF COL_LENGTH(N'dbo.MonthlyPerformanceQuestions',N'Description') IS NULL
+ ALTER TABLE dbo.MonthlyPerformanceQuestions ADD Description nvarchar(1000) NULL;
 IF OBJECT_ID(N'dbo.MonthlyPerformanceRankQuestions',N'U') IS NULL
  CREATE TABLE dbo.MonthlyPerformanceRankQuestions(
  Id int IDENTITY(1,1) PRIMARY KEY, RankId int NOT NULL, QuestionId int NOT NULL,

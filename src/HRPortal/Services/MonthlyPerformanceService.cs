@@ -46,14 +46,16 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
     }
 
     private sealed record Node(int Id, int? Parent, string Rank, int? Holder, string? Csv);
-    private sealed record Person(int Id, string Status, int? Position, int? Section, int? Department, int? Unit);
+    private sealed record Person(int Id, string Status, int? Position, int? Section, int? Department,
+        int? Unit, int? PerformanceRankId, string? PositionTitle);
     public sealed record ScopeEntry(int EmployeeId, string RankTitle, int NodeId, int Depth);
 
     public async Task<List<ScopeEntry>> ScopeAsync(int evaluatorId)
     {
         var employees = await db.Employees.AsNoTracking()
             .Select(e => new Person(e.Id, e.Status, e.OrganizationPositionId,
-                e.OrganizationSectionId, e.OrganizationDepartmentId, e.OrganizationUnitId))
+                e.OrganizationSectionId, e.OrganizationDepartmentId, e.OrganizationUnitId,
+                e.PerformanceRankId, e.PositionTitle))
             .ToListAsync();
         if (employees.All(x => x.Id != evaluatorId || x.Status != "فعال")) return [];
 
@@ -112,8 +114,42 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
             }
             return false;
         }
+        var personnel = employees.ToDictionary(x => x.Id);
+        var performanceRanks = await db.MonthlyPerformanceRanks.AsNoTracking()
+            .Where(x => x.IsActive).Select(x => new { x.Id, x.Title }).ToListAsync();
+        var positionGrades = (await db.OrganizationPositionDefinitions.AsNoTracking()
+            .Select(x => new { x.Title, x.Grade }).ToListAsync())
+            .GroupBy(x => x.Title, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().Grade, StringComparer.OrdinalIgnoreCase);
+        string EvaluationRank(int employeeId, int nodeId)
+        {
+            var person = personnel[employeeId];
+            var explicitRank = performanceRanks.FirstOrDefault(x => x.Id == person.PerformanceRankId);
+            if (explicitRank is not null) return explicitRank.Title;
+            var title = person.PositionTitle?.Trim() ?? "";
+            if (title.Length > 0)
+            {
+                var exact = performanceRanks.FirstOrDefault(x =>
+                    string.Equals(x.Title, title, StringComparison.OrdinalIgnoreCase));
+                if (exact is not null) return exact.Title;
+                if (positionGrades.TryGetValue(title, out var grade) && !string.IsNullOrWhiteSpace(grade))
+                {
+                    var gradeRank = performanceRanks.FirstOrDefault(x =>
+                        string.Equals(x.Title, grade.Trim(), StringComparison.OrdinalIgnoreCase));
+                    if (gradeRank is not null) return gradeRank.Title;
+                }
+                var prefix = performanceRanks.Where(x =>
+                        title.Equals(x.Title, StringComparison.OrdinalIgnoreCase) ||
+                        title.StartsWith(x.Title + " ", StringComparison.OrdinalIgnoreCase))
+                    .OrderByDescending(x => x.Title.Length).FirstOrDefault();
+                if (prefix is not null) return prefix.Title;
+            }
+            // Legacy fallback for employees who only have an organizational placement.
+            return nodes[nodeId].Rank;
+        }
+
         return placements.Where(x => x.Key != evaluatorId && x.Value != 0 && IsDescendantOrPeer(x.Value))
-            .Select(x => new ScopeEntry(x.Key, nodes[x.Value].Rank, x.Value, Depth(x.Value))).ToList();
+            .Select(x => new ScopeEntry(x.Key, EvaluationRank(x.Key, x.Value), x.Value, Depth(x.Value))).ToList();
     }
 
     public async Task<bool> IsEvaluatorAsync(int actor) =>

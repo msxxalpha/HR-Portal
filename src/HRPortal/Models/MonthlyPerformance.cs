@@ -61,6 +61,7 @@ public class MonthlyPerformanceEvaluation
     [MaxLength(100)] public string RankTitleSnapshot { get; set; } = "";
     public decimal MaxScore { get; set; }
     public decimal TotalScore { get; set; }
+    public byte[] RowVersion { get; set; } = [];
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public MonthlyPerformancePeriod Period { get; set; } = null!;

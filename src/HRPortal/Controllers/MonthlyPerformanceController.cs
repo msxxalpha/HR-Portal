@@ -140,7 +140,8 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
             {
                 Question = model.Scores.FirstOrDefault(s => s.QuestionId == x.QuestionId)?.Title ?? "—",
                 Actor = people.GetValueOrDefault(x.ChangedByEmployeeId, "—"), Before = x.OldScore,
-                After = x.NewScore, Reason = x.Reason, At = x.ChangedAt
+                After = x.NewScore, OldNote = x.OldNote, NewNote = x.NewNote,
+                Reason = x.Reason, At = x.ChangedAt
             }).ToList();
         }
         return View(model);

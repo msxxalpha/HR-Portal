@@ -67,6 +67,9 @@
                 </select>
                 <small class="muted">برای تخصیص یا تغییر سمت، یک پست فعال انتخاب کنید. سمت‌های غیرفعال فقط برای حفظ اطلاعات قبلی نمایش داده می‌شوند.</small>
             </label>
+            <label class="inline-check">ارزیاب عملکرد ماهانه
+                <input type="checkbox" name="IsPerformanceEvaluator" value="true" checked="@Model.Employee.IsPerformanceEvaluator" />
+            </label>
             <label class="inline-check">غیرقراردادی
                 <input type="checkbox" id="isNonContractual" name="isNonContractual" value="true" checked="@(Model.Employee.EmploymentType == "غیرقراردادی")" />
             </label>

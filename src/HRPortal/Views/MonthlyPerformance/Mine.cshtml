@@ -1,0 +1,56 @@
+@model List<HRPortal.Models.MonthlyPerformanceEvaluation>
+@{
+ Layout = "~/Views/Shared/_Layout.cshtml";
+ ViewData["Title"] = "داشبورد عملکرد شخصی";
+ var ordered = Model.OrderBy(x => x.Period.Year).ThenBy(x => x.Period.Month).ToList();
+ var latest = Model.FirstOrDefault();
+ var average = Model.Count == 0 ? 0m : Math.Round(Model.Where(x => x.MaxScore > 0).DefaultIfEmpty().Average(x => x is null || x.MaxScore == 0 ? 0 : 100m * x.TotalScore / x.MaxScore),1);
+}
+<link rel="stylesheet" href="~/css/monthly-performance.css" asp-append-version="true" />
+<div class="mp">
+<section class="mp-hero"><div><h1>داشبورد عملکرد شخصی من</h1><p>سوابق امتیازها، نقاط قوت و فرصت‌های بهبود در دوره‌های ماهانه</p></div>
+<div class="mp-head-actions">@if(User.HasClaim("IsAdmin","1") || User.HasClaim("Performance.Evaluator","1")){<a href="/MonthlyPerformance/Dashboard" class="btn btn-outline">کارتابل ارزیابی</a>}</div></section>
+<section class="mp-kpis">
+<div class="mp-kpi" style="--mp-color:#1d4ed8"><div class="caption">دوره‌های ارزیابی‌شده</div><strong>@Model.Count</strong></div>
+<div class="mp-kpi" style="--mp-color:#16a34a"><div class="caption">آخرین امتیاز</div><strong>@(latest?.TotalScore.ToString("N2") ?? "—")</strong><small>از @(latest?.MaxScore.ToString("N2") ?? "—")</small></div>
+<div class="mp-kpi" style="--mp-color:#0d9488"><div class="caption">میانگین درصد عملکرد</div><strong>@average٪</strong></div>
+<div class="mp-kpi" style="--mp-color:#be123c"><div class="caption">کسر امتیاز آخرین دوره</div><strong>@((latest?.MaxScore - latest?.TotalScore)?.ToString("N2") ?? "—")</strong></div>
+</section>
+@if(Model.Count == 0){<div class="mp-empty">هنوز برای شما ارزیابی ماهانه‌ای ثبت نشده است. به محض ثبت نتایج، داشبورد اختصاصی شما فعال می‌شود.</div>}
+else
+{
+<section class="mp-card">
+<h2>روند عملکرد بین دوره‌ها (درصد نرمال‌شده)</h2>
+<div class="mp-bars">
+@foreach(var p in ordered){ var value=p.MaxScore==0?0:Math.Round(p.TotalScore*100m/p.MaxScore,1);
+<div class="mp-bar"><span>@p.Period.Title</span><div class="mp-track"><div class="mp-fill" style="width:@value.ToString(System.Globalization.CultureInfo.InvariantCulture)%"></div></div><strong>@value٪</strong></div>
+}
+</div>
+</section>
+<div class="mp-grid-2">
+<section class="mp-card">
+<h2>نقاط قوت (آخرین دوره)</h2>
+@foreach(var s in latest!.Scores.Where(x => x.MaxScore>0).OrderByDescending(x=>x.Score/x.MaxScore).Take(5)){
+<div class="mp-bar"><span>@s.QuestionTitleSnapshot</span><div class="mp-track"><div class="mp-fill" style="width:@(Math.Round(s.Score/s.MaxScore*100m,1).ToString(System.Globalization.CultureInfo.InvariantCulture))%"></div></div><strong>@Math.Round(s.Score/s.MaxScore*100m,1)٪</strong></div>
+}
+</section>
+<section class="mp-card">
+<h2>زمینه‌های قابل بهبود (آخرین دوره)</h2>
+@foreach(var s in latest!.Scores.Where(x => x.MaxScore>0).OrderBy(x=>x.Score/x.MaxScore).Take(5)){
+<div class="mp-bar"><span>@s.QuestionTitleSnapshot</span><div class="mp-track"><div class="mp-fill" style="width:@(Math.Round(s.Score/s.MaxScore*100m,1).ToString(System.Globalization.CultureInfo.InvariantCulture))%"></div></div><strong>@Math.Round(s.Score/s.MaxScore*100m,1)٪</strong></div>
+}
+</section>
+</div>
+<section class="mp-card">
+<h2>گزارش دوره‌های ارزیابی شخصی</h2>
+<div class="mp-toolbar"><input class="mp-search" type="search" placeholder="جستجو در دوره‌ها..." /></div>
+<div class="mp-table-wrap"><table class="mp-filter-table"><thead><tr><th>دوره</th><th>رده</th><th>امتیاز کسب‌شده</th><th>سقف</th><th>کسر امتیاز</th><th>درصد عملکرد</th><th>تاریخ آخرین تغییر</th><th>جزئیات</th></tr></thead>
+<tbody>@foreach (var item in Model){
+<tr><td>@item.Period.Title</td><td>@item.RankTitleSnapshot</td><td>@item.TotalScore.ToString("N2")</td><td>@item.MaxScore.ToString("N2")</td><td>@((item.MaxScore-item.TotalScore).ToString("N2"))</td>
+<td>@(item.MaxScore==0?0:Math.Round(item.TotalScore/item.MaxScore*100m,1))٪</td><td>@HRPortal.Services.PersianDateService.Format(item.UpdatedAt.ToLocalTime())</td>
+<td><a class="btn btn-outline btn-sm" href="/MonthlyPerformance/MyDetails?periodId=@item.PeriodId">مشاهده ریز سؤالات</a></td></tr>
+}</tbody></table></div>
+</section>
+}
+</div>
+<script src="~/js/monthly-performance-table.js" asp-append-version="true"></script>

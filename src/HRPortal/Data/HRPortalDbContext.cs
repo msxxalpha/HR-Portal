@@ -32,6 +32,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
     public DbSet<PerformanceEmployeePosition> PerformanceEmployeePositions => Set<PerformanceEmployeePosition>();
     public DbSet<PerformancePeriod> PerformancePeriods => Set<PerformancePeriod>();
     public DbSet<PerformanceAssignment> PerformanceAssignments => Set<PerformanceAssignment>();
+    public DbSet<PerformanceEvaluatorChain> PerformanceEvaluatorChains => Set<PerformanceEvaluatorChain>();
     public DbSet<PerformanceEvaluation> PerformanceEvaluations => Set<PerformanceEvaluation>();
     public DbSet<PerformanceScore> PerformanceScores => Set<PerformanceScore>();
     public DbSet<PerformanceScoreChange> PerformanceScoreChanges => Set<PerformanceScoreChange>();

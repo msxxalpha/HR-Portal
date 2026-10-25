@@ -215,7 +215,7 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
     {
         if (!TryEmployee(out var employeeId)) return Forbid();
         var evals = await db.MonthlyPerformanceEvaluations.AsNoTracking()
-            .Where(x => x.EmployeeId == employeeId)
+            .Where(x => x.EmployeeId == employeeId && !x.Period.IsDeleted)
             .Include(x => x.Period).Include(x => x.Scores)
             .OrderByDescending(x => x.Period.Year).ThenByDescending(x => x.Period.Month).ToListAsync();
         using var wb = new XLWorkbook();

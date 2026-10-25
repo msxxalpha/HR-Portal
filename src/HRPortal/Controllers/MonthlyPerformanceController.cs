@@ -246,9 +246,10 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
             .FirstOrDefaultAsync();
         if (ev is null) return NotFound();
         var allowed = actor == employeeId ||
-                      ((await performance.IsEvaluatorAsync(actor)) && (await performance.ScopeAsync(actor)).Any(x => x.EmployeeId == employeeId)) ||
-                      ev.OriginalEvaluatorId == actor || ev.LastEvaluatorId == actor ||
-                      await db.MonthlyPerformanceRevisions.AnyAsync(r => r.EvaluationId == ev.Id && r.ChangedByEmployeeId == actor);
+            (await performance.IsEvaluatorAsync(actor) &&
+                ((await performance.ScopeAsync(actor)).Any(x => x.EmployeeId == employeeId) ||
+                 ev.OriginalEvaluatorId == actor || ev.LastEvaluatorId == actor ||
+                 await db.MonthlyPerformanceRevisions.AnyAsync(r => r.EvaluationId == ev.Id && r.ChangedByEmployeeId == actor)));
         if (!allowed) return Forbid();
         using var wb = new XLWorkbook();
         var sheet = wb.AddWorksheet("جزییات ارزیابی");

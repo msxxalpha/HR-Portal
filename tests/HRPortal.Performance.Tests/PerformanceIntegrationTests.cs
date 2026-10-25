@@ -174,4 +174,31 @@ public sealed class PerformanceIntegrationTests
     }
 
 
+    [Fact]
+    public async Task AnalyticsUseSavedScoresAndNotMutableQuestionMaximum()
+    {
+        await using var db = CreateDb();
+        await SeedAsync(db);
+        var service = new PerformanceService(db);
+        await service.QuickEvaluateAsync(1, 20);
+        await service.SaveAsync(1, 10, 20,
+        [
+            new PerformanceService.ScoreInput(1, 60m, null),
+            new PerformanceService.ScoreInput(2, 20m, null)
+        ], "بهبود کیفیت کار");
+
+        var questionMapping = await db.PerformancePositionQuestions.SingleAsync(x => x.QuestionId == 1);
+        questionMapping.MaxScore = 1000m; // future definition must not change historic score
+        await db.SaveChangesAsync();
+
+        var analytics = await new PerformanceAnalyticsService(db).BuildAsync(1);
+        var domain = Assert.Single(analytics.Domains);
+        Assert.Equal(80m, domain.Earned);
+        Assert.Equal(100m, domain.Maximum);
+        Assert.Equal(80m, domain.Percentage);
+        Assert.Equal(2, analytics.Questions.Count);
+        Assert.Equal(1, analytics.Distribution.Sum(x => x.Count));
+        Assert.Equal(80m, Assert.Single(analytics.Highest).Earned);
+    }
+
 }

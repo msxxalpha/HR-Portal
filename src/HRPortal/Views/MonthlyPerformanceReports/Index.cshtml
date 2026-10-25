@@ -2,8 +2,8 @@
 @{
  Layout="~/Views/Shared/_Layout.cshtml";
  ViewData["Title"]="گزارش‌های مدیریتی عملکرد";
- var leaders=Model.Rows.Where(x=>x.Maximum>0).OrderByDescending(x=>x.Percent).Take(10).ToList();
- var improvements=Model.Rows.Where(x=>x.Maximum>0).OrderBy(x=>x.Percent).Take(10).ToList();
+ var leaders=Model.AllRows.Where(x=>x.Maximum>0).OrderByDescending(x=>x.Percent).Take(10).ToList();
+ var improvements=Model.AllRows.Where(x=>x.Maximum>0).OrderBy(x=>x.Percent).Take(10).ToList();
  var unitOpts=ViewBag.UnitOptions as string[] ?? [];
  var rankOpts=ViewBag.RankOptions as string[] ?? [];
  var evaluatorOpts=ViewBag.EvaluatorOptions as string[] ?? [];

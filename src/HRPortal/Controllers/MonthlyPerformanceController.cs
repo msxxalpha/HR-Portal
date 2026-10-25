@@ -157,6 +157,14 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
             TempData["Success"] = "امتیازها ثبت و جمع نهایی محاسبه شد. تغییرات در تاریخچه قابل مشاهده‌اند.";
         }
         catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (DbUpdateConcurrencyException)
+        {
+            TempData["Error"] = "ارزیابی هم‌زمان توسط فرد دیگری تغییر کرده است؛ جزئیات را دوباره باز کنید و سپس امتیازها را ثبت کنید.";
+        }
+        catch (DbUpdateException)
+        {
+            TempData["Error"] = "نتیجه هم‌زمان ثبت یا تغییر کرده است. برای جلوگیری از حذف تاریخچه، صفحه را بازخوانی کنید.";
+        }
         catch (InvalidOperationException e) { TempData["Error"] = e.Message; }
         return RedirectToAction(nameof(Evaluate), new { employeeId, periodId });
     }

@@ -1,0 +1,41 @@
+@model HRPortal.Controllers.PerformanceController.EvaluationFormVm
+@{
+    ViewData["Title"] = "جزئیات ارزیابی";
+    var total = Model.Questions.Sum(x => x.Score);
+    var max = Model.Questions.Sum(x => x.MaxScore);
+}
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <div><h2>ارزیابی @Model.EmployeeName</h2><p>@Model.Period.Title — @(Model.CanEdit ? "قابل ویرایش" : "فقط مشاهده")</p></div>
+    <a class="btn btn-outline-secondary" href="/Performance?periodId=@Model.Period.Id">بازگشت</a>
+</div>
+@if (TempData["Error"] is string error) { <div class="alert alert-danger">@error</div> }
+<div class="card p-3 mb-3"><h3>امتیاز: @total.ToString("N2") از @max.ToString("N2")</h3>
+<p>در ارزیابی جدید، پیش‌فرض تمام سؤالات سقف امتیاز آنهاست. تغییر امتیاز ثبت‌شده نیازمند علت است.</p></div>
+<form action="/Performance/Save" method="post" class="card p-3">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="PeriodId" value="@Model.Period.Id" />
+    <input type="hidden" name="EmployeeId" value="@Model.EmployeeId" />
+    <div class="table-responsive"><table class="table">
+    <thead><tr><th>سؤال</th><th>حوزه</th><th>سقف</th><th>امتیاز</th><th>توضیح</th></tr></thead>
+    <tbody>
+    @for (var i = 0; i < Model.Questions.Count; i++)
+    {
+        var q = Model.Questions[i];
+        <tr>
+            <td>@q.Title<input type="hidden" name="Rows[@i].QuestionId" value="@q.QuestionId" /></td>
+            <td>@q.Domain</td><td>@q.MaxScore.ToString("N2")</td>
+            <td><input class="form-control" name="Rows[@i].Score" type="number" step="0.01" min="0"
+              max="@q.MaxScore.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)"
+              value="@q.Score.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" readonly="@(!Model.CanEdit)" /></td>
+            <td><input class="form-control" name="Rows[@i].Comment" maxlength="2000" value="@q.Comment" readonly="@(!Model.CanEdit)" /></td>
+        </tr>
+    }
+    </tbody></table></div>
+    @if (Model.CanEdit && Model.Questions.Count > 0)
+    {
+        <label>علت تغییر امتیاز قبلی</label>
+        <textarea class="form-control mb-3" name="Reason" maxlength="1000"></textarea>
+        <button class="btn btn-primary" type="submit">ذخیره امتیازات</button>
+    }
+    @if (Model.Questions.Count == 0) { <p>برای رده این کارمند هنوز سؤالی تعریف نشده است.</p> }
+</form>

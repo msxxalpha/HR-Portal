@@ -1,0 +1,29 @@
+@model (int Page, int TotalPages, int PageSize, string Search, string Path, int? PeriodId)
+@{
+    var q = Uri.EscapeDataString(Model.Search ?? "");
+    string UrlFor(int page) => $"{Model.Path}?periodId={Model.PeriodId}&page={page}&pageSize={Model.PageSize}&q={q}";
+}
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 my-3">
+    <div class="d-flex align-items-center gap-2">
+        @if (Model.Page > 1)
+        {
+            <a class="btn btn-sm btn-outline-secondary" href="@UrlFor(Model.Page-1)">قبلی</a>
+        }
+        else { <span class="btn btn-sm btn-outline-secondary disabled">قبلی</span> }
+        <span>@Model.Page از @Model.TotalPages</span>
+        @if (Model.Page < Model.TotalPages)
+        {
+            <a class="btn btn-sm btn-outline-secondary" href="@UrlFor(Model.Page+1)">بعدی</a>
+        }
+        else { <span class="btn btn-sm btn-outline-secondary disabled">بعدی</span> }
+    </div>
+    <div>صفحه
+        <select class="form-select d-inline-block" style="width:auto"
+                onchange="window.location.href=this.options[this.selectedIndex].value">
+            @for(var i=1; i<=Model.TotalPages; i++)
+            {
+                <option value="@UrlFor(i)" selected="@(i==Model.Page)">@i</option>
+            }
+        </select>
+    </div>
+</div>

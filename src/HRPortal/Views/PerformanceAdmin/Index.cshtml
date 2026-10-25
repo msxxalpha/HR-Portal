@@ -4,24 +4,31 @@
     ViewData["Title"] = "مدیریت ارزیابی عملکرد";
     var openPeriods = Model.Periods.Where(x => PerformanceService.IsEditable(x, DateTime.Now)).ToList();
 }
-<h2>مدیریت ماژول ارزیابی عملکرد کارکنان</h2>
+<div class="perf-page-header"><div><h2>مدیریت ماژول ارزیابی عملکرد کارکنان</h2>
+<p>تنظیمات دوره، بانک سؤال، رده‌های ارزیابی و تخصیص ارزیاب‌ها</p></div></div>
+<nav class="perf-section-nav" aria-label="دسترسی سریع به بخش‌های مدیریت ارزیابی">
+<a href="#perf-admin-periods">دوره‌ها</a>
+<a href="#perf-admin-master">حوزه‌ها، رده‌ها و سؤالات</a>
+<a href="#perf-admin-mappings">نگاشت سؤالات و کارکنان</a>
+<a href="#perf-admin-assignments">ارزیاب‌ها</a>
+</nav>
 <p>کارکنان و ساختار سازمانی از HRPortal خوانده می‌شوند. نسخه مبنای ساختار: @Model.RevisionTitle</p>
 @if (TempData["Result"] is string success) { <div class="alert alert-success">@success</div> }
 @if (TempData["Error"] is string error) { <div class="alert alert-danger">@error</div> }
 
-<div class="card p-3 mb-3">
+<div class="card p-3 mb-3" id="perf-admin-periods">
 <h3>دوره‌های ارزیابی</h3>
 <form method="post" action="/PerformanceAdmin/CreatePeriod" class="row g-2">
 @Html.AntiForgeryToken()
 <div class="col-md-4"><label>عنوان</label><input class="form-control" name="title" maxlength="200" required /></div>
-<div class="col-md-3"><label>شروع (میلادی)</label><input class="form-control" name="startAt" type="date" required /></div>
-<div class="col-md-3"><label>پایان (میلادی)</label><input class="form-control" name="endAt" type="date" required /></div>
+<div class="col-md-3"><label>شروع (شمسی)</label><input class="form-control" name="startJalali" type="text" inputmode="numeric" placeholder="۱۴۰۵/۰۸/۰۱" pattern="[0-9۰-۹٠-٩]{4}/[0-9۰-۹٠-٩]{1,2}/[0-9۰-۹٠-٩]{1,2}" required /></div>
+<div class="col-md-3"><label>پایان (شمسی)</label><input class="form-control" name="endJalali" type="text" inputmode="numeric" placeholder="۱۴۰۵/۰۸/۳۰" pattern="[0-9۰-۹٠-٩]{4}/[0-9۰-۹٠-٩]{1,2}/[0-9۰-۹٠-٩]{1,2}" required /></div>
 <div class="col-md-2 align-self-end"><button class="btn btn-primary">ایجاد دوره</button></div>
 </form>
 <div class="table-responsive mt-3"><table class="table"><thead><tr><th>دوره</th><th>بازه</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody>
 @foreach (var p in Model.Periods)
 {
-<tr><td>@p.Title</td><td>@p.StartAt.ToString("yyyy/MM/dd") تا @p.EndAt.ToString("yyyy/MM/dd")</td><td>@(p.IsDeleted ? "بایگانی" : p.IsOpen ? "باز" : "بسته")</td>
+<tr><td>@p.Title</td><td>@HRPortal.Services.PersianDateService.Format(p.StartAt) تا @HRPortal.Services.PersianDateService.Format(p.EndAt)</td><td><span class="perf-status @(p.IsDeleted ? "archived" : p.IsOpen ? "" : "closed")">@(p.IsDeleted ? "بایگانی" : p.IsOpen ? "باز" : "بسته")</span></td>
 <td>
 @if (!p.IsDeleted && p.IsOpen)
 {
@@ -35,7 +42,7 @@
 }
 </tbody></table></div>
 </div>
-<div class="row g-3 mb-3">
+<div class="row g-3 mb-3" id="perf-admin-master">
 <div class="col-lg-4"><div class="card p-3 h-100"><h3>حوزه ارزیابی</h3>
 <form method="post" action="/PerformanceAdmin/AddDomain">@Html.AntiForgeryToken()
 <label>کد (قابل ویرایش)</label><input class="form-control mb-2" name="code" value="@Model.DomainCode" maxlength="50" />
@@ -111,7 +118,7 @@
 }
 </div>
 </div>
-<div class="row g-3 mb-3">
+<div class="row g-3 mb-3" id="perf-admin-mappings">
 <div class="col-lg-6"><div class="card p-3 h-100"><h3>سؤال‌های رده پستی</h3>
 <form method="post" action="/PerformanceAdmin/MapQuestion" class="row g-2">@Html.AntiForgeryToken()
 <div class="col-md-6"><label>رده</label><select name="positionId" class="form-select">@foreach(var p in Model.Positions.Where(x=>x.IsActive)){<option value="@p.Id">@p.Title</option>}</select></div>
@@ -141,7 +148,7 @@
 <div class="col-md-2 align-self-end"><button class="btn btn-primary">ثبت</button></div></form>
 <p class="mt-2">تعداد نگاشت‌ها: @Model.EmployeePositions.Count</p></div></div>
 </div>
-<div class="card p-3 mb-3"><h3>تخصیص ارزیاب به کارکنان</h3>
+<div class="card p-3 mb-3" id="perf-admin-assignments"><h3>تخصیص ارزیاب به کارکنان</h3>
 <p>ارتباط مستقیم ارزیابی تا تکمیل متصدیان ساختار به شکل صریح ثبت می‌شود؛ صرف هم‌واحد بودن ملاک نیست.</p>
 <form method="post" action="/PerformanceAdmin/AssignEvaluator" class="row g-2">@Html.AntiForgeryToken()
 <div class="col-md-3"><label>دوره باز</label><select name="periodId" class="form-select">@foreach(var p in openPeriods){<option value="@p.Id">@p.Title</option>}</select></div>

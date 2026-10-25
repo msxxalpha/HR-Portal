@@ -59,9 +59,9 @@ else {<span>@(s.Note ?? "—")</span>}</td>
 else {
 <div class="mp-toolbar"><input type="search" class="mp-search" placeholder="فیلتر تاریخچه..." /></div>
 <div class="mp-table-wrap"><table class="mp-filter-table">
-<thead><tr><th>تاریخ</th><th>ارزیاب ثبت‌کننده</th><th>سؤال</th><th>امتیاز پیشین</th><th>امتیاز جدید</th><th>علت</th></tr></thead>
+<thead><tr><th>تاریخ</th><th>ارزیاب ثبت‌کننده</th><th>سؤال</th><th>امتیاز پیشین</th><th>امتیاز جدید</th><th>توضیح پیشین</th><th>توضیح جدید</th><th>علت</th></tr></thead>
 <tbody>@foreach(var h in Model.History){
-<tr><td>@HRPortal.Services.PersianDateService.FormatDateTime(HRPortal.Services.MonthlyPerformanceService.ToIranTime(h.At))</td><td>@h.Actor</td><td>@h.Question</td><td>@(h.Before?.ToString("N2") ?? "ثبت اولیه")</td><td>@h.After.ToString("N2")</td><td>@h.Reason</td></tr>
+<tr><td>@HRPortal.Services.PersianDateService.FormatDateTime(HRPortal.Services.MonthlyPerformanceService.ToIranTime(h.At))</td><td>@h.Actor</td><td>@h.Question</td><td>@(h.Before?.ToString("N2") ?? "ثبت اولیه")</td><td>@h.After.ToString("N2")</td><td>@h.OldNote</td><td>@h.NewNote</td><td>@h.Reason</td></tr>
 }</tbody></table></div>
 }
 </section>

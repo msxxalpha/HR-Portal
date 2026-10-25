@@ -170,3 +170,21 @@
 .performance-module .perf-trend-row strong{white-space:nowrap;direction:ltr;text-align:left}
 .performance-module .perf-trend-row .perf-percent-bar{width:100%;height:12px}
 @media(max-width:600px){.performance-module .perf-trend-row{grid-template-columns:1fr 2fr 55px;gap:8px;font-size:10px}}
+
+/* Persian calendar picker: isolated to performance administration forms */
+.performance-module .perf-jalali-field{position:relative;min-width:0}
+.performance-module .perf-jalali-field .form-control{padding-left:46px;direction:ltr;text-align:center}
+.performance-module .perf-calendar-trigger{position:absolute;left:6px;top:6px;height:30px;width:32px;border:0;background:#edf4f8;border-radius:8px;cursor:pointer;color:#325e7a;font-size:15px}
+.performance-module .jalali-picker{display:none;position:absolute;top:calc(100% + 8px);right:0;width:302px;max-width:calc(100vw - 30px);background:white;border:1px solid #d9e4eb;border-radius:14px;padding:12px;box-shadow:0 16px 35px rgba(20,50,76,.18);z-index:1100;direction:rtl}
+.performance-module .jalali-picker.open{display:block}
+.performance-module .jalali-picker button{width:auto;padding:0;min-width:0;font-size:11px;border:0;border-radius:7px;cursor:pointer}
+.performance-module .jp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+.performance-module .jp-head button{width:30px;height:30px;background:#edf4f8;color:#25516f}
+.performance-module .jp-title{color:#264c67;font-weight:800;font-size:13px}
+.performance-module .jp-week,.performance-module .jp-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.performance-module .jp-week>div{text-align:center;font-size:10px;padding:5px;color:#879cab}
+.performance-module .jp-cell{height:32px;background:#f5f8fa;color:#385b73}
+.performance-module .jp-cell.empty{visibility:hidden}
+.performance-module .jp-cell.selected{background:#275777;color:white}
+.performance-module .jp-cell.today{box-shadow:inset 0 0 0 1px #3b7da4}
+.performance-module .jp-cell:hover{background:#deebf3}

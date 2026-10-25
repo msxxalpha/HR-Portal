@@ -19,7 +19,11 @@
     }
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazir-font@v30.1.0/dist/font-face.css" />
     <link rel="stylesheet" href="@Url.Content("~/css/site.css")" asp-append-version="true" />
-    <link rel="stylesheet" href="@Url.Content("~/css/performance.css")" asp-append-version="true" />
+    <link rel="stylesheet" href="@Url.Content("~/css/portal-navigation.css")" asp-append-version="true" />
+    @if (isPerformancePage)
+    {
+        <link rel="stylesheet" href="@Url.Content("~/css/performance.css")" asp-append-version="true" />
+    }
 </head>
 <body class="@(isPerformancePage ? "performance-module" : "")" style="--navy:@company.PrimaryColor;--navy2:@company.SecondaryColor;">
 <div class="app-shell">
@@ -33,80 +37,75 @@
         </div>
 
         <nav class="nav" aria-label="منوی اصلی پورتال">
-            <div class="nav-caption">داشبورد</div>
-            <a href="/">داشبورد</a>
-
-            @if (Can("Employees.View") || Can("Settings.View"))
+            <a class="nav-dashboard" href="/"><span class="nav-icon" aria-hidden="true">⌂</span>داشبورد</a>
+            @if (Can("Employees.View") || Can("Organization.View") || Can("Settings.View"))
             {
                 <details class="nav-group" data-nav-group="base">
-                    <summary class="nav-group-heading">اطلاعات پایه</summary>
-                    <div class="nav-group-links">
+                    <summary><span class="nav-icon" aria-hidden="true">♙</span>اطلاعات پایه</summary>
+                    <div class="nav-submenu">
                         @if (Can("Employees.View")) { <a href="/Employees">مدیریت کارکنان</a> }
+                        @if (Can("Organization.View")) { <a href="/Organization">ساختار سازمانی</a> }
                         @if (Can("Settings.View")) { <a href="/SystemSettings#announcement-categories">دسته‌بندی اطلاعیه‌ها</a> }
                     </div>
                 </details>
             }
-            @if (Can("Organization.View"))
+            @if (Can("Payroll.View") || Can("PersonnelOrder.View"))
             {
-                <details class="nav-group" data-nav-group="organization">
-                    <summary class="nav-group-heading">ساختار سازمانی</summary>
-                    <div class="nav-group-links"><a href="/Organization">ساختار سازمانی</a></div>
-                </details>
-            }
-            @if (Can("Users.Manage") || Can("Roles.Manage") || Can("Announcements.Manage"))
-            {
-                <details class="nav-group" data-nav-group="management">
-                    <summary class="nav-group-heading">مدیریت سامانه</summary>
-                    <div class="nav-group-links">
-                        @if (Can("Users.Manage") || Can("Roles.Manage")) { <a href="/Users">مدیریت کاربران و نقش‌ها</a> }
-                        @if (Can("Announcements.Manage")) { <a href="/Announcements">مدیریت اطلاعیه‌ها</a> }
+                <details class="nav-group" data-nav-group="services">
+                    <summary><span class="nav-icon" aria-hidden="true">▥</span>خدمات کارکنان</summary>
+                    <div class="nav-submenu">
+                        @if (Can("Payroll.View")) { <a href="/Payroll/Payslip">فیش حقوقی</a> }
+                        @if (Can("PersonnelOrder.View")) { <a href="/PersonnelOrder">حکم کارگزینی</a> }
                     </div>
                 </details>
             }
-            @if (isAdmin)
+            @if (User.HasClaim("EmployeeId"))
             {
-                <details class="nav-group" data-nav-group="account">
-                    <summary class="nav-group-heading">حساب مدیر</summary>
-                    <div class="nav-group-links"><a href="/Account/ChangePassword">تغییر رمز مدیر</a></div>
-                </details>
-            }
-            else if (User.HasClaim("UserType", "Employee"))
-            {
-                <details class="nav-group" data-nav-group="account">
-                    <summary class="nav-group-heading">حساب کاربری</summary>
-                    <div class="nav-group-links"><a href="/Account/PersonalPassword">رمز عبور شخصی</a></div>
-                </details>
-            }
-            @if (Can("Settings.View"))
-            {
-                <details class="nav-group" data-nav-group="settings">
-                    <summary class="nav-group-heading">تنظیمات سامانه</summary>
-                    <div class="nav-group-links"><a href="/SystemSettings">تنظیمات سامانه</a></div>
-                </details>
-            }
-            @if (Can("Payroll.View") || User.HasClaim("UserType", "Employee"))
-            {
-                <details class="nav-group" data-nav-group="services">
-                    <summary class="nav-group-heading">خدمات کارکنان</summary>
-                    <div class="nav-group-links">
-                        @if (Can("Payroll.View")) { <a href="/Payroll/Payslip">فیش حقوقی</a> }
-                        @if (User.HasClaim("UserType", "Employee")) { <a href="/PerformanceSelf">کارنامه ارزیابی عملکرد من</a> }
-                        @if (Can("PersonnelOrder.View")) { <a href="/PersonnelOrder">حکم کارگزینی</a> }
+                <details class="nav-group" data-nav-group="personal-performance">
+                    <summary><span class="nav-icon" aria-hidden="true">◉</span>عملکرد من</summary>
+                    <div class="nav-submenu">
+                        <a href="/PerformanceSelf">داشبورد عملکرد شخصی</a>
                     </div>
                 </details>
             }
             @if (Can("Performance.View") || Can("Performance.Manage") || Can("Performance.Reports"))
             {
                 <details class="nav-group" data-nav-group="performance">
-                    <summary class="nav-group-heading">ماژول ارزیابی عملکرد کارکنان</summary>
-                    <div class="nav-group-links">
-                        @if (Can("Performance.View")) { <a href="/Performance">داشبورد و ارزیابی کارکنان</a> }
-                        @if (Can("Performance.Manage")) { <a href="/PerformanceAdmin">دوره‌ها، حوزه‌ها و سؤالات ارزیابی</a> }
-                        @if (Can("Performance.Reports")) { <a href="/PerformanceReports">گزارش‌های مدیریتی ارزیابی</a> }
+                    <summary><span class="nav-icon" aria-hidden="true">▦</span>ماژول‌ها</summary>
+                    <div class="nav-submenu">
+                        <details class="nav-subgroup" data-nav-group="performance-subgroup">
+                            <summary>ارزیابی عملکرد کارکنان</summary>
+                            <div class="nav-submenu nav-submenu-nested">
+                                @if (Can("Performance.View")) { <a href="/Performance">داشبورد و ارزیابی کارکنان</a> }
+                                @if (Can("Performance.Manage")) { <a href="/PerformanceAdmin">دوره‌ها، حوزه‌ها و سؤالات</a> }
+                                @if (Can("Performance.Reports")) { <a href="/PerformanceReports">گزارش‌های مدیریتی ارزیابی</a> }
+                            </div>
+                        </details>
                     </div>
                 </details>
             }
-        </nav>  </nav>
+            @if (Can("Users.Manage") || Can("Roles.Manage") || Can("Announcements.Manage") || Can("Settings.View"))
+            {
+                <details class="nav-group" data-nav-group="management">
+                    <summary><span class="nav-icon" aria-hidden="true">⚙</span>تنظیمات و مدیریت</summary>
+                    <div class="nav-submenu">
+                        @if (Can("Users.Manage") || Can("Roles.Manage")) { <a href="/Users">مدیریت کاربران و نقش‌ها</a> }
+                        @if (Can("Announcements.Manage")) { <a href="/Announcements">مدیریت اطلاعیه‌ها</a> }
+                        @if (Can("Settings.View")) { <a href="/SystemSettings">تنظیمات سامانه</a> }
+                    </div>
+                </details>
+            }
+            @if (isAdmin || User.HasClaim("UserType", "Employee"))
+            {
+                <details class="nav-group" data-nav-group="account">
+                    <summary><span class="nav-icon" aria-hidden="true">⌁</span>حساب کاربری</summary>
+                    <div class="nav-submenu">
+                        @if (isAdmin) { <a href="/Account/ChangePassword">تغییر رمز مدیر</a> }
+                        else { <a href="/Account/PersonalPassword">رمز عبور شخصی</a> }
+                    </div>
+                </details>
+            }
+        </nav>
 
         <div class="sidebar-foot">
             @(isAdmin ? "مدیر سامانه" : "کاربر کارکنان")

@@ -34,6 +34,12 @@ public class MonthlyPerformanceAdminController(HRPortalDbContext db) : Controlle
                 .Include(x => x.Domain).OrderBy(x => x.SortOrder).ToListAsync(),
             Mappings = await db.MonthlyPerformanceRankQuestions.AsNoTracking()
                 .Include(x => x.Rank).Include(x => x.Question).OrderBy(x => x.Rank.Title).ToListAsync(),
+            Units = await db.OrganizationNodes.AsNoTracking()
+                .Where(x => x.OrganizationStructureRevisionId ==
+                    db.OrganizationStructureRevisions.Where(r => r.IsFinalized && r.EffectiveDate <= DateTime.Today)
+                    .OrderByDescending(r => r.EffectiveDate).ThenByDescending(r => r.Id)
+                    .Select(r => r.Id).FirstOrDefault())
+                .OrderBy(x => x.SortOrder).ThenBy(x => x.Title).ToListAsync(),
             Evaluators = await db.Employees.AsNoTracking().Where(x => x.Status == "فعال")
                 .OrderBy(x => x.LastName).Select(x => new MonthlyPerformanceEmployeeVm
                 {
@@ -281,6 +287,14 @@ public class MonthlyPerformanceAdminController(HRPortalDbContext db) : Controlle
                 var mapping = await db.MonthlyPerformanceRankQuestions.AsNoTracking().Include(x => x.Rank)
                     .Include(x => x.Question).ToListAsync();
                 table.AddRange(mapping.Select(x => new[] { x.Rank.Title, x.Question.Title, x.MaxScore.ToString(), x.IsActive ? "بله" : "خیر" }));
+                break;
+            case "units":
+                table.Add(["کد واحد", "عنوان", "رده", "فعال"]);
+                var revId = await db.OrganizationStructureRevisions.AsNoTracking()
+                    .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
+                    .OrderByDescending(x => x.EffectiveDate).Select(x => x.Id).FirstOrDefaultAsync();
+                var units = await db.OrganizationNodes.AsNoTracking().Where(x => x.OrganizationStructureRevisionId == revId).ToListAsync();
+                table.AddRange(units.Select(x => new[] { x.Code, x.Title, x.RankType, x.IsActive ? "بله" : "خیر" }));
                 break;
             case "evaluators":
                 table.Add(["شماره پرسنلی", "نام", "ارزیاب"]);

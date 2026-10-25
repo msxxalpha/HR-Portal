@@ -166,3 +166,29 @@
 }
 </tbody></table></div>
 </div>
+<div class="card p-3 mt-3" id="perf-admin-reviewers">
+    <h3>زنجیره بازنگری ارزیابان (سرپرست، رئیس، مدیر و معاون)</h3>
+    <p>این بخش برای اتصال صریح یک ارزیاب به مدیر بالادست در یک دوره استفاده می‌شود. تنها این ارتباطات تأییدشده به کاربر بالادست اجازه مشاهده و اصلاح ارزیابی‌های زیرمجموعه می‌دهند؛ ارزیاب پایین‌تر پس از بازنگری بالادست فقط قادر به مشاهده است.</p>
+    <form method="post" action="/PerformanceAdmin/SetEvaluatorSupervisor" class="row g-2">
+        @Html.AntiForgeryToken()
+        <div class="col-md-3"><label>دوره باز</label><select name="periodId" class="form-select">
+            @foreach(var period in openPeriods){<option value="@period.Id">@period.Title</option>}
+        </select></div>
+        <div class="col-md-4"><label>ارزیاب سطح پایین‌تر</label><select name="subordinateEvaluatorEmployeeId" class="form-select">
+            @foreach(var e in Model.Employees){<option value="@e.Id">@e.PersonnelNumber — @e.FirstName @e.LastName</option>}
+        </select></div>
+        <div class="col-md-3"><label>مدیر بالادست</label><select name="superiorEvaluatorEmployeeId" class="form-select">
+            @foreach(var e in Model.Employees){<option value="@e.Id">@e.PersonnelNumber — @e.FirstName @e.LastName</option>}
+        </select></div>
+        <div class="col-md-2 align-self-end"><button type="submit" class="btn btn-primary">ثبت ارتباط</button></div>
+    </form>
+    <div class="table-responsive mt-3">
+        <table class="table"><thead><tr><th>دوره</th><th>ارزیاب</th><th>مدیر بالادست</th></tr></thead>
+        <tbody>
+            @foreach(var line in Model.ReviewerLines)
+            {
+                <tr><td>@line.Period</td><td>@line.Evaluator</td><td>@line.Superior</td></tr>
+            }
+        </tbody></table>
+    </div>
+</div>

@@ -45,6 +45,7 @@ public class MonthlyPerformanceEvaluationVm
     public string RankTitle { get; set; } = "";
     public bool CanEdit { get; set; }
     public int? EvaluationId { get; set; }
+    public string? EvaluationVersion { get; set; }
     public int? OriginalEvaluatorId { get; set; }
     public int? LastEvaluatorId { get; set; }
     public List<MonthlyPerformanceScoreVm> Scores { get; set; } = [];

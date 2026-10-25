@@ -55,7 +55,7 @@
                     </div>
                 </details>
             }
-            @if (isAdmin || Can("ContractRenewal.Manage")) {
+            @if (isAdmin || Can("ContractRenewal.Manage") || User.HasClaim("UserType","Employee")) {
                 <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/EmployeeContracts") ? "open" : null)">
                     <summary><span class="nav-icon">▦</span>ماژول‌ها</summary>
                     <div class="nav-submenu">
@@ -68,6 +68,17 @@
                                 @if (isAdmin || Can("ContractRenewal.Manage")) { <a href="/EmployeeContracts/Renewal">تمدید قرارداد</a> }
                             </div>
                         </details>
+                        @if (isAdmin || User.HasClaim("UserType","Employee")) {
+                        <details class="nav-subgroup" open="@(Context.Request.Path.StartsWithSegments("/MonthlyPerformance") ? "open" : null)">
+                            <summary>ارزیابی عملکرد کارکنان</summary>
+                            <div class="nav-submenu nav-submenu-nested">
+                                @if (isAdmin) { <a href="/MonthlyPerformanceAdmin/Basic">اطلاعات پایه و دوره‌های ارزیابی</a> }
+                                @if (isAdmin) { <a href="/MonthlyPerformanceAdmin/Basic?tab=evaluators">تعریف ارزیابان</a> }
+                                @if (User.HasClaim("UserType","Employee")) { <a href="/MonthlyPerformance/Dashboard">داشبورد ارزیاب و کارتابل عملکرد</a> }
+                                @if (User.HasClaim("UserType","Employee")) { <a href="/MonthlyPerformance/Mine">داشبورد عملکرد شخصی</a> }
+                            </div>
+                        </details>
+                        }
                     </div>
                 </details>
             }

@@ -15,9 +15,9 @@
 @if(!Model.CanEdit){<div class="alert warning">این ارزیابی صرفاً برای مشاهده است؛ دوره بسته شده یا ویرایش در اختیار ارزیاب بالادست قرار گرفته است.</div>}
 <section class="mp-kpis">
 <div class="mp-kpi" style="--mp-color:#1d4ed8"><div class="caption">تعداد شاخص‌ها</div><strong>@Model.Scores.Count</strong></div>
-<div class="mp-kpi" style="--mp-color:#16a34a"><div class="caption">امتیاز کسب‌شده</div><strong id="mp-total">@Model.TotalScore.ToString("N2")</strong></div>
-<div class="mp-kpi" style="--mp-color:#475569"><div class="caption">حداکثر امتیاز</div><strong id="mp-capacity">@Model.MaxScore.ToString("N2")</strong></div>
-<div class="mp-kpi" style="--mp-color:#dc2626"><div class="caption">امتیاز کسرشده</div><strong id="mp-deducted">@((Model.MaxScore - Model.TotalScore).ToString("N2"))</strong></div>
+<div class="mp-kpi" style="--mp-color:#16a34a"><div class="caption">امتیاز کسب‌شده</div><strong id="mp-total">@Model.TotalScore.ToString("N0")</strong></div>
+<div class="mp-kpi" style="--mp-color:#475569"><div class="caption">حداکثر امتیاز</div><strong id="mp-capacity">@Model.MaxScore.ToString("N0")</strong></div>
+<div class="mp-kpi" style="--mp-color:#dc2626"><div class="caption">امتیاز کسرشده</div><strong id="mp-deducted">@((Model.MaxScore - Model.TotalScore).ToString("N0"))</strong></div>
 </section>
 <section class="mp-card">
 <h2>ریز امتیازهای سؤالات</h2>
@@ -35,9 +35,9 @@ else
 @foreach(var s in Model.Scores){
 <tr>
 <td><span class="mp-code">@s.Code</span></td><td>@s.Domain</td><td>@s.Title</td>
-<td class="mp-max">@s.MaxScore.ToString("N2")</td>
-<td>@if(Model.CanEdit){<input type="number" name="scores[@s.QuestionId]" min="0" max="@s.MaxScore.ToString(System.Globalization.CultureInfo.InvariantCulture)" step="0.01" class="mp-score-input" value="@s.Score.ToString(System.Globalization.CultureInfo.InvariantCulture)" data-max="@s.MaxScore.ToString(System.Globalization.CultureInfo.InvariantCulture)" required />}
-else { <strong>@s.Score.ToString("N2")</strong> }</td>
+<td class="mp-max">@s.MaxScore.ToString("N0")</td>
+<td>@if(Model.CanEdit){<input type="number" name="scores[@s.QuestionId]" min="0" max="@s.MaxScore.ToString(System.Globalization.CultureInfo.InvariantCulture)" step="1" class="mp-score-input" value="@s.Score.ToString(System.Globalization.CultureInfo.InvariantCulture)" data-max="@s.MaxScore.ToString(System.Globalization.CultureInfo.InvariantCulture)" required />}
+else { <strong>@s.Score.ToString("N0")</strong> }</td>
 <td class="mp-less">@(s.MaxScore-s.Score)</td>
 <td>@if(Model.CanEdit){<input name="notes[@s.QuestionId]" maxlength="1000" value="@s.Note" placeholder="توضیح کسر امتیاز..." />}
 else {<span>@(s.Note ?? "—")</span>}</td>

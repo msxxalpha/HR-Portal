@@ -198,7 +198,9 @@
         const parentId = parentSelect.value;
         Array.from(childSelect.options).forEach(function(opt, index){
             if (index === 0) { opt.hidden = false; return; }
-            const show = !!parentId && opt.dataset.parentId === parentId;
+            // Keep the persisted value visible even if it belongs to an older revision.
+            const saved = opt.selected && opt.value !== '';
+            const show = saved || (!!parentId && opt.dataset.parentId === parentId);
             opt.hidden = !show;
         });
     }
@@ -210,9 +212,8 @@
 
     function refresh() {
         filterChildren(unit, department);
-        resetInvalidSelection(department);
+        // Initial render must never discard assignments loaded from the database.
         filterChildren(department, section);
-        resetInvalidSelection(section);
     }
 
     unit.addEventListener('change', function(){

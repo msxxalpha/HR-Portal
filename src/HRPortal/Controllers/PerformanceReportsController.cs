@@ -8,13 +8,14 @@ namespace HRPortal.Controllers;
 
 [Authorize(Policy = PerformanceModule.ReportsPermission)]
 [Route("PerformanceReports")]
-public sealed class PerformanceReportsController(HRPortalDbContext db) : Controller
+public sealed class PerformanceReportsController(HRPortalDbContext db, PerformanceAnalyticsService analytics) : Controller
 {
     public sealed record ReportRow(string Employee, string PersonnelNumber, string Evaluator,
         decimal Score, decimal Maximum, decimal Deducted, decimal Percentage);
     public sealed record ReportVm(List<PerformancePeriod> Periods, PerformancePeriod? Selected,
         List<ReportRow> Rows, decimal TotalMax, decimal TotalScore, decimal Deducted,
-        int TotalCount, int FilteredCount, int Page, int PageSize, string Search);
+        int TotalCount, int FilteredCount, int Page, int PageSize, string Search,
+        PerformanceAnalyticsService.Analytics Analytics);
 
     [HttpGet("")]
     [HttpGet("Index")]
@@ -24,7 +25,7 @@ public sealed class PerformanceReportsController(HRPortalDbContext db) : Control
             .Where(x => !x.IsDeleted).OrderByDescending(x => x.StartAt).ToListAsync();
         var selected = periods.FirstOrDefault(x => x.Id == periodId) ?? periods.FirstOrDefault();
 
-        if (selected == null) return View(new ReportVm(periods, null, [], 0, 0, 0, 0, 0, 1, 25, ""));
+        if (selected == null) return View(new ReportVm(periods, null, [], 0, 0, 0, 0, 0, 1, 25, "", PerformanceAnalyticsService.Analytics.Empty));
 
         var rawRows = await (
             from ev in db.PerformanceEvaluations.AsNoTracking()
@@ -55,6 +56,7 @@ public sealed class PerformanceReportsController(HRPortalDbContext db) : Control
         page = Math.Clamp(page, 1, totalPages);
         var pageRows = filtered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
         return View(new ReportVm(periods, selected, pageRows, maximum, total, Math.Max(0, maximum - total),
-            rows.Count, filtered.Count, page, pageSize, q));
+            rows.Count, filtered.Count, page, pageSize, q,
+            await analytics.BuildAsync(selected.Id)));
     }
 }

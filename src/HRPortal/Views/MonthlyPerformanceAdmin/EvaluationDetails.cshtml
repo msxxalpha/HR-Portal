@@ -1,0 +1,28 @@
+@model HRPortal.Models.MonthlyPerformanceEvaluation
+@{
+ Layout = "~/Views/Shared/_Layout.cshtml";
+ ViewData["Title"] = "جزئیات کامل ارزیابی";
+ var history = ViewBag.History as List<HRPortal.Models.MonthlyPerformanceRevision> ?? [];
+}
+<link rel="stylesheet" href="~/css/monthly-performance.css" asp-append-version="true" />
+<div class="mp">
+<section class="mp-hero"><div><h1>@Model.Employee.FirstName @Model.Employee.LastName</h1>
+<p>دوره @Model.Period.Title · کد پرسنلی @Model.Employee.PersonnelNumber · رده @Model.RankTitleSnapshot</p></div>
+<a class="btn btn-outline" href="/MonthlyPerformanceAdmin/PeriodDetails/@Model.PeriodId">بازگشت به نتایج دوره</a></section>
+<section class="mp-kpis">
+<div class="mp-kpi" style="--mp-color:#16a34a"><span class="caption">امتیاز نهایی</span><strong>@Model.TotalScore.ToString("N2")</strong></div>
+<div class="mp-kpi" style="--mp-color:#475569"><span class="caption">سقف امتیاز</span><strong>@Model.MaxScore.ToString("N2")</strong></div>
+<div class="mp-kpi" style="--mp-color:#dc2626"><span class="caption">جمع کسر امتیاز</span><strong>@((Model.MaxScore-Model.TotalScore).ToString("N2"))</strong></div>
+<div class="mp-kpi" style="--mp-color:#0d9488"><span class="caption">نسبت تحقق</span><strong>@(Model.MaxScore==0?0:Math.Round(Model.TotalScore/Model.MaxScore*100m,1))٪</strong></div>
+</section>
+<section class="mp-card"><div class="mp-toolbar"><h2>جزییات امتیازها</h2><input class="mp-search" placeholder="فیلتر سؤالات..." /></div>
+<div class="mp-table-wrap"><table class="mp-filter-table"><thead><tr><th>حوزه</th><th>سؤال</th><th>سقف</th><th>امتیاز</th><th>کسر</th><th>توضیحات</th></tr></thead>
+<tbody>@foreach(var s in Model.Scores){<tr><td>@s.DomainTitleSnapshot</td><td>@s.QuestionTitleSnapshot</td><td>@s.MaxScore.ToString("N2")</td><td>@s.Score.ToString("N2")</td><td>@((s.MaxScore-s.Score).ToString("N2"))</td><td>@s.Note</td></tr>}</tbody></table></div></section>
+<section class="mp-card"><div class="mp-toolbar"><h2>تاریخچه تغییرات</h2><input class="mp-search" placeholder="جست‌وجو در تاریخچه..." /></div>
+<div class="mp-table-wrap"><table class="mp-filter-table"><thead><tr><th>زمان</th><th>شناسه ارزیاب تغییر‌دهنده</th><th>سؤال</th><th>از امتیاز</th><th>به امتیاز</th><th>دلیل</th></tr></thead>
+<tbody>@foreach(var h in history){<tr>
+<td>@HRPortal.Services.PersianDateService.FormatDateTime(h.ChangedAt.ToLocalTime())</td><td>@h.ChangedByEmployeeId</td>
+<td>@(Model.Scores.FirstOrDefault(x=>x.QuestionId==h.QuestionId)?.QuestionTitleSnapshot??"—")</td>
+<td>@(h.OldScore?.ToString("N2")??"ثبت اولیه")</td><td>@h.NewScore.ToString("N2")</td><td>@h.Reason</td>
+</tr>}</tbody></table></div></section>
+</div><script src="~/js/monthly-performance-table.js" asp-append-version="true"></script>

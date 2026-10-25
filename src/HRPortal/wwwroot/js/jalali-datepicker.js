@@ -1,8 +1,8 @@
 (()=>{ 
-const fmt=new Intl.DateTimeFormat("fa-IR-u-ca-persian",{year:"numeric",month:"numeric",day:"numeric"});
+const fmt=new Intl.DateTimeFormat("fa-IR-u-ca-persian",{year:"numeric",month:"numeric",day:"numeric",timeZone:"Asia/Tehran"});
 const months=["فروردین","اردیبهشت","خرداد","تیر","مرداد","شهریور","مهر","آبان","آذر","دی","بهمن","اسفند"],weeks=["ش","ی","د","س","چ","پ","ج"];
-function norm(s){return(s||"").replace(/[۰-۹]/g,d=>String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))} function g2j(d){const p=fmt.formatToParts(d);return{y:+norm(p.find(x=>x.type==="year").value),m:+norm(p.find(x=>x.type==="month").value),day:+norm(p.find(x=>x.type==="day").value)}} 
-function j2g(y,m,day){const guess=new Date(Date.UTC(y-621,m-1,day));for(let i=-370;i<=370;i++){const d=new Date(guess.getTime()+i*86400000),p=g2j(d);if(p.y===y&&p.m===m&&p.day===day)return d}throw new Error("invalid")}
+function norm(s){return(s||"").replace(/[۰-۹٠-٩]/g,d=>String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)>=0?"۰۱۲۳۴۵۶۷۸۹".indexOf(d):"٠١٢٣٤٥٦٧٨٩".indexOf(d)))} function g2j(d){const p=fmt.formatToParts(d);return{y:+norm(p.find(x=>x.type==="year").value),m:+norm(p.find(x=>x.type==="month").value),day:+norm(p.find(x=>x.type==="day").value)}} 
+function j2g(y,m,day){const guess=new Date(Date.UTC(y+621,m+1,day+19));for(let i=-45;i<=45;i++){const d=new Date(guess.getTime()+i*86400000),p=g2j(d);if(p.y===y&&p.m===m&&p.day===day)return d}throw new Error("invalid")}
 function dim(y,m){return Math.round((j2g(m===12?y+1:y,m===12?1:m+1,1)-j2g(y,m,1))/86400000)} function first(y,m){return(j2g(y,m,1).getUTCDay()+1)%7}
 function fa(n){return String(n).replace(/\d/g,d=>"۰۱۲۳۴۵۶۷۸۹"[+d])} function parse(v){const p=norm(v).replaceAll("-","/").split("/").map(Number);return p.length===3&&p.every(Number.isFinite)?{y:p[0],m:p[1],day:p[2]}:null}
 function attach(input,trigger){let j=parse(input.value)||g2j(new Date()),wrap=input.parentElement,picker=document.createElement("div");picker.className="jalali-picker";wrap.appendChild(picker);

@@ -140,3 +140,27 @@
  .performance-module .card form.d-flex>.form-control,.performance-module .card form.d-flex>.form-select{width:100%;max-width:none;flex-basis:100%}
  .performance-module .perf-toolbar>*{flex-basis:100%}
 }
+
+/* Restored per-position editing and employee self-service dashboards */
+.performance-module .perf-edit-list{max-height:390px;overflow:auto;border:1px solid #e1eaf0;border-radius:12px;padding:4px 10px}
+.performance-module .perf-edit-row{border-bottom:1px solid #ebf0f3;padding:3px 0}
+.performance-module .perf-edit-row:last-child{border-bottom:0}
+.performance-module .perf-edit-row>summary{display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;color:#34566b;padding:11px 5px;font-size:11px}
+.performance-module .perf-edit-row>summary::-webkit-details-marker{display:none}
+.performance-module .perf-edit-row>summary::before{content:"+";font-weight:900;font-size:15px;width:14px;color:#6289a0}
+.performance-module .perf-edit-row[open]>summary::before{content:"−"}
+.performance-module .perf-edit-row>summary small{margin-right:auto}
+.performance-module .perf-edit-form{padding:13px;background:#f7fafc;border-radius:9px;display:grid;gap:10px}
+.performance-module .perf-check{display:flex;flex-direction:row;align-items:center;gap:9px}
+.performance-module .perf-check input{width:17px;height:17px}
+.performance-module .perf-edit-form>.btn{justify-self:start}
+.performance-module .perf-bar-row{margin-bottom:15px}
+.performance-module .perf-bar-row>div:first-child{display:flex;justify-content:space-between;gap:10px;font-size:11px;color:#456072;margin-bottom:7px}
+.performance-module .perf-bar-track{height:11px;border-radius:18px;background:#e7eff4;overflow:hidden}
+.performance-module .perf-bar-fill{height:100%;border-radius:18px;background:linear-gradient(90deg,#396d8d,#173d59)}
+.performance-module .perf-statline{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #eaf0f3}
+.performance-module .perf-statline:last-child{border-bottom:0}
+.performance-module .perf-statline span{font-size:11px;color:#728795}
+.performance-module .perf-statline b{font-size:12px;color:var(--navy)}
+.performance-module .card table form.d-flex{flex-wrap:wrap}
+.performance-module .card table form.d-flex .form-control{width:80px;max-width:100px;min-width:75px;flex:0 0 auto}

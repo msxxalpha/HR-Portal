@@ -1,3 +1,4 @@
+using ClosedXML.Excel;
 using HRPortal.Data;
 using HRPortal.Modules.Performance;
 using Microsoft.AspNetCore.Authorization;
@@ -59,4 +60,58 @@ public sealed class PerformanceReportsController(HRPortalDbContext db, Performan
             rows.Count, filtered.Count, page, pageSize, q,
             await analytics.BuildAsync(selected.Id)));
     }
+    /// <summary>Export the selected reporting period to Excel without restricting results to the current page.</summary>
+    [HttpGet("Export")]
+    public async Task<IActionResult> Export(int periodId, string? q)
+    {
+        var period = await db.PerformancePeriods.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Id == periodId && !x.IsDeleted);
+        if (period == null) return NotFound();
+
+        var raw = await (
+            from ev in db.PerformanceEvaluations.AsNoTracking()
+            join emp in db.Employees.AsNoTracking() on ev.EmployeeId equals emp.Id
+            join evaluator in db.Employees.AsNoTracking() on ev.EvaluatorEmployeeId equals evaluator.Id
+            where ev.PeriodId == periodId
+            orderby emp.LastName, emp.FirstName
+            select new { emp.PersonnelNumber, emp.FirstName, emp.LastName,
+                EvaluatorFirst = evaluator.FirstName, EvaluatorLast = evaluator.LastName,
+                ev.FinalScore, ev.FinalMaxScore }
+        ).ToListAsync();
+        q = (q ?? "").Trim();
+        var records = raw.Where(x => q.Length == 0 ||
+                (x.FirstName + " " + x.LastName).Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                (x.EvaluatorFirst + " " + x.EvaluatorLast).Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                x.PersonnelNumber.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        using var book = new XLWorkbook();
+        var sheet = book.Worksheets.Add("Evaluations");
+        sheet.RightToLeft = true;
+        var headers = new[] { "شماره پرسنلی", "نام کارمند", "نام ارزیاب", "امتیاز نهایی",
+            "سقف امتیاز", "مجموع کسر", "درصد عملکرد" };
+        for (var col = 0; col < headers.Length; col++)
+            sheet.Cell(1, col + 1).Value = headers[col];
+        for (var i = 0; i < records.Count; i++)
+        {
+            var item = records[i];
+            var row = i + 2;
+            sheet.Cell(row, 1).Value = item.PersonnelNumber;
+            sheet.Cell(row, 2).Value = item.FirstName + " " + item.LastName;
+            sheet.Cell(row, 3).Value = item.EvaluatorFirst + " " + item.EvaluatorLast;
+            sheet.Cell(row, 4).Value = item.FinalScore;
+            sheet.Cell(row, 5).Value = item.FinalMaxScore;
+            sheet.Cell(row, 6).Value = Math.Max(0m, item.FinalMaxScore - item.FinalScore);
+            sheet.Cell(row, 7).Value = item.FinalMaxScore <= 0 ? 0 :
+                Math.Round(item.FinalScore * 100 / item.FinalMaxScore, 2);
+        }
+        sheet.Row(1).Style.Font.Bold = true;
+        sheet.Row(1).Style.Fill.BackgroundColor = XLColor.FromHtml("#EAF0F5");
+        sheet.Columns().AdjustToContents();
+        using var buffer = new MemoryStream();
+        book.SaveAs(buffer);
+        return File(buffer.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"Performance-{periodId}.xlsx");
+    }
+
 }

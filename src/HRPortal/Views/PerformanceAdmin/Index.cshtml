@@ -2,7 +2,7 @@
 @using HRPortal.Modules.Performance
 @{
     ViewData["Title"] = "مدیریت ارزیابی عملکرد";
-    var openPeriods = Model.Periods.Where(x => PerformanceService.IsEditable(x, DateTime.Now)).ToList();
+    var openPeriods = Model.Periods.Where(x => !x.IsDeleted && x.IsOpen && x.EndAt >= DateTime.Now).ToList();
 }
 <div class="perf-page-header"><div><h2>مدیریت ماژول ارزیابی عملکرد کارکنان</h2>
 <p>تنظیمات دوره، بانک سؤال، رده‌های ارزیابی و تخصیص ارزیاب‌ها</p></div></div>

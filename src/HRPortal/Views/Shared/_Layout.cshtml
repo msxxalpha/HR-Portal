@@ -56,7 +56,7 @@
                 </details>
             }
             @if (isAdmin || Can("ContractRenewal.Manage") || User.HasClaim("UserType","Employee")) {
-                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/EmployeeContracts") || Context.Request.Path.StartsWithSegments("/MonthlyPerformance") ? "open" : null)">
+                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/EmployeeContracts") || (Context.Request.Path.StartsWithSegments("/MonthlyPerformance") || Context.Request.Path.StartsWithSegments("/MonthlyPerformanceAdmin") || Context.Request.Path.StartsWithSegments("/MonthlyPerformanceReports")) ? "open" : null)">
                     <summary><span class="nav-icon">▦</span>ماژول‌ها</summary>
                     <div class="nav-submenu">
                         @if (isAdmin || Can("ContractRenewal.Manage")) {

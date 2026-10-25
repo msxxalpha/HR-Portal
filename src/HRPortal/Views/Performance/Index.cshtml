@@ -81,6 +81,7 @@ else
     </div>
     <div class="card p-3">
         <h3>افراد تحت ارزیابی</h3>
+        <div class="perf-toolbar mb-2"><a class="btn btn-outline-primary" href="/Performance/ExportMyList?periodId=@Model.Selected.Id">خروجی کامل Excel کارکنان این دوره</a></div>
         <form method="get" action="/Performance" class="d-flex align-items-center gap-2 flex-wrap mb-2">
             <input type="hidden" name="periodId" value="@Model.Selected.Id" />
             <input class="form-control" name="q" value="@Model.Search" placeholder="جست‌وجوی نام، پرسنلی یا رده..." />

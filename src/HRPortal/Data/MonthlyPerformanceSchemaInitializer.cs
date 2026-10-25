@@ -129,7 +129,8 @@ IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name = N'IX_MPRevisions_Evaluation
 
         await db.Database.ExecuteSqlRawAsync(@"
 IF NOT EXISTS(SELECT 1 FROM sys.foreign_keys
-              WHERE name=N'FK_Employees_MonthlyPerformanceRank')
+              WHERE parent_object_id=OBJECT_ID(N'dbo.Employees')
+                AND referenced_object_id=OBJECT_ID(N'dbo.MonthlyPerformanceRanks'))
     ALTER TABLE dbo.Employees WITH CHECK
     ADD CONSTRAINT FK_Employees_MonthlyPerformanceRank
         FOREIGN KEY(PerformanceRankId) REFERENCES dbo.MonthlyPerformanceRanks(Id);

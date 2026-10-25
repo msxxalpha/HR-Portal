@@ -214,6 +214,19 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
             });
             score.Score = next; score.Note = note;
         }
+        if (!isNew && previousEvaluatorId != actorId && updates.Count == 0 &&
+            evaluation.Scores.Count > 0)
+        {
+            var firstScore = evaluation.Scores.OrderBy(x => x.QuestionId).First();
+            updates.Add(new MonthlyPerformanceRevision
+            {
+                EvaluationId = evaluation.Id, QuestionId = firstScore.QuestionId,
+                ChangedByEmployeeId = actorId, PreviousEvaluatorId = previousEvaluatorId,
+                OldScore = firstScore.Score, NewScore = firstScore.Score,
+                OldNote = firstScore.Note, NewNote = firstScore.Note,
+                Reason = "بازبینی ارزیابی توسط مقام بالادست، بدون تغییر امتیاز"
+            });
+        }
         if (updates.Count > 0) await db.MonthlyPerformanceRevisions.AddRangeAsync(updates);
         evaluation.TotalScore = evaluation.Scores.Sum(x => x.Score);
         evaluation.MaxScore = evaluation.Scores.Sum(x => x.MaxScore);

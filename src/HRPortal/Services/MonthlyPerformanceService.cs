@@ -35,10 +35,13 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
         await db.MonthlyPerformancePeriods.AsNoTracking()
             .OrderByDescending(p => p.Year).ThenByDescending(p => p.Month).ToListAsync();
 
-    public async Task<MonthlyPerformancePeriod?> ActivePeriodAsync() =>
-        await db.MonthlyPerformancePeriods.AsNoTracking()
-            .Where(p => p.IsEnabled && p.StartAt <= NowIran() && DateTime.Now < p.EndAt)
+    public async Task<MonthlyPerformancePeriod?> ActivePeriodAsync()
+    {
+        var now = NowIran();
+        return await db.MonthlyPerformancePeriods.AsNoTracking()
+            .Where(p => p.IsEnabled && p.StartAt <= now && now < p.EndAt)
             .OrderByDescending(p => p.StartAt).FirstOrDefaultAsync();
+    }
 
     private sealed record Node(int Id, int? Parent, string Rank, int? Holder, string? Csv);
     private sealed record Person(int Id, string Status, int? Position, int? Section, int? Department, int? Unit);
@@ -52,8 +55,9 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
             .ToListAsync();
         if (employees.All(x => x.Id != evaluatorId || x.Status != "فعال")) return [];
 
+        var today = NowIran().Date;
         var revisionId = await db.OrganizationStructureRevisions.AsNoTracking()
-            .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
+            .Where(x => x.IsFinalized && x.EffectiveDate <= today)
             .OrderByDescending(x => x.EffectiveDate).ThenByDescending(x => x.Id)
             .Select(x => (int?)x.Id).FirstOrDefaultAsync();
         if (!revisionId.HasValue) return [];

@@ -197,6 +197,79 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
     }
 
     [HttpGet]
+    public async Task<IActionResult> ExportMine()
+    {
+        if (!TryEmployee(out var employeeId)) return Forbid();
+        var evals = await db.MonthlyPerformanceEvaluations.AsNoTracking()
+            .Where(x => x.EmployeeId == employeeId)
+            .Include(x => x.Period).Include(x => x.Scores)
+            .OrderByDescending(x => x.Period.Year).ThenByDescending(x => x.Period.Month).ToListAsync();
+        using var wb = new XLWorkbook();
+        var periods = wb.AddWorksheet("خلاصه دوره‌ها");
+        var headers = new[] { "دوره", "سال", "ماه", "امتیاز", "سقف", "کسر امتیاز", "درصد" };
+        for (var i = 0; i < headers.Length; i++) periods.Cell(1, i + 1).Value = headers[i];
+        for (int i = 0; i < evals.Count; i++)
+        {
+            var e = evals[i]; int r = i + 2;
+            periods.Cell(r, 1).Value = e.Period.Title; periods.Cell(r, 2).Value = e.Period.Year;
+            periods.Cell(r, 3).Value = e.Period.Month; periods.Cell(r, 4).Value = e.TotalScore;
+            periods.Cell(r, 5).Value = e.MaxScore; periods.Cell(r, 6).Value = e.MaxScore - e.TotalScore;
+            periods.Cell(r, 7).Value = e.MaxScore == 0 ? 0 : e.TotalScore / e.MaxScore * 100;
+        }
+        var questions = wb.AddWorksheet("امتیاز سؤالات");
+        var qHeaders = new[] { "دوره", "حوزه", "سؤال", "امتیاز", "سقف", "کسر", "توضیح" };
+        for (int i = 0; i < qHeaders.Length; i++) questions.Cell(1, i + 1).Value = qHeaders[i];
+        var row = 2;
+        foreach (var e in evals)
+            foreach (var s in e.Scores)
+            {
+                questions.Cell(row, 1).Value = e.Period.Title;
+                questions.Cell(row, 2).Value = s.DomainTitleSnapshot;
+                questions.Cell(row, 3).Value = s.QuestionTitleSnapshot;
+                questions.Cell(row, 4).Value = s.Score;
+                questions.Cell(row, 5).Value = s.MaxScore;
+                questions.Cell(row, 6).Value = s.MaxScore - s.Score;
+                questions.Cell(row, 7).Value = s.Note ?? "";
+                row++;
+            }
+        foreach (var sheet in wb.Worksheets) { sheet.Row(1).Style.Font.Bold = true; sheet.Columns().AdjustToContents(); sheet.SheetView.FreezeRows(1); }
+        using var stream = new MemoryStream(); wb.SaveAs(stream);
+        return File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "my-monthly-performance.xlsx");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> ExportEvaluation(int employeeId, int periodId)
+    {
+        if (!TryEmployee(out var actor)) return Forbid();
+        var ev = await db.MonthlyPerformanceEvaluations.AsNoTracking()
+            .Where(x => x.EmployeeId == employeeId && x.PeriodId == periodId).Include(x => x.Scores).Include(x => x.Period)
+            .FirstOrDefaultAsync();
+        if (ev is null) return NotFound();
+        var allowed = actor == employeeId ||
+                      ((await performance.IsEvaluatorAsync(actor)) && (await performance.ScopeAsync(actor)).Any(x => x.EmployeeId == employeeId)) ||
+                      ev.OriginalEvaluatorId == actor || ev.LastEvaluatorId == actor ||
+                      await db.MonthlyPerformanceRevisions.AnyAsync(r => r.EvaluationId == ev.Id && r.ChangedByEmployeeId == actor);
+        if (!allowed) return Forbid();
+        using var wb = new XLWorkbook();
+        var sheet = wb.AddWorksheet("جزییات ارزیابی");
+        var headers = new[] { "دوره", "حوزه", "سؤال", "سقف", "امتیاز", "کسر امتیاز", "توضیح" };
+        for (var i = 0; i < headers.Length; i++) sheet.Cell(1, i + 1).Value = headers[i];
+        var row = 2;
+        foreach (var score in ev.Scores.OrderBy(x => x.QuestionId))
+        {
+            sheet.Cell(row, 1).Value = ev.Period.Title; sheet.Cell(row, 2).Value = score.DomainTitleSnapshot;
+            sheet.Cell(row, 3).Value = score.QuestionTitleSnapshot; sheet.Cell(row, 4).Value = score.MaxScore;
+            sheet.Cell(row, 5).Value = score.Score; sheet.Cell(row, 6).Value = score.MaxScore - score.Score;
+            sheet.Cell(row, 7).Value = score.Note ?? "";
+            row++;
+        }
+        sheet.Row(1).Style.Font.Bold = true; sheet.Columns().AdjustToContents(); sheet.SheetView.FreezeRows(1);
+        using var stream = new MemoryStream(); wb.SaveAs(stream);
+        return File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"performance-{periodId}-{employeeId}.xlsx");
+    }
+
+    [HttpGet]
     public async Task<IActionResult> Export(int periodId)
     {
         if (!TryEmployee(out var actor) || !await performance.IsEvaluatorAsync(actor)) return Forbid();

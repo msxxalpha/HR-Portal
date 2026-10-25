@@ -432,6 +432,11 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
                 ModelState.AddModelError("OrganizationSectionId", "بخش انتخاب‌شده زیرمجموعه اداره انتخاب‌شده نیست.");
         }
 
+        if (employee.PerformanceRankId.HasValue &&
+            !await db.MonthlyPerformanceRanks.AsNoTracking()
+                .AnyAsync(x => x.Id == employee.PerformanceRankId.Value && x.IsActive))
+            ModelState.AddModelError("PerformanceRankId", "رده ارزیابی انتخاب‌شده معتبر یا فعال نیست.");
+
         if (employee.OrganizationPositionId.HasValue)
         {
             var position = await db.OrganizationNodes.AsNoTracking()
@@ -547,6 +552,9 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
             Units = nodes.Where(x => x.RankType == "مدیریت").ToList(),
             Departments = nodes.Where(x => x.RankType == "ریاست").ToList(),
             Sections = nodes.Where(x => x.RankType == "سرپرستی").ToList(),
+            PerformanceRanks = await db.MonthlyPerformanceRanks.AsNoTracking()
+                .Where(x => x.IsActive || x.Id == employee.PerformanceRankId)
+                .OrderBy(x => x.Title).ToListAsync(),
             SpecialPositions = ceoNodes
         };
     }
@@ -559,5 +567,6 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         public List<OrganizationNode> Sections { get; set; } = [];
         public List<OrganizationNode> SpecialPositions { get; set; } = [];
         public List<OrganizationPositionDefinition> Positions { get; set; } = [];
+        public List<MonthlyPerformanceRank> PerformanceRanks { get; set; } = [];
     }
 }

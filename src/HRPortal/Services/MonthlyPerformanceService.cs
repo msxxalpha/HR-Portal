@@ -143,7 +143,7 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
             throw new UnauthorizedAccessException("اجازه ارزیابی این کارمند را ندارید.");
         var period = await db.MonthlyPerformancePeriods.FirstOrDefaultAsync(x => x.Id == periodId)
             ?? throw new InvalidOperationException("دوره موردنظر یافت نشد.");
-        if (!IsOpen(period, DateTime.Now))
+        if (!IsOpen(period, NowIran()))
             throw new InvalidOperationException("دوره فعال نیست یا بازه زمانی ثبت ارزیابی پایان یافته است.");
 
         var scope = await ScopeAsync(actorId);
@@ -160,7 +160,9 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
         var mappings = await db.MonthlyPerformanceRankQuestions.AsNoTracking()
             .Where(x => x.IsActive && x.Rank.IsActive && x.Rank.Title == placement.RankTitle && x.Question.IsActive && x.Question.Domain.IsActive)
             .Include(x => x.Question).ThenInclude(x => x.Domain)
-            .OrderBy(x => x.Question.SortOrder).ThenBy(x => x.QuestionId).ToListAsync();
+            .OrderBy(x => x.SortOrder).ThenBy(x => x.Question.SortOrder).ThenBy(x => x.QuestionId).ToListAsync();
+        if (mappings.Any(x => x.MaxScore <= 0 || decimal.Truncate(x.MaxScore) != x.MaxScore))
+            throw new InvalidOperationException("سقف امتیاز تمام سؤالات باید عدد صحیح مثبت باشد. ابتدا سقف رده را اصلاح کنید.");
         if (mappings.Count == 0 && evaluation is null)
             throw new InvalidOperationException($"برای رده «{placement.RankTitle}» سؤال و سقف امتیاز فعال تعریف نشده است.");
 
@@ -199,6 +201,8 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
         {
             var next = enteredScores != null && enteredScores.TryGetValue(score.QuestionId, out var chosen)
                 ? chosen : score.Score;
+            if (decimal.Truncate(next) != next)
+                throw new InvalidOperationException("امتیاز هر سؤال باید عدد صحیح باشد؛ امتیاز اعشاری مجاز نیست.");
             if (next < 0 || next > score.MaxScore)
                 throw new InvalidOperationException($"امتیاز «{score.QuestionTitleSnapshot}» باید بین صفر و {score.MaxScore} باشد.");
             var note = notes != null && notes.TryGetValue(score.QuestionId, out var value)
@@ -229,6 +233,8 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
         }
         if (updates.Count > 0) await db.MonthlyPerformanceRevisions.AddRangeAsync(updates);
         evaluation.TotalScore = evaluation.Scores.Sum(x => x.Score);
+        if (evaluation.TotalScore < 0 || evaluation.TotalScore > evaluation.Scores.Sum(x => x.MaxScore))
+            throw new InvalidOperationException("مجموع امتیاز ثبت‌شده خارج از سقف مجاز است.");
         evaluation.MaxScore = evaluation.Scores.Sum(x => x.MaxScore);
         evaluation.LastEvaluatorId = actorId;
         evaluation.UpdatedAt = DateTime.UtcNow;
@@ -242,7 +248,7 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
         if (!await IsEvaluatorAsync(actorId)) throw new UnauthorizedAccessException("فقط ارزیاب مجاز است.");
         var period = await db.MonthlyPerformancePeriods.AsNoTracking().FirstOrDefaultAsync(x => x.Id == periodId)
             ?? throw new InvalidOperationException("دوره یافت نشد.");
-        if (!IsOpen(period, DateTime.Now)) throw new InvalidOperationException("دوره فعال نیست.");
+        if (!IsOpen(period, NowIran())) throw new InvalidOperationException("دوره فعال نیست.");
         var scope = await ScopeAsync(actorId);
         var existing = (await db.MonthlyPerformanceEvaluations.AsNoTracking()
             .Where(x => x.PeriodId == periodId).Select(x => x.EmployeeId).ToListAsync()).ToHashSet();

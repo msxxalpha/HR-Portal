@@ -1,0 +1,24 @@
+@model HRPortal.Models.MonthlyPerformanceEvaluation
+@{
+ Layout = "~/Views/Shared/_Layout.cshtml";
+ ViewData["Title"] = "جزئیات عملکرد من";
+}
+<link rel="stylesheet" href="~/css/monthly-performance.css" asp-append-version="true" />
+<div class="mp">
+<section class="mp-hero"><div><h1>ریز امتیازهای عملکرد شخصی</h1><p>دوره @Model.Period.Title · رده @Model.RankTitleSnapshot · فقط مشاهده</p></div><a class="btn btn-outline" href="/MonthlyPerformance/Mine">بازگشت به داشبورد</a></section>
+<section class="mp-kpis">
+<div class="mp-kpi" style="--mp-color:#2563eb"><div class="caption">امتیاز نهایی</div><strong>@Model.TotalScore.ToString("N2")</strong></div>
+<div class="mp-kpi" style="--mp-color:#16a34a"><div class="caption">سقف امتیاز</div><strong>@Model.MaxScore.ToString("N2")</strong></div>
+<div class="mp-kpi" style="--mp-color:#dc2626"><div class="caption">امتیاز کسرشده</div><strong>@((Model.MaxScore-Model.TotalScore).ToString("N2"))</strong></div>
+<div class="mp-kpi" style="--mp-color:#0d9488"><div class="caption">درصد</div><strong>@(Model.MaxScore==0?0:Math.Round(Model.TotalScore*100m/Model.MaxScore,1))٪</strong></div>
+</section>
+<section class="mp-card">
+<div class="mp-toolbar"><h2>پاسخ و امتیاز هر سؤال</h2><input type="search" class="mp-search" placeholder="جستجو در شاخص‌ها..." /></div>
+<div class="mp-table-wrap"><table class="mp-filter-table"><thead><tr><th>حوزه</th><th>سؤال</th><th>حداکثر</th><th>امتیاز نهایی</th><th>کسر امتیاز</th><th>درصد</th><th>توضیح</th></tr></thead>
+<tbody>@foreach(var x in Model.Scores.OrderBy(x=>x.DomainTitleSnapshot).ThenBy(x=>x.QuestionId)){
+<tr><td>@x.DomainTitleSnapshot</td><td>@x.QuestionTitleSnapshot</td><td>@x.MaxScore.ToString("N2")</td><td>@x.Score.ToString("N2")</td>
+<td>@((x.MaxScore-x.Score).ToString("N2"))</td><td>@(x.MaxScore==0?0:Math.Round(x.Score/x.MaxScore*100m,1))٪</td><td>@(x.Note ?? "—")</td></tr>
+}</tbody></table></div>
+</section>
+</div>
+<script src="~/js/monthly-performance-table.js" asp-append-version="true"></script>

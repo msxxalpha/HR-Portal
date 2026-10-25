@@ -8,7 +8,7 @@
 <div class="mp">
 <section class="mp-hero"><div><h1>@Model.Employee.FirstName @Model.Employee.LastName</h1>
 <p>دوره @Model.Period.Title · کد پرسنلی @Model.Employee.PersonnelNumber · رده @Model.RankTitleSnapshot</p></div>
-<a class="btn btn-outline" href="/MonthlyPerformanceAdmin/PeriodDetails/@Model.PeriodId">بازگشت به نتایج دوره</a></section>
+<div class="mp-head-actions"><a class="btn btn-outline" href="/MonthlyPerformanceAdmin/ExportPeriod?periodId=@Model.PeriodId">خروجی اکسل دوره</a><a class="btn btn-outline" href="/MonthlyPerformanceAdmin/PeriodDetails/@Model.PeriodId">بازگشت به نتایج دوره</a></div></section>
 <section class="mp-kpis">
 <div class="mp-kpi" style="--mp-color:#16a34a"><span class="caption">امتیاز نهایی</span><strong>@Model.TotalScore.ToString("N2")</strong></div>
 <div class="mp-kpi" style="--mp-color:#475569"><span class="caption">سقف امتیاز</span><strong>@Model.MaxScore.ToString("N2")</strong></div>

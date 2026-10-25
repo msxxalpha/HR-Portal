@@ -58,6 +58,15 @@ public static class PerformanceModelConfiguration
             e.HasOne<Employee>().WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<Employee>().WithMany().HasForeignKey(x => x.EvaluatorEmployeeId).OnDelete(DeleteBehavior.Restrict);
         });
+        b.Entity<PerformanceEvaluatorChain>(e =>
+        {
+            e.ToTable("PerformanceEvaluatorChains");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.PeriodId, x.SubordinateEvaluatorEmployeeId }).IsUnique();
+            e.HasOne<PerformancePeriod>().WithMany().HasForeignKey(x => x.PeriodId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Employee>().WithMany().HasForeignKey(x => x.SubordinateEvaluatorEmployeeId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Employee>().WithMany().HasForeignKey(x => x.SuperiorEvaluatorEmployeeId).OnDelete(DeleteBehavior.Restrict);
+        });
         b.Entity<PerformanceEvaluation>(e =>
         {
             e.ToTable("PerformanceEvaluations");
@@ -69,6 +78,7 @@ public static class PerformanceModelConfiguration
             e.HasOne(x => x.Period).WithMany().HasForeignKey(x => x.PeriodId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<Employee>().WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<Employee>().WithMany().HasForeignKey(x => x.EvaluatorEmployeeId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Employee>().WithMany().HasForeignKey(x => x.LastReviewedByEmployeeId).OnDelete(DeleteBehavior.Restrict);
         });
         b.Entity<PerformanceScore>(e =>
         {

@@ -14,6 +14,9 @@
     .exec-hero .hero-mark{font-size:2.3rem;opacity:.95}
     .exec-filters{display:grid;grid-template-columns:repeat(6,minmax(130px,1fr));gap:12px;align-items:end}
     .exec-filters label{display:grid;gap:6px;font-size:.82rem;color:#475569}
+    .exec-filters .jalali-date-input{display:flex;min-width:0;position:relative;align-items:center;gap:6px}
+    .exec-filters .jalali-date-input input{flex:1;min-width:0}
+    .exec-filters .jalali-date-open{width:auto;flex:none;white-space:nowrap}
     .exec-filters input,.exec-filters select,.exec-search{width:100%;min-width:0;padding:10px;border:1px solid #d5dde8;border-radius:9px;background:#fff;color:#172033;font:inherit}
     .exec-filter-actions{display:flex;gap:8px;flex-wrap:wrap}
     .exec-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
@@ -82,8 +85,10 @@
                         @foreach (var item in Model.EmployeeOptions) { <option value="@item.Id" selected="@(Model.Employee == item.Id)">@item.Title</option> }
                     </select>
                 </label>
-                <label>از تاریخ ثبت<input type="date" name="from" value="@Model.From?.ToString("yyyy-MM-dd")" /></label>
-                <label>تا تاریخ ثبت<input type="date" name="to" value="@Model.To?.ToString("yyyy-MM-dd")" /></label>
+                <label>از تاریخ ثبت
+<div class="jalali-date-input"><input type="text" name="fromJalali" data-jalali-date autocomplete="off" inputmode="numeric" placeholder="۱۴۰۵/۰۷/۰۱" value="@(Model.From.HasValue ? HRPortal.Services.PersianDateService.Format(Model.From.Value) : "")" /><button type="button" class="btn btn-outline jalali-date-open" data-jalali-trigger aria-label="انتخاب تاریخ شروع">تقویم</button></div></label>
+                <label>تا تاریخ ثبت
+<div class="jalali-date-input"><input type="text" name="toJalali" data-jalali-date autocomplete="off" inputmode="numeric" placeholder="۱۴۰۵/۰۷/۳۰" value="@(Model.To.HasValue ? HRPortal.Services.PersianDateService.Format(Model.To.Value) : "")" /><button type="button" class="btn btn-outline jalali-date-open" data-jalali-trigger aria-label="انتخاب تاریخ پایان">تقویم</button></div></label>
                 <div class="exec-filter-actions">
                     <button class="btn btn-main" type="submit">اعمال فیلتر</button>
                     <a class="btn btn-outline" href="/Reports/ExecutiveWorkflow">پاک‌کردن فیلترها</a>

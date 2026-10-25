@@ -82,7 +82,7 @@ public sealed class PerformanceController(HRPortalDbContext db, PerformanceServi
         var period = await db.PerformancePeriods.AsNoTracking()
             .SingleOrDefaultAsync(x => x.Id == periodId && !x.IsDeleted);
         if (period == null) return NotFound();
-        if (!await service.HasAssignmentAsync(periodId, employeeId, ActorId.Value)) return Forbid();
+        if (!await service.CanViewAsync(periodId, employeeId, ActorId.Value)) return Forbid();
 
         var employee = await db.Employees.AsNoTracking().SingleOrDefaultAsync(x => x.Id == employeeId);
         if (employee == null) return NotFound();
@@ -96,7 +96,8 @@ public sealed class PerformanceController(HRPortalDbContext db, PerformanceServi
             : new List<PerformanceScoreChange>();
         return View(new EvaluationFormVm(employeeId, $"{employee.FirstName} {employee.LastName}",
             period, PerformanceService.IsEditable(period, DateTime.Now) &&
-            (User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", PerformanceModule.EvaluatePermission)), rows, history));
+            (User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", PerformanceModule.EvaluatePermission)) &&
+            await service.CanEditAsync(periodId, employeeId, ActorId.Value), rows, history));
     }
 
     [HttpPost("Save"), Authorize(Policy = PerformanceModule.EvaluatePermission), ValidateAntiForgeryToken]

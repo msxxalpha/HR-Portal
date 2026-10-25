@@ -21,6 +21,7 @@
                 @foreach (var e in ViewData.ModelState.Values.SelectMany(v => v.Errors)) { <div>@e.ErrorMessage</div> }
             </div>
         }
+        @if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
         @if (TempData["Error"] != null)
         {
             <div class="alert error">@TempData["Error"]</div>
@@ -41,7 +42,7 @@
                 </form>
             </div>
             <div id="employeePasswordPanel" class="login-panel @(employeePasswordMode ? "" : "hidden")">
-                <div class="auth-intro"><h2>ورود با رمز شخصی</h2><p>نام کاربری همان کد پرسنلی است.</p></div>
+                <div class="auth-intro"><h2>ورود با رمز شخصی</h2><p>نام کاربری همان کد پرسنلی است. کارکنانی که هنوز رمز شخصی تنظیم نکرده‌اند می‌توانند یک‌بار با کد ملی وارد شده و بلافاصله رمز مستقل تعیین کنند.</p></div>
                 <form method="post" action="/Account/EmployeePasswordLogin" class="login-form">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />

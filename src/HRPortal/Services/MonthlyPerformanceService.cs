@@ -15,6 +15,8 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
         throw new InvalidOperationException("منطقه زمانی ایران در سرور قابل شناسایی نیست.");
     }
     public static DateTime NowIran() => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, IranZone);
+    public static DateTime ToIranTime(DateTime utc) =>
+        TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), IranZone);
 
     public static bool IsOpen(MonthlyPerformancePeriod p, DateTime now) =>
         p.IsEnabled && p.StartAt <= now && now < p.EndAt;

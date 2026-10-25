@@ -19,10 +19,10 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
         TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), IranZone);
 
     public static bool IsOpen(MonthlyPerformancePeriod p, DateTime now) =>
-        p.IsEnabled && p.StartAt <= now && now < p.EndAt;
+        !p.IsDeleted && p.IsEnabled && p.StartAt <= now && now < p.EndAt;
 
     public static string PeriodState(MonthlyPerformancePeriod p, DateTime now) =>
-        !p.IsEnabled ? "غیرفعال" : now >= p.EndAt ? "پایان‌یافته" :
+        p.IsDeleted ? "حذف‌شده / بایگانی" : !p.IsEnabled ? "غیرفعال" : now >= p.EndAt ? "پایان‌یافته" :
         now < p.StartAt ? "در انتظار شروع" : "فعال";
 
     public static (DateTime start, DateTime endExclusive) ParseWindow(string from, string to)
@@ -41,7 +41,7 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
     {
         var now = NowIran();
         return await db.MonthlyPerformancePeriods.AsNoTracking()
-            .Where(p => p.IsEnabled && p.StartAt <= now && now < p.EndAt)
+            .Where(p => !p.IsDeleted && p.IsEnabled && p.StartAt <= now && now < p.EndAt)
             .OrderByDescending(p => p.StartAt).FirstOrDefaultAsync();
     }
 

@@ -68,6 +68,8 @@ public class MonthlyPerformanceRevisionVm
     public string Actor { get; set; } = "";
     public decimal? Before { get; set; }
     public decimal After { get; set; }
+    public string? OldNote { get; set; }
+    public string? NewNote { get; set; }
     public string? Reason { get; set; }
     public DateTime At { get; set; }
 }

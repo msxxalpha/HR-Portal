@@ -152,8 +152,9 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
 
         if (employee.MustChangeInitialPassword)
             return RedirectToAction(nameof(PersonalPassword));
+        var loginMoment = MonthlyPerformanceService.NowIran();
         var landing = employee.IsPerformanceEvaluator && await db.MonthlyPerformancePeriods.AnyAsync(p =>
-            p.IsEnabled && p.StartAt <= MonthlyPerformanceService.NowIran() && p.EndAt > MonthlyPerformanceService.NowIran())
+            p.IsEnabled && p.StartAt <= loginMoment && p.EndAt > loginMoment)
             ? "/MonthlyPerformance/Dashboard" : "/MonthlyPerformance/Mine";
         return Redirect(!string.IsNullOrWhiteSpace(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl) ? model.ReturnUrl : landing);
     }
@@ -291,8 +292,9 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
         HttpContext.Session.Remove("PendingReturnUrl");
 
         await audit.WriteAsync("ورود موفق کارمند", "Account", employee.Id.ToString(), employee.PersonnelNumber, employee.Id);
+        var loginMoment = MonthlyPerformanceService.NowIran();
         var landing = employee.IsPerformanceEvaluator && await db.MonthlyPerformancePeriods.AnyAsync(p =>
-            p.IsEnabled && p.StartAt <= MonthlyPerformanceService.NowIran() && p.EndAt > MonthlyPerformanceService.NowIran())
+            p.IsEnabled && p.StartAt <= loginMoment && p.EndAt > loginMoment)
             ? "/MonthlyPerformance/Dashboard" : "/MonthlyPerformance/Mine";
         return Redirect(!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl) ? returnUrl : landing);
     }

@@ -105,7 +105,8 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
         var model = new MonthlyPerformanceEvaluationVm
         {
             Period = period, Employee = employee, CanEdit = canEdit, EvaluationId = ev?.Id,
-            RankTitle = rank, OriginalEvaluatorId = ev?.OriginalEvaluatorId, LastEvaluatorId = ev?.LastEvaluatorId
+            RankTitle = rank, EvaluationVersion = ev is null ? null : Convert.ToBase64String(ev.RowVersion),
+            OriginalEvaluatorId = ev?.OriginalEvaluatorId, LastEvaluatorId = ev?.LastEvaluatorId
         };
         if (ev is null)
         {
@@ -149,12 +150,12 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
 
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Save(int employeeId, int periodId, Dictionary<int, decimal> scores,
-        Dictionary<int, string?>? notes, string? reason)
+        Dictionary<int, string?>? notes, string? reason, string? expectedVersion)
     {
         if (!TryEmployee(out var actor) || !await performance.IsEvaluatorAsync(actor)) return Forbid();
         try
         {
-            await performance.SaveAsync(actor, employeeId, periodId, scores, notes, reason);
+            await performance.SaveAsync(actor, employeeId, periodId, scores, notes, reason, expectedVersion: expectedVersion);
             TempData["Success"] = "امتیازها ثبت و جمع نهایی محاسبه شد. تغییرات در تاریخچه قابل مشاهده‌اند.";
         }
         catch (UnauthorizedAccessException) { return Forbid(); }

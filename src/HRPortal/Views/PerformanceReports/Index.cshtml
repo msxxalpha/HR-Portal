@@ -1,0 +1,34 @@
+@model HRPortal.Controllers.PerformanceReportsController.ReportVm
+@{
+    ViewData["Title"] = "گزارش‌های مدیریتی ارزیابی عملکرد";
+}
+<h2>گزارش‌های مدیریتی ارزیابی عملکرد کارکنان</h2>
+<p>نتایج دوره‌های فعال و بسته نمایش داده می‌شوند؛ دوره‌های بایگانی‌شده در محاسبات گزارش جاری شرکت نمی‌کنند.</p>
+<div class="card p-3 mb-3">
+<form method="get" action="/PerformanceReports" class="d-flex align-items-center gap-2 flex-wrap">
+<label>دوره</label><select name="periodId" class="form-select" onchange="this.form.submit()">
+@foreach(var p in Model.Periods){<option value="@p.Id" selected="@(p.Id==Model.Selected?.Id)">@p.Title</option>}
+</select><button class="btn btn-outline-primary" type="submit">نمایش</button>
+</form></div>
+@if (Model.Selected is null)
+{
+<div class="card p-3">هنوز دوره‌ای برای گزارش تعریف نشده است.</div>
+}
+else
+{
+<div class="row g-3 mb-3">
+<div class="col-md-3"><div class="card p-3"><small>تعداد ارزیابی</small><h3>@Model.Rows.Count</h3></div></div>
+<div class="col-md-3"><div class="card p-3"><small>سقف امتیاز</small><h3>@Model.TotalMax.ToString("N2")</h3></div></div>
+<div class="col-md-3"><div class="card p-3"><small>امتیاز استفاده‌شده</small><h3>@Model.TotalScore.ToString("N2")</h3></div></div>
+<div class="col-md-3"><div class="card p-3"><small>مجموع کسرشده</small><h3>@Model.Deducted.ToString("N2")</h3></div></div>
+</div>
+<div class="card p-3"><h3>کارکنان ارزیابی‌شده</h3>
+<div class="table-responsive"><table class="table">
+<thead><tr><th>نام</th><th>شماره پرسنلی</th><th>ارزیاب</th><th>امتیاز</th><th>سقف</th><th>کسری</th><th>درصد</th></tr></thead>
+<tbody>
+@foreach(var r in Model.Rows)
+{
+<tr><td>@r.Employee</td><td>@r.PersonnelNumber</td><td>@r.Evaluator</td><td>@r.Score.ToString("N2")</td><td>@r.Maximum.ToString("N2")</td><td>@r.Deducted.ToString("N2")</td><td>@r.Percentage.ToString("N2")٪</td></tr>
+}
+</tbody></table></div></div>
+}

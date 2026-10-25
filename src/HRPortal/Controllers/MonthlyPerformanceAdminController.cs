@@ -57,6 +57,18 @@ public class MonthlyPerformanceAdminController(HRPortalDbContext db) : Controlle
         return View(period);
     }
 
+    [HttpGet]
+    public async Task<IActionResult> EvaluationDetails(int id)
+    {
+        var evaluation = await db.MonthlyPerformanceEvaluations.AsNoTracking()
+            .Include(x => x.Period).Include(x => x.Employee).Include(x => x.Scores)
+            .FirstOrDefaultAsync(x => x.Id == id);
+        if (evaluation is null) return NotFound();
+        ViewBag.History = await db.MonthlyPerformanceRevisions.AsNoTracking()
+            .Where(x => x.EvaluationId == id).OrderByDescending(x => x.ChangedAt).ToListAsync();
+        return View(evaluation);
+    }
+
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> SavePeriod(int id, string? code, string title, int year, int month,
         string startJalali, string endJalali, bool isEnabled, string? description)

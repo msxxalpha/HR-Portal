@@ -17,12 +17,24 @@
 else
 {
 <div class="row g-3 mb-3">
-<div class="col-md-3"><div class="card p-3"><small>تعداد ارزیابی</small><h3>@Model.Rows.Count</h3></div></div>
+<div class="col-md-3"><div class="card p-3"><small>تعداد ارزیابی</small><h3>@Model.TotalCount</h3></div></div>
 <div class="col-md-3"><div class="card p-3"><small>سقف امتیاز</small><h3>@Model.TotalMax.ToString("N2")</h3></div></div>
 <div class="col-md-3"><div class="card p-3"><small>امتیاز استفاده‌شده</small><h3>@Model.TotalScore.ToString("N2")</h3></div></div>
 <div class="col-md-3"><div class="card p-3"><small>مجموع کسرشده</small><h3>@Model.Deducted.ToString("N2")</h3></div></div>
 </div>
 <div class="card p-3"><h3>کارکنان ارزیابی‌شده</h3>
+<form method="get" action="/PerformanceReports" class="d-flex align-items-center gap-2 flex-wrap">
+<input type="hidden" name="periodId" value="@Model.Selected.Id" />
+<input name="q" class="form-control" value="@Model.Search" placeholder="جست‌وجو..." />
+<select name="pageSize" class="form-select" onchange="this.form.submit()">
+<option value="25" selected="@(Model.PageSize==25)">25 ردیف</option>
+<option value="50" selected="@(Model.PageSize==50)">50 ردیف</option>
+<option value="75" selected="@(Model.PageSize==75)">75 ردیف</option>
+<option value="100" selected="@(Model.PageSize==100)">100 ردیف</option>
+</select><button type="submit" class="btn btn-outline-primary">جست‌وجو</button>
+</form>
+@{var totalPages=Math.Max(1,(int)Math.Ceiling(Model.FilteredCount/(double)Model.PageSize));}
+@await Html.PartialAsync("_PerformancePagination",(Model.Page,totalPages,Model.PageSize,Model.Search,"/PerformanceReports",(int?)Model.Selected.Id))
 <div class="table-responsive"><table class="table">
 <thead><tr><th>نام</th><th>شماره پرسنلی</th><th>ارزیاب</th><th>امتیاز</th><th>سقف</th><th>کسری</th><th>درصد</th></tr></thead>
 <tbody>

@@ -1,0 +1,64 @@
+@model HRPortal.Models.MonthlyPerformanceBasicVm
+@{
+ Layout = "~/Views/Shared/_Layout.cshtml";
+ ViewData["Title"] = "بانک سؤالات ارزیابی عملکرد";
+}
+<link rel="stylesheet" href="~/css/monthly-performance.css" asp-append-version="true" />
+<div class="mp">
+<section class="mp-hero"><div><h1>بانک سؤالات ارزیابی عملکرد</h1><p>تعریف مستقل هر سؤال و اتصال آن به چند رده با سقف و ترتیب متفاوت</p></div>
+<div class="mp-head-actions"><a class="btn btn-outline" href="/MonthlyPerformanceAdmin/Ranks">رده‌های پستی و اتصالات</a>
+<a class="btn btn-outline" href="/MonthlyPerformanceAdmin/Basic?tab=domains">حوزه‌های ارزیابی</a>
+<a class="btn btn-outline" href="/MonthlyPerformanceAdmin/Export?tab=questions">خروجی Excel</a></div></section>
+@if(TempData["Success"]!=null){<div class="mp-success">@TempData["Success"]</div>}
+@if(TempData["Error"]!=null){<div class="mp-error">@TempData["Error"]</div>}
+<section class="mp-card">
+<h2>تعریف سؤال جدید</h2>
+<p class="mp-note">کد سؤال در صورت خالی‌گذاشتن به‌صورت خودکار تولید می‌شود؛ متن سؤال، حوزه و ترتیب آن قابل تغییر است.</p>
+<form method="post" action="/MonthlyPerformanceAdmin/SaveQuestion" class="mp-form-grid">
+@Html.AntiForgeryToken()<input type="hidden" name="id" value="0" />
+<label class="mp-field">کد سؤال<input name="code" maxlength="50" placeholder="تولید خودکار" /></label>
+<label class="mp-field mp-wide">عنوان / متن سؤال<input name="title" required maxlength="500" placeholder="رعایت الزامات کیفیت محصول و فرآیند" /></label>
+<label class="mp-field">حوزه ارزیابی<select name="domainId" required><option value="">انتخاب حوزه</option>@foreach(var d in Model.Domains.Where(x=>x.IsActive)){<option value="@d.Id">@d.Code — @d.Title</option>}</select></label>
+<label class="mp-field">ترتیب بانک<input name="sortOrder" type="number" min="0" step="1" value="10" /></label>
+<input name="isActive" type="hidden" value="true" />
+<div class="mp-controls"><button class="btn btn-main" type="submit">افزودن سؤال</button></div>
+</form>
+</section>
+<section class="mp-card">
+<h2>اتصال سریع سؤال به رده پستی</h2>
+<p class="mp-note">سقف و ترتیب سؤالات هر رده مستقل هستند؛ برای مشاهده و ویرایش تمام اتصالات یک رده از صفحه رده‌های پستی نیز می‌توانید استفاده کنید.</p>
+<form method="post" action="/MonthlyPerformanceAdmin/SaveMapping" class="mp-form-grid">
+@Html.AntiForgeryToken()
+<label class="mp-field mp-wide">سؤال
+<select name="questionId" required><option value="">انتخاب سؤال</option>@foreach(var q in Model.Questions.Where(x=>x.IsActive)){<option value="@q.Id">@q.Code — @q.Title</option>}</select></label>
+<label class="mp-field">رده پستی
+<select name="rankId" required><option value="">انتخاب رده</option>@foreach(var r in Model.Ranks.Where(x=>x.IsActive)){<option value="@r.Id">@r.Code — @r.Title</option>}</select></label>
+<label class="mp-field">سقف صحیح<input type="number" name="maxScore" min="1" step="1" required /></label>
+<label class="mp-field">ترتیب<input type="number" name="sortOrder" min="1" step="1" value="1" required /></label>
+<button class="btn btn-main" type="submit">اتصال سؤال</button>
+</form>
+</section>
+<section class="mp-card">
+<div class="mp-toolbar"><div><h2>فهرست سؤالات و ارتباط آنها</h2><p class="mp-note">تعداد اتصال فعال و سقف اختصاصی هر رده در جدول نمایش داده شده است.</p></div>
+<input class="mp-search" type="search" placeholder="جست‌وجو در کد، عنوان، حوزه یا رده..." /></div>
+<div class="mp-table-wrap"><table class="mp-filter-table"><thead><tr><th>کد</th><th>سؤال</th><th>حوزه</th><th>رده‌های متصل و سقف</th><th>ویرایش سؤال</th></tr></thead>
+<tbody>@foreach(var q in Model.Questions){
+ var mappings=Model.Mappings.Where(x=>x.QuestionId==q.Id&&x.IsActive).OrderBy(x=>x.Rank.Title).ToList();
+ <tr><td><span class="mp-code">@q.Code</span></td><td><strong>@q.Title</strong><div class="mp-note">ترتیب: @q.SortOrder · @(q.IsActive?"فعال":"غیرفعال")</div></td><td>@q.Domain.Title</td>
+ <td>@if(mappings.Count==0){<span class="mp-muted">بدون اتصال</span>}
+ else {@foreach(var m in mappings){<div class="mp-mapping-line">@m.Rank.Title <span class="mp-tag info">سقف @m.MaxScore.ToString("0")</span> <span class="mp-note">ترتیب @m.SortOrder</span></div>}}</td>
+ <td><details class="mp-inline-details"><summary>ویرایش</summary>
+ <form method="post" action="/MonthlyPerformanceAdmin/SaveQuestion" class="mp-edit-stack">
+ @Html.AntiForgeryToken()<input type="hidden" name="id" value="@q.Id" />
+ <label class="mp-field">کد<input name="code" value="@q.Code" required /></label>
+ <label class="mp-field">عنوان<input name="title" value="@q.Title" required maxlength="500" /></label>
+ <label class="mp-field">حوزه<select name="domainId">@foreach(var d in Model.Domains){<option value="@d.Id" selected="@(d.Id==q.DomainId)">@d.Title</option>}</select></label>
+ <label class="mp-field">ترتیب<input name="sortOrder" value="@q.SortOrder" min="0" step="1" type="number" /></label>
+ <label class="mp-field">فعال<input type="checkbox" name="isActive" value="true" checked="@q.IsActive" /></label>
+ <button class="btn btn-main btn-sm" type="submit">ذخیره</button>
+ </form></details></td>
+ </tr>
+}</tbody></table></div>
+</section>
+</div>
+<script src="~/js/monthly-performance-table.js" asp-append-version="true"></script>

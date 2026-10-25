@@ -498,6 +498,20 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
                 .ThenBy(x => x.Title)
                 .ToListAsync();
 
+        // Previously assigned organization nodes can belong to an earlier finalized revision
+        // or become inactive. Preserve them as selectable current values on the edit form
+        // instead of silently rendering an empty dropdown (and erasing the assignment).
+        var assignedIds = new[] {
+            employee.OrganizationUnitId, employee.OrganizationDepartmentId,
+            employee.OrganizationSectionId
+        }.Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToArray();
+        foreach (var id in assignedIds)
+        {
+            if (nodes.Any(n => n.Id == id)) continue;
+            var previous = await db.OrganizationNodes.AsNoTracking().FirstOrDefaultAsync(n => n.Id == id);
+            if (previous is not null) nodes.Add(previous);
+        }
+
         var ceoNodes = nodes.Where(x => x.RankType == "مدیرعامل").ToList();
         if (employee.OrganizationPositionId.HasValue &&
             ceoNodes.All(x => x.Id != employee.OrganizationPositionId.Value))

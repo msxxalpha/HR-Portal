@@ -28,7 +28,11 @@ public class RoleService(HRPortalDbContext db)
         ("InputQueries.Manage", "مدیریت کوئری‌های ورودی", "مدیریت سامانه"),
         ("Users.Manage", "مدیریت کاربران", "مدیریت کاربران"),
         ("Roles.Manage", "مدیریت نقش‌ها", "مدیریت کاربران"),
-        ("Announcements.Manage", "مدیریت اطلاعیه‌ها", "مدیریت سامانه")
+        ("Announcements.Manage", "مدیریت اطلاعیه‌ها", "مدیریت سامانه"),
+        ("Performance.View", "مشاهده ماژول ارزیابی عملکرد", "ارزیابی عملکرد کارکنان"),
+        ("Performance.Evaluate", "ثبت و بازنگری امتیاز ارزیابی", "ارزیابی عملکرد کارکنان"),
+        ("Performance.Manage", "مدیریت دوره‌ها، سؤالات و تخصیص ارزیاب", "ارزیابی عملکرد کارکنان"),
+        ("Performance.Reports", "مشاهده گزارش‌های مدیریتی ارزیابی", "ارزیابی عملکرد کارکنان")
     ];
 
     public async Task SeedAsync()
@@ -57,6 +61,12 @@ public class RoleService(HRPortalDbContext db)
             db.EmployeeRoles.Add(new EmployeeRole { EmployeeId = employeeId, RoleId = defaultRoleId });
         if (employeesWithoutRole.Count > 0)
             await db.SaveChangesAsync();
+
+        await EnsureRoleAsync("PERFORMANCE_EVALUATOR", "ارزیاب عملکرد کارکنان",
+            "مشاهده و ثبت ارزیابی کارکنان تخصیص‌یافته", ["Performance.View", "Performance.Evaluate"]);
+        await EnsureRoleAsync("PERFORMANCE_MANAGER", "مدیریت ارزیابی عملکرد",
+            "مدیریت اطلاعات پایه، دوره‌ها و گزارش‌های ارزیابی",
+            ["Performance.View", "Performance.Manage", "Performance.Reports"]);
 
         await EnsureRoleAsync("USER_MANAGER", "مدیریت کاربران", "مدیریت وضعیت کاربر و تخصیص نقش به کارکنان",
             ["Users.Manage"]);

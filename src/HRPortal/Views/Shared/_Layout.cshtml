@@ -3,6 +3,7 @@
     var cfg = await SettingsService.GetAsync();
     var company = cfg.System;
     var isAdmin = User.HasClaim("IsAdmin", "1");
+    var isPerformancePage = Context.Request.Path.StartsWithSegments("/Performance") || Context.Request.Path.StartsWithSegments("/PerformanceAdmin") || Context.Request.Path.StartsWithSegments("/PerformanceReports") || Context.Request.Path.StartsWithSegments("/PerformanceSelf");
     bool Can(string permission) => isAdmin || User.HasClaim("Permission", permission);
 }
 <!DOCTYPE html>
@@ -19,8 +20,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazir-font@v30.1.0/dist/font-face.css" />
     <link rel="stylesheet" href="https://unpkg.com/@@majidh1/jalalidatepicker/dist/jalalidatepicker.min.css" />
     <link rel="stylesheet" href="@Url.Content("~/css/site.css")" asp-append-version="true" />
+    @if (isPerformancePage) { <link rel="stylesheet" href="@Url.Content("~/css/performance.css")" asp-append-version="true" /> }
 </head>
-<body style="--navy:@company.PrimaryColor;--navy2:@company.SecondaryColor;">
+<body class="@(isPerformancePage ? "performance-module" : "")" style="--navy:@company.PrimaryColor;--navy2:@company.SecondaryColor;">
 <div class="app-shell">
     <aside class="sidebar">
         <div class="brand">
@@ -33,6 +35,12 @@
 
         <nav class="nav">
             <a class="nav-dashboard" href="/"><span class="nav-icon">⌂</span>داشبورد</a>
+            @if (User.FindFirst("EmployeeId") != null) {
+                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/PerformanceSelf") ? "open" : null)">
+                    <summary><span class="nav-icon">◉</span>عملکرد من</summary>
+                    <div class="nav-submenu"><a href="/PerformanceSelf">داشبورد عملکرد شخصی</a></div>
+                </details>
+            }
             @if (Can("Workflow.Inbox")) {
                 <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Workflow") ? "open" : null)">
                     <summary><span class="nav-icon">▤</span>درخواست‌ها</summary><div class="nav-submenu">
@@ -55,10 +63,11 @@
                     </div>
                 </details>
             }
-            @if (isAdmin || Can("ContractRenewal.Manage")) {
-                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/EmployeeContracts") ? "open" : null)">
+            @if (isAdmin || Can("ContractRenewal.Manage") || Can("Performance.View") || Can("Performance.Manage") || Can("Performance.Reports")) {
+                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/EmployeeContracts") || isPerformancePage ? "open" : null)">
                     <summary><span class="nav-icon">▦</span>ماژول‌ها</summary>
                     <div class="nav-submenu">
+                        @if (isAdmin || Can("ContractRenewal.Manage")) {
                         <details class="nav-subgroup" open="@(Context.Request.Path.StartsWithSegments("/EmployeeContracts") ? "open" : null)">
                             <summary>مدیریت قراردادهای کارکنان</summary>
                             <div class="nav-submenu nav-submenu-nested">
@@ -68,6 +77,17 @@
                                 @if (isAdmin || Can("ContractRenewal.Manage")) { <a href="/EmployeeContracts/Renewal">تمدید قرارداد</a> }
                             </div>
                         </details>
+                        }
+                        @if (Can("Performance.View") || Can("Performance.Manage") || Can("Performance.Reports")) {
+                        <details class="nav-subgroup" open="@(isPerformancePage ? "open" : null)">
+                            <summary>ارزیابی عملکرد کارکنان</summary>
+                            <div class="nav-submenu nav-submenu-nested">
+                                @if (Can("Performance.View")) { <a href="/Performance">داشبورد و ارزیابی کارکنان</a> }
+                                @if (Can("Performance.Manage")) { <a href="/PerformanceAdmin">دوره‌ها و اطلاعات پایه ارزیابی</a> }
+                                @if (Can("Performance.Reports")) { <a href="/PerformanceReports">گزارش‌های مدیریتی ارزیابی</a> }
+                            </div>
+                        </details>
+                        }
                     </div>
                 </details>
             }

@@ -1,0 +1,125 @@
+@model HRPortal.Controllers.PerformanceReportsController.ReportVm
+@{
+    ViewData["Title"] = "گزارش‌های مدیریتی ارزیابی عملکرد";
+}
+<h2>گزارش‌های مدیریتی ارزیابی عملکرد کارکنان</h2>
+<p>نتایج دوره‌های فعال و بسته نمایش داده می‌شوند؛ دوره‌های بایگانی‌شده در محاسبات گزارش جاری شرکت نمی‌کنند.</p>
+<div class="card p-3 mb-3">
+<form method="get" action="/PerformanceReports" class="d-flex align-items-center gap-2 flex-wrap">
+<label>دوره</label><select name="periodId" class="form-select" onchange="this.form.submit()">
+@foreach(var p in Model.Periods){<option value="@p.Id" selected="@(p.Id==Model.Selected?.Id)">@p.Title</option>}
+</select><button class="btn btn-outline-primary" type="submit">نمایش</button>
+@if (Model.Selected != null)
+{
+<a class="btn btn-outline-secondary" href="/PerformanceReports/Export?periodId=@Model.Selected.Id&amp;q=@System.Net.WebUtility.UrlEncode(Model.Search)">خروجی Excel از کل گزارش</a>
+}
+</form></div>
+@if (Model.Selected != null)
+{
+    <div class="perf-toolbar mb-3"><a class="btn btn-outline-primary" href="/PerformanceReports/Export?periodId=@Model.Selected.Id">دریافت گزارش کامل Excel</a></div>
+}
+@if (Model.Selected is null)
+{
+<div class="card p-3">هنوز دوره‌ای برای گزارش تعریف نشده است.</div>
+}
+else
+{
+<div class="row g-3 mb-3 perf-metric-grid">
+<div class="col-md-3"><div class="card p-3"><small>تعداد ارزیابی</small><h3>@Model.TotalCount</h3></div></div>
+<div class="col-md-3"><div class="card p-3"><small>سقف امتیاز</small><h3>@Model.TotalMax.ToString("N2")</h3></div></div>
+<div class="col-md-3"><div class="card p-3"><small>امتیاز استفاده‌شده</small><h3>@Model.TotalScore.ToString("N2")</h3></div></div>
+<div class="col-md-3"><div class="card p-3"><small>مجموع کسرشده</small><h3>@Model.Deducted.ToString("N2")</h3></div></div>
+</div>
+<div class="card p-3"><h3>کارکنان ارزیابی‌شده</h3>
+<form method="get" action="/PerformanceReports" class="d-flex align-items-center gap-2 flex-wrap">
+<input type="hidden" name="periodId" value="@Model.Selected.Id" />
+<input name="q" class="form-control" value="@Model.Search" placeholder="جست‌وجو..." />
+<select name="pageSize" class="form-select" onchange="this.form.submit()">
+<option value="25" selected="@(Model.PageSize==25)">25 ردیف</option>
+<option value="50" selected="@(Model.PageSize==50)">50 ردیف</option>
+<option value="75" selected="@(Model.PageSize==75)">75 ردیف</option>
+<option value="100" selected="@(Model.PageSize==100)">100 ردیف</option>
+</select><button type="submit" class="btn btn-outline-primary">جست‌وجو</button>
+</form>
+@{var totalPages=Math.Max(1,(int)Math.Ceiling(Model.FilteredCount/(double)Model.PageSize));}
+@await Html.PartialAsync("_PerformancePagination",(Model.Page,totalPages,Model.PageSize,Model.Search,"/PerformanceReports",(int?)Model.Selected.Id))
+<div class="table-responsive"><table class="table">
+<thead><tr><th>نام</th><th>شماره پرسنلی</th><th>ارزیاب</th><th>امتیاز</th><th>سقف</th><th>کسری</th><th>درصد</th></tr></thead>
+<tbody>
+@foreach(var r in Model.Rows)
+{
+<tr><td>@r.Employee</td><td>@r.PersonnelNumber</td><td>@r.Evaluator</td><td>@r.Score.ToString("N2")</td><td>@r.Maximum.ToString("N2")</td><td>@r.Deducted.ToString("N2")</td><td>@r.Percentage.ToString("N2")٪</td></tr>
+}
+</tbody></table></div></div>
+}
+
+
+@if (Model.Selected != null)
+{
+    <div class="row g-3 mt-3">
+        <div class="col-lg-6">
+            <div class="card p-3 h-100"><h3>توزیع سطح عملکرد</h3>
+            @foreach (var group in Model.Analytics.Distribution)
+            {
+                var width = (Model.TotalCount > 0 ? group.Count * 100m / Model.TotalCount : 0m)
+                    .ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+                <div class="perf-bar-row"><div><b>@group.Title</b><span>@group.Count نفر</span></div>
+                <div class="perf-bar-track"><div class="perf-bar-fill" style="width:@width%"></div></div></div>
+            }
+            </div>
+        </div>
+        <div class="col-lg-6"><div class="card p-3 h-100">
+            <h3>میانگین عملکرد به تفکیک حوزه</h3>
+            @foreach(var item in Model.Analytics.Domains)
+            {
+                var width = Math.Clamp(item.Percentage,0m,100m).ToString("0.##",System.Globalization.CultureInfo.InvariantCulture);
+                <div class="perf-bar-row"><div><b>@item.Title</b><span>@item.Percentage.ToString("N2")٪</span></div>
+                <div class="perf-bar-track"><div class="perf-bar-fill" style="width:@width%"></div></div></div>
+            }
+        </div></div>
+    </div>
+    <div class="row g-3 mt-3">
+        <div class="col-lg-6"><div class="card p-3 h-100">
+            <h3>میانگین عملکرد واحدها</h3>
+            <div class="table-responsive"><table class="table">
+            <thead><tr><th>واحد</th><th>کارکنان</th><th>امتیاز</th><th>درصد</th></tr></thead><tbody>
+            @foreach(var item in Model.Analytics.Units)
+            {
+                <tr><td>@item.Title</td><td>@item.Count</td><td>@item.Earned.ToString("N2")</td><td>@item.Percentage.ToString("N2")٪</td></tr>
+            }
+            </tbody></table></div>
+        </div></div>
+        <div class="col-lg-6"><div class="card p-3 h-100">
+            <h3>میانگین امتیاز به تفکیک سؤال</h3>
+            <div class="table-responsive"><table class="table">
+            <thead><tr><th>سؤال</th><th>میانگین تحقق</th><th>تعداد</th></tr></thead><tbody>
+            @foreach(var item in Model.Analytics.Questions.OrderBy(x => x.Percentage))
+            {
+                <tr><td>@item.Title</td><td>@item.Percentage.ToString("N2")٪</td><td>@item.Count</td></tr>
+            }
+            </tbody></table></div>
+        </div></div>
+    </div>
+    <div class="row g-3 mt-3">
+        <div class="col-lg-6"><div class="card p-3 h-100">
+            <h3>بالاترین امتیازها</h3>
+            <div class="table-responsive"><table class="table">
+            <thead><tr><th>نام کارمند</th><th>امتیاز</th><th>درصد</th></tr></thead><tbody>
+            @foreach(var item in Model.Analytics.Highest)
+            {
+                <tr><td>@item.Title</td><td>@item.Earned.ToString("N2")</td><td>@item.Percentage.ToString("N2")٪</td></tr>
+            }
+            </tbody></table></div>
+        </div></div>
+        <div class="col-lg-6"><div class="card p-3 h-100">
+            <h3>نفرات نیازمند بهبود</h3>
+            <div class="table-responsive"><table class="table">
+            <thead><tr><th>نام کارمند</th><th>امتیاز</th><th>درصد</th></tr></thead><tbody>
+            @foreach(var item in Model.Analytics.Lowest)
+            {
+                <tr><td>@item.Title</td><td>@item.Earned.ToString("N2")</td><td>@item.Percentage.ToString("N2")٪</td></tr>
+            }
+            </tbody></table></div>
+        </div></div>
+    </div>
+}

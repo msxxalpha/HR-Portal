@@ -1,3 +1,4 @@
+using HRPortal.Modules.Performance;
 using HRPortal.Data;
 using HRPortal.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -74,6 +75,8 @@ builder.Services.AddScoped<AnnouncementService>();
 builder.Services.AddScoped<EmployeeExcelService>();
 builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<RoleService>();
+builder.Services.AddScoped<PerformanceService>();
+builder.Services.AddScoped<PerformanceAnalyticsService>();
 builder.Services.AddScoped<WorkflowService>();
 builder.Services.AddScoped<ContractRenewalWorkflowService>();
 builder.Services.AddScoped<ContractRenewalPdfService>();
@@ -112,6 +115,7 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<HRPortalDbContext>();
     await DatabaseInitializer.InitializeAsync(db);
+    await PerformanceSchemaInitializer.EnsureAsync(db);
 }
 
 if (!app.Environment.IsDevelopment())

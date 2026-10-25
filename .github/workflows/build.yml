@@ -16,3 +16,7 @@ jobs:
         run: dotnet restore src/HRPortal/HRPortal.csproj
       - name: Build
         run: dotnet build src/HRPortal/HRPortal.csproj --configuration Release --no-restore
+      - name: Restore performance integration tests
+        run: dotnet restore tests/HRPortal.Performance.Tests/HRPortal.Performance.Tests.csproj
+      - name: Test performance integration
+        run: dotnet test tests/HRPortal.Performance.Tests/HRPortal.Performance.Tests.csproj --configuration Release --no-restore

@@ -1,0 +1,24 @@
+/* Shared portal navigation, derived from the pre-integration collapsible sidebar.
+   Keep this stylesheet independent of the performance module's form styles. */
+.sidebar{overflow-y:auto;overflow-x:hidden;padding-bottom:75px;overscroll-behavior:contain}
+.sidebar .nav{padding-top:10px}
+.sidebar .nav-icon{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 22px;border-radius:7px;background:rgba(255,255,255,.08);color:#d9e7ef;font-size:13px}
+.sidebar .nav-dashboard{display:flex;align-items:center;gap:9px;padding:12px;margin-bottom:8px;border-radius:9px;background:rgba(255,255,255,.06);text-decoration:none;color:#fff;font-size:12px}
+.sidebar .nav-dashboard:hover{background:rgba(255,255,255,.12)}
+.sidebar .nav-group{margin:4px 0;border-radius:10px}
+.sidebar .nav-group>summary{list-style:none;display:flex;align-items:center;gap:9px;cursor:pointer;color:#e8f0f5;padding:11px 12px;border-radius:9px;font-size:12px;user-select:none;line-height:1.8}
+.sidebar .nav-group>summary::-webkit-details-marker,.sidebar .nav-subgroup>summary::-webkit-details-marker{display:none}
+.sidebar .nav-group>summary::after,.sidebar .nav-subgroup>summary::after{content:"";width:7px;height:7px;flex:0 0 7px;border-left:1.5px solid #9fb4c1;border-bottom:1.5px solid #9fb4c1;transform:rotate(45deg);margin-right:auto;margin-top:-4px;transition:transform .15s}
+.sidebar .nav-group[open]>summary::after,.sidebar .nav-subgroup[open]>summary::after{transform:rotate(-45deg);margin-top:4px}
+.sidebar .nav-group>summary:hover,.sidebar .nav-group[open]>summary{background:rgba(255,255,255,.08)}
+.sidebar .nav-submenu{padding:2px 0 7px}
+.sidebar .nav-submenu a{display:block;text-decoration:none;color:#d7e3ea;padding:9px 18px 9px 10px;margin:2px 5px 2px 0;border-right:2px solid rgba(255,255,255,.18);border-radius:0 6px 6px 0;font-size:11px;line-height:1.8}
+.sidebar .nav-submenu a:hover,.sidebar .nav-submenu a.nav-active{background:rgba(255,255,255,.12);border-right-color:#fff;color:#fff;transform:none}
+.sidebar .nav-subgroup{margin:2px 2px 2px 6px;border-right:1px solid rgba(255,255,255,.18);padding-right:4px}
+.sidebar .nav-subgroup>summary{list-style:none;display:flex;align-items:center;gap:8px;cursor:pointer;color:#dce8ef;padding:9px 12px;font-size:11px;border-radius:7px;line-height:1.8}
+.sidebar .nav-subgroup>summary:hover,.sidebar .nav-subgroup[open]>summary{background:rgba(255,255,255,.06)}
+.sidebar .nav-submenu-nested a{font-size:10.5px;padding-right:25px}
+.sidebar .nav :is(summary,a):focus-visible{outline:2px solid #b1dcec;outline-offset:2px}
+.sidebar .sidebar-foot{background:linear-gradient(180deg,transparent,var(--navy) 30%);pointer-events:none}
+@media(max-width:900px) and (min-width:801px){.sidebar{width:235px;flex-basis:235px}}
+@media(max-width:800px){.sidebar{overflow:visible;padding-bottom:20px}.sidebar .nav-group{max-width:100%}}

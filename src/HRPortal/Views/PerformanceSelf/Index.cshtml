@@ -1,0 +1,81 @@
+@model HRPortal.Controllers.PerformanceSelfController.SelfVm
+@{
+    ViewData["Title"] = "کارنامه عملکرد من";
+}
+<div class="page-head">
+    <div><h1>کارنامه ارزیابی عملکرد</h1><p>سلام، @Model.EmployeeName. نتایج ثبت‌شده شما در دوره‌های مختلف در این صفحه قابل مشاهده است.</p></div>
+</div>
+@if (Model.Selected == null)
+{
+    <div class="card p-4"><h3>هنوز ارزیابی‌ای برای شما ثبت نشده است</h3><p>پس از ثبت ارزیابی توسط مسئول مربوطه، نتایج در این صفحه نمایش داده می‌شوند.</p></div>
+}
+else
+{
+    <div class="row g-3 mb-3">
+        <div class="col-md-4"><div class="card p-3 h-100"><small>امتیاز دوره منتخب</small><h3>@Model.Selected.Score.ToString("N2") از @Model.Selected.MaxScore.ToString("N2")</h3></div></div>
+        <div class="col-md-4"><div class="card p-3 h-100"><small>درصد امتیاز دوره منتخب</small><h3>@Model.Selected.Percent.ToString("N2")٪</h3></div></div>
+        <div class="col-md-4"><div class="card p-3 h-100"><small>تعداد دوره‌های ارزیابی‌شده</small><h3>@Model.History.Count</h3></div></div>
+    </div>
+    <div class="card p-3 mb-3">
+        <h3>انتخاب دوره</h3>
+        <form method="get" action="/PerformanceSelf">
+            <select name="evaluationId" class="form-select" onchange="this.form.submit()">
+                @foreach (var item in Model.History)
+                {
+                    <option value="@item.EvaluationId" selected="@(item.EvaluationId == Model.Selected.EvaluationId)">@item.PeriodTitle — @item.Percent.ToString("N2")٪</option>
+                }
+            </select>
+        </form>
+    </div>
+    <div class="row g-3 mb-3">
+        <div class="col-lg-6"><div class="card p-3 h-100"><h3>روند امتیاز عملکرد</h3>
+            @foreach (var item in Model.History.OrderBy(x => x.StartAt))
+            {
+                var width = Math.Clamp(item.Percent, 0m, 100m).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+                <div class="perf-bar-row">
+                    <div><b>@item.PeriodTitle</b><span>@item.Percent.ToString("N2")٪</span></div>
+                    <div class="perf-bar-track"><div class="perf-bar-fill" style="width:@width%"></div></div>
+                </div>
+            }
+        </div></div>
+        <div class="col-lg-6"><div class="card p-3 h-100"><h3>خلاصه نتایج دوره منتخب</h3>
+            <div class="perf-statline"><span>مجموع سقف</span><b>@Model.Selected.MaxScore.ToString("N2")</b></div>
+            <div class="perf-statline"><span>امتیاز نهایی</span><b>@Model.Selected.Score.ToString("N2")</b></div>
+            <div class="perf-statline"><span>امتیاز کسرشده</span><b>@((Model.Selected.MaxScore - Model.Selected.Score).ToString("N2"))</b></div>
+            <div class="perf-statline"><span>درصد تحقق</span><b>@Model.Selected.Percent.ToString("N2")٪</b></div>
+        </div></div>
+    </div>
+    <div class="card p-3 mb-3"><h3>نتایج به تفکیک سؤال</h3>
+        <div class="table-responsive"><table class="table">
+            <thead><tr><th>حوزه</th><th>سؤال</th><th>امتیاز</th><th>سقف</th><th>تحقق</th><th>ملاحظات</th></tr></thead>
+            <tbody>
+            @foreach(var item in Model.Questions)
+            {
+                <tr><td>@item.Domain</td><td>@item.Title</td><td>@item.Score.ToString("N2")</td><td>@item.MaxScore.ToString("N2")</td><td>@item.Percent.ToString("N2")٪</td><td>@(item.Comment ?? "—")</td></tr>
+            }
+            </tbody>
+        </table></div>
+    </div>
+    <div class="row g-3">
+        <div class="col-lg-6"><div class="card p-3 h-100"><h3>نقاط قوت</h3>
+            @foreach(var q in Model.Questions.Where(q => q.MaxScore > 0).OrderByDescending(q => q.Percent).Take(5))
+            {
+                <div class="perf-statline"><span>@q.Title</span><b>@q.Percent.ToString("N1")٪</b></div>
+            }
+        </div></div>
+        <div class="col-lg-6"><div class="card p-3 h-100"><h3>نقاط قابل بهبود</h3>
+            @foreach(var q in Model.Questions.Where(q => q.MaxScore > 0).OrderBy(q => q.Percent).Take(5))
+            {
+                <div class="perf-statline"><span>@q.Title</span><b>@q.Percent.ToString("N1")٪</b></div>
+            }
+        </div></div>
+    </div>
+    <div class="card p-3 mt-3"><h3>سوابق دوره‌های ارزیابی</h3>
+        <div class="table-responsive"><table class="table"><thead><tr><th>دوره</th><th>امتیاز</th><th>سقف</th><th>درصد</th><th>جزئیات</th></tr></thead><tbody>
+        @foreach(var p in Model.History)
+        {
+            <tr><td>@p.PeriodTitle</td><td>@p.Score.ToString("N2")</td><td>@p.MaxScore.ToString("N2")</td><td>@p.Percent.ToString("N2")٪</td><td><a class="btn btn-sm btn-outline-primary" href="/PerformanceSelf?evaluationId=@p.EvaluationId">مشاهده</a></td></tr>
+        }
+        </tbody></table></div>
+    </div>
+}

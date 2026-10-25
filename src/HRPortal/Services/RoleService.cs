@@ -32,7 +32,11 @@ public class RoleService(HRPortalDbContext db)
         ("Announcements.Manage", "مدیریت اطلاعیه‌ها", "مدیریت سامانه"),
         ("Workflow.Inbox", "کارتابل گردش کار", "گردش کار"),
         ("Workflow.Manage", "مدیریت گردش کار", "گردش کار"),
-        ("ContractRenewal.Manage", "ثبت و پیگیری تمدید قرارداد", "ماژول مدیریت قراردادهای کارکنان")
+        ("ContractRenewal.Manage", "ثبت و پیگیری تمدید قرارداد", "ماژول مدیریت قراردادهای کارکنان"),
+        ("Performance.View", "مشاهده ماژول ارزیابی عملکرد", "ارزیابی عملکرد کارکنان"),
+        ("Performance.Evaluate", "ثبت و بازنگری امتیاز ارزیابی", "ارزیابی عملکرد کارکنان"),
+        ("Performance.Manage", "مدیریت دوره‌ها و تخصیص ارزیاب", "ارزیابی عملکرد کارکنان"),
+        ("Performance.Reports", "گزارش‌های مدیریتی ارزیابی", "ارزیابی عملکرد کارکنان")
     ];
 
     public async Task SeedAsync()
@@ -75,6 +79,10 @@ public class RoleService(HRPortalDbContext db)
             ["Roles.Manage"]);
         await EnsureRoleAsync("WORKFLOW_MANAGER", "مدیریت گردش کار", "تعریف گردش کار و تخصیص مراحل به جایگاه‌های سازمانی",
             ["Workflow.Inbox", "Workflow.Manage"]);
+        await EnsureRoleAsync("PERFORMANCE_EVALUATOR", "ارزیاب عملکرد کارکنان",
+            "مشاهده و ثبت ارزیابی کارکنان تخصیص‌یافته", ["Performance.View", "Performance.Evaluate"]);
+        await EnsureRoleAsync("PERFORMANCE_MANAGER", "مدیریت ارزیابی عملکرد",
+            "مدیریت دوره‌ها، سؤالات و گزارش‌های ارزیابی", ["Performance.View", "Performance.Evaluate", "Performance.Manage", "Performance.Reports"]);
     }
 
     private async Task<Role> EnsureRoleAsync(string code, string title, string description, IEnumerable<string> permissionCodes)

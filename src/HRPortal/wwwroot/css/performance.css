@@ -1,0 +1,172 @@
+/* Every following rule is scoped to the performance module; no existing HRPortal dashboard or other forms change. */
+.performance-module{--perf-accent:#245678;--perf-border:#dce5eb;--perf-soft:#f5f8fa}
+.performance-module .content{max-width:1500px;padding:28px 30px 42px}
+.performance-module .content h2{font-size:22px;font-weight:800;margin:0 0 12px}
+.performance-module .content h3{font-size:16px;font-weight:800;margin:0 0 15px}
+.performance-module .content p{font-size:12px;color:#607585;line-height:1.95;margin-top:0}
+.performance-module .content small{font-size:11px;color:#6b7d89}
+.performance-module .card{border:1px solid var(--perf-border);border-radius:17px;background:#fff;box-shadow:0 8px 22px rgba(17,47,70,.045);padding:22px;margin:0 0 18px;min-width:0}
+.performance-module .card h3{margin-bottom:14px}
+.performance-module .p-3{padding:22px!important}.performance-module .p-4{padding:26px!important}
+.performance-module .mb-2{margin-bottom:10px!important}.performance-module .mb-3{margin-bottom:18px!important}.performance-module .mt-2{margin-top:12px!important}.performance-module .mt-3{margin-top:18px!important}
+.performance-module .row{display:flex;flex-wrap:wrap;margin:0 -8px;row-gap:16px}
+.performance-module .row>*{flex:0 0 auto;width:100%;padding:0 8px;min-width:0}
+.performance-module .g-2{row-gap:12px}.performance-module .g-3{row-gap:16px}
+.performance-module .d-flex{display:flex!important}.performance-module .d-inline{display:inline!important}
+.performance-module .d-inline-block{display:inline-block!important}
+.performance-module .flex-wrap{flex-wrap:wrap!important}.performance-module .align-items-center{align-items:center!important}
+.performance-module .align-self-end{align-self:flex-end!important}
+.performance-module .justify-content-between{justify-content:space-between!important}
+.performance-module .gap-2{gap:12px!important}.performance-module .h-100{height:100%}
+.performance-module .text-muted{color:#748895!important}.performance-module .text-center{text-align:center}
+.performance-module .form-control,.performance-module .form-select{display:block;width:100%;height:42px;padding:9px 12px;border:1px solid #cfdce4;border-radius:9px;background:#fff;color:#243d50;outline:0;font:inherit;font-size:12px;min-width:0;box-shadow:none}
+.performance-module textarea.form-control{height:auto;min-height:82px;resize:vertical}
+.performance-module .form-control:focus,.performance-module .form-select:focus{border-color:#78a8c5;box-shadow:0 0 0 3px rgba(36,86,120,.10)}
+.performance-module .form-control[readonly]{background:#f5f7f9;color:#647888}
+.performance-module label{display:flex;flex-direction:column;align-items:stretch;gap:7px;color:#465d6e;font-size:11px;font-weight:700;margin:0 0 7px;min-width:0}
+.performance-module form>label,.performance-module form>div>label{margin-bottom:8px}
+.performance-module select.form-select{cursor:pointer}
+.performance-module .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:normal;min-height:36px;text-align:center;font-weight:700;font-size:11px;line-height:1.5;border-radius:9px;transition:background .15s ease,border-color .15s ease}
+.performance-module .btn-primary{background:linear-gradient(120deg,var(--navy),#336789);border:1px solid var(--navy);color:#fff!important;padding:9px 15px}
+.performance-module .btn-primary:hover{background:#12344f}
+.performance-module .btn-outline-primary{border:1px solid #a6c3d4;background:#fff;color:var(--perf-accent)!important}
+.performance-module .btn-outline-secondary{border:1px solid #cbd8e0;background:#fff;color:#5f7280!important}
+.performance-module .btn-outline-danger{border:1px solid #e6bcc1;background:#fff;color:#aa404b!important}
+.performance-module .btn-outline-primary:hover,.performance-module .btn-outline-secondary:hover{background:#f2f6f8}
+.performance-module .btn-sm{padding:5px 10px;min-height:30px;font-size:10px}
+.performance-module .btn.disabled{pointer-events:none;opacity:.45}
+.performance-module .table-responsive{width:100%;overflow:auto;border:1px solid #e7edf2;border-radius:12px;background:#fff;margin-top:4px}
+.performance-module table.table{width:100%;border-collapse:separate;border-spacing:0;font-size:11px;min-width:580px}
+.performance-module .table th{background:#f0f5f8;color:#49677b;font-size:11px;font-weight:800;padding:12px;white-space:nowrap;border-bottom:1px solid #e1eaf0;text-align:right}
+.performance-module .table td{font-size:11px;color:#3b4e5a;padding:12px;white-space:normal;vertical-align:middle;border-bottom:1px solid #edf1f4}
+.performance-module .table tr:last-child td{border-bottom:0}
+.performance-module .table tbody tr:hover{background:#f9fbfc}
+.performance-module .table td .form-control{min-width:85px;max-width:230px}
+.performance-module .table td .btn{max-width:100%}
+.performance-module .alert{border-radius:11px;padding:12px 16px;font-size:12px;margin:0 0 17px}
+.performance-module .alert-success{background:#e7f5ed;border:1px solid #b8dfc5;color:#225e38}
+.performance-module .alert-danger{background:#fff0f0;border:1px solid #e9c0c0;color:#923f45}
+.performance-module .card .row{margin-top:2px}
+.performance-module .card ul{margin:12px 0 0;padding-right:18px;line-height:2;color:#4b6575}
+.performance-module .card li{font-size:11px}
+.performance-module .card>h3:first-child{color:var(--navy);padding-bottom:11px;border-bottom:1px solid #eef2f5}
+.performance-module .card .row .card{margin-bottom:0}
+.performance-module .row>.col-md-3>.card:has(h3),.performance-module .row>.col-md-3>.card:has(strong){height:100%}
+.performance-module .row>.col-md-3>.card>h3{font-size:27px;margin:10px 0 0;font-weight:800;direction:ltr;text-align:right;font-variant-numeric:tabular-nums}
+.performance-module .card form.d-flex,.performance-module .card form.row{align-items:end}
+.performance-module form.d-flex>.form-control{flex:1;min-width:180px}
+.performance-module form.d-flex>.form-select{width:auto;min-width:125px;max-width:340px}
+.performance-module form.d-flex>.btn{flex:none}
+.performance-module .card input[type=hidden]{display:none}
+.performance-module .card form.d-inline{display:inline-block}
+.performance-module .card form.d-inline .btn{margin:2px}
+.performance-module .card table input[type=number]{direction:ltr;text-align:center}
+.performance-module .card table input[type=text]{text-align:right}
+.performance-module .content .card:has(>form>.table-responsive){border-top:4px solid var(--perf-accent)}
+.performance-module .content .card:has(>h3)>.table-responsive{margin-top:14px}
+.performance-module .content .card .table-responsive table .btn{white-space:nowrap}
+.performance-module .content .card form:not(.d-inline)>.btn{margin-top:10px}
+.performance-module .content select[onchange]{max-width:100%}
+.performance-module .content .d-flex>h2{margin-bottom:5px}
+.performance-module .content .card:first-of-type{margin-top:2px}
+@media(min-width:768px){
+.performance-module .col-md-2{width:16.66667%}.performance-module .col-md-3{width:25%}
+.performance-module .col-md-4{width:33.33333%}.performance-module .col-md-5{width:41.66667%}
+.performance-module .col-md-6{width:50%}
+}
+@media(min-width:992px){
+.performance-module .col-lg-4{width:33.33333%}.performance-module .col-lg-6{width:50%}
+}
+@media(min-width:1200px){
+.performance-module .col-xl-3{width:25%}.performance-module .col-xl-4{width:33.33333%}
+}
+@media(max-width:820px){
+.performance-module .content{padding:18px 14px 36px}
+.performance-module .card{padding:16px}
+.performance-module .p-3{padding:16px!important}
+.performance-module form.d-flex>.form-control,.performance-module form.d-flex>.form-select{width:100%;max-width:none;flex-basis:100%}
+.performance-module .content h2{font-size:19px}
+.performance-module .content .d-flex.justify-content-between{flex-wrap:wrap}
+}
+
+/* UI fixes: scoped to Performance screens to prevent regressions elsewhere. */
+.performance-module{overflow-x:hidden}
+.performance-module .main{min-width:0}
+.performance-module .content{width:100%;max-width:1500px}
+.performance-module .content>h2:first-child{margin-top:0;margin-bottom:8px}
+.performance-module .content>p:first-of-type{margin-bottom:20px;line-height:2}
+.performance-module .card{overflow-wrap:anywhere}
+.performance-module .row{margin-right:-8px;margin-left:-8px}
+.performance-module .row>[class*="col-"]{min-width:0}
+.performance-module .card .table-responsive{max-width:100%;overscroll-behavior-x:contain}
+.performance-module .table td{overflow-wrap:break-word}
+.performance-module .table th,.performance-module .table td{min-width:0}
+.performance-module .table tbody tr:focus-within{background:#f4f8fb}
+.performance-module label[for]{cursor:pointer}
+.performance-module .card form.d-flex{align-items:end;min-width:0}
+.performance-module .card form.d-flex>label{margin-bottom:0;flex:0 0 auto}
+.performance-module .card form.d-flex>.form-select{min-width:160px}
+.performance-module .card form.d-flex>.form-control{min-width:160px}
+.performance-module .card .btn:focus-visible{outline:2px solid var(--perf-accent);outline-offset:3px}
+.performance-module .perf-page-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:20px}
+.performance-module .perf-page-header h2{margin-bottom:4px}
+.performance-module .perf-page-header p{margin:0}
+.performance-module .perf-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.performance-module .perf-toolbar .form-control{flex:1 1 240px}
+.performance-module .perf-toolbar .form-select{flex:0 1 175px}
+.performance-module .perf-metric-grid .card{border-top:3px solid #b7cbd8;min-height:105px}
+.performance-module .perf-metric-grid .card small{display:block}
+.performance-module .perf-metric-grid .card h3{font-size:24px!important;line-height:1.25}
+.performance-module .perf-help{padding:12px 14px;border-right:3px solid #739db7;background:#f2f7fa;border-radius:9px;color:#456176;font-size:12px;line-height:2;margin-bottom:16px}
+.performance-module .perf-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.performance-module .perf-actions form{display:inline-flex;margin:0}
+.performance-module .perf-actions .btn{margin:0!important}
+.performance-module .perf-empty{text-align:center;color:#708492;padding:25px 16px}
+.performance-module .perf-section-nav{display:flex;flex-wrap:wrap;gap:8px;position:relative;margin:14px 0 22px}
+.performance-module .perf-section-nav a{background:#f2f6f9;border:1px solid #dbe6ec;border-radius:9px;padding:9px 13px;color:#385c74;text-decoration:none;font-weight:700;font-size:11px}
+.performance-module .perf-section-nav a:hover{background:#e7f0f5}
+.performance-module [id^="perf-admin-"]{scroll-margin-top:22px}
+.performance-module .perf-status{display:inline-block;padding:4px 10px;border-radius:100px;font-size:11px;background:#e7f5ed;color:#236740}
+.performance-module .perf-status.closed{background:#f0f2f4;color:#586d7b}
+.performance-module .perf-status.archived{background:#fff1eb;color:#a65c38}
+.performance-module .perf-percent-bar{height:8px;min-width:70px;background:#e6edf1;border-radius:20px;overflow:hidden}
+.performance-module .perf-percent-bar>span{display:block;height:100%;background:#5a90ae;border-radius:inherit}
+@media(max-width:767px){
+ .performance-module .row>[class*="col-"]{width:100%}
+ .performance-module .content{padding:16px 12px 30px}
+ .performance-module .card{padding:15px;border-radius:12px}
+ .performance-module .table-responsive{margin-left:0;margin-right:0}
+ .performance-module .card form.d-flex{align-items:stretch}
+ .performance-module .card form.d-flex>.form-control,.performance-module .card form.d-flex>.form-select{width:100%;max-width:none;flex-basis:100%}
+ .performance-module .perf-toolbar>*{flex-basis:100%}
+}
+
+/* Restored per-position editing and employee self-service dashboards */
+.performance-module .perf-edit-list{max-height:390px;overflow:auto;border:1px solid #e1eaf0;border-radius:12px;padding:4px 10px}
+.performance-module .perf-edit-row{border-bottom:1px solid #ebf0f3;padding:3px 0}
+.performance-module .perf-edit-row:last-child{border-bottom:0}
+.performance-module .perf-edit-row>summary{display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;color:#34566b;padding:11px 5px;font-size:11px}
+.performance-module .perf-edit-row>summary::-webkit-details-marker{display:none}
+.performance-module .perf-edit-row>summary::before{content:"+";font-weight:900;font-size:15px;width:14px;color:#6289a0}
+.performance-module .perf-edit-row[open]>summary::before{content:"−"}
+.performance-module .perf-edit-row>summary small{margin-right:auto}
+.performance-module .perf-edit-form{padding:13px;background:#f7fafc;border-radius:9px;display:grid;gap:10px}
+.performance-module .perf-check{display:flex;flex-direction:row;align-items:center;gap:9px}
+.performance-module .perf-check input{width:17px;height:17px}
+.performance-module .perf-edit-form>.btn{justify-self:start}
+.performance-module .perf-bar-row{margin-bottom:15px}
+.performance-module .perf-bar-row>div:first-child{display:flex;justify-content:space-between;gap:10px;font-size:11px;color:#456072;margin-bottom:7px}
+.performance-module .perf-bar-track{height:11px;border-radius:18px;background:#e7eff4;overflow:hidden}
+.performance-module .perf-bar-fill{height:100%;border-radius:18px;background:linear-gradient(90deg,#396d8d,#173d59)}
+.performance-module .perf-statline{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #eaf0f3}
+.performance-module .perf-statline:last-child{border-bottom:0}
+.performance-module .perf-statline span{font-size:11px;color:#728795}
+.performance-module .perf-statline b{font-size:12px;color:var(--navy)}
+.performance-module .card table form.d-flex{flex-wrap:wrap}
+.performance-module .card table form.d-flex .form-control{width:80px;max-width:100px;min-width:75px;flex:0 0 auto}
+
+.performance-module .perf-trend-list{display:grid;gap:12px}
+.performance-module .perf-trend-row{display:grid;grid-template-columns:minmax(130px,2fr) minmax(120px,4fr) 65px;gap:12px;align-items:center;font-size:12px;color:#50697a}
+.performance-module .perf-trend-row strong{white-space:nowrap;direction:ltr;text-align:left}
+.performance-module .perf-trend-row .perf-percent-bar{width:100%;height:12px}
+@media(max-width:600px){.performance-module .perf-trend-row{grid-template-columns:1fr 2fr 55px;gap:8px;font-size:10px}}

@@ -1,4 +1,5 @@
 using HRPortal.Models;
+using HRPortal.Modules.Performance;
 using Microsoft.EntityFrameworkCore;
 
 namespace HRPortal.Data;
@@ -42,9 +43,21 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
     public DbSet<ContractRenewalRequestRevision> ContractRenewalRequestRevisions => Set<ContractRenewalRequestRevision>();
     public DbSet<ContractRenewalWorkflowSettings> ContractRenewalWorkflowSettings => Set<ContractRenewalWorkflowSettings>();
 
+    public DbSet<PerformanceDomain> PerformanceDomains => Set<PerformanceDomain>();
+    public DbSet<PerformanceQuestion> PerformanceQuestions => Set<PerformanceQuestion>();
+    public DbSet<PerformancePosition> PerformancePositions => Set<PerformancePosition>();
+    public DbSet<PerformancePositionQuestion> PerformancePositionQuestions => Set<PerformancePositionQuestion>();
+    public DbSet<PerformanceEmployeePosition> PerformanceEmployeePositions => Set<PerformanceEmployeePosition>();
+    public DbSet<PerformancePeriod> PerformancePeriods => Set<PerformancePeriod>();
+    public DbSet<PerformanceAssignment> PerformanceAssignments => Set<PerformanceAssignment>();
+    public DbSet<PerformanceEvaluation> PerformanceEvaluations => Set<PerformanceEvaluation>();
+    public DbSet<PerformanceScore> PerformanceScores => Set<PerformanceScore>();
+    public DbSet<PerformanceScoreChange> PerformanceScoreChanges => Set<PerformanceScoreChange>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        PerformanceModelConfiguration.Configure(modelBuilder);
         modelBuilder.Entity<Employee>(e =>
         {
             // The production Employees table has enabled SQL Server triggers.

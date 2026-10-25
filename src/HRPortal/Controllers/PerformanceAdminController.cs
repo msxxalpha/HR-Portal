@@ -13,12 +13,13 @@ namespace HRPortal.Controllers;
 public sealed class PerformanceAdminController(HRPortalDbContext db, OrganizationService organization) : Controller
 {
     public sealed record AssignmentInfo(int Id, string Period, string Employee, string Evaluator);
+    public sealed record ReviewerLine(int Id, string Period, string Evaluator, string Superior);
     public sealed record AdminVm(
         List<PerformancePeriod> Periods, List<PerformanceDomain> Domains,
         List<PerformancePosition> Positions, List<PerformanceQuestion> Questions,
         List<PerformancePositionQuestion> Mappings, List<Employee> Employees,
         List<PerformanceEmployeePosition> EmployeePositions, List<AssignmentInfo> Assignments,
-        string RevisionTitle, string DomainCode, string QuestionCode, string PositionCode);
+        string RevisionTitle, string DomainCode, string QuestionCode, string PositionCode, List<ReviewerLine> ReviewerLines);
 
     private static string NextCode(IEnumerable<string> codes, string prefix)
     {
@@ -54,13 +55,27 @@ public sealed class PerformanceAdminController(HRPortalDbContext db, Organizatio
                 EvalFirst = evaluator.FirstName, EvalLast = evaluator.LastName }
         ).OrderByDescending(x => x.Id).Take(100).ToListAsync();
 
+        var reviewerRaw = await (
+            from link in db.PerformanceEvaluatorChains.AsNoTracking()
+            join period in db.PerformancePeriods.AsNoTracking() on link.PeriodId equals period.Id
+            join subordinate in db.Employees.AsNoTracking() on link.SubordinateEvaluatorEmployeeId equals subordinate.Id
+            join superior in db.Employees.AsNoTracking() on link.SuperiorEvaluatorEmployeeId equals superior.Id
+            where !period.IsDeleted
+            select new { link.Id, Period = period.Title,
+                SubFirst = subordinate.FirstName, SubLast = subordinate.LastName,
+                SupFirst = superior.FirstName, SupLast = superior.LastName }
+        ).ToListAsync();
+        var reviewerLines = reviewerRaw
+            .Select(x => new ReviewerLine(x.Id, x.Period, $"{x.SubFirst} {x.SubLast}", $"{x.SupFirst} {x.SupLast}"))
+            .ToList();
+
         return View(new AdminVm(periods, domains, positions, questions, mappings, employees,
             employeePositions, assignmentQuery.Select(x => new AssignmentInfo(x.Id, x.Period,
                 $"{x.EmpFirst} {x.EmpLast}", $"{x.EvalFirst} {x.EvalLast}")).ToList(),
             rev?.Title ?? "نسخه نهایی ساختار یافت نشد",
             NextCode(domains.Select(x => x.Code), "DOM"),
             NextCode(questions.Select(x => x.Code), "Q"),
-            NextCode(positions.Select(x => x.Code), "POS")));
+            NextCode(positions.Select(x => x.Code), "POS"), reviewerLines));
     }
 
     [HttpPost("AddDomain"), ValidateAntiForgeryToken]
@@ -288,6 +303,63 @@ public sealed class PerformanceAdminController(HRPortalDbContext db, Organizatio
             await db.SaveChangesAsync();
             TempData["Result"] = "دوره ارزیابی با ثبت نسخه مبنای ساختار ایجاد شد.";
         }
+        return RedirectToAction(nameof(Index));
+    }
+
+
+    /// <summary>
+    /// Explicit period-specific evaluator hierarchy. Reporting line cannot be derived from
+    /// a shared organizational unit; only personnel who are valid occupants should be selected.
+    /// </summary>
+    [HttpPost("SetEvaluatorSupervisor"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> SetEvaluatorSupervisor(
+        int periodId, int subordinateEvaluatorEmployeeId, int superiorEvaluatorEmployeeId)
+    {
+        var period = await db.PerformancePeriods.SingleOrDefaultAsync(x => x.Id == periodId);
+        if (period == null || !PerformanceService.IsEditable(period, DateTime.Now) ||
+            subordinateEvaluatorEmployeeId == superiorEvaluatorEmployeeId ||
+            !await db.Employees.AnyAsync(x => x.Id == subordinateEvaluatorEmployeeId && x.Status == "فعال") ||
+            !await db.Employees.AnyAsync(x => x.Id == superiorEvaluatorEmployeeId && x.Status == "فعال"))
+        {
+            TempData["Error"] = "دوره یا ارتباط ارزیاب و مدیر بالادست معتبر نیست.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var links = await db.PerformanceEvaluatorChains.Where(x => x.PeriodId == periodId).ToListAsync();
+        var bySubordinate = links.ToDictionary(x => x.SubordinateEvaluatorEmployeeId,
+            x => x.SuperiorEvaluatorEmployeeId);
+        bySubordinate[subordinateEvaluatorEmployeeId] = superiorEvaluatorEmployeeId;
+        var seen = new HashSet<int>();
+        var cursor = subordinateEvaluatorEmployeeId;
+        while (bySubordinate.TryGetValue(cursor, out var next))
+        {
+            if (!seen.Add(cursor) || next == subordinateEvaluatorEmployeeId)
+            {
+                TempData["Error"] = "این ارتباط باعث ایجاد حلقه در سلسله‌مراتب ارزیابان می‌شود.";
+                return RedirectToAction(nameof(Index));
+            }
+            cursor = next;
+        }
+
+        if (await db.PerformanceEvaluations.AnyAsync(x => x.PeriodId == periodId))
+        {
+            TempData["Error"] = "پس از ثبت ارزیابی، ساختار سلسله‌مراتب دوره قابل تغییر نیست؛ برای تغییر باید فرآیند بازنگری طراحی شود.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var existing = links.FirstOrDefault(x =>
+            x.SubordinateEvaluatorEmployeeId == subordinateEvaluatorEmployeeId);
+        if (existing == null)
+            db.PerformanceEvaluatorChains.Add(new PerformanceEvaluatorChain
+            {
+                PeriodId = periodId, SubordinateEvaluatorEmployeeId = subordinateEvaluatorEmployeeId,
+                SuperiorEvaluatorEmployeeId = superiorEvaluatorEmployeeId
+            });
+        else
+            existing.SuperiorEvaluatorEmployeeId = superiorEvaluatorEmployeeId;
+
+        await db.SaveChangesAsync();
+        TempData["Result"] = "ارتباط ارزیاب و مدیر بالادست در نسخه دوره ثبت شد.";
         return RedirectToAction(nameof(Index));
     }
 

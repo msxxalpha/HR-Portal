@@ -406,7 +406,7 @@
 .jalali-date-input{display:flex;align-items:center;gap:6px;width:100%;position:relative}
 .jalali-date-input input{flex:1;min-width:0}
 .jalali-date-open{white-space:nowrap;padding:8px 10px}
-.jalali-picker{display:none;position:absolute;z-index:100000;width:286px;padding:12px;background:#fff;border:1px solid #d8e1e8;border-radius:12px;box-shadow:0 12px 34px rgba(15,37,53,.22);color:#1d2a34;direction:rtl}
+.jalali-picker{top:calc(100% + 6px);right:0;display:none;position:absolute;z-index:100000;width:286px;padding:12px;background:#fff;border:1px solid #d8e1e8;border-radius:12px;box-shadow:0 12px 34px rgba(15,37,53,.22);color:#1d2a34;direction:rtl}
 .jalali-picker.open{display:block}
 .jalali-picker button{font:inherit;cursor:pointer}
 .jalali-picker .jp-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}

@@ -1,0 +1,71 @@
+@model List<HRPortal.Models.MonthlyPerformancePeriod>
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "دوره‌های ارزیابی عملکرد";
+    var editing = ViewBag.EditPeriod as HRPortal.Models.MonthlyPerformancePeriod;
+    var current = HRPortal.Services.MonthlyPerformanceService.NowIran();
+    var active = Model.Where(x => !x.IsDeleted).ToList();
+    var archive = Model.Where(x => x.IsDeleted).ToList();
+}
+<link rel="stylesheet" href="~/css/monthly-performance.css" asp-append-version="true" />
+<div class="mp">
+<section class="mp-hero"><div><h1>دوره‌های ارزیابی عملکرد</h1><p>تعریف بازه زمانی بر اساس تقویم هجری شمسی و مدیریت وضعیت دوره‌ها</p></div>
+<div class="mp-head-actions"><a class="btn btn-outline" href="/MonthlyPerformanceAdmin/Export?tab=periods">خروجی اکسل</a><a class="btn btn-outline" href="/MonthlyPerformanceAdmin/Basic">اطلاعات پایه</a></div></section>
+@if (TempData["Success"] != null) { <div class="mp-success">@TempData["Success"]</div> }
+@if (TempData["Error"] != null) { <div class="mp-error">@TempData["Error"]</div> }
+<section class="mp-card">
+<h2>@(editing is null ? "تعریف دوره جدید" : "ویرایش دوره «"+editing.Title+"»")</h2>
+<div class="mp-note">سال و ماه شمسی به‌صورت خودکار از تاریخ شروع استخراج می‌شوند. بازه ارزیابی از ابتدای روز شروع تا پایان روز آخر اعتبار دارد.</div>
+<form method="post" action="/MonthlyPerformanceAdmin/SavePeriod">
+@Html.AntiForgeryToken()
+<input type="hidden" name="id" value="@(editing?.Id ?? 0)" />
+<div class="mp-form-grid">
+<label class="mp-field">کد دوره <input name="code" value="@editing?.Code" maxlength="100" placeholder="تولید خودکار؛ قابل ویرایش" /></label>
+<label class="mp-field">عنوان دوره * <input name="title" value="@editing?.Title" required maxlength="150" placeholder="مثلاً: شهریور ۱۴۰۵" /></label>
+<label class="mp-field">تاریخ شروع ارزیابی *
+<div class="jalali-date-input"><input type="text" name="startJalali" id="performancePeriodFrom" data-jalali-date autocomplete="off" inputmode="numeric" required placeholder="۱۴۰۵/۰۶/۲۱" value="@(editing is null?"":HRPortal.Services.PersianDateService.Format(editing.StartAt))" /><button type="button" class="btn btn-outline jalali-date-open" data-jalali-trigger aria-label="انتخاب تاریخ شروع">تقویم</button></div>
+</label>
+<label class="mp-field">تاریخ پایان ارزیابی *
+<div class="jalali-date-input"><input type="text" name="endJalali" id="performancePeriodTo" data-jalali-date autocomplete="off" inputmode="numeric" required placeholder="۱۴۰۵/۰۶/۲۵" value="@(editing is null?"":HRPortal.Services.PersianDateService.Format(editing.EndAt.AddDays(-1)))" /><button type="button" class="btn btn-outline jalali-date-open" data-jalali-trigger aria-label="انتخاب تاریخ پایان">تقویم</button></div>
+</label>
+<label class="mp-field">توضیحات <input name="description" value="@editing?.Description" maxlength="1000" /></label>
+<label class="mp-field">مجاز برای ثبت ارزیابی <span><input type="checkbox" name="isEnabled" value="true" checked="@(editing?.IsEnabled ?? true)" /> فعال</span></label>
+</div>
+<div class="mp-controls" style="margin-top:14px"><button class="btn btn-main" type="submit">@(editing is null?"ثبت دوره جدید":"ذخیره تغییرات دوره")</button>
+@if (editing is not null){<a class="btn btn-outline" href="/MonthlyPerformanceAdmin/Periods">انصراف از ویرایش</a>}</div>
+</form>
+</section>
+<section class="mp-card">
+<div class="mp-toolbar"><div><h2>دوره‌های تعریف‌شده</h2><p class="mp-note">خارج از بازه مجاز هیچ ارزیابی جدیدی ثبت نمی‌شود.</p></div><input class="mp-search" type="search" placeholder="فیلتر دوره‌ها..." /></div>
+<div class="mp-table-wrap">
+<table class="mp-filter-table"><thead><tr><th>کد دوره</th><th>عنوان</th><th>شروع</th><th>پایان</th><th>وضعیت</th><th>جزئیات و عملیات</th></tr></thead><tbody>
+@foreach (var p in active)
+{
+ var state = HRPortal.Services.MonthlyPerformanceService.PeriodState(p,current);
+ <tr>
+ <td>@p.Code</td><td><strong>@p.Title</strong></td>
+ <td>@HRPortal.Services.PersianDateService.Format(p.StartAt)</td>
+ <td>@HRPortal.Services.PersianDateService.Format(p.EndAt.AddDays(-1))</td>
+ <td><span class="mp-tag @(state=="فعال"?"open":"warn")">@state</span></td>
+ <td><div class="mp-controls">
+ <a class="btn btn-outline btn-sm" href="/MonthlyPerformanceAdmin/PeriodDetails/@p.Id">مشاهده جزئیات</a>
+ <a class="btn btn-outline btn-sm" href="/MonthlyPerformanceAdmin/Periods?editId=@p.Id">ویرایش</a>
+ <form method="post" action="/MonthlyPerformanceAdmin/DeletePeriod" onsubmit="return confirm('دوره از گزارش‌ها و فهرست‌های جاری حذف می‌شود؛ تمامی ارزیابی‌ها و تاریخچه امتیازها در بایگانی ممیزی باقی می‌مانند. تأیید می‌کنید؟');">
+ @Html.AntiForgeryToken()<input type="hidden" name="id" value="@p.Id" /><button type="submit" class="btn btn-outline btn-sm">حذف و بایگانی</button>
+ </form></div></td></tr>
+}
+</tbody></table></div>
+</section>
+<section class="mp-card">
+<div class="mp-toolbar"><div><h2>دوره‌های حذف‌شده و بایگانی ممیزی</h2><p class="mp-note">امتیازها، ارتباطات و تمام نسخه‌های تغییر امتیاز قابل بررسی هستند اما در داشبوردهای عملیاتی محاسبه نمی‌شوند.</p></div><input class="mp-search" type="search" placeholder="جست‌وجو در بایگانی..." /></div>
+@if (archive.Count==0){<div class="mp-empty">هیچ دوره‌ای حذف نشده است.</div>}
+else {
+<div class="mp-table-wrap"><table class="mp-filter-table"><thead><tr><th>دوره</th><th>کد</th><th>بازه</th><th>حذف در تاریخ</th><th>جزئیات سوابق</th></tr></thead>
+<tbody>@foreach (var p in archive){
+<tr><td>@p.Title</td><td>@p.Code</td><td>@HRPortal.Services.PersianDateService.Format(p.StartAt) تا @HRPortal.Services.PersianDateService.Format(p.EndAt.AddDays(-1))</td>
+<td>@(p.DeletedAt.HasValue?HRPortal.Services.PersianDateService.FormatDateTime(HRPortal.Services.MonthlyPerformanceService.ToIranTime(p.DeletedAt.Value)):"—")</td><td><a class="btn btn-outline btn-sm" href="/MonthlyPerformanceAdmin/PeriodDetails/@p.Id">مشاهده بایگانی</a></td></tr>
+}</tbody></table></div>
+}
+</section>
+</div>
+<script src="~/js/monthly-performance-table.js" asp-append-version="true"></script>

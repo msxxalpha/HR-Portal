@@ -14,7 +14,7 @@ public class EmployeeExcelService(HRPortalDbContext db)
     [
         "شماره پرسنلی", "شناسه", "کد ملی", "نام", "نام خانوادگی", "موبایل", "جنسیت",
         "واحد سازمانی", "اداره", "بخش", "سمت", "نوع استخدام", "ایمیل", "نام پدر",
-        "وضعیت", "تاریخ پایان قرارداد"
+        "وضعیت", "تاریخ پایان قرارداد", "ارزیاب عملکرد"
     ];
 
     public async Task<byte[]> ExportAsync(IQueryable<Employee> query)
@@ -39,7 +39,8 @@ public class EmployeeExcelService(HRPortalDbContext db)
                 e.Mobile, e.Gender, e.OrganizationUnit?.Code, e.OrganizationDepartment?.Code,
                 e.OrganizationSection?.Code, e.PositionTitle, NormalizeEmploymentType(e.EmploymentType),
                 e.Email, e.FatherName, e.Status,
-                e.ContractEndDate.HasValue ? PersianDateService.Format(e.ContractEndDate.Value) : ""
+                e.ContractEndDate.HasValue ? PersianDateService.Format(e.ContractEndDate.Value) : "",
+                e.IsPerformanceEvaluator ? "بله" : "خیر"
             };
             for (var c = 0; c < values.Length; c++)
                 ws.Cell(r + 2, c + 1).Value = values[c]?.ToString() ?? "";

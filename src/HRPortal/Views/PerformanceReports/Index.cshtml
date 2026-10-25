@@ -9,6 +9,10 @@
 <label>دوره</label><select name="periodId" class="form-select" onchange="this.form.submit()">
 @foreach(var p in Model.Periods){<option value="@p.Id" selected="@(p.Id==Model.Selected?.Id)">@p.Title</option>}
 </select><button class="btn btn-outline-primary" type="submit">نمایش</button>
+@if (Model.Selected != null)
+{
+<a class="btn btn-outline-secondary" href="/PerformanceReports/Export?periodId=@Model.Selected.Id&amp;q=@System.Net.WebUtility.UrlEncode(Model.Search)">خروجی Excel از کل گزارش</a>
+}
 </form></div>
 @if (Model.Selected is null)
 {
@@ -16,7 +20,7 @@
 }
 else
 {
-<div class="row g-3 mb-3">
+<div class="row g-3 mb-3 perf-metric-grid">
 <div class="col-md-3"><div class="card p-3"><small>تعداد ارزیابی</small><h3>@Model.TotalCount</h3></div></div>
 <div class="col-md-3"><div class="card p-3"><small>سقف امتیاز</small><h3>@Model.TotalMax.ToString("N2")</h3></div></div>
 <div class="col-md-3"><div class="card p-3"><small>امتیاز استفاده‌شده</small><h3>@Model.TotalScore.ToString("N2")</h3></div></div>

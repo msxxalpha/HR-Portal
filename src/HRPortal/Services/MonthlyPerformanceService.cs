@@ -7,6 +7,15 @@ namespace HRPortal.Services;
 
 public class MonthlyPerformanceService(HRPortalDbContext db)
 {
+    private static readonly TimeZoneInfo IranZone = ResolveIranZone();
+    private static TimeZoneInfo ResolveIranZone()
+    {
+        foreach (var id in new[] { "Iran Standard Time", "Asia/Tehran" })
+            try { return TimeZoneInfo.FindSystemTimeZoneById(id); } catch (TimeZoneNotFoundException) { }
+        throw new InvalidOperationException("منطقه زمانی ایران در سرور قابل شناسایی نیست.");
+    }
+    public static DateTime NowIran() => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, IranZone);
+
     public static bool IsOpen(MonthlyPerformancePeriod p, DateTime now) =>
         p.IsEnabled && p.StartAt <= now && now < p.EndAt;
 
@@ -28,7 +37,7 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
 
     public async Task<MonthlyPerformancePeriod?> ActivePeriodAsync() =>
         await db.MonthlyPerformancePeriods.AsNoTracking()
-            .Where(p => p.IsEnabled && p.StartAt <= DateTime.Now && DateTime.Now < p.EndAt)
+            .Where(p => p.IsEnabled && p.StartAt <= NowIran() && DateTime.Now < p.EndAt)
             .OrderByDescending(p => p.StartAt).FirstOrDefaultAsync();
 
     private sealed record Node(int Id, int? Parent, string Rank, int? Holder, string? Csv);
@@ -149,6 +158,8 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
         if (mappings.Count == 0 && evaluation is null)
             throw new InvalidOperationException($"برای رده «{placement.RankTitle}» سؤال و سقف امتیاز فعال تعریف نشده است.");
 
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        var isNew = evaluation is null;
         if (evaluation is null)
         {
             evaluation = new MonthlyPerformanceEvaluation
@@ -170,6 +181,14 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
 
         var previousEvaluatorId = evaluation.LastEvaluatorId;
         var updates = new List<MonthlyPerformanceRevision>();
+        if (isNew)
+            updates.AddRange(evaluation.Scores.Select(s => new MonthlyPerformanceRevision
+            {
+                EvaluationId = evaluation.Id, QuestionId = s.QuestionId,
+                ChangedByEmployeeId = actorId, PreviousEvaluatorId = actorId,
+                OldScore = null, NewScore = s.Score, NewNote = s.Note,
+                Reason = string.IsNullOrWhiteSpace(reason) ? "ثبت اولیه امتیاز کامل" : reason.Trim()[..Math.Min(500, reason.Trim().Length)]
+            }));
         foreach (var score in evaluation.Scores)
         {
             var next = enteredScores != null && enteredScores.TryGetValue(score.QuestionId, out var chosen)
@@ -195,6 +214,7 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
         evaluation.LastEvaluatorId = actorId;
         evaluation.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
+        await transaction.CommitAsync();
         return evaluation;
     }
 

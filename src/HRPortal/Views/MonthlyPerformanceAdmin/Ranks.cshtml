@@ -1,0 +1,73 @@
+@model HRPortal.Models.MonthlyPerformanceBasicVm
+@{
+ Layout = "~/Views/Shared/_Layout.cshtml";
+ ViewData["Title"] = "رده‌های پستی ارزیابی عملکرد";
+}
+<link rel="stylesheet" href="~/css/monthly-performance.css" asp-append-version="true" />
+<div class="mp">
+<section class="mp-hero"><div><h1>رده‌های پستی و سؤالات اختصاصی</h1>
+<p>الگوی مدیریت اتصالات، سقف امتیاز و ترتیب سؤالات هر رده، مستقل از سایر رده‌ها</p></div>
+<div class="mp-head-actions"><a class="btn btn-outline" href="/MonthlyPerformanceAdmin/Questions">بانک سؤالات</a><a class="btn btn-outline" href="/MonthlyPerformanceAdmin/Export?tab=ranks">خروجی Excel رده‌ها</a><a class="btn btn-outline" href="/MonthlyPerformanceAdmin/Export?tab=mappings">خروجی Excel اتصالات</a></div></section>
+@if (TempData["Success"] != null) { <div class="mp-success">@TempData["Success"]</div> }
+@if (TempData["Error"] != null) { <div class="mp-error">@TempData["Error"]</div> }
+<section class="mp-card">
+<h2>تعریف رده پستی</h2>
+<form method="post" action="/MonthlyPerformanceAdmin/SaveRank" class="mp-controls">
+@Html.AntiForgeryToken()<input name="id" type="hidden" value="0" />
+<label class="mp-field">کد رده<input name="code" placeholder="ساخت خودکار" maxlength="50" /></label>
+<label class="mp-field">عنوان دقیق رده<input name="title" required maxlength="100" placeholder="کارشناس" /></label>
+<input type="hidden" name="isActive" value="true" />
+<button class="btn btn-main" type="submit">ثبت رده</button>
+</form>
+<p class="mp-note">برای هر رده می‌توانید هر تعداد سؤال فعال از بانک سؤالات انتخاب کنید. سقف کل خودکار برابر مجموع سقف سؤال‌های فعال همان رده است.</p>
+</section>
+<div class="mp-rank-grid">
+@foreach(var rank in Model.Ranks){
+ var activeMappings = Model.Mappings.Where(x=>x.RankId==rank.Id && x.IsActive && x.Question.IsActive && x.Question.Domain.IsActive).OrderBy(x=>x.SortOrder).ThenBy(x=>x.Question.Title).ToList();
+ var mappedIds = activeMappings.Select(x=>x.QuestionId).ToHashSet();
+ <section class="mp-card">
+ <div class="mp-toolbar"><div><span class="mp-rank">@rank.Code</span><h2>@rank.Title</h2><span class="mp-tag @(rank.IsActive?"good":"warn")">@(rank.IsActive?"فعال":"غیرفعال")</span></div>
+ <div class="mp-rank-total"><span>سقف کل</span><strong>@activeMappings.Sum(x=>x.MaxScore).ToString("N0")</strong><small>@activeMappings.Count سؤال</small></div></div>
+ <details class="mp-inline-details"><summary>ویرایش کد، عنوان و وضعیت رده</summary>
+ <form method="post" action="/MonthlyPerformanceAdmin/SaveRank" class="mp-controls" style="margin-top:12px">
+ @Html.AntiForgeryToken()<input type="hidden" name="id" value="@rank.Id" />
+ <label class="mp-field">کد<input name="code" value="@rank.Code" required /></label>
+ <label class="mp-field">عنوان<input name="title" value="@rank.Title" required /></label>
+ <label class="mp-field">فعال <input type="checkbox" name="isActive" value="true" checked="@rank.IsActive" /></label>
+ <button class="btn btn-outline" type="submit">ذخیره رده</button>
+ </form></details>
+ <div class="mp-assign">
+ <div class="mp-assign-title"><strong>افزودن سؤال به این رده</strong><small>سقف و ترتیب مخصوص همین رده خواهد بود.</small></div>
+ <form method="post" action="/MonthlyPerformanceAdmin/SaveMapping" class="mp-form-grid mp-assign-form">
+ @Html.AntiForgeryToken()<input type="hidden" name="rankId" value="@rank.Id" />
+ <label class="mp-field mp-wide">سؤال
+ <select name="questionId" required><option value="">انتخاب سؤال</option>
+ @foreach(var q in Model.Questions.Where(x=>x.IsActive && x.Domain.IsActive && !mappedIds.Contains(x.Id)).OrderBy(x=>x.Title)){
+ <option value="@q.Id">@q.Code — @q.Title</option>}
+ </select></label>
+ <label class="mp-field">سقف صحیح<input name="maxScore" type="number" min="1" step="1" required /></label>
+ <label class="mp-field">ترتیب<input name="sortOrder" type="number" min="1" step="1" value="@(activeMappings.Count+1)" required /></label>
+ <button type="submit" class="btn btn-main">افزودن سؤال</button>
+ </form>
+ </div>
+ @if(activeMappings.Count==0){<div class="mp-empty">هنوز سؤال فعالی به این رده متصل نشده است.</div>}
+ else {
+ <div class="mp-table-wrap"><table class="mp-filter-table"><thead><tr><th>سؤال / حوزه</th><th>سقف</th><th>ترتیب</th><th>عملیات</th></tr></thead>
+ <tbody>@foreach(var m in activeMappings){
+ <tr><td><strong>@m.Question.Title</strong><div class="mp-note">@m.Question.Code · @m.Question.Domain.Title</div></td>
+ <td colspan="2"><form id="edit-mapping-@m.Id" method="post" action="/MonthlyPerformanceAdmin/UpdateMapping" class="mp-controls">
+ @Html.AntiForgeryToken()<input type="hidden" name="mappingId" value="@m.Id"/>
+ <input type="number" name="maxScore" step="1" min="1" value="@m.MaxScore.ToString("0",System.Globalization.CultureInfo.InvariantCulture)" required aria-label="سقف امتیاز" />
+ <input type="number" name="sortOrder" step="1" min="1" value="@m.SortOrder" required aria-label="ترتیب" />
+ <button type="submit" class="btn btn-outline btn-sm">ویرایش</button>
+ </form></td>
+ <td><form method="post" action="/MonthlyPerformanceAdmin/RemoveMapping" onsubmit="return confirm('اتصال سؤال از این رده حذف شود؟ نتایج ثبت‌شده قبلی تغییر نمی‌کنند.')">
+ @Html.AntiForgeryToken()<input type="hidden" name="mappingId" value="@m.Id" /><button class="btn btn-outline btn-sm" type="submit">حذف اتصال</button>
+ </form></td></tr>}
+ </tbody></table></div>
+ }
+ </section>
+}
+</div>
+</div>
+<script src="~/js/monthly-performance-table.js" asp-append-version="true"></script>

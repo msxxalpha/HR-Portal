@@ -114,7 +114,7 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
             var mappings = await db.MonthlyPerformanceRankQuestions.AsNoTracking()
                 .Include(x => x.Rank).Include(x => x.Question).ThenInclude(x => x.Domain)
                 .Where(x => x.IsActive && x.Question.IsActive && x.Question.Domain.IsActive && x.Rank.Title == rank)
-                .OrderBy(x => x.Question.SortOrder).ToListAsync();
+                .OrderBy(x => x.SortOrder).ThenBy(x => x.Question.SortOrder).ToListAsync();
             model.Scores = mappings.Select(x => new MonthlyPerformanceScoreVm
             {
                 QuestionId = x.QuestionId, Code = x.Question.Code, Title = x.Question.Title,
@@ -126,7 +126,11 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
             var questionIds = ev.Scores.Select(x => x.QuestionId).ToList();
             var codes = await db.MonthlyPerformanceQuestions.AsNoTracking()
                 .Where(x => questionIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Code);
-            model.Scores = ev.Scores.OrderBy(x => x.QuestionId).Select(x => new MonthlyPerformanceScoreVm
+            var activeOrder = await db.MonthlyPerformanceRankQuestions.AsNoTracking()
+                .Where(x => x.Rank.Title == rank && questionIds.Contains(x.QuestionId))
+                .ToDictionaryAsync(x => x.QuestionId, x => x.SortOrder);
+            model.Scores = ev.Scores.OrderBy(x => activeOrder.GetValueOrDefault(x.QuestionId, int.MaxValue))
+                .ThenBy(x => x.QuestionId).Select(x => new MonthlyPerformanceScoreVm
             {
                 QuestionId = x.QuestionId, Code = codes.GetValueOrDefault(x.QuestionId, ""),
                 Title = x.QuestionTitleSnapshot, Domain = x.DomainTitleSnapshot,

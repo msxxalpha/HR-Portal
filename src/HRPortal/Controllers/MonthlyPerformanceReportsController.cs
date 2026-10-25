@@ -29,19 +29,20 @@ public class MonthlyPerformanceReportsController(HRPortalDbContext db) : Control
         public List<MonthlyPerformancePeriod> Periods { get; set; } = [];
         public MonthlyPerformancePeriod? Period { get; set; }
         public List<ReportRow> Rows { get; set; } = [];
+        public List<ReportRow> AllRows { get; set; } = [];
         public List<Metric> QuestionAverages { get; set; } = [];
         public List<Metric> DomainAverages { get; set; } = [];
         public List<Metric> UnitAverages { get; set; } = [];
         public int ActiveCount { get; set; }
-        public int EvaluatedCount => Rows.Count;
-        public decimal Average => Rows.Count == 0 ? 0 : Math.Round(Rows.Average(x => x.Percent), 1);
-        public decimal Coverage => ActiveCount == 0 ? 0 : Math.Round(Rows.Count * 100m / ActiveCount, 1);
-        public decimal TotalAllocated => Rows.Sum(x => x.Score);
-        public decimal TotalDeducted => Rows.Sum(x => x.Maximum - x.Score);
-        public int Excellent => Rows.Count(x => x.Percent >= 90);
-        public int Good => Rows.Count(x => x.Percent >= 75 && x.Percent < 90);
-        public int Moderate => Rows.Count(x => x.Percent >= 60 && x.Percent < 75);
-        public int NeedsImprovement => Rows.Count(x => x.Percent < 60);
+        public int EvaluatedCount => AllRows.Count;
+        public decimal Average => AllRows.Count == 0 ? 0 : Math.Round(AllRows.Average(x => x.Percent), 1);
+        public decimal Coverage => ActiveCount == 0 ? 0 : Math.Round(AllRows.Count * 100m / ActiveCount, 1);
+        public decimal TotalAllocated => AllRows.Sum(x => x.Score);
+        public decimal TotalDeducted => AllRows.Sum(x => x.Maximum - x.Score);
+        public int Excellent => AllRows.Count(x => x.Percent >= 90);
+        public int Good => AllRows.Count(x => x.Percent >= 75 && x.Percent < 90);
+        public int Moderate => AllRows.Count(x => x.Percent >= 60 && x.Percent < 75);
+        public int NeedsImprovement => AllRows.Count(x => x.Percent < 60);
     }
 
     private async Task<ReportVm> Build(int? periodId)
@@ -74,6 +75,7 @@ public class MonthlyPerformanceReportsController(HRPortalDbContext db) : Control
             Maximum = x.MaxScore
         }).OrderBy(x => x.Employee).ToList();
 
+        result.AllRows = result.Rows.ToList();
         var all = evaluations.SelectMany(x => x.Scores)
             .Where(x => x.MaxScore > 0).ToList();
         result.QuestionAverages = all.GroupBy(x => new { x.QuestionId, x.QuestionTitleSnapshot })

@@ -8,7 +8,7 @@
 <section class="mp-hero">
  <div><h1>ارزیابی ماهانه: @Model.Employee.FirstName @Model.Employee.LastName</h1>
  <p>کد پرسنلی @Model.Employee.PersonnelNumber · رده @Model.RankTitle · دوره @Model.Period.Title</p></div>
- <div class="mp-head-actions"><a href="/MonthlyPerformance/Dashboard?periodId=@Model.Period.Id" class="btn btn-outline">بازگشت به کارتابل ارزیاب</a></div>
+ <div class="mp-head-actions"><a href="/MonthlyPerformance/ExportEvaluation?employeeId=@Model.Employee.Id&periodId=@Model.Period.Id" class="btn btn-outline">خروجی اکسل امتیازها</a><a href="/MonthlyPerformance/Dashboard?periodId=@Model.Period.Id" class="btn btn-outline">بازگشت به کارتابل ارزیاب</a></div>
 </section>
 @if (TempData["Success"] != null) { <div class="mp-success">@TempData["Success"]</div> }
 @if (TempData["Error"] != null) { <div class="mp-error">@TempData["Error"]</div> }

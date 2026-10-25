@@ -46,6 +46,22 @@
                     <a href="/SystemSettings#announcement-categories">دسته‌بندی اطلاعیه‌ها</a>
                 }
             }
+            @if (Can("Performance.View") || Can("Performance.Manage") || Can("Performance.Reports"))
+            {
+                <div class="nav-caption">ماژول ارزیابی عملکرد کارکنان</div>
+                @if (Can("Performance.View"))
+                {
+                    <a href="/Performance">داشبورد و ارزیابی کارکنان</a>
+                }
+                @if (Can("Performance.Manage"))
+                {
+                    <a href="/PerformanceAdmin">مدیریت دوره‌ها و اطلاعات پایه ارزیابی</a>
+                }
+                @if (Can("Performance.Reports"))
+                {
+                    <a href="/PerformanceReports">گزارش‌های مدیریتی ارزیابی</a>
+                }
+            }
             @if (Can("Organization.View"))
             {
                 <div class="nav-caption">ساختار سازمانی</div>

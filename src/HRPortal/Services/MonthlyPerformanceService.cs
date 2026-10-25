@@ -137,7 +137,7 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
 
     public async Task<MonthlyPerformanceEvaluation> SaveAsync(
         int actorId, int employeeId, int periodId, IDictionary<int, decimal>? enteredScores,
-        IDictionary<int, string?>? notes, string? reason, bool onlyWhenMissing = false)
+        IDictionary<int, string?>? notes, string? reason, bool onlyWhenMissing = false, string? expectedVersion = null)
     {
         if (!await CanEvaluateAsync(actorId, employeeId))
             throw new UnauthorizedAccessException("اجازه ارزیابی این کارمند را ندارید.");
@@ -152,6 +152,9 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
         if (evaluation is not null)
         {
             if (onlyWhenMissing) return evaluation;
+            if (string.IsNullOrWhiteSpace(expectedVersion) ||
+                expectedVersion != Convert.ToBase64String(evaluation.RowVersion))
+                throw new InvalidOperationException("امتیازهای این کارمند پس از بازکردن فرم تغییر کرده‌اند. برای جلوگیری از بازنویسی امتیاز ارزیاب دیگر، صفحه را مجدداً باز کنید.");
             if (evaluation.LastEvaluatorId != actorId &&
                 !await IsAboveAsync(actorId, evaluation.LastEvaluatorId))
                 throw new UnauthorizedAccessException("ویرایش امتیاز ارزیاب دیگر فقط برای ارزیاب بالادست مجاز است.");

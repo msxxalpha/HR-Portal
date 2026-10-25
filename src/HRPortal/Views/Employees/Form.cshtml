@@ -67,6 +67,16 @@
                 </select>
                 <small class="muted">برای تخصیص یا تغییر سمت، یک پست فعال انتخاب کنید. سمت‌های غیرفعال فقط برای حفظ اطلاعات قبلی نمایش داده می‌شوند.</small>
             </label>
+            <label>رده پستی برای ارزیابی عملکرد
+                <select name="PerformanceRankId">
+                    <option value="">تعیین خودکار از سمت، پایه شغلی یا ساختار سازمانی</option>
+                    @foreach(var rank in Model.PerformanceRanks)
+                    {
+                        <option value="@rank.Id" selected="@(Model.Employee.PerformanceRankId == rank.Id)">@rank.Title (@rank.Code)</option>
+                    }
+                </select>
+                <small class="muted">برای جلوگیری از اختصاص سؤالات رده مدیریتی به کارشناسان مستقر در همان گره، رده ارزیابی هر فرد را در صورت نیاز صریحاً انتخاب کنید.</small>
+            </label>
             <label class="inline-check">ارزیاب عملکرد ماهانه
                 <input type="checkbox" name="IsPerformanceEvaluator" value="true" checked="@Model.Employee.IsPerformanceEvaluator" />
             </label>

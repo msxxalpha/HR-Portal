@@ -1,0 +1,71 @@
+@model HRPortal.Controllers.MonthlyPerformanceReportsController.ReportVm
+@{
+ Layout="~/Views/Shared/_Layout.cshtml";
+ ViewData["Title"]="گزارش‌های مدیریتی عملکرد";
+ var leaders=Model.Rows.Where(x=>x.Maximum>0).OrderByDescending(x=>x.Percent).Take(10).ToList();
+ var improvements=Model.Rows.Where(x=>x.Maximum>0).OrderBy(x=>x.Percent).Take(10).ToList();
+ var unitOpts=ViewBag.UnitOptions as string[] ?? [];
+ var rankOpts=ViewBag.RankOptions as string[] ?? [];
+ var evaluatorOpts=ViewBag.EvaluatorOptions as string[] ?? [];
+}
+<link rel="stylesheet" href="~/css/monthly-performance.css" asp-append-version="true"/>
+<div class="mp">
+<section class="mp-hero"><div><h1>گزارش‌های مدیریتی ارزیابی عملکرد</h1><p>تحلیل تجمیعی و مقایسه واحدها، حوزه‌ها، سؤالات و توزیع عملکرد کارکنان</p></div>
+<div class="mp-head-actions"><a class="btn btn-outline" href="/MonthlyPerformanceReports/Export?periodId=@Model.Period?.Id">خروجی اکسل</a><a class="btn btn-outline" href="/MonthlyPerformanceAdmin/Periods">دوره‌های ارزیابی</a></div></section>
+<section class="mp-card">
+<div class="mp-toolbar"><h2>انتخاب دوره</h2><form class="mp-controls" method="get" action="/MonthlyPerformanceReports/Index">
+<select name="periodId" onchange="this.form.submit()" aria-label="دوره گزارش">@foreach(var p in Model.Periods){<option value="@p.Id" selected="@(Model.Period?.Id==p.Id)">@p.Title</option>}</select>
+<button class="btn btn-outline" type="submit">اعمال</button></form></div>
+@if(Model.Period!=null){<p class="mp-note">@HRPortal.Services.PersianDateService.Format(Model.Period.StartAt) تا @HRPortal.Services.PersianDateService.Format(Model.Period.EndAt.AddDays(-1))</p>}
+</section>
+@if(Model.Period==null){<div class="mp-empty">هنوز دوره‌ای تعریف نشده است.</div>}
+else{
+<section class="mp-kpis">
+<div class="mp-kpi" style="--mp-color:#2563eb"><div class="caption">تعداد ارزیابی ثبت‌شده</div><strong>@Model.EvaluatedCount</strong></div>
+<div class="mp-kpi" style="--mp-color:#16a34a"><div class="caption">میانگین عملکرد</div><strong>@Model.Average٪</strong></div>
+<div class="mp-kpi" style="--mp-color:#0d9488"><div class="caption">پوشش ارزیابی کارکنان فعال</div><strong>@Model.Coverage٪</strong></div>
+<div class="mp-kpi" style="--mp-color:#dc2626"><div class="caption">امتیازهای کسرشده</div><strong>@Model.TotalDeducted.ToString("N0")</strong><small>امتیاز استفاده‌شده: @Model.TotalAllocated.ToString("N0")</small></div>
+</section>
+<div class="mp-grid-2">
+<section class="mp-card"><h2>نفرات برتر این دوره</h2>
+@foreach(var p in leaders){<div class="mp-bar"><span>@p.Employee</span><div class="mp-track"><div class="mp-fill" style="width:@p.Percent.ToString(System.Globalization.CultureInfo.InvariantCulture)%"></div></div><strong>@p.Percent٪</strong></div>}
+@if(leaders.Count==0){<div class="mp-empty">بدون داده</div>}</section>
+<section class="mp-card"><h2>توزیع سطح عملکرد</h2>
+@foreach(var slice in new[]{(label:"عالی: ۹۰٪ و بیشتر",count:Model.Excellent),(label:"خوب: ۷۵٪ تا ۹۰٪",count:Model.Good),(label:"متوسط: ۶۰٪ تا ۷۵٪",count:Model.Moderate),(label:"نیازمند بهبود: کمتر از ۶۰٪",count:Model.NeedsImprovement)}){
+var pct=Model.EvaluatedCount==0?0:Math.Round(slice.count*100m/Model.EvaluatedCount,1);
+<div class="mp-bar"><span>@slice.label</span><div class="mp-track"><div class="mp-fill" style="width:@pct.ToString(System.Globalization.CultureInfo.InvariantCulture)%"></div></div><strong>@slice.count</strong></div>
+}</section>
+</div>
+<div class="mp-grid-2">
+<section class="mp-card"><h2>میانگین عملکرد حوزه‌های ارزیابی</h2>
+@foreach(var x in Model.DomainAverages){<div class="mp-bar"><span>@x.Title</span><div class="mp-track"><div class="mp-fill" style="width:@x.Percent.ToString(System.Globalization.CultureInfo.InvariantCulture)%"></div></div><strong>@x.Percent٪</strong></div>}
+</section><section class="mp-card"><h2>مقایسه میانگین واحدهای سازمانی</h2>
+@foreach(var x in Model.UnitAverages){<div class="mp-bar"><span>@x.Title (@x.Count نفر)</span><div class="mp-track"><div class="mp-fill" style="width:@x.Percent.ToString(System.Globalization.CultureInfo.InvariantCulture)%"></div></div><strong>@x.Percent٪</strong></div>}
+</section></div>
+<div class="mp-grid-2">
+<section class="mp-card"><h2>کارکنان نیازمند بهبود</h2>
+@foreach(var x in improvements){<div class="mp-bar"><span>@x.Employee</span><div class="mp-track"><div class="mp-fill" style="width:@x.Percent.ToString(System.Globalization.CultureInfo.InvariantCulture)%"></div></div><strong>@x.Percent٪</strong></div>}
+</section><section class="mp-card"><h2>میانگین تحقق سؤالات (کمترین به بیشترین)</h2>
+@foreach(var x in Model.QuestionAverages.Take(20)){<div class="mp-bar"><span title="@x.Title">@x.Title</span><div class="mp-track"><div class="mp-fill" style="width:@x.Percent.ToString(System.Globalization.CultureInfo.InvariantCulture)%"></div></div><strong>@x.Percent٪</strong></div>}
+</section></div>
+<section class="mp-card">
+<div class="mp-toolbar"><h2>جدول جزئیات ارزیابی‌ها</h2><span class="mp-note">فیلترهای زیر روی جدول اعمال می‌شوند؛ نمودارها و شاخص‌ها تصویر کل دوره هستند.</span></div>
+<form method="get" class="mp-controls" action="/MonthlyPerformanceReports/Index">
+<input type="hidden" name="periodId" value="@Model.Period.Id" />
+<label class="mp-field">جست‌وجو<input name="q" value="@ViewBag.Q" placeholder="نام یا کد پرسنلی..." /></label>
+<label class="mp-field">واحد<select name="unit"><option value="">همه واحدها</option>@foreach(var x in unitOpts){<option value="@x" selected="@((string?)ViewBag.Unit==x)">@x</option>}</select></label>
+<label class="mp-field">رده<select name="rank"><option value="">همه رده‌ها</option>@foreach(var x in rankOpts){<option value="@x" selected="@((string?)ViewBag.Rank==x)">@x</option>}</select></label>
+<label class="mp-field">ارزیاب نهایی<select name="evaluator"><option value="">همه ارزیاب‌ها</option>@foreach(var x in evaluatorOpts){<option value="@x" selected="@((string?)ViewBag.Evaluator==x)">@x</option>}</select></label>
+<button class="btn btn-main" type="submit">اعمال فیلتر</button><a class="btn btn-outline" href="/MonthlyPerformanceReports/Index?periodId=@Model.Period.Id">حذف فیلتر</a>
+</form>
+<div class="mp-toolbar" style="margin-top:16px"><input class="mp-search" type="search" placeholder="فیلتر لحظه‌ای جدول..." /><span class="mp-muted">@Model.Rows.Count ردیف</span></div>
+<div class="mp-table-wrap"><table class="mp-filter-table"><thead><tr><th>کد پرسنلی</th><th>کارمند</th><th>ارزیاب آخر</th><th>واحد</th><th>رده</th><th>امتیاز</th><th>سقف</th><th>کسر</th><th>درصد</th><th>ریز سؤالات</th></tr></thead>
+<tbody>@foreach(var r in Model.Rows){
+<tr><td>@r.PersonnelNumber</td><td><strong>@r.Employee</strong></td><td>@r.Evaluator</td><td>@r.Unit</td><td>@r.Rank</td>
+<td>@r.Score.ToString("N0")</td><td>@r.Maximum.ToString("N0")</td><td>@((r.Maximum-r.Score).ToString("N0"))</td><td>@r.Percent٪</td>
+<td><a class="btn btn-outline btn-sm" href="/MonthlyPerformanceAdmin/EvaluationDetails/@r.EvaluationId">جزئیات و تاریخچه</a></td></tr>}
+</tbody></table></div>
+</section>
+}
+</div>
+<script src="~/js/monthly-performance-table.js" asp-append-version="true"></script>

@@ -56,9 +56,10 @@
                 </details>
             }
             @if (isAdmin || Can("ContractRenewal.Manage") || User.HasClaim("UserType","Employee")) {
-                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/EmployeeContracts") ? "open" : null)">
+                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/EmployeeContracts") || Context.Request.Path.StartsWithSegments("/MonthlyPerformance") ? "open" : null)">
                     <summary><span class="nav-icon">▦</span>ماژول‌ها</summary>
                     <div class="nav-submenu">
+                        @if (isAdmin || Can("ContractRenewal.Manage")) {
                         <details class="nav-subgroup" open="@(Context.Request.Path.StartsWithSegments("/EmployeeContracts") ? "open" : null)">
                             <summary>مدیریت قراردادهای کارکنان</summary>
                             <div class="nav-submenu nav-submenu-nested">
@@ -68,6 +69,7 @@
                                 @if (isAdmin || Can("ContractRenewal.Manage")) { <a href="/EmployeeContracts/Renewal">تمدید قرارداد</a> }
                             </div>
                         </details>
+                        }
                         @if (isAdmin || User.HasClaim("UserType","Employee")) {
                         <details class="nav-subgroup" open="@(Context.Request.Path.StartsWithSegments("/MonthlyPerformance") ? "open" : null)">
                             <summary>ارزیابی عملکرد کارکنان</summary>

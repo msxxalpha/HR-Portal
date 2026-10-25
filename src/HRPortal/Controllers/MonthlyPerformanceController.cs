@@ -20,7 +20,7 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
         if (!TryEmployee(out var actor) || !await performance.IsEvaluatorAsync(actor)) return Forbid();
         var scoped = await performance.ScopeAsync(actor);
         var scopedIds = scoped.Select(s => s.EmployeeId).ToArray();
-        var periods = await performance.PeriodsAsync();
+        var periods = (await performance.PeriodsAsync()).Where(p => !p.IsDeleted).ToList();
         var active = await performance.ActivePeriodAsync();
         var historyPeriodIds = await db.MonthlyPerformanceEvaluations.AsNoTracking()
             .Where(x => x.OriginalEvaluatorId == actor || x.LastEvaluatorId == actor ||
@@ -89,7 +89,7 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
     public async Task<IActionResult> Evaluate(int employeeId, int periodId)
     {
         if (!TryEmployee(out var actor) || !await performance.IsEvaluatorAsync(actor)) return Forbid();
-        var period = await db.MonthlyPerformancePeriods.AsNoTracking().FirstOrDefaultAsync(x => x.Id == periodId);
+        var period = await db.MonthlyPerformancePeriods.AsNoTracking().FirstOrDefaultAsync(x => x.Id == periodId && !x.IsDeleted);
         var employee = await db.Employees.AsNoTracking().FirstOrDefaultAsync(x => x.Id == employeeId);
         if (period is null || employee is null) return NotFound();
         var scope = await performance.ScopeAsync(actor);
@@ -189,7 +189,7 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
     {
         if (!TryEmployee(out var actor)) return Forbid();
         var rows = await db.MonthlyPerformanceEvaluations.AsNoTracking()
-            .Where(x => x.EmployeeId == actor)
+            .Where(x => x.EmployeeId == actor && !x.Period.IsDeleted)
             .Include(x => x.Period).Include(x => x.Scores)
             .OrderByDescending(x => x.Period.Year).ThenByDescending(x => x.Period.Month).ToListAsync();
         return View(rows);
@@ -201,7 +201,7 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
         if (!TryEmployee(out var actor)) return Forbid();
         var eval = await db.MonthlyPerformanceEvaluations.AsNoTracking()
             .Include(x => x.Period).Include(x => x.Scores)
-            .FirstOrDefaultAsync(x => x.EmployeeId == actor && x.PeriodId == periodId);
+            .FirstOrDefaultAsync(x => x.EmployeeId == actor && x.PeriodId == periodId && !x.Period.IsDeleted);
         return eval is null ? NotFound() : View(eval);
     }
 
@@ -251,7 +251,7 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
     {
         if (!TryEmployee(out var actor)) return Forbid();
         var ev = await db.MonthlyPerformanceEvaluations.AsNoTracking()
-            .Where(x => x.EmployeeId == employeeId && x.PeriodId == periodId).Include(x => x.Scores).Include(x => x.Period)
+            .Where(x => x.EmployeeId == employeeId && x.PeriodId == periodId && !x.Period.IsDeleted).Include(x => x.Scores).Include(x => x.Period)
             .FirstOrDefaultAsync();
         if (ev is null) return NotFound();
         var allowed = actor == employeeId ||
@@ -285,7 +285,7 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
         if (!TryEmployee(out var actor) || !await performance.IsEvaluatorAsync(actor)) return Forbid();
         var scope = (await performance.ScopeAsync(actor)).Select(x => x.EmployeeId).ToHashSet();
         var rows = await db.MonthlyPerformanceEvaluations.AsNoTracking()
-            .Where(e => e.PeriodId == periodId && (scope.Contains(e.EmployeeId) ||
+            .Where(e => e.PeriodId == periodId && !e.Period.IsDeleted && (scope.Contains(e.EmployeeId) ||
                  e.OriginalEvaluatorId == actor || e.LastEvaluatorId == actor ||
                  db.MonthlyPerformanceRevisions.Any(r => r.EvaluationId == e.Id && r.ChangedByEmployeeId == actor)))
             .Include(x => x.Employee).OrderBy(x => x.Employee.LastName).ToListAsync();

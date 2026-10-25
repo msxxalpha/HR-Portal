@@ -13,6 +13,10 @@ public class MonthlyPerformancePeriod
     public DateTime StartAt { get; set; }
     public DateTime EndAt { get; set; }  // exclusive upper bound (day after the chosen final Jalali day)
     public bool IsEnabled { get; set; } = true;
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    public int? DeletedByAdminId { get; set; }
+    [MaxLength(500)] public string? DeletionReason { get; set; }
     [MaxLength(1000)] public string? Description { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
@@ -47,6 +51,7 @@ public class MonthlyPerformanceRankQuestion
     public int RankId { get; set; }
     public int QuestionId { get; set; }
     public decimal MaxScore { get; set; }
+    public int SortOrder { get; set; } = 1;
     public bool IsActive { get; set; } = true;
     public MonthlyPerformanceRank Rank { get; set; } = null!;
     public MonthlyPerformanceQuestion Question { get; set; } = null!;

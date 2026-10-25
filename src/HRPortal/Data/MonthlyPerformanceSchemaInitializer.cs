@@ -17,11 +17,21 @@ IF OBJECT_ID(N'dbo.MonthlyPerformancePeriods',N'U') IS NULL
  CREATE TABLE dbo.MonthlyPerformancePeriods(
  Id int IDENTITY(1,1) PRIMARY KEY, Code nvarchar(100) NOT NULL, Title nvarchar(150) NOT NULL,
  [Year] int NOT NULL, [Month] int NOT NULL, StartAt datetime2 NOT NULL, EndAt datetime2 NOT NULL,
- IsEnabled bit NOT NULL DEFAULT(1), Description nvarchar(1000) NULL, CreatedAt datetime2 NOT NULL,
+ IsEnabled bit NOT NULL DEFAULT(1), IsDeleted bit NOT NULL DEFAULT(0), DeletedAt datetime2 NULL,
+ DeletedByAdminId int NULL, DeletionReason nvarchar(500) NULL,
+ Description nvarchar(1000) NULL, CreatedAt datetime2 NOT NULL,
  CONSTRAINT UQ_MonthlyPerformancePeriods_YearMonth UNIQUE ([Year],[Month]),
  CONSTRAINT UQ_MonthlyPerformancePeriods_Code UNIQUE(Code),
  CONSTRAINT CK_MonthlyPerformancePeriods_Dates CHECK (StartAt < EndAt),
  CONSTRAINT CK_MonthlyPerformancePeriods_Month CHECK ([Month] BETWEEN 1 AND 12));
+IF COL_LENGTH(N'dbo.MonthlyPerformancePeriods',N'IsDeleted') IS NULL
+ ALTER TABLE dbo.MonthlyPerformancePeriods ADD IsDeleted bit NOT NULL CONSTRAINT DF_MPPeriods_IsDeleted DEFAULT(0) WITH VALUES;
+IF COL_LENGTH(N'dbo.MonthlyPerformancePeriods',N'DeletedAt') IS NULL
+ ALTER TABLE dbo.MonthlyPerformancePeriods ADD DeletedAt datetime2 NULL;
+IF COL_LENGTH(N'dbo.MonthlyPerformancePeriods',N'DeletedByAdminId') IS NULL
+ ALTER TABLE dbo.MonthlyPerformancePeriods ADD DeletedByAdminId int NULL;
+IF COL_LENGTH(N'dbo.MonthlyPerformancePeriods',N'DeletionReason') IS NULL
+ ALTER TABLE dbo.MonthlyPerformancePeriods ADD DeletionReason nvarchar(500) NULL;
 IF OBJECT_ID(N'dbo.MonthlyPerformanceDomains',N'U') IS NULL
  CREATE TABLE dbo.MonthlyPerformanceDomains(
  Id int IDENTITY(1,1) PRIMARY KEY, Code nvarchar(50) NOT NULL UNIQUE,
@@ -39,11 +49,13 @@ IF OBJECT_ID(N'dbo.MonthlyPerformanceQuestions',N'U') IS NULL
 IF OBJECT_ID(N'dbo.MonthlyPerformanceRankQuestions',N'U') IS NULL
  CREATE TABLE dbo.MonthlyPerformanceRankQuestions(
  Id int IDENTITY(1,1) PRIMARY KEY, RankId int NOT NULL, QuestionId int NOT NULL,
- MaxScore decimal(12,2) NOT NULL, IsActive bit NOT NULL DEFAULT(1),
+ MaxScore decimal(12,2) NOT NULL, SortOrder int NOT NULL DEFAULT(1), IsActive bit NOT NULL DEFAULT(1),
  CONSTRAINT UQ_MPRankQuestion UNIQUE(RankId,QuestionId),
  CONSTRAINT CK_MPRankQuestion_Max CHECK(MaxScore > 0),
  CONSTRAINT FK_MPRankQuestion_Rank FOREIGN KEY(RankId) REFERENCES dbo.MonthlyPerformanceRanks(Id),
  CONSTRAINT FK_MPRankQuestion_Question FOREIGN KEY(QuestionId) REFERENCES dbo.MonthlyPerformanceQuestions(Id));
+IF COL_LENGTH(N'dbo.MonthlyPerformanceRankQuestions',N'SortOrder') IS NULL
+ ALTER TABLE dbo.MonthlyPerformanceRankQuestions ADD SortOrder int NOT NULL CONSTRAINT DF_MPRankQuestions_SortOrder DEFAULT(1) WITH VALUES;
 IF OBJECT_ID(N'dbo.MonthlyPerformanceEvaluations',N'U') IS NULL
  CREATE TABLE dbo.MonthlyPerformanceEvaluations(
  Id int IDENTITY(1,1) PRIMARY KEY, PeriodId int NOT NULL, EmployeeId int NOT NULL,

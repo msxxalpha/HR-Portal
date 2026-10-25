@@ -148,6 +148,97 @@ public sealed class PerformanceAdminController(HRPortalDbContext db, Organizatio
         return RedirectToAction(nameof(Index));
     }
 
+
+    // Changes to master data are non-destructive; historical score snapshots remain intact.
+    [HttpPost("EditDomain"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditDomain(int id, string code, string title, bool isActive)
+    {
+        var item = await db.PerformanceDomains.FindAsync(id);
+        if (item == null) return NotFound();
+        code = (code ?? "").Trim();
+        title = (title ?? "").Trim();
+        if (code.Length is 0 or > 50 || title.Length is 0 or > 200 ||
+            await db.PerformanceDomains.AnyAsync(x => x.Id != id && x.Code == code))
+            TempData["Error"] = "کد و عنوان حوزه باید معتبر و یکتا باشند.";
+        else
+        {
+            item.Code = code; item.Title = title; item.IsActive = isActive;
+            await db.SaveChangesAsync();
+            TempData["Result"] = "حوزه ارزیابی به‌روزرسانی شد.";
+        }
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost("EditPosition"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditPosition(int id, string code, string title, bool isActive)
+    {
+        var item = await db.PerformancePositions.FindAsync(id);
+        if (item == null) return NotFound();
+        code = (code ?? "").Trim();
+        title = (title ?? "").Trim();
+        if (code.Length is 0 or > 50 || title.Length is 0 or > 200 ||
+            await db.PerformancePositions.AnyAsync(x => x.Id != id && x.Code == code))
+            TempData["Error"] = "کد یا عنوان رده نامعتبر یا تکراری است.";
+        else
+        {
+            item.Code = code; item.Title = title; item.IsActive = isActive;
+            await db.SaveChangesAsync();
+            TempData["Result"] = "رده ارزیابی به‌روزرسانی شد.";
+        }
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost("EditQuestion"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditQuestion(int id, string code, string title, string text, int domainId, bool isActive)
+    {
+        var item = await db.PerformanceQuestions.FindAsync(id);
+        if (item == null) return NotFound();
+        code = (code ?? "").Trim();
+        title = (title ?? "").Trim();
+        text = (text ?? "").Trim();
+        if (code.Length is 0 or > 50 || title.Length is 0 or > 250 ||
+            text.Length is 0 or > 2000 ||
+            await db.PerformanceQuestions.AnyAsync(x => x.Id != id && x.Code == code) ||
+            !await db.PerformanceDomains.AnyAsync(x => x.Id == domainId))
+            TempData["Error"] = "اطلاعات سؤال یا حوزه نامعتبر است.";
+        else
+        {
+            item.Code = code; item.Title = title; item.Text = text;
+            item.DomainId = domainId; item.IsActive = isActive;
+            await db.SaveChangesAsync();
+            TempData["Result"] = "سؤال به‌روزرسانی شد؛ امتیازات و متن سؤال‌های قبلی حفظ شده‌اند.";
+        }
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost("RemoveQuestionMapping"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> RemoveQuestionMapping(int id)
+    {
+        var item = await db.PerformancePositionQuestions.FindAsync(id);
+        if (item == null) return NotFound();
+        item.IsActive = false;
+        await db.SaveChangesAsync();
+        TempData["Result"] = "اتصال سؤال به این رده غیرفعال شد؛ سوابق ارزیابی محفوظ است.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost("RemoveEvaluatorAssignment"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> RemoveEvaluatorAssignment(int id)
+    {
+        var assignment = await db.PerformanceAssignments.FindAsync(id);
+        if (assignment == null) return NotFound();
+        if (await db.PerformanceEvaluations.AnyAsync(x =>
+            x.PeriodId == assignment.PeriodId && x.EmployeeId == assignment.EmployeeId))
+            TempData["Error"] = "برای این کارمند ارزیابی ثبت شده است و تخصیص وی بدون بازنگری قابل حذف نیست.";
+        else
+        {
+            db.PerformanceAssignments.Remove(assignment);
+            await db.SaveChangesAsync();
+            TempData["Result"] = "تخصیص ارزیاب حذف شد.";
+        }
+        return RedirectToAction(nameof(Index));
+    }
+
     [HttpPost("MapEmployeePosition"), ValidateAntiForgeryToken]
     public async Task<IActionResult> MapEmployeePosition(int employeeId, int positionId)
     {

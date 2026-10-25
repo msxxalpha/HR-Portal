@@ -21,7 +21,7 @@
 <div class="mp-table-wrap"><table class="mp-filter-table"><thead><tr><th>شماره پرسنلی</th><th>نام</th><th>رده</th><th>امتیاز</th><th>سقف</th><th>کسر امتیاز</th><th>درصد</th><th>آخرین ثبت</th><th>جزئیات</th></tr></thead>
 <tbody>@foreach(var e in rows){
 <tr><td>@e.Employee.PersonnelNumber</td><td>@e.Employee.FirstName @e.Employee.LastName</td><td>@e.RankTitleSnapshot</td><td>@e.TotalScore.ToString("N2")</td><td>@e.MaxScore.ToString("N2")</td><td>@((e.MaxScore-e.TotalScore).ToString("N2"))</td>
-<td>@(e.MaxScore==0?0:Math.Round(e.TotalScore*100m/e.MaxScore,1))٪</td><td>@HRPortal.Services.PersianDateService.FormatDateTime(e.UpdatedAt.ToLocalTime())</td>
+<td>@(e.MaxScore==0?0:Math.Round(e.TotalScore*100m/e.MaxScore,1))٪</td><td>@HRPortal.Services.PersianDateService.FormatDateTime(HRPortal.Services.MonthlyPerformanceService.ToIranTime(e.UpdatedAt))</td>
 <td><a class="btn btn-outline btn-sm" href="/MonthlyPerformanceAdmin/EvaluationDetails/@e.Id">مشاهده ریز امتیازها</a></td></tr>
 }</tbody></table></div>
 </section>

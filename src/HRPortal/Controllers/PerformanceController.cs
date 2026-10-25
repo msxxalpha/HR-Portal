@@ -13,7 +13,8 @@ public sealed class PerformanceController(HRPortalDbContext db, PerformanceServi
     public sealed record DashboardVm(List<PerformancePeriod> Periods, PerformancePeriod? Selected,
         List<PerformanceService.AssignmentRow> Rows, decimal TotalMax, decimal TotalScore, decimal Deducted);
     public sealed record EvaluationFormVm(int EmployeeId, string EmployeeName, PerformancePeriod Period,
-        bool CanEdit, List<PerformanceService.ScoreDisplay> Questions);
+        bool CanEdit, List<PerformanceService.ScoreDisplay> Questions,
+        List<PerformanceScoreChange> History);
     public sealed class ScoreEditInput
     {
         public int QuestionId { get; set; }
@@ -75,9 +76,16 @@ public sealed class PerformanceController(HRPortalDbContext db, PerformanceServi
         var employee = await db.Employees.AsNoTracking().SingleOrDefaultAsync(x => x.Id == employeeId);
         if (employee == null) return NotFound();
         var rows = await service.ScoreRowsAsync(periodId, employeeId, ActorId.Value);
+        var evaluationId = await db.PerformanceEvaluations.AsNoTracking()
+            .Where(x => x.PeriodId == periodId && x.EmployeeId == employeeId)
+            .Select(x => (int?)x.Id).SingleOrDefaultAsync();
+        var history = evaluationId.HasValue
+            ? await db.PerformanceScoreChanges.AsNoTracking().Where(x => x.EvaluationId == evaluationId.Value)
+                .OrderByDescending(x => x.ChangedAt).ToListAsync()
+            : new List<PerformanceScoreChange>();
         return View(new EvaluationFormVm(employeeId, $"{employee.FirstName} {employee.LastName}",
             period, PerformanceService.IsEditable(period, DateTime.Now) &&
-            (User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", PerformanceModule.EvaluatePermission)), rows));
+            (User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", PerformanceModule.EvaluatePermission)), rows, history));
     }
 
     [HttpPost("Save"), Authorize(Policy = PerformanceModule.EvaluatePermission), ValidateAntiForgeryToken]

@@ -233,7 +233,7 @@ public class MonthlyPerformanceAdminController(HRPortalDbContext db) : Controlle
     }
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> SaveQuestion(int id, string? code, string title, int domainId, int sortOrder, bool isActive)
+    public async Task<IActionResult> SaveQuestion(int id, string? code, string title, int domainId, int sortOrder, bool isActive, string? text, string? description)
     {
         try
         {
@@ -244,6 +244,10 @@ public class MonthlyPerformanceAdminController(HRPortalDbContext db) : Controlle
                 await db.MonthlyPerformanceQuestions.FindAsync(id) ?? throw new InvalidOperationException("سؤال یافت نشد.");
             entity.Code = Code(code, "Q", await db.MonthlyPerformanceQuestions.Select(x => x.Code).ToListAsync());
             entity.Title = title.Trim(); entity.DomainId = domainId; entity.SortOrder = sortOrder;
+            if ((text?.Length ?? 0) > 1000 || (description?.Length ?? 0) > 1000)
+                throw new InvalidOperationException("متن سؤال یا راهنمای ارزیاب نباید بیشتر از ۱۰۰۰ نویسه باشد.");
+            entity.Text = string.IsNullOrWhiteSpace(text) ? entity.Title : text.Trim();
+            entity.Description = description?.Trim();
             entity.IsActive = isActive;
             if (id == 0) db.MonthlyPerformanceQuestions.Add(entity);
             await db.SaveChangesAsync(); TempData["Success"] = "سؤال ثبت شد.";

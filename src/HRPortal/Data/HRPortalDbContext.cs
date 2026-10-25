@@ -5,6 +5,14 @@ namespace HRPortal.Data;
 
 public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : DbContext(options)
 {
+    public DbSet<MonthlyPerformancePeriod> MonthlyPerformancePeriods => Set<MonthlyPerformancePeriod>();
+    public DbSet<MonthlyPerformanceDomain> MonthlyPerformanceDomains => Set<MonthlyPerformanceDomain>();
+    public DbSet<MonthlyPerformanceRank> MonthlyPerformanceRanks => Set<MonthlyPerformanceRank>();
+    public DbSet<MonthlyPerformanceQuestion> MonthlyPerformanceQuestions => Set<MonthlyPerformanceQuestion>();
+    public DbSet<MonthlyPerformanceRankQuestion> MonthlyPerformanceRankQuestions => Set<MonthlyPerformanceRankQuestion>();
+    public DbSet<MonthlyPerformanceEvaluation> MonthlyPerformanceEvaluations => Set<MonthlyPerformanceEvaluation>();
+    public DbSet<MonthlyPerformanceScore> MonthlyPerformanceScores => Set<MonthlyPerformanceScore>();
+    public DbSet<MonthlyPerformanceRevision> MonthlyPerformanceRevisions => Set<MonthlyPerformanceRevision>();
     public DbSet<SystemSettings> SystemSettings => Set<SystemSettings>();
     public DbSet<OtpSettings> OtpSettings => Set<OtpSettings>();
     public DbSet<SmsSettings> SmsSettings => Set<SmsSettings>();
@@ -45,6 +53,57 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<MonthlyPerformancePeriod>(e =>
+        {
+            e.ToTable("MonthlyPerformancePeriods");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.Year, x.Month }).IsUnique();
+            e.HasIndex(x => x.Code).IsUnique();
+        });
+        modelBuilder.Entity<MonthlyPerformanceDomain>(e =>
+        {
+            e.ToTable("MonthlyPerformanceDomains"); e.HasKey(x => x.Id); e.HasIndex(x => x.Code).IsUnique();
+        });
+        modelBuilder.Entity<MonthlyPerformanceRank>(e =>
+        {
+            e.ToTable("MonthlyPerformanceRanks"); e.HasKey(x => x.Id); e.HasIndex(x => x.Code).IsUnique();
+            e.HasIndex(x => x.Title).IsUnique();
+        });
+        modelBuilder.Entity<MonthlyPerformanceQuestion>(e =>
+        {
+            e.ToTable("MonthlyPerformanceQuestions"); e.HasKey(x => x.Id); e.HasIndex(x => x.Code).IsUnique();
+            e.HasOne(x => x.Domain).WithMany().HasForeignKey(x => x.DomainId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<MonthlyPerformanceRankQuestion>(e =>
+        {
+            e.ToTable("MonthlyPerformanceRankQuestions"); e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.RankId, x.QuestionId }).IsUnique();
+            e.Property(x => x.MaxScore).HasPrecision(12, 2);
+            e.HasOne(x => x.Rank).WithMany().HasForeignKey(x => x.RankId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Question).WithMany().HasForeignKey(x => x.QuestionId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<MonthlyPerformanceEvaluation>(e =>
+        {
+            e.ToTable("MonthlyPerformanceEvaluations"); e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.PeriodId, x.EmployeeId }).IsUnique();
+            e.Property(x => x.MaxScore).HasPrecision(12, 2); e.Property(x => x.TotalScore).HasPrecision(12, 2);
+            e.HasOne(x => x.Period).WithMany().HasForeignKey(x => x.PeriodId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<MonthlyPerformanceScore>(e =>
+        {
+            e.ToTable("MonthlyPerformanceScores"); e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.EvaluationId, x.QuestionId }).IsUnique();
+            e.Property(x => x.MaxScore).HasPrecision(12, 2); e.Property(x => x.Score).HasPrecision(12, 2);
+            e.HasOne(x => x.Evaluation).WithMany(x => x.Scores).HasForeignKey(x => x.EvaluationId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Question).WithMany().HasForeignKey(x => x.QuestionId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<MonthlyPerformanceRevision>(e =>
+        {
+            e.ToTable("MonthlyPerformanceRevisions"); e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.EvaluationId, x.ChangedAt });
+            e.Property(x => x.OldScore).HasPrecision(12, 2); e.Property(x => x.NewScore).HasPrecision(12, 2);
+        });
         modelBuilder.Entity<Employee>(e =>
         {
             // The production Employees table has enabled SQL Server triggers.

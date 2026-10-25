@@ -52,6 +52,78 @@ public class MonthlyPerformanceAdminController(HRPortalDbContext db) : Controlle
     }
 
     [HttpGet]
+    public async Task<IActionResult> Periods(int? editId = null)
+    {
+        var rows = await db.MonthlyPerformancePeriods.AsNoTracking()
+            .OrderByDescending(x => x.StartAt).ToListAsync();
+        ViewBag.EditPeriod = editId.HasValue ? rows.FirstOrDefault(x => x.Id == editId && !x.IsDeleted) : null;
+        return View(rows);
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeletePeriod(int id, string? reason)
+    {
+        var period = await db.MonthlyPerformancePeriods.FirstOrDefaultAsync(x => x.Id == id);
+        if (period is null) return NotFound();
+        if (period.IsDeleted)
+        {
+            TempData["Error"] = "این دوره پیش‌تر حذف شده است.";
+            return RedirectToAction(nameof(Periods));
+        }
+        // Archive, rather than cascade-deleting scores and revisions, so the complete
+        // period/evaluation/question/change hierarchy remains queryable by administrators.
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        period.IsDeleted = true;
+        period.IsEnabled = false;
+        period.DeletedAt = DateTime.UtcNow;
+        period.DeletionReason = (reason ?? "حذف توسط مدیر سامانه").Trim()[..Math.Min(500, (reason ?? "حذف توسط مدیر سامانه").Trim().Length)];
+        period.DeletedByAdminId = int.TryParse(User.FindFirst("AdminId")?.Value, out var adminId) ? adminId : null;
+        await db.SaveChangesAsync();
+        await transaction.CommitAsync();
+        TempData["Success"] = "دوره از چرخه ارزیابی و گزارش‌های جاری خارج شد. تمام ارزیابی‌ها، ریز امتیازها و تاریخچه تغییرات برای ممیزی در بایگانی حفظ شده‌اند.";
+        return RedirectToAction(nameof(Periods));
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Ranks()
+    {
+        var model = new MonthlyPerformanceBasicVm
+        {
+            Ranks = await db.MonthlyPerformanceRanks.AsNoTracking().OrderBy(x => x.Title).ToListAsync(),
+            Questions = await db.MonthlyPerformanceQuestions.AsNoTracking().Include(x => x.Domain).OrderBy(x => x.Title).ToListAsync(),
+            Mappings = await db.MonthlyPerformanceRankQuestions.AsNoTracking()
+                .Include(x => x.Rank).Include(x => x.Question).ThenInclude(x => x.Domain)
+                .OrderBy(x => x.SortOrder).ThenBy(x => x.Question.Title).ToListAsync()
+        };
+        return View(model);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Questions()
+    {
+        var model = new MonthlyPerformanceBasicVm
+        {
+            Ranks = await db.MonthlyPerformanceRanks.AsNoTracking().OrderBy(x => x.Title).ToListAsync(),
+            Domains = await db.MonthlyPerformanceDomains.AsNoTracking().OrderBy(x => x.SortOrder).ToListAsync(),
+            Questions = await db.MonthlyPerformanceQuestions.AsNoTracking().Include(x => x.Domain).OrderBy(x => x.SortOrder).ToListAsync(),
+            Mappings = await db.MonthlyPerformanceRankQuestions.AsNoTracking()
+                .Include(x => x.Rank).Include(x => x.Question).ToListAsync()
+        };
+        return View(model);
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> RemoveMapping(int mappingId)
+    {
+        var mapping = await db.MonthlyPerformanceRankQuestions.FindAsync(mappingId);
+        if (mapping is null) return NotFound();
+        mapping.IsActive = false;
+        await db.SaveChangesAsync();
+        TempData["Success"] = "اتصال سؤال غیرفعال شد؛ نتایج ارزیابی ثبت‌شده قبلی تغییر نمی‌کنند.";
+        return RedirectToAction(nameof(Ranks));
+    }
+
+    [HttpGet]
     public async Task<IActionResult> PeriodDetails(int id)
     {
         var period = await db.MonthlyPerformancePeriods.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
@@ -76,45 +148,50 @@ public class MonthlyPerformanceAdminController(HRPortalDbContext db) : Controlle
     }
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> SavePeriod(int id, string? code, string title, int year, int month,
+    public async Task<IActionResult> SavePeriod(int id, string? code, string title,
         string startJalali, string endJalali, bool isEnabled, string? description)
     {
         try
         {
-            if (year is < 1300 or > 1600 || month is < 1 or > 12)
-                throw new InvalidOperationException("سال یا ماه دوره معتبر نیست.");
             if (string.IsNullOrWhiteSpace(title)) throw new InvalidOperationException("عنوان دوره الزامی است.");
             var dates = MonthlyPerformanceService.ParseWindow(startJalali, endJalali);
-            var pc = new System.Globalization.PersianCalendar();
-            if (pc.GetYear(dates.start) != year || pc.GetMonth(dates.start) != month ||
-                pc.GetYear(dates.endExclusive.AddDays(-1)) != year ||
-                pc.GetMonth(dates.endExclusive.AddDays(-1)) != month)
-                throw new InvalidOperationException("بازه شروع و پایان باید داخل ماه و سال انتخاب‌شده باشد.");
-            if (await db.MonthlyPerformancePeriods.AnyAsync(x => x.Id != id && x.Year == year && x.Month == month))
-                throw new InvalidOperationException("برای این ماه قبلاً دوره تعریف شده است.");
-            if (isEnabled && await db.MonthlyPerformancePeriods.AnyAsync(x => x.Id != id && x.IsEnabled &&
-                x.StartAt < dates.endExclusive && dates.start < x.EndAt))
-                throw new InvalidOperationException("این بازه با دوره فعال دیگری همپوشانی دارد.");
+            var calendar = new System.Globalization.PersianCalendar();
+            var year = calendar.GetYear(dates.start);
+            var month = calendar.GetMonth(dates.start);
+            var endDay = dates.endExclusive.AddDays(-1);
+            if (year != calendar.GetYear(endDay) || month != calendar.GetMonth(endDay))
+                throw new InvalidOperationException("شروع و پایان دوره باید در یک ماه شمسی باشند.");
+            if (await db.MonthlyPerformancePeriods.AnyAsync(x => x.Id != id && !x.IsDeleted && x.Year == year && x.Month == month))
+                throw new InvalidOperationException("برای این ماه شمسی دوره دیگری تعریف شده است.");
+            if (isEnabled && await db.MonthlyPerformancePeriods.AnyAsync(x => x.Id != id && !x.IsDeleted &&
+                x.IsEnabled && x.StartAt < dates.endExclusive && dates.start < x.EndAt))
+                throw new InvalidOperationException("این بازه زمانی با دوره فعال دیگری همپوشانی دارد.");
             var entity = id == 0 ? new MonthlyPerformancePeriod() :
-                await db.MonthlyPerformancePeriods.FirstOrDefaultAsync(x => x.Id == id) ??
-                throw new InvalidOperationException("دوره یافت نشد.");
-            if (id != 0 && entity.StartAt <= MonthlyPerformanceService.NowIran() &&
-                await db.MonthlyPerformanceEvaluations.AnyAsync(x => x.PeriodId == id) &&
+                await db.MonthlyPerformancePeriods.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted) ??
+                throw new InvalidOperationException("دوره فعال یافت نشد.");
+            if (id != 0 && await db.MonthlyPerformanceEvaluations.AnyAsync(x => x.PeriodId == id) &&
                 (entity.StartAt != dates.start || entity.EndAt != dates.endExclusive))
-                throw new InvalidOperationException("تغییر محدوده زمانی دوره شروع‌شده و دارای نتایج، مجاز نیست.");
+                throw new InvalidOperationException("تغییر بازه دوره دارای نتایج ثبت‌شده مجاز نیست.");
             var newCode = Code(code, "PER", await db.MonthlyPerformancePeriods.Select(x => x.Code).ToListAsync());
             if (await db.MonthlyPerformancePeriods.AnyAsync(x => x.Id != id && x.Code == newCode))
                 throw new InvalidOperationException("کد دوره تکراری است.");
-            entity.Title = title.Trim(); entity.Code = newCode; entity.Year = year; entity.Month = month;
-            entity.StartAt = dates.start; entity.EndAt = dates.endExclusive;
-            entity.Description = description?.Trim(); entity.IsEnabled = isEnabled;
+            entity.Title = title.Trim();
+            entity.Code = newCode;
+            entity.Year = year;
+            entity.Month = month;
+            entity.StartAt = dates.start;
+            entity.EndAt = dates.endExclusive;
+            entity.Description = description?.Trim();
+            entity.IsEnabled = isEnabled && dates.endExclusive > MonthlyPerformanceService.NowIran();
             if (id == 0) db.MonthlyPerformancePeriods.Add(entity);
             await db.SaveChangesAsync();
-            TempData["Success"] = "دوره ارزیابی با موفقیت ذخیره شد.";
+            TempData["Success"] = "دوره ذخیره شد؛ سال و ماه از تاریخ شمسی شروع به‌صورت خودکار استخراج شدند.";
         }
         catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException)
-        { TempData["Error"] = ex.Message; }
-        return RedirectToAction(nameof(Basic), new { tab = "periods" });
+        {
+            TempData["Error"] = ex.Message;
+        }
+        return RedirectToAction(nameof(Periods));
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -131,7 +208,7 @@ public class MonthlyPerformanceAdminController(HRPortalDbContext db) : Controlle
             await db.SaveChangesAsync(); TempData["Success"] = "رده ثبت شد.";
         }
         catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException) { TempData["Error"] = ex.Message; }
-        return RedirectToAction(nameof(Basic), new { tab = "ranks" });
+        return RedirectToAction(nameof(Ranks));
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -168,18 +245,21 @@ public class MonthlyPerformanceAdminController(HRPortalDbContext db) : Controlle
             await db.SaveChangesAsync(); TempData["Success"] = "سؤال ثبت شد.";
         }
         catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException) { TempData["Error"] = ex.Message; }
-        return RedirectToAction(nameof(Basic), new { tab = "questions" });
+        return RedirectToAction(nameof(Questions));
     }
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> SaveMapping(int rankId, int questionId, decimal maxScore, bool isActive)
+    public async Task<IActionResult> SaveMapping(int rankId, int questionId, int maxScore, int sortOrder = 1)
     {
         try
         {
-            if (maxScore <= 0 || maxScore > 100000) throw new InvalidOperationException("سقف امتیاز باید مثبت باشد.");
-            if (!await db.MonthlyPerformanceRanks.AnyAsync(x => x.Id == rankId) ||
-                !await db.MonthlyPerformanceQuestions.AnyAsync(x => x.Id == questionId))
-                throw new InvalidOperationException("سؤال یا رده نامعتبر است.");
+            if (maxScore < 1 || maxScore > 100000)
+                throw new InvalidOperationException("سقف امتیاز باید عدد صحیح مثبت باشد.");
+            if (sortOrder < 1 || sortOrder > 10000)
+                throw new InvalidOperationException("ترتیب باید عدد صحیح مثبت باشد.");
+            if (!await db.MonthlyPerformanceRanks.AnyAsync(x => x.Id == rankId && x.IsActive) ||
+                !await db.MonthlyPerformanceQuestions.AnyAsync(x => x.Id == questionId && x.IsActive && x.Domain.IsActive))
+                throw new InvalidOperationException("سؤال یا رده انتخابی معتبر و فعال نیست.");
             var mapping = await db.MonthlyPerformanceRankQuestions
                 .FirstOrDefaultAsync(x => x.RankId == rankId && x.QuestionId == questionId);
             if (mapping is null)
@@ -187,11 +267,25 @@ public class MonthlyPerformanceAdminController(HRPortalDbContext db) : Controlle
                 mapping = new MonthlyPerformanceRankQuestion { RankId = rankId, QuestionId = questionId };
                 db.MonthlyPerformanceRankQuestions.Add(mapping);
             }
-            mapping.MaxScore = maxScore; mapping.IsActive = isActive;
-            await db.SaveChangesAsync(); TempData["Success"] = "سقف امتیاز برای رده ثبت شد.";
+            mapping.MaxScore = maxScore;
+            mapping.SortOrder = sortOrder;
+            mapping.IsActive = true;
+            await db.SaveChangesAsync();
+            TempData["Success"] = "اتصال سؤال با سقف امتیاز صحیح و ترتیب مشخص ذخیره شد.";
         }
-        catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException) { TempData["Error"] = ex.Message; }
-        return RedirectToAction(nameof(Basic), new { tab = "mappings" });
+        catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException)
+        {
+            TempData["Error"] = ex.Message;
+        }
+        return RedirectToAction(nameof(Ranks));
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateMapping(int mappingId, int maxScore, int sortOrder)
+    {
+        var mapping = await db.MonthlyPerformanceRankQuestions.FirstOrDefaultAsync(x => x.Id == mappingId);
+        if (mapping is null) return NotFound();
+        return await SaveMapping(mapping.RankId, mapping.QuestionId, maxScore, sortOrder);
     }
 
     [HttpPost, ValidateAntiForgeryToken]

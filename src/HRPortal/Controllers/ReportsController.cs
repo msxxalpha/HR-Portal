@@ -1,5 +1,6 @@
 using HRPortal.Data;
 using HRPortal.Models;
+using HRPortal.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -15,8 +16,18 @@ public class ReportsController(HRPortalDbContext db) : Controller
     [HttpGet]
     public async Task<IActionResult> ExecutiveWorkflow(
         string? direction, string? status, string? workflow, string? employee,
-        DateTime? from, DateTime? to, CancellationToken cancellationToken)
+        DateTime? from, DateTime? to, string? fromJalali, string? toJalali, CancellationToken cancellationToken)
     {
+        if (!string.IsNullOrWhiteSpace(fromJalali))
+        {
+            if (PersianDateService.TryParse(fromJalali, out var parsedFrom)) from = parsedFrom;
+            else ModelState.AddModelError(nameof(fromJalali), "تاریخ شروع شمسی معتبر نیست.");
+        }
+        if (!string.IsNullOrWhiteSpace(toJalali))
+        {
+            if (PersianDateService.TryParse(toJalali, out var parsedTo)) to = parsedTo;
+            else ModelState.AddModelError(nameof(toJalali), "تاریخ پایان شمسی معتبر نیست.");
+        }
         var model = new ExecutiveWorkflowReportViewModel
         {
             Direction = string.IsNullOrWhiteSpace(direction) ? "all" : direction,

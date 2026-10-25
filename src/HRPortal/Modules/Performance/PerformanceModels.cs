@@ -65,12 +65,24 @@ public sealed class PerformanceAssignment
     public int EvaluatorEmployeeId { get; set; }
     public PerformancePeriod? Period { get; set; }
 }
+/// <summary>
+/// Period-specific reviewer hierarchy configured by HR administrator.
+/// Must not be inferred from shared department membership.
+/// </summary>
+public sealed class PerformanceEvaluatorChain
+{
+    public int Id { get; set; }
+    public int PeriodId { get; set; }
+    public int SubordinateEvaluatorEmployeeId { get; set; }
+    public int SuperiorEvaluatorEmployeeId { get; set; }
+}
 public sealed class PerformanceEvaluation
 {
     public int Id { get; set; }
     public int PeriodId { get; set; }
     public int EmployeeId { get; set; }
     public int EvaluatorEmployeeId { get; set; }
+    public int? LastReviewedByEmployeeId { get; set; }
     public decimal FinalScore { get; set; }
     public decimal FinalMaxScore { get; set; }
     public string Status { get; set; } = "Submitted";

@@ -29,12 +29,12 @@
 else
 {
     <div class="row g-3 mb-3">
-        <div class="col-md-3"><div class="card p-3"><small>تعداد افراد تخصیص‌یافته</small><h3>@Model.Rows.Count</h3></div></div>
+        <div class="col-md-3"><div class="card p-3"><small>تعداد افراد تخصیص‌یافته</small><h3>@Model.TotalAssignments</h3></div></div>
         <div class="col-md-3"><div class="card p-3"><small>مجموع سقف امتیازات</small><h3>@Model.TotalMax.ToString("N2")</h3></div></div>
         <div class="col-md-3"><div class="card p-3"><small>امتیاز استفاده‌شده</small><h3>@Model.TotalScore.ToString("N2")</h3></div></div>
         <div class="col-md-3"><div class="card p-3"><small>مجموع امتیاز کسرشده</small><h3>@Model.Deducted.ToString("N2")</h3></div></div>
     </div>
-    @if (canEvaluate && PerformanceService.IsEditable(Model.Selected, DateTime.Now) && Model.Rows.Count > 0)
+    @if (canEvaluate && PerformanceService.IsEditable(Model.Selected, DateTime.Now) && Model.TotalAssignments > 0)
     {
         <form method="post" action="/Performance/QuickEvaluateAll" class="mb-3"
               onsubmit="return confirm('همه افراد فاقد ارزیابی با سقف کامل امتیازدهی می‌شوند؛ امتیازهای قبلی تغییری نخواهد کرد. ادامه می‌دهید؟');">
@@ -45,6 +45,20 @@ else
     }
     <div class="card p-3">
         <h3>افراد تحت ارزیابی</h3>
+        <form method="get" action="/Performance" class="d-flex align-items-center gap-2 flex-wrap mb-2">
+            <input type="hidden" name="periodId" value="@Model.Selected.Id" />
+            <input class="form-control" name="q" value="@Model.Search" placeholder="جست‌وجوی نام، پرسنلی یا رده..." />
+            <select class="form-select" name="pageSize" onchange="this.form.submit()">
+                <option value="25" selected="@(Model.PageSize==25)">25 ردیف</option>
+                <option value="50" selected="@(Model.PageSize==50)">50 ردیف</option>
+                <option value="75" selected="@(Model.PageSize==75)">75 ردیف</option>
+                <option value="100" selected="@(Model.PageSize==100)">100 ردیف</option>
+            </select>
+            <button class="btn btn-outline-primary" type="submit">جست‌وجو</button>
+            <span>تعداد: @Model.FilteredCount</span>
+        </form>
+        @{var totalPages = Math.Max(1,(int)Math.Ceiling(Model.FilteredCount/(double)Model.PageSize));}
+        @await Html.PartialAsync("_PerformancePagination", (Model.Page,totalPages,Model.PageSize,Model.Search,"/Performance", (int?)Model.Selected.Id))
         <div class="table-responsive">
             <table class="table">
                 <thead><tr><th>شماره پرسنلی</th><th>نام و نام خانوادگی</th><th>رده ارزیابی</th><th>امتیاز نهایی</th><th>سقف امتیاز</th><th>وضعیت</th><th>عملیات</th></tr></thead>
@@ -64,6 +78,7 @@ else
                 </tbody>
             </table>
         </div>
-        @if (Model.Rows.Count == 0) { <p>هیچ کارمندی در این دوره به حساب شما برای ارزیابی تخصیص داده نشده است.</p> }
+        @await Html.PartialAsync("_PerformancePagination", (Model.Page,totalPages,Model.PageSize,Model.Search,"/Performance", (int?)Model.Selected.Id))
+        @if (Model.TotalAssignments == 0) { <p>هیچ کارمندی در این دوره به حساب شما برای ارزیابی تخصیص داده نشده است.</p> }
     </div>
 }

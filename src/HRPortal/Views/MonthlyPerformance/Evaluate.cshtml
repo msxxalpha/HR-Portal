@@ -1,0 +1,81 @@
+@model HRPortal.Models.MonthlyPerformanceEvaluationVm
+@{
+ Layout = "~/Views/Shared/_Layout.cshtml";
+ ViewData["Title"] = "فرم ارزیابی عملکرد";
+}
+<link rel="stylesheet" href="~/css/monthly-performance.css" asp-append-version="true" />
+<div class="mp">
+<section class="mp-hero">
+ <div><h1>ارزیابی ماهانه: @Model.Employee.FirstName @Model.Employee.LastName</h1>
+ <p>کد پرسنلی @Model.Employee.PersonnelNumber · رده @Model.RankTitle · دوره @Model.Period.Title</p></div>
+ <div class="mp-head-actions"><a href="/MonthlyPerformance/Dashboard?periodId=@Model.Period.Id" class="btn btn-outline">بازگشت به کارتابل ارزیاب</a></div>
+</section>
+@if (TempData["Success"] != null) { <div class="mp-success">@TempData["Success"]</div> }
+@if (TempData["Error"] != null) { <div class="mp-error">@TempData["Error"]</div> }
+@if(!Model.CanEdit){<div class="alert warning">این ارزیابی صرفاً برای مشاهده است؛ دوره بسته شده یا ویرایش در اختیار ارزیاب بالادست قرار گرفته است.</div>}
+<section class="mp-kpis">
+<div class="mp-kpi" style="--mp-color:#1d4ed8"><div class="caption">تعداد شاخص‌ها</div><strong>@Model.Scores.Count</strong></div>
+<div class="mp-kpi" style="--mp-color:#16a34a"><div class="caption">امتیاز کسب‌شده</div><strong id="mp-total">@Model.TotalScore.ToString("N2")</strong></div>
+<div class="mp-kpi" style="--mp-color:#475569"><div class="caption">حداکثر امتیاز</div><strong id="mp-capacity">@Model.MaxScore.ToString("N2")</strong></div>
+<div class="mp-kpi" style="--mp-color:#dc2626"><div class="caption">امتیاز کسرشده</div><strong id="mp-deducted">@((Model.MaxScore - Model.TotalScore).ToString("N2"))</strong></div>
+</section>
+<section class="mp-card">
+<h2>ریز امتیازهای سؤالات</h2>
+@if(Model.Scores.Count==0){<div class="mp-empty">برای رده این کارمند هنوز سؤالی تعریف نشده است.</div>}
+else
+{
+<form method="post" action="/MonthlyPerformance/Save">
+@Html.AntiForgeryToken()
+<input type="hidden" name="employeeId" value="@Model.Employee.Id" />
+<input type="hidden" name="periodId" value="@Model.Period.Id" />
+<div class="mp-toolbar"><input type="search" class="mp-search" placeholder="جست‌وجو در سؤالات..." /></div>
+<div class="mp-table-wrap"><table class="mp-filter-table" id="mp-score-table">
+<thead><tr><th>کد</th><th>حوزه ارزیابی</th><th>متن سؤال</th><th>حداکثر</th><th>امتیاز تخصیصی</th><th>میزان کسر</th><th>توضیح</th></tr></thead>
+<tbody>
+@foreach(var s in Model.Scores){
+<tr>
+<td><span class="mp-code">@s.Code</span></td><td>@s.Domain</td><td>@s.Title</td>
+<td class="mp-max">@s.MaxScore.ToString("N2")</td>
+<td>@if(Model.CanEdit){<input type="number" name="scores[@s.QuestionId]" min="0" max="@s.MaxScore.ToString(System.Globalization.CultureInfo.InvariantCulture)" step="0.01" class="mp-score-input" value="@s.Score.ToString(System.Globalization.CultureInfo.InvariantCulture)" data-max="@s.MaxScore.ToString(System.Globalization.CultureInfo.InvariantCulture)" required />}
+else { <strong>@s.Score.ToString("N2")</strong> }</td>
+<td class="mp-less">@(s.MaxScore-s.Score)</td>
+<td>@if(Model.CanEdit){<input name="notes[@s.QuestionId]" maxlength="1000" value="@s.Note" placeholder="توضیح کسر امتیاز..." />}
+else {<span>@(s.Note ?? "—")</span>}</td>
+</tr>
+}
+</tbody></table></div>
+@if(Model.CanEdit){
+<div class="mp-controls" style="margin-top:18px">
+<label class="mp-field">علت و توضیح بازنگری (برای ارزیاب بالادست پیشنهاد می‌شود)<input type="text" name="reason" maxlength="500" placeholder="علت تغییر امتیازها" /></label>
+<button class="btn btn-main" type="submit">ثبت امتیازها و محاسبه نتیجه</button>
+</div>
+}
+</form>
+}
+</section>
+<section class="mp-card">
+<h2>تاریخچه تغییر امتیازها و نام ارزیابان</h2>
+@if(Model.History.Count==0){<div class="mp-empty">هنوز تغییری در سوابق ثبت نشده است.</div>}
+else {
+<div class="mp-toolbar"><input type="search" class="mp-search" placeholder="فیلتر تاریخچه..." /></div>
+<div class="mp-table-wrap"><table class="mp-filter-table">
+<thead><tr><th>تاریخ</th><th>ارزیاب ثبت‌کننده</th><th>سؤال</th><th>امتیاز پیشین</th><th>امتیاز جدید</th><th>علت</th></tr></thead>
+<tbody>@foreach(var h in Model.History){
+<tr><td>@HRPortal.Services.PersianDateService.FormatDateTime(h.At.ToLocalTime())</td><td>@h.Actor</td><td>@h.Question</td><td>@(h.Before?.ToString("N2") ?? "ثبت اولیه")</td><td>@h.After.ToString("N2")</td><td>@h.Reason</td></tr>
+}</tbody></table></div>
+}
+</section>
+</div>
+<script src="~/js/monthly-performance-table.js" asp-append-version="true"></script>
+<script>
+document.querySelectorAll('#mp-score-table .mp-score-input').forEach(el=>el.addEventListener('input',()=>{
+let used=0,max=0;
+document.querySelectorAll('#mp-score-table .mp-score-input').forEach(input=>{
+const cap=parseFloat(input.dataset.max)||0;const score=parseFloat(input.value)||0;
+max+=cap;used+=score;
+const less=input.closest('tr').querySelector('.mp-less');if(less)less.textContent=(cap-score).toFixed(2);
+});
+document.getElementById('mp-total').textContent=used.toLocaleString('fa-IR',{maximumFractionDigits:2});
+document.getElementById('mp-deducted').textContent=(max-used).toLocaleString('fa-IR',{maximumFractionDigits:2});
+}));
+</script>

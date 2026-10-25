@@ -50,7 +50,7 @@
 {
     <tr><td>@(Model.Questions.FirstOrDefault(x => x.QuestionId == h.QuestionId)?.Title ?? "سؤال حذف‌شده")</td>
     <td>@h.OldScore</td><td>@h.NewScore</td><td>@h.Reason</td>
-    <td>@h.ChangedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td></tr>
+    <td>@HRPortal.Services.PersianDateService.FormatDateTime(h.ChangedAt.ToLocalTime())</td></tr>
 }
 </tbody></table></div></div>
 }

@@ -37,11 +37,39 @@
     @if (canCreateEmployee) { <a class="btn btn-main btn-hero" href="/Employees/Create">ثبت کارمند جدید</a> }
 </div>
 
+@if (!isAdmin)
+{
+    <div class="employee-home-tiles">
+        <div class="employee-announcements-slot">
+            @if (activeAnnouncements.Count > 0)
+            {
+                @await Html.PartialAsync("_AnnouncementsDashboard", activeAnnouncements)
+            }
+            else
+            {
+                <section class="employee-announcements-empty">
+                    <h2>آخرین اطلاعیه‌ها</h2>
+                    <p>در حال حاضر اطلاعیه فعالی برای نمایش وجود ندارد.</p>
+                </section>
+            }
+        </div>
+        <a class="performance-quick-tile" href="/MonthlyPerformance/Mine">
+            <span class="performance-tile-icon">▦</span>
+            <span class="performance-tile-eyebrow">دسترسی سریع</span>
+            <strong>داشبورد شخصی ارزیابی عملکرد</strong>
+            <p>امتیازات دوره‌های ارزیابی، روند رشد، نقاط قوت و زمینه‌های قابل بهبود خود را مشاهده کنید.</p>
+            <span class="performance-tile-cta">ورود به داشبورد شخصی ←</span>
+        </a>
+    </div>
+}
+@if (isAdmin)
+{
 <div class="stats">
     <div class="stat"><span>کل کارکنان</span><strong>@ViewBag.EmployeeCount</strong></div>
     <div class="stat"><span>کارکنان فعال</span><strong>@ViewBag.ActiveEmployeeCount</strong></div>
     <div class="stat"><span>نسخه‌های نهایی ساختار</span><strong>@ViewBag.RevisionCount</strong></div>
 </div>
+}
 
 @if (canViewWorkflowDashboard)
 {
@@ -129,49 +157,9 @@
     </section>
 }
 
-@if (activeAnnouncements.Count > 0)
+@if (isAdmin && activeAnnouncements.Count > 0)
 {
-    <section class="announcement-dashboard">
-        <div class="announcement-dashboard-head">
-            <div>
-                <span class="eyebrow">اطلاعیه‌های سامانه</span>
-                <h2>آخرین اطلاعیه‌ها</h2>
-            </div>
-            <span class="announcement-count">@activeAnnouncements.Count مورد معتبر</span>
-        </div>
-        <div class="announcement-dashboard-list">
-            @foreach (var item in activeAnnouncements)
-            {
-                var priorityClass = item.Priority switch
-                {
-                    "urgent" => "urgent",
-                    "important" => "important",
-                    _ => "normal"
-                };
-                <article class="announcement-card @priorityClass @(item.IsPinned ? "pinned" : "")">
-                    <div class="announcement-card-top">
-                        <span class="announcement-category">@item.Category?.Title</span>
-                        @if (item.IsPinned)
-                        {
-                            <span class="announcement-pin">سنجاق‌شده</span>
-                        }
-                        <span class="announcement-priority">@(
-                            item.Priority == "urgent" ? "فوری" :
-                            item.Priority == "important" ? "مهم" : "اطلاعیه")</span>
-                    </div>
-                    <h3>@item.Title</h3>
-                    @if (!string.IsNullOrWhiteSpace(item.Summary))
-                    {
-                        <p class="announcement-summary">@item.Summary</p>
-                    }
-                    <div class="announcement-body">@Html.Raw(System.Net.WebUtility.HtmlEncode(item.Body).Replace("\n", "<br />"))</div>
-                    <div class="announcement-meta">
-                        <span>اعتبار تا @(await AnnouncementService.FormatLocal(item.EndAtUtc))</span>
-                    </div>
-                </article>
-            }
-        </div>
-    </section>
+    @await Html.PartialAsync("_AnnouncementsDashboard", activeAnnouncements)
 }
 
 <div class="module-grid">
@@ -180,3 +168,19 @@
     @if (canViewPayroll) { <a class="module" href="/Payroll/Payslip"><b>03</b><h3>فیش حقوقی</h3><p>نمایش فیش حقوقی بر اساس ماه و شماره پرسنلی حساب کاربر.</p></a> }
     @if (canViewSettings) { <a class="module" href="/SystemSettings"><b>04</b><h3>تنظیمات محیط سامانه</h3><p>تنظیمات عمومی، ظاهر، OTP، پیامک و SSRS.</p></a> }
 </div>
+<style>
+.employee-home-tiles{display:grid;grid-template-columns:minmax(0,2fr) minmax(270px,1fr);align-items:stretch;gap:18px;margin:20px 0}
+.employee-home-tiles .announcement-dashboard{margin:0;height:100%;box-sizing:border-box}
+.employee-announcements-empty{background:#fff;border:1px solid #e2e8f0;padding:22px;border-radius:16px;height:100%}
+.employee-announcements-slot{min-width:0}
+.performance-quick-tile{display:flex;flex-direction:column;gap:15px;justify-content:center;min-height:240px;
+border-radius:18px;padding:26px;text-decoration:none;background:linear-gradient(135deg,#133254,#1a6681);
+color:#fff;box-shadow:0 10px 24px #0f27472b}
+.performance-quick-tile strong{font-size:1.35rem;color:#fff;line-height:1.65}
+.performance-quick-tile p{font-size:.9rem;color:#daebf4;line-height:1.95;margin:0}
+.performance-tile-icon{font-size:2.4rem;opacity:.8}
+.performance-tile-eyebrow{font-size:.82rem;color:#9bdbe3}
+.performance-tile-cta{margin-top:8px;border-radius:8px;background:#ffffff1f;padding:12px;font-weight:700}
+.performance-quick-tile:hover{filter:brightness(1.06);color:#fff}
+@@media(max-width:880px){.employee-home-tiles{grid-template-columns:1fr}}
+</style>

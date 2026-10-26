@@ -52,7 +52,9 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
         var today = NowIran().Date;
         var revisionId = await db.OrganizationStructureRevisions.AsNoTracking()
             .Where(x => x.IsFinalized && x.EffectiveDate <= today)
-            .OrderByDescending(x => x.EffectiveDate).ThenByDescending(x => x.Id)
+            .OrderByDescending(x => x.EffectiveDate)
+            .ThenByDescending(x => x.FinalizedAt)
+            .ThenByDescending(x => x.CreatedAt)
             .Select(x => (int?)x.Id).FirstOrDefaultAsync();
         if (!revisionId.HasValue) return [];
 
@@ -67,6 +69,34 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
                 e.OrganizationDepartmentId, e.OrganizationUnitId,
                 e.PerformanceRankId, e.PositionTitle))
             .ToListAsync();
+        // When the organization is revised, node IDs change but their stable
+        // Code is cloned. Employee profile FKs (unit/department/section) were
+        // not migrated by OrganizationService, so resolve their previous-revision
+        // IDs to the active node with the same code before calculating scope.
+        // Never silently map by title or ancestor: a missing/retired code is
+        // intentionally left unassigned.
+        var nodeCodeById = await db.OrganizationNodes.AsNoTracking()
+            .Where(n => employees.Select(e => e.PositionId).Contains(n.Id) ||
+                        employees.Select(e => e.SectionId).Contains(n.Id) ||
+                        employees.Select(e => e.DepartmentId).Contains(n.Id) ||
+                        employees.Select(e => e.UnitId).Contains(n.Id))
+            .Select(n => new { n.Id, n.Code })
+            .ToDictionaryAsync(n => n.Id, n => n.Code);
+        var currentNodeByCode = await db.OrganizationNodes.AsNoTracking()
+            .Where(n => n.OrganizationStructureRevisionId == revisionId.Value && n.IsActive)
+            .Select(n => new { n.Code, n.Id })
+            .ToDictionaryAsync(n => n.Code, n => n.Id);
+        int? CurrentNode(int? oldId) =>
+            MonthlyPerformanceScopeResolver.CurrentNodeId(
+                oldId, nodeCodeById, currentNodeByCode);
+        var positionedEmployees = employees.Select(e => e with
+        {
+            PositionId = CurrentNode(e.PositionId),
+            SectionId = CurrentNode(e.SectionId),
+            DepartmentId = CurrentNode(e.DepartmentId),
+            UnitId = CurrentNode(e.UnitId)
+        }).ToList();
+
         var ranks = await db.MonthlyPerformanceRanks.AsNoTracking()
             .Where(x => x.IsActive)
             .Select(x => new MonthlyPerformanceScopeResolver.Rank(x.Id, x.Title))
@@ -76,7 +106,7 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
             .ToListAsync();
 
         return MonthlyPerformanceScopeResolver.Resolve(
-                evaluatorId, nodes, employees, ranks, jobs)
+                evaluatorId, nodes, positionedEmployees, ranks, jobs)
             .Select(x => new ScopeEntry(x.EmployeeId, x.RankTitle, x.NodeId, x.Depth))
             .ToList();
     }

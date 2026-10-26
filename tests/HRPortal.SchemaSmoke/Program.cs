@@ -1,4 +1,5 @@
 using HRPortal.Data;
+using HRPortal.Services;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
@@ -88,6 +89,24 @@ VALUES
             Check(periods.Count == 2 && periods.Count(x => x.IsDeleted) == 1,
                 "Filtered index did not permit replacing an archived period.");
         }
+        // Actual EF Core query integration (not just pure resolver tests):
+        // one evaluator must see both child-node staff, a third employee whose
+        // department FK belongs to the prior finalized revision, and no sibling
+        // manager or sibling manager's subordinates.
+        await CreateHierarchyFixture(connection);
+        await using (var db = new HRPortalDbContext(options))
+        {
+            var resolver = new MonthlyPerformanceService(db);
+            var actual = (await resolver.ScopeAsync(100))
+                .Select(x => x.EmployeeId).OrderBy(id => id).ToArray();
+            Check(actual.SequenceEqual(new[] { 101, 102, 103 }),
+                $"Real SQL Server evaluator roster mismatch: [{string.Join(",", actual)}]");
+            Check(await resolver.CanEvaluateAsync(100, 103),
+                "Previous-revision department member cannot be evaluated.");
+            Check(!await resolver.CanEvaluateAsync(100, 200) &&
+                  !await resolver.CanEvaluateAsync(100, 201),
+                "Cross-branch evaluator access must be forbidden.");
+        }
         Console.WriteLine($"PASS: {fixture}, including repeated upgrade, data preservation, rowversion, filtered index.");
     }
     finally
@@ -100,7 +119,14 @@ Console.WriteLine("Monthly performance schema integration tests passed.");
 static async Task CreateLegacyFixture(SqlConnection connection)
 {
     await Execute(connection, @"
-CREATE TABLE dbo.Employees(Id int IDENTITY(1,1) NOT NULL PRIMARY KEY);
+CREATE TABLE dbo.Employees(
+    Id int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    Status nvarchar(30) NOT NULL DEFAULT N'فعال',
+    OrganizationPositionId int NULL,
+    OrganizationSectionId int NULL,
+    OrganizationDepartmentId int NULL,
+    OrganizationUnitId int NULL,
+    PositionTitle nvarchar(300) NULL);
 CREATE TABLE dbo.OrganizationRankDefinitions(
     Id int IDENTITY(1,1) NOT NULL PRIMARY KEY,
     Title nvarchar(100) NOT NULL);
@@ -167,6 +193,51 @@ INSERT INTO dbo.MonthlyPerformanceEvaluations(
     PeriodId,EmployeeId,OriginalEvaluatorId,LastEvaluatorId,RankTitleSnapshot,
     MaxScore,TotalScore,CreatedAt,UpdatedAt)
 VALUES(1,1,1,1,N'کارشناس',100,100,SYSUTCDATETIME(),SYSUTCDATETIME());");
+}
+
+static async Task CreateHierarchyFixture(SqlConnection connection)
+{
+    await Execute(connection, @"
+CREATE TABLE dbo.OrganizationStructureRevisions(
+    Id int NOT NULL PRIMARY KEY,
+    IsFinalized bit NOT NULL,
+    EffectiveDate date NOT NULL,
+    FinalizedAt datetime2 NULL,
+    CreatedAt datetime2 NOT NULL);
+CREATE TABLE dbo.OrganizationNodes(
+    Id int NOT NULL PRIMARY KEY,
+    OrganizationStructureRevisionId int NOT NULL,
+    ParentId int NULL, Code nvarchar(100) NOT NULL,
+    RankType nvarchar(50) NOT NULL, IsActive bit NOT NULL,
+    PositionHolderEmployeeId int NULL,
+    AssignedEmployeeIdsCsv nvarchar(max) NULL);
+");
+    await Execute(connection, @"
+INSERT INTO dbo.OrganizationStructureRevisions(Id,IsFinalized,EffectiveDate,FinalizedAt,CreatedAt)
+VALUES
+ (1,1,'2024-01-01','2024-01-01','2024-01-01'),
+ (2,1,'2025-01-01','2025-01-01','2025-01-01');
+INSERT INTO dbo.OrganizationNodes(
+    Id,OrganizationStructureRevisionId,ParentId,Code,RankType,IsActive,
+    PositionHolderEmployeeId,AssignedEmployeeIdsCsv)
+VALUES
+ (910,1,NULL,N'M10',N'مدیریت',1,NULL,NULL),
+ (1,2,NULL,N'CEO',N'مدیرعامل',1,1,N'1'),
+ (10,2,1,N'M10',N'مدیریت',1,100,N'100'),
+ (11,2,10,N'S11',N'کارشناس',1,NULL,N'101,102'),
+ (20,2,1,N'M20',N'مدیریت',1,200,N'200'),
+ (21,2,20,N'S21',N'کارشناس',1,NULL,N'201');
+SET IDENTITY_INSERT dbo.Employees ON;
+INSERT INTO dbo.Employees(Id,Status,OrganizationDepartmentId,PositionTitle,IsPerformanceEvaluator)
+VALUES
+ (100,N'فعال',910,N'مدیر',1),
+ (101,N'فعال',910,N'کارشناس',0),
+ (102,N'فعال',NULL,N'کارشناس',0),
+ (103,N'فعال',910,N'کارشناس',0),
+ (200,N'فعال',NULL,N'مدیر',1),
+ (201,N'فعال',NULL,N'کارشناس',0);
+SET IDENTITY_INSERT dbo.Employees OFF;
+");
 }
 
 static async Task Execute(SqlConnection connection, string sql)

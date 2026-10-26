@@ -75,11 +75,11 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
         // IDs to the active node with the same code before calculating scope.
         // Never silently map by title or ancestor: a missing/retired code is
         // intentionally left unassigned.
+        var referencedNodeIds = employees
+            .SelectMany(e => new[] { e.PositionId, e.SectionId, e.DepartmentId, e.UnitId })
+            .Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToArray();
         var nodeCodeById = await db.OrganizationNodes.AsNoTracking()
-            .Where(n => employees.Select(e => e.PositionId).Contains(n.Id) ||
-                        employees.Select(e => e.SectionId).Contains(n.Id) ||
-                        employees.Select(e => e.DepartmentId).Contains(n.Id) ||
-                        employees.Select(e => e.UnitId).Contains(n.Id))
+            .Where(n => referencedNodeIds.Contains(n.Id))
             .Select(n => new { n.Id, n.Code })
             .ToDictionaryAsync(n => n.Id, n => n.Code);
         var currentNodeByCode = await db.OrganizationNodes.AsNoTracking()

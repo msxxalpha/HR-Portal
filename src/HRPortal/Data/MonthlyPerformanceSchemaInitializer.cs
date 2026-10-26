@@ -145,34 +145,115 @@ IF EXISTS (SELECT 1 FROM sys.key_constraints
  CREATE INDEX IX_MPRevisions_EvaluationDate ON dbo.MonthlyPerformanceRevisions(EvaluationId,ChangedAt);"
         };
 
-        foreach (var statement in schemaSteps)
-            await db.Database.ExecuteSqlRawAsync(statement);
+        for (var step = 0; step < schemaSteps.Length; step++)
+        {
+            try
+            {
+                await db.Database.ExecuteSqlRawAsync(schemaSteps[step]);
+            }
+            catch (Microsoft.Data.SqlClient.SqlException error)
+            {
+                throw new InvalidOperationException(
+                    $"Monthly performance schema upgrade failed at DDL step {step + 1}/{schemaSteps.Length}. " +
+                    "The transaction has been rolled back; existing employee/evaluation records were not deleted. " +
+                    $"SQL Server: {error.Message}", error);
+            }
+        }
 
         // Verify that all EF model properties map to actual columns *before*
         // using the mapped entities to query and seed ranks. Catalog validation
         // is itself a fresh batch after every preceding ALTER TABLE.
         await db.Database.ExecuteSqlRawAsync(@"
-DECLARE @missing nvarchar(max);
-SELECT @missing = STRING_AGG(CONCAT(Required.TableName, N'.', Required.ColumnName), N', ')
+DECLARE @missing nvarchar(max) = N'';
+SELECT @missing = @missing
+    + CASE WHEN LEN(@missing) > 0 THEN N', ' ELSE N'' END
+    + expected.TableName + N'.' + expected.ColumnName
 FROM (VALUES
     (N'Employees', N'IsPerformanceEvaluator'),
-    (N'Employees', N'MustChangeInitialPassword'),
     (N'Employees', N'PerformanceRankId'),
+    (N'Employees', N'MustChangeInitialPassword'),
+    (N'MonthlyPerformancePeriods', N'Id'),
+    (N'MonthlyPerformancePeriods', N'Code'),
+    (N'MonthlyPerformancePeriods', N'Title'),
+    (N'MonthlyPerformancePeriods', N'Year'),
+    (N'MonthlyPerformancePeriods', N'Month'),
+    (N'MonthlyPerformancePeriods', N'StartAt'),
+    (N'MonthlyPerformancePeriods', N'EndAt'),
+    (N'MonthlyPerformancePeriods', N'IsEnabled'),
     (N'MonthlyPerformancePeriods', N'IsDeleted'),
     (N'MonthlyPerformancePeriods', N'DeletedAt'),
     (N'MonthlyPerformancePeriods', N'DeletedByAdminId'),
     (N'MonthlyPerformancePeriods', N'DeletionReason'),
+    (N'MonthlyPerformancePeriods', N'Description'),
+    (N'MonthlyPerformancePeriods', N'CreatedAt'),
+    (N'MonthlyPerformanceDomains', N'Id'),
+    (N'MonthlyPerformanceDomains', N'Code'),
+    (N'MonthlyPerformanceDomains', N'Title'),
+    (N'MonthlyPerformanceDomains', N'IsActive'),
+    (N'MonthlyPerformanceDomains', N'SortOrder'),
+    (N'MonthlyPerformanceRanks', N'Id'),
+    (N'MonthlyPerformanceRanks', N'Code'),
+    (N'MonthlyPerformanceRanks', N'Title'),
+    (N'MonthlyPerformanceRanks', N'IsActive'),
+    (N'MonthlyPerformanceQuestions', N'Id'),
+    (N'MonthlyPerformanceQuestions', N'Code'),
+    (N'MonthlyPerformanceQuestions', N'Title'),
     (N'MonthlyPerformanceQuestions', N'Text'),
     (N'MonthlyPerformanceQuestions', N'Description'),
+    (N'MonthlyPerformanceQuestions', N'DomainId'),
+    (N'MonthlyPerformanceQuestions', N'IsActive'),
+    (N'MonthlyPerformanceQuestions', N'SortOrder'),
+    (N'MonthlyPerformanceRankQuestions', N'Id'),
+    (N'MonthlyPerformanceRankQuestions', N'RankId'),
+    (N'MonthlyPerformanceRankQuestions', N'QuestionId'),
+    (N'MonthlyPerformanceRankQuestions', N'MaxScore'),
     (N'MonthlyPerformanceRankQuestions', N'SortOrder'),
-    (N'MonthlyPerformanceEvaluations', N'RowVersion')
-) AS Required(TableName, ColumnName)
-WHERE COL_LENGTH(N'dbo.' + Required.TableName, Required.ColumnName) IS NULL;
-IF @missing IS NOT NULL
+    (N'MonthlyPerformanceRankQuestions', N'IsActive'),
+    (N'MonthlyPerformanceEvaluations', N'Id'),
+    (N'MonthlyPerformanceEvaluations', N'PeriodId'),
+    (N'MonthlyPerformanceEvaluations', N'EmployeeId'),
+    (N'MonthlyPerformanceEvaluations', N'OriginalEvaluatorId'),
+    (N'MonthlyPerformanceEvaluations', N'LastEvaluatorId'),
+    (N'MonthlyPerformanceEvaluations', N'RankTitleSnapshot'),
+    (N'MonthlyPerformanceEvaluations', N'MaxScore'),
+    (N'MonthlyPerformanceEvaluations', N'TotalScore'),
+    (N'MonthlyPerformanceEvaluations', N'RowVersion'),
+    (N'MonthlyPerformanceEvaluations', N'CreatedAt'),
+    (N'MonthlyPerformanceEvaluations', N'UpdatedAt'),
+    (N'MonthlyPerformanceScores', N'Id'),
+    (N'MonthlyPerformanceScores', N'EvaluationId'),
+    (N'MonthlyPerformanceScores', N'QuestionId'),
+    (N'MonthlyPerformanceScores', N'QuestionTitleSnapshot'),
+    (N'MonthlyPerformanceScores', N'DomainTitleSnapshot'),
+    (N'MonthlyPerformanceScores', N'MaxScore'),
+    (N'MonthlyPerformanceScores', N'Score'),
+    (N'MonthlyPerformanceScores', N'Note'),
+    (N'MonthlyPerformanceRevisions', N'Id'),
+    (N'MonthlyPerformanceRevisions', N'EvaluationId'),
+    (N'MonthlyPerformanceRevisions', N'QuestionId'),
+    (N'MonthlyPerformanceRevisions', N'ChangedByEmployeeId'),
+    (N'MonthlyPerformanceRevisions', N'PreviousEvaluatorId'),
+    (N'MonthlyPerformanceRevisions', N'OldScore'),
+    (N'MonthlyPerformanceRevisions', N'NewScore'),
+    (N'MonthlyPerformanceRevisions', N'OldNote'),
+    (N'MonthlyPerformanceRevisions', N'NewNote'),
+    (N'MonthlyPerformanceRevisions', N'Reason'),
+    (N'MonthlyPerformanceRevisions', N'ChangedAt')
+) AS expected(TableName, ColumnName)
+WHERE COL_LENGTH(N'dbo.' + expected.TableName, expected.ColumnName) IS NULL;
+IF LEN(@missing) > 0
 BEGIN
-    DECLARE @message nvarchar(2048) = CONCAT(N'HRPortal monthly performance schema has missing columns: ', @missing);
+    DECLARE @message nvarchar(2048) = CONCAT(
+        N'HRPortal monthly performance schema mismatch (missing columns): ',
+        LEFT(@missing, 1600));
     THROW 51081, @message, 1;
 END;
+IF NOT EXISTS (
+    SELECT 1 FROM sys.columns
+    WHERE object_id = OBJECT_ID(N'dbo.MonthlyPerformanceEvaluations')
+      AND name = N'RowVersion' AND system_type_id = 189)
+    THROW 51082, N'MonthlyPerformanceEvaluations.RowVersion must have SQL Server rowversion type.', 1;
+
 ");
 
 

@@ -19,6 +19,21 @@ public static class MonthlyPerformanceScopeResolver
     public sealed record Job(string Title, string? Grade);
     public sealed record Entry(int EmployeeId, string RankTitle, int NodeId, int Depth);
 
+    // OrganizationService clones node codes into new finalized revisions, but
+    // legacy Employee.Unit/Department/Section foreign keys still reference the
+    // older node IDs (only the CEO's position FK is actively remapped). Resolve
+    // those IDs by their stable organizational code, never by numeric proximity
+    // or similar-looking titles.
+    public static int? CurrentNodeId(
+        int? referenceId,
+        IReadOnlyDictionary<int, string> nodeCodeById,
+        IReadOnlyDictionary<string, int> currentNodeByCode)
+    {
+        if (referenceId is not int id || !nodeCodeById.TryGetValue(id, out var code))
+            return null;
+        return currentNodeByCode.TryGetValue(code, out var currentId) ? currentId : null;
+    }
+
     private enum PlacementKind { AssignedPosition, UnitMembership }
 
     private sealed record Placement(int NodeId, PlacementKind Kind);

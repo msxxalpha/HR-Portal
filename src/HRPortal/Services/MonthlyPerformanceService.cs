@@ -82,10 +82,12 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
             .Where(n => referencedNodeIds.Contains(n.Id))
             .Select(n => new { n.Id, n.Code })
             .ToDictionaryAsync(n => n.Id, n => n.Code);
-        var currentNodeByCode = await db.OrganizationNodes.AsNoTracking()
+        var activeCodes = await db.OrganizationNodes.AsNoTracking()
             .Where(n => n.OrganizationStructureRevisionId == revisionId.Value && n.IsActive)
-            .Select(n => new { n.Code, n.Id })
-            .ToDictionaryAsync(n => n.Code, n => n.Id);
+            .Select(n => new { n.Code, n.Id }).ToListAsync();
+        var currentNodeByCode = activeCodes
+            .GroupBy(n => n.Code, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().Id, StringComparer.OrdinalIgnoreCase);
         int? CurrentNode(int? oldId) =>
             MonthlyPerformanceScopeResolver.CurrentNodeId(
                 oldId, nodeCodeById, currentNodeByCode);

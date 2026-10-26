@@ -117,7 +117,8 @@ CREATE TABLE dbo.MonthlyPerformancePeriods(
     CreatedAt datetime2 NOT NULL,
     CONSTRAINT UQ_MonthlyPerformancePeriods_YearMonth UNIQUE([Year],[Month]),
     CONSTRAINT UQ_MonthlyPerformancePeriods_Code UNIQUE(Code));
-INSERT INTO dbo.Employees DEFAULT VALUES;
+" );
+    await Execute(connection, @"INSERT INTO dbo.Employees DEFAULT VALUES;
 INSERT INTO dbo.OrganizationRankDefinitions(Title) VALUES(N'کارشناس');
 INSERT INTO dbo.OrganizationPositionDefinitions(Title,Grade) VALUES(N'کارشناس منابع انسانی',N'کارشناس');
 INSERT INTO dbo.MonthlyPerformancePeriods(
@@ -153,7 +154,8 @@ CREATE TABLE dbo.MonthlyPerformanceEvaluations(
     RankTitleSnapshot nvarchar(100) NOT NULL,
     MaxScore decimal(12,2) NOT NULL, TotalScore decimal(12,2) NOT NULL,
     CreatedAt datetime2 NOT NULL, UpdatedAt datetime2 NOT NULL);
-INSERT INTO dbo.MonthlyPerformanceDomains(Code,Title,IsActive,SortOrder)
+" );
+    await Execute(connection, @"INSERT INTO dbo.MonthlyPerformanceDomains(Code,Title,IsActive,SortOrder)
     VALUES(N'D-1',N'کیفیت',1,1);
 INSERT INTO dbo.MonthlyPerformanceRanks(Code,Title,IsActive)
     VALUES(N'R-010',N'کارشناس',1);

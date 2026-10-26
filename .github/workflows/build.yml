@@ -16,6 +16,8 @@ jobs:
         run: dotnet restore src/HRPortal/HRPortal.csproj
       - name: Build
         run: dotnet build src/HRPortal/HRPortal.csproj --configuration Release --no-restore
+      - name: Verify evaluator hierarchical scope regression
+        run: dotnet run --project tests/HRPortal.ScopeSmoke/HRPortal.ScopeSmoke.csproj --configuration Release --no-restore
       - name: Verify Persian calendar conversion
         run: |
           node --check src/HRPortal/wwwroot/js/jalali-datepicker.js

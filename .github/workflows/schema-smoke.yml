@@ -1,0 +1,31 @@
+name: Monthly performance SQL schema smoke test
+
+on:
+  push:
+    branches: [ feature/monthly-performance-1405 ]
+    paths:
+      - 'src/HRPortal/Data/**'
+      - 'src/HRPortal/Models/**'
+      - 'tests/HRPortal.SchemaSmoke/**'
+      - '.github/workflows/schema-smoke.yml'
+  workflow_dispatch:
+
+jobs:
+  legacy-schema-upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Test old and partially upgraded schemas with ephemeral SQL Server
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="Q7!$(openssl rand -hex 16)z"
+          docker run --name hrportal-schema-sql --rm -d \
+            -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD="$password" \
+            -p 127.0.0.1:1433:1433 mcr.microsoft.com/mssql/server:2022-latest
+          trap 'docker stop hrportal-schema-sql >/dev/null 2>&1 || true' EXIT
+          HRPORTAL_SCHEMA_TEST_PASSWORD="$password" \
+            dotnet run --project tests/HRPortal.SchemaSmoke/HRPortal.SchemaSmoke.csproj --configuration Release

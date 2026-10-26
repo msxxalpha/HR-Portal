@@ -61,7 +61,7 @@ Verify(200,201,250);
 Verify(300,301);
 Verify(700,701,702);
 Verify(101); // an ordinary employee in a shared specialist node has no subordinates
-Verify(105); // colleague in same manager position has no supervisory authority
+Verify(105, 101,102,104,300,301,450); // may cover descendant nodes, never same-node staff or peers
 Verify(400);
 Verify(1,100,101,102,103,104,105,110,200,201,250,300,301,450,700,701,702);
 

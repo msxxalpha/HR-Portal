@@ -45,111 +45,40 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
             .OrderByDescending(p => p.StartAt).FirstOrDefaultAsync();
     }
 
-    private sealed record Node(int Id, int? Parent, string Rank, int? Holder, string? Csv);
-    private sealed record Person(int Id, string Status, int? Position, int? Section, int? Department,
-        int? Unit, int? PerformanceRankId, string? PositionTitle);
     public sealed record ScopeEntry(int EmployeeId, string RankTitle, int NodeId, int Depth);
 
     public async Task<List<ScopeEntry>> ScopeAsync(int evaluatorId)
     {
-        var employees = await db.Employees.AsNoTracking()
-            .Select(e => new Person(e.Id, e.Status, e.OrganizationPositionId,
-                e.OrganizationSectionId, e.OrganizationDepartmentId, e.OrganizationUnitId,
-                e.PerformanceRankId, e.PositionTitle))
-            .ToListAsync();
-        if (employees.All(x => x.Id != evaluatorId || x.Status != "فعال")) return [];
-
         var today = NowIran().Date;
         var revisionId = await db.OrganizationStructureRevisions.AsNoTracking()
             .Where(x => x.IsFinalized && x.EffectiveDate <= today)
             .OrderByDescending(x => x.EffectiveDate).ThenByDescending(x => x.Id)
             .Select(x => (int?)x.Id).FirstOrDefaultAsync();
         if (!revisionId.HasValue) return [];
-        var nodes = (await db.OrganizationNodes.AsNoTracking()
+
+        var nodes = await db.OrganizationNodes.AsNoTracking()
             .Where(n => n.IsActive && n.OrganizationStructureRevisionId == revisionId.Value)
-            .Select(n => new Node(n.Id, n.ParentId, n.RankType, n.PositionHolderEmployeeId, n.AssignedEmployeeIdsCsv))
-            .ToListAsync()).ToDictionary(n => n.Id);
-        var byPerson = new Dictionary<int, List<int>>();
-        foreach (var person in employees.Where(x => x.Status == "فعال"))
-        {
-            var choices = new HashSet<int>();
-            foreach (var n in nodes.Values)
-            {
-                if (n.Holder == person.Id ||
-                    (n.Csv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                        .Any(s => int.TryParse(s, out var id) && id == person.Id))
-                    choices.Add(n.Id);
-            }
-            foreach (var assigned in new[] { person.Position, person.Section, person.Department, person.Unit })
-                if (assigned.HasValue && nodes.ContainsKey(assigned.Value)) choices.Add(assigned.Value);
-            byPerson[person.Id] = choices.ToList();
-        }
+            .Select(n => new MonthlyPerformanceScopeResolver.Node(
+                n.Id, n.ParentId, n.RankType, n.PositionHolderEmployeeId, n.AssignedEmployeeIdsCsv))
+            .ToListAsync();
+        var employees = await db.Employees.AsNoTracking()
+            .Select(e => new MonthlyPerformanceScopeResolver.Person(e.Id, e.Status,
+                e.OrganizationPositionId, e.OrganizationSectionId,
+                e.OrganizationDepartmentId, e.OrganizationUnitId,
+                e.PerformanceRankId, e.PositionTitle))
+            .ToListAsync();
+        var ranks = await db.MonthlyPerformanceRanks.AsNoTracking()
+            .Where(x => x.IsActive)
+            .Select(x => new MonthlyPerformanceScopeResolver.Rank(x.Id, x.Title))
+            .ToListAsync();
+        var jobs = await db.OrganizationPositionDefinitions.AsNoTracking()
+            .Select(x => new MonthlyPerformanceScopeResolver.Job(x.Title, x.Grade))
+            .ToListAsync();
 
-        // Take the deepest assigned organization node as the employee's effective placement.
-        int Depth(int id)
-        {
-            var depth = 0;
-            var visited = new HashSet<int>();
-            while (nodes.TryGetValue(id, out var n) && visited.Add(id) && n.Parent.HasValue)
-            { depth++; id = n.Parent.Value; }
-            return visited.Count > nodes.Count ? 0 : depth;
-        }
-        var placements = byPerson.ToDictionary(pair => pair.Key, pair =>
-            pair.Value.OrderByDescending(Depth).FirstOrDefault());
-        if (!placements.TryGetValue(evaluatorId, out var evaluatorNodeId) || evaluatorNodeId == 0)
-            return [];
-        var evaluatorNode = nodes[evaluatorNodeId];
-        bool IsDescendantOrPeer(int id)
-        {
-            if (id == evaluatorNodeId) return true; // colleagues in the same node
-            if (!nodes.TryGetValue(id, out var node)) return false;
-            // Same-level peers are limited to siblings under the same direct parent.
-            if (evaluatorNode.Parent.HasValue && node.Parent == evaluatorNode.Parent && node.Rank == evaluatorNode.Rank)
-                return true;
-            var visited = new HashSet<int>();
-            while (nodes.TryGetValue(id, out var step) && visited.Add(id) && step.Parent.HasValue)
-            {
-                if (step.Parent.Value == evaluatorNodeId) return true;
-                id = step.Parent.Value;
-            }
-            return false;
-        }
-        var personnel = employees.ToDictionary(x => x.Id);
-        var performanceRanks = await db.MonthlyPerformanceRanks.AsNoTracking()
-            .Where(x => x.IsActive).Select(x => new { x.Id, x.Title }).ToListAsync();
-        var positionGrades = (await db.OrganizationPositionDefinitions.AsNoTracking()
-            .Select(x => new { x.Title, x.Grade }).ToListAsync())
-            .GroupBy(x => x.Title, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.First().Grade, StringComparer.OrdinalIgnoreCase);
-        string EvaluationRank(int employeeId, int nodeId)
-        {
-            var person = personnel[employeeId];
-            var explicitRank = performanceRanks.FirstOrDefault(x => x.Id == person.PerformanceRankId);
-            if (explicitRank is not null) return explicitRank.Title;
-            var title = person.PositionTitle?.Trim() ?? "";
-            if (title.Length > 0)
-            {
-                var exact = performanceRanks.FirstOrDefault(x =>
-                    string.Equals(x.Title, title, StringComparison.OrdinalIgnoreCase));
-                if (exact is not null) return exact.Title;
-                if (positionGrades.TryGetValue(title, out var grade) && !string.IsNullOrWhiteSpace(grade))
-                {
-                    var gradeRank = performanceRanks.FirstOrDefault(x =>
-                        string.Equals(x.Title, grade.Trim(), StringComparison.OrdinalIgnoreCase));
-                    if (gradeRank is not null) return gradeRank.Title;
-                }
-                var prefix = performanceRanks.Where(x =>
-                        title.Equals(x.Title, StringComparison.OrdinalIgnoreCase) ||
-                        title.StartsWith(x.Title + " ", StringComparison.OrdinalIgnoreCase))
-                    .OrderByDescending(x => x.Title.Length).FirstOrDefault();
-                if (prefix is not null) return prefix.Title;
-            }
-            // Legacy fallback for employees who only have an organizational placement.
-            return nodes[nodeId].Rank;
-        }
-
-        return placements.Where(x => x.Key != evaluatorId && x.Value != 0 && IsDescendantOrPeer(x.Value))
-            .Select(x => new ScopeEntry(x.Key, EvaluationRank(x.Key, x.Value), x.Value, Depth(x.Value))).ToList();
+        return MonthlyPerformanceScopeResolver.Resolve(
+                evaluatorId, nodes, employees, ranks, jobs)
+            .Select(x => new ScopeEntry(x.EmployeeId, x.RankTitle, x.NodeId, x.Depth))
+            .ToList();
     }
 
     public async Task<bool> IsEvaluatorAsync(int actor) =>

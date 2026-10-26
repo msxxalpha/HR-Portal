@@ -83,6 +83,35 @@ if (a.RankTitle != "کارشناس" || a.NodeId != 11)
 if (staff.Count != staff.Select(x => x.EmployeeId).Distinct().Count())
     throw new Exception("Employee was duplicated in the evaluator list.");
 
+// A revised organizational structure retains codes but changes node numeric IDs.
+// HR employee Unit/Department/Section fields may still refer to old revision IDs.
+var previousCodes = new Dictionary<int, string>
+{
+    [910] = "ORG-MANAGER-A",
+    [920] = "ORG-MANAGER-B",
+    [930] = "ORG-RETIRED"
+};
+var currentCodes = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+{
+    ["ORG-MANAGER-A"] = 10,
+    ["ORG-MANAGER-B"] = 20
+};
+if (MonthlyPerformanceScopeResolver.CurrentNodeId(910, previousCodes, currentCodes) != 10 ||
+    MonthlyPerformanceScopeResolver.CurrentNodeId(920, previousCodes, currentCodes) != 20 ||
+    MonthlyPerformanceScopeResolver.CurrentNodeId(930, previousCodes, currentCodes) is not null ||
+    MonthlyPerformanceScopeResolver.CurrentNodeId(9999, previousCodes, currentCodes) is not null)
+    throw new Exception("Previous-revision organization IDs were not safely mapped by stable code.");
+
+var employeeWithOldDepartment = people.Select(p =>
+    p.Id == 103 ? p with { DepartmentId = 910 } : p).ToList();
+var reconciledPeople = employeeWithOldDepartment.Select(p =>
+    p with { DepartmentId = p.DepartmentId == 910
+        ? MonthlyPerformanceScopeResolver.CurrentNodeId(p.DepartmentId, previousCodes, currentCodes)
+        : p.DepartmentId }).ToList();
+if (!MonthlyPerformanceScopeResolver.Resolve(100,nodes,reconciledPeople,ranks,jobs)
+    .Any(x => x.EmployeeId == 103))
+    throw new Exception("Employee with a cloned-structure department reference is missing from evaluator scope.");
+
 Console.WriteLine("PASS: Strict hierarchy, two staff in one child node, department-only membership,");
 Console.WriteLine("      no sibling/peer access, nested descendants, stale profile precedence,");
 Console.WriteLine("      inactive staff, invalid branches, Persian CSV delimiters, and no duplicates.");

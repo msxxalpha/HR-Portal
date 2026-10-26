@@ -39,11 +39,17 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
         };
         if (period is null) return View(model);
         var scopedSet = scopedIds.ToHashSet();
+        // During an open period, every metric and row must be limited to the
+        // *current* subordinate roster. Historical participation is considered
+        // only for closed-period audit views.
         var evals = await db.MonthlyPerformanceEvaluations.AsNoTracking()
             .Where(x => x.PeriodId == period.Id &&
-                (scopedSet.Contains(x.EmployeeId) ||
-                 x.OriginalEvaluatorId == actor || x.LastEvaluatorId == actor ||
-                 db.MonthlyPerformanceRevisions.Any(r => r.EvaluationId == x.Id && r.ChangedByEmployeeId == actor)))
+                (model.CanEdit
+                    ? scopedSet.Contains(x.EmployeeId)
+                    : scopedSet.Contains(x.EmployeeId) ||
+                      x.OriginalEvaluatorId == actor || x.LastEvaluatorId == actor ||
+                      db.MonthlyPerformanceRevisions.Any(r =>
+                          r.EvaluationId == x.Id && r.ChangedByEmployeeId == actor)))
             .Include(x => x.Employee).Include(x => x.Scores).ToListAsync();
         var shownIds = model.CanEdit ? scopedSet : evals.Select(x => x.EmployeeId).ToHashSet();
         var employees = await db.Employees.AsNoTracking().Where(e => shownIds.Contains(e.Id))
@@ -96,7 +102,8 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
         var ev = await db.MonthlyPerformanceEvaluations.AsNoTracking().Include(x => x.Scores)
             .FirstOrDefaultAsync(x => x.PeriodId == periodId && x.EmployeeId == employeeId);
         var isScoped = scope.Any(x => x.EmployeeId == employeeId);
-        var canHistory = ev != null && (ev.OriginalEvaluatorId == actor || ev.LastEvaluatorId == actor ||
+        var canHistory = !MonthlyPerformanceService.IsOpen(period, MonthlyPerformanceService.NowIran()) &&
+            ev != null && (ev.OriginalEvaluatorId == actor || ev.LastEvaluatorId == actor ||
             await db.MonthlyPerformanceRevisions.AnyAsync(r => r.EvaluationId == ev.Id && r.ChangedByEmployeeId == actor));
         if (!isScoped && !canHistory) return Forbid();
         var canEdit = isScoped && MonthlyPerformanceService.IsOpen(period, MonthlyPerformanceService.NowIran())
@@ -289,10 +296,19 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
     {
         if (!TryEmployee(out var actor) || !await performance.IsEvaluatorAsync(actor)) return Forbid();
         var scope = (await performance.ScopeAsync(actor)).Select(x => x.EmployeeId).ToHashSet();
+        var selectedPeriod = await db.MonthlyPerformancePeriods.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == periodId && !p.IsDeleted);
+        if (selectedPeriod is null) return NotFound();
+        var currentOpen = MonthlyPerformanceService.IsOpen(
+            selectedPeriod, MonthlyPerformanceService.NowIran());
         var rows = await db.MonthlyPerformanceEvaluations.AsNoTracking()
-            .Where(e => e.PeriodId == periodId && !e.Period.IsDeleted && (scope.Contains(e.EmployeeId) ||
-                 e.OriginalEvaluatorId == actor || e.LastEvaluatorId == actor ||
-                 db.MonthlyPerformanceRevisions.Any(r => r.EvaluationId == e.Id && r.ChangedByEmployeeId == actor)))
+            .Where(e => e.PeriodId == periodId &&
+                (currentOpen
+                    ? scope.Contains(e.EmployeeId)
+                    : scope.Contains(e.EmployeeId) ||
+                      e.OriginalEvaluatorId == actor || e.LastEvaluatorId == actor ||
+                      db.MonthlyPerformanceRevisions.Any(r =>
+                          r.EvaluationId == e.Id && r.ChangedByEmployeeId == actor)))
             .Include(x => x.Employee).OrderBy(x => x.Employee.LastName).ToListAsync();
         using var wb = new XLWorkbook();
         var sheet = wb.AddWorksheet("ارزیابی ماهانه");

@@ -431,6 +431,32 @@ public class OrganizationController(
 
         node.AssignedEmployeeIdsCsv = ids.Count == 0 ? null : string.Join(",", ids);
         node.PositionHolderEmployeeId = ids.Count == 1 ? ids[0] : null;
+
+        // The legacy CEO reference is still used by employee-management screens.
+        // Keep it in sync when the operative finalized CEO holder changes, while
+        // leaving historical finalized versions' employee records untouched.
+        if (node.RankType == "مدیرعامل" && node.Revision.IsFinalized &&
+            (await service.CurrentAsync())?.Id == node.OrganizationStructureRevisionId)
+        {
+            var previousCeoEmployees = await db.Employees
+                .Where(x => x.OrganizationPositionId.HasValue &&
+                    db.OrganizationNodes.Any(p => p.Id == x.OrganizationPositionId.Value &&
+                        p.RankType == "مدیرعامل"))
+                .ToListAsync();
+            foreach (var previous in previousCeoEmployees)
+            {
+                if (previous.Id == ids[0]) continue;
+                previous.OrganizationPositionId = null;
+                previous.UpdatedAt = DateTime.UtcNow;
+            }
+            var newHolder = await db.Employees.FindAsync(ids[0]);
+            if (newHolder is not null)
+            {
+                newHolder.OrganizationPositionId = node.Id;
+                newHolder.UpdatedAt = DateTime.UtcNow;
+            }
+        }
+
         db.OrganizationChanges.Add(new OrganizationChange
         {
             OrganizationStructureRevisionId = node.OrganizationStructureRevisionId,

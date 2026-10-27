@@ -66,20 +66,35 @@
 @media(max-width:1000px){.mp-rank-grid{grid-template-columns:1fr}}
 @media(max-width:600px){.mp .mp-assign-form{grid-template-columns:1fr}.mp .mp-wide{grid-column:span 1}}
 
-/* Rank/question mapping tables: fit their cards without horizontal scrolling. */
-.mp-rank-grid{grid-template-columns:minmax(0,1fr)}
-.mp-rank-grid .mp-table-wrap{overflow-x:hidden;max-width:100%;min-width:0}
-.mp-rank-grid .mp-filter-table{width:100%;min-width:0;table-layout:fixed}
-.mp-rank-grid .mp-filter-table th,.mp-rank-grid .mp-filter-table td{white-space:normal;overflow-wrap:anywhere;word-break:normal;padding:10px 7px}
-.mp-rank-grid .mp-filter-table th:first-child{width:38%}
-.mp-rank-grid .mp-filter-table th:nth-child(2){width:17%}
-.mp-rank-grid .mp-filter-table th:nth-child(3){width:17%}
-.mp-rank-grid .mp-filter-table th:last-child{width:28%}
-.mp-rank-grid .mp-filter-table .mp-controls{display:flex;flex-wrap:wrap;align-items:center;gap:7px}
-.mp-rank-grid .mp-filter-table input[type=number]{width:75px;max-width:100%;min-width:0}
-.mp-rank-grid .mp-filter-table .btn{white-space:normal;max-width:100%}
-@media(max-width:650px){
- .mp-rank-grid .mp-filter-table{font-size:.76rem}
- .mp-rank-grid .mp-filter-table th,.mp-rank-grid .mp-filter-table td{padding:7px 4px}
- .mp-rank-grid .mp-filter-table input[type=number]{width:62px}
+/* Keep the original two-column rank-card layout on desktop.
+   The mapping table uses real four-column cells instead of an oversized colspan form. */
+.mp-rank-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.mp-rank-grid .mp-card,.mp-rank-grid .mp-rank-table-wrap{min-width:0;max-width:100%}
+.mp-rank-grid .mp-rank-table-wrap{overflow-x:hidden;overflow-y:auto}
+.mp .mp-rank-mapping-table{width:100%;min-width:0;table-layout:fixed;font-size:.8rem}
+.mp-rank-mapping-table .mp-rank-col-question{width:44%}
+.mp-rank-mapping-table .mp-rank-col-score{width:15%}
+.mp-rank-mapping-table .mp-rank-col-order{width:15%}
+.mp-rank-mapping-table .mp-rank-col-actions{width:26%}
+.mp .mp-rank-mapping-table th,.mp .mp-rank-mapping-table td{
+  min-width:0;padding:8px 5px;white-space:normal;overflow-wrap:break-word;
+}
+.mp .mp-rank-mapping-table th{font-size:.76rem}
+.mp-rank-mapping-table .mp-rank-question strong{display:block;overflow-wrap:anywhere;line-height:1.8}
+.mp-rank-mapping-table .mp-note{overflow-wrap:anywhere;font-size:.72rem}
+.mp .mp-rank-mapping-table input[type=number]{
+  width:100%;min-width:0;max-width:100%;padding:6px 2px;
+  font-size:.8rem;text-align:center;direction:ltr;
+}
+.mp-rank-actions form{width:100%;margin:0}
+.mp-rank-actions form+form{margin-top:5px}
+.mp .mp-rank-actions .btn{width:100%;max-width:100%;min-width:0;padding:6px 2px;white-space:normal;font-size:.75rem}
+@media(max-width:1000px){.mp-rank-grid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:600px){
+ .mp .mp-rank-mapping-table{font-size:.76rem}
+ .mp .mp-rank-mapping-table th,.mp .mp-rank-mapping-table td{padding:6px 3px}
+ .mp-rank-mapping-table .mp-rank-col-question{width:40%}
+ .mp-rank-mapping-table .mp-rank-col-score{width:16%}
+ .mp-rank-mapping-table .mp-rank-col-order{width:16%}
+ .mp-rank-mapping-table .mp-rank-col-actions{width:28%}
 }

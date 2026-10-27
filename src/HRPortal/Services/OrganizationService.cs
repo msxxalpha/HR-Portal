@@ -272,6 +272,22 @@ public class OrganizationService(HRPortalDbContext db, AuditService audit)
             item.UpdatedAt = DateTime.UtcNow;
         }
 
+        // A running runtime workflow may have a future step pinned to a deleted
+        // node even if its current inbox task belongs to a different step.
+        // Cancel those in-flight instances too when that route cannot be remapped.
+        var brokenRuntimeDefinitions = steps
+            .Where(x => x.AssignmentType == "Position" &&
+                        !x.OrganizationNodeId.HasValue && x.WorkflowDefinition.IsRuntimeInstance)
+            .Select(x => x.WorkflowDefinitionId).ToHashSet();
+        if (brokenRuntimeDefinitions.Count > 0)
+        {
+            var affectedInstanceIds = await db.WorkflowInstances
+                .Where(x => x.Status == "InProgress" &&
+                            brokenRuntimeDefinitions.Contains(x.WorkflowDefinitionId))
+                .Select(x => x.Id).ToListAsync();
+            unrouteableInstances.UnionWith(affectedInstanceIds);
+        }
+
         // For active tasks with no valid successor and no explicit recipient, cancel
         // the entire unfinished workflow, not just one task: otherwise the inbox
         // and the parent request would disagree about the active routing state.

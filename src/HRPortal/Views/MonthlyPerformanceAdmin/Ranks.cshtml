@@ -54,18 +54,23 @@
  </div>
  @if(activeMappings.Count==0){<div class="mp-empty">هنوز سؤال فعالی به این رده متصل نشده است.</div>}
  else {
- <div class="mp-table-wrap"><table class="mp-filter-table"><thead><tr><th>سؤال / حوزه</th><th>سقف</th><th>ترتیب</th><th>عملیات</th></tr></thead>
+ <div class="mp-table-wrap mp-rank-table-wrap"><table class="mp-filter-table mp-rank-mapping-table">
+ <colgroup><col class="mp-rank-col-question" /><col class="mp-rank-col-score" /><col class="mp-rank-col-order" /><col class="mp-rank-col-actions" /></colgroup>
+ <thead><tr><th>سؤال / حوزه</th><th>سقف</th><th>ترتیب</th><th>عملیات</th></tr></thead>
  <tbody>@foreach(var m in activeMappings){
- <tr><td><strong>@m.Question.Title</strong><div class="mp-note">@m.Question.Code · @m.Question.Domain.Title</div></td>
- <td colspan="2"><form id="edit-mapping-@m.Id" method="post" action="/MonthlyPerformanceAdmin/UpdateMapping" class="mp-controls">
+ <tr>
+ <td class="mp-rank-question"><strong>@m.Question.Title</strong><div class="mp-note">@m.Question.Code · @m.Question.Domain.Title</div></td>
+ <td><input form="edit-mapping-@m.Id" type="number" name="maxScore" step="1" min="1" value="@m.MaxScore.ToString("0",System.Globalization.CultureInfo.InvariantCulture)" required aria-label="سقف امتیاز" /></td>
+ <td><input form="edit-mapping-@m.Id" type="number" name="sortOrder" step="1" min="1" value="@m.SortOrder" required aria-label="ترتیب" /></td>
+ <td class="mp-rank-actions">
+ <form id="edit-mapping-@m.Id" method="post" action="/MonthlyPerformanceAdmin/UpdateMapping">
  @Html.AntiForgeryToken()<input type="hidden" name="mappingId" value="@m.Id"/>
- <input type="number" name="maxScore" step="1" min="1" value="@m.MaxScore.ToString("0",System.Globalization.CultureInfo.InvariantCulture)" required aria-label="سقف امتیاز" />
- <input type="number" name="sortOrder" step="1" min="1" value="@m.SortOrder" required aria-label="ترتیب" />
- <button type="submit" class="btn btn-outline btn-sm">ویرایش</button>
- </form></td>
- <td><form method="post" action="/MonthlyPerformanceAdmin/RemoveMapping" onsubmit="return confirm('اتصال سؤال از این رده حذف شود؟ نتایج ثبت‌شده قبلی تغییر نمی‌کنند.')">
+ <button type="submit" class="btn btn-outline btn-sm">ذخیره</button>
+ </form>
+ <form method="post" action="/MonthlyPerformanceAdmin/RemoveMapping" onsubmit="return confirm('اتصال سؤال از این رده حذف شود؟ نتایج ثبت‌شده قبلی تغییر نمی‌کنند.')">
  @Html.AntiForgeryToken()<input type="hidden" name="mappingId" value="@m.Id" /><button class="btn btn-outline btn-sm" type="submit">حذف اتصال</button>
- </form></td></tr>}
+ </form>
+ </td></tr>}
  </tbody></table></div>
  }
  </section>

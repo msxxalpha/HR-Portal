@@ -238,12 +238,45 @@ public class OrganizationService(HRPortalDbContext db, AuditService audit)
             .Where(x => x.AssignedPositionId.HasValue && oldIds.Contains(x.AssignedPositionId.Value))
             .ToListAsync();
         var unrouteableInstances = new HashSet<int>();
+        var replacementById = replacementNodes.ToDictionary(x => x.Id);
+        var activeEmployees = await db.Employees.AsNoTracking()
+            .Where(x => x.Status == "فعال")
+            .Select(x => new { x.Id, x.OrganizationUnitId, x.OrganizationDepartmentId,
+                               x.OrganizationSectionId, x.OrganizationPositionId })
+            .ToListAsync();
+        var activeEmployeeIds = activeEmployees.Select(x => x.Id).ToHashSet();
+        bool HasAvailableHolder(int? positionId)
+        {
+            if (!positionId.HasValue ||
+                !replacementById.TryGetValue(positionId.Value, out var position))
+                return false;
+            var assigned = (position.AssignedEmployeeIdsCsv ?? "")
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(x => int.TryParse(x, out var id) ? id : 0)
+                .Where(x => x > 0).ToList();
+            if (assigned.Count == 0 && position.PositionHolderEmployeeId.HasValue)
+                assigned.Add(position.PositionHolderEmployeeId.Value);
+            if (assigned.Count > 0)
+                return assigned.Any(activeEmployeeIds.Contains);
+
+            return activeEmployees.Any(x => x.OrganizationUnitId == positionId ||
+                x.OrganizationDepartmentId == positionId ||
+                x.OrganizationSectionId == positionId ||
+                x.OrganizationPositionId == positionId ||
+                // These employees have not been saved yet; their references are
+                // being remapped in the same deletion transaction.
+                employees.Any(e => e.Id == x.Id && (
+                    e.OrganizationUnitId == positionId ||
+                    e.OrganizationDepartmentId == positionId ||
+                    e.OrganizationSectionId == positionId ||
+                    e.OrganizationPositionId == positionId)));
+        }
         foreach (var task in tasks)
         {
             var previousPositionId = task.AssignedPositionId;
             task.AssignedPositionId = Remap(previousPositionId);
-            if (task.Status == "Pending" && !task.AssignedPositionId.HasValue &&
-                !task.AssignedEmployeeId.HasValue)
+            if (task.Status == "Pending" && !task.AssignedEmployeeId.HasValue &&
+                !HasAvailableHolder(task.AssignedPositionId))
                 unrouteableInstances.Add(task.WorkflowInstanceId);
         }
 

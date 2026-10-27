@@ -403,7 +403,7 @@ public class OrganizationController(
             return RedirectToAction(nameof(Index));
         }
 
-var nodeIds = await db.OrganizationNodes
+        var nodeIds = await db.OrganizationNodes
             .Where(x => x.OrganizationStructureRevisionId == revisionId)
             .Select(x => x.Id)
             .ToListAsync();

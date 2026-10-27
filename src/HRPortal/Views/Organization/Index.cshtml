@@ -105,9 +105,12 @@
         {
             <div class="tree-help">
                 <span>کلیک روی فلش: باز/بسته کردن</span>
-                <span>کلیک راست: افزودن، ویرایش و حذف</span>
-                <span>نگه‌داشتن کلیک چپ: کشیدن و رها کردن نود</span>
-                <span>برای جابجایی، نود را روی نود مقصد یا ریشه رها کنید</span>
+                <span>@(editable ? "کلیک راست: افزودن، ویرایش و حذف گره" : canAssign ? "کلیک راست روی هر جایگاه: انتساب کارکنان" : "ساختار فقط برای مشاهده است")</span>
+                @if (editable)
+                {
+                    <span>نگه‌داشتن کلیک چپ: کشیدن و رها کردن نود</span>
+                    <span>برای جابجایی، نود را روی نود مقصد یا ریشه رها کنید</span>
+                }
             </div>
 
             <div id="organizationTree" class="organization-tree" role="tree" aria-label="ساختار سازمانی" data-editable="@editable.ToString().ToLowerInvariant()"></div>
@@ -208,13 +211,20 @@
         </div>
     </div>
 
-    @if (editable)
+    @if (editable || canAssign)
     {
-    <div id="treeContextMenu" class="tree-context-menu hidden" role="menu">
-        <button type="button" data-menu-action="create">افزودن زیرگره</button>
-        <button type="button" data-menu-action="edit">ویرایش گره</button>
-        <button type="button" data-menu-action="delete" class="danger">حذف گره</button>
-    </div>
+        <div id="treeContextMenu" class="tree-context-menu hidden" role="menu">
+            @if (editable)
+            {
+                <button type="button" data-menu-action="create">افزودن زیرگره</button>
+                <button type="button" data-menu-action="edit">ویرایش گره</button>
+                <button type="button" data-menu-action="delete" class="danger">حذف گره</button>
+            }
+            @if (canAssign)
+            {
+                <button type="button" data-menu-action="assign">انتساب کارکنان</button>
+            }
+        </div>
     }
 }
 
@@ -325,15 +335,6 @@
             row.appendChild(createElement("span", "org-tree-title", node.title));
             row.appendChild(createElement("span", "org-tree-code", node.code));
             row.appendChild(createElement("span", "org-tree-rank", node.rankType));
-            if (canAssign && !editable) {
-                const assignButton = createElement("button", "btn btn-outline btn-sm", "انتساب کارکنان");
-                assignButton.type = "button";
-                assignButton.addEventListener("click", function (event) {
-                    event.stopPropagation();
-                    openNodeModal("assign", String(node.id));
-                });
-                row.appendChild(assignButton);
-            }
             if (!node.isActive) row.appendChild(createElement("span", "org-tree-status", "غیرفعال"));
 
             li.appendChild(row);
@@ -366,7 +367,7 @@
         row.addEventListener("contextmenu", function (event) {
             event.preventDefault();
             event.stopPropagation();
-            if (!editable) return;
+            if (!menu || nodeId === "root" && !editable || (!editable && !canAssign)) return;
             showContextMenu(nodeId, event.clientX, event.clientY);
         });
 
@@ -433,27 +434,31 @@
     }
 
     function showContextMenu(nodeId, x, y) {
+        if (!menu) return;
         state.menuNodeId = nodeId;
-        menu.classList.remove("hidden");
-
+        const isRoot = nodeId === "root";
         const edit = menu.querySelector('[data-menu-action="edit"]');
         const remove = menu.querySelector('[data-menu-action="delete"]');
         const create = menu.querySelector('[data-menu-action="create"]');
-
-        const isRoot = nodeId === "root";
-        edit.classList.toggle("hidden", isRoot);
-        remove.classList.toggle("hidden", isRoot);
-        create.textContent = isRoot ? "افزودن گره اصلی" : "افزودن زیرگره";
+        const assign = menu.querySelector('[data-menu-action="assign"]');
+        if (edit) edit.classList.toggle("hidden", isRoot || !editable);
+        if (remove) remove.classList.toggle("hidden", isRoot || !editable);
+        if (create) {
+            create.classList.toggle("hidden", !editable);
+            create.textContent = isRoot ? "افزودن گره اصلی" : "افزودن زیرگره";
+        }
+        if (assign) assign.classList.toggle("hidden", isRoot || !canAssign);
+        menu.classList.remove("hidden");
 
         const width = 190;
-        const height = isRoot ? 50 : 125;
+        const height = editable ? (isRoot ? 50 : 165) : 50;
         menu.style.left = Math.min(x, window.innerWidth - width - 10) + "px";
         menu.style.top = Math.min(y, window.innerHeight - height - 10) + "px";
     }
 
     function hideContextMenu() {
         state.menuNodeId = null;
-        menu.classList.add("hidden");
+        menu?.classList.add("hidden");
     }
 
     function nextNodeCode() {
@@ -567,7 +572,7 @@
             select.insertBefore(option, select.firstChild);
         }
 
-        if (!select.options.length) {
+        if (!select.options.length && !assignmentOnly) {
             showNodeError("فهرست رده‌های سازمانی در اطلاعات پایه سامانه خالی است؛ ابتدا رده تعریف کنید.");
             return;
         }
@@ -616,6 +621,10 @@
         showNodeError("");
 
         const mode = this.dataset.mode;
+        if (mode === "assign" && (!canAssign || !document.getElementById("nodeId").value)) {
+            showNodeError("جایگاه انتخابی معتبر نیست یا مجوز انتساب ندارید.");
+            return;
+        }
         const values = {
             revisionId: revisionId,
             code: document.getElementById("nodeCode").value.trim(),
@@ -633,7 +642,7 @@
             values.parentId = document.getElementById("nodeParentId").value;
         }
 
-        if (!values.title || !values.rankType) {
+        if (mode !== "assign" && (!values.title || !values.rankType)) {
             showNodeError("عنوان و رده الزامی است. کد به‌صورت خودکار پیشنهاد می‌شود و قابل ویرایش است.");
             return;
         }
@@ -648,7 +657,7 @@
             window.location.reload();
         }).catch(function (error) {
             console.error(error);
-            showNodeError("خطا در ارتباط با سرور.");
+            showNodeError("ذخیره انتساب انجام نشد. اتصال به سرور یا مجوز کاربری را بررسی کنید.");
         });
     });
 
@@ -663,6 +672,8 @@
             openNodeModal("create", nodeId);
         } else if (action === "edit") {
             openNodeModal("edit", nodeId);
+        } else if (action === "assign" && canAssign && nodeId !== "root") {
+            openNodeModal("assign", nodeId);
         } else if (action === "delete") {
             hideContextMenu();
             const node = dataById.get(String(nodeId));

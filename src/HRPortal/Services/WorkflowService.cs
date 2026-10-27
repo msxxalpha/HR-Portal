@@ -693,17 +693,6 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .FirstOrDefaultAsync(x => x.Id == subjectEmployeeId && x.Status == "فعال", cancellationToken)
             ?? throw new InvalidOperationException("کارمند موضوع گردش کار یافت نشد.");
 
-        var assignedPositionId = employee.OrganizationPositionId
-            ?? employee.OrganizationSectionId
-            ?? employee.OrganizationDepartmentId
-            ?? employee.OrganizationUnitId;
-        if (!assignedPositionId.HasValue)
-            throw new InvalidOperationException("برای کارمند انتخاب‌شده جایگاه سازمانی ثبت نشده است.");
-
-        var oldPosition = await db.OrganizationNodes.AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Id == assignedPositionId.Value, cancellationToken)
-            ?? throw new InvalidOperationException("جایگاه فعلی کارمند یافت نشد.");
-
         var revision = await db.OrganizationStructureRevisions.AsNoTracking()
             .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
             .OrderByDescending(x => x.EffectiveDate).ThenByDescending(x => x.Id)
@@ -714,11 +703,40 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .Where(x => x.OrganizationStructureRevisionId == revision.Id && x.IsActive)
             .ToListAsync(cancellationToken);
         var byId = nodes.ToDictionary(x => x.Id);
-        var matchingPositions = nodes.Where(x => x.Code == oldPosition.Code).ToList();
-        if (matchingPositions.Count != 1)
-            throw new InvalidOperationException("جایگاه کارمند باید با یک کد یکتا در نسخه فعال ساختار سازمانی قابل شناسایی باشد.");
 
-        var current = matchingPositions[0];
+        // Explicit position assignments in the final structure take precedence over
+        // legacy employee department/section fields. These assignments can be changed
+        // by an authorized user without creating a structural draft.
+        var explicitPositions = nodes
+            .Where(x => GetAssignedEmployeeIds(x).Contains(subjectEmployeeId))
+            .ToList();
+        if (explicitPositions.Count > 1)
+            throw new InvalidOperationException("کارمند در بیش از یک جایگاه نسخه نهایی منتسب شده است.");
+
+        OrganizationNode current;
+        if (explicitPositions.Count == 1)
+        {
+            current = explicitPositions[0];
+        }
+        else
+        {
+            var assignedPositionId = employee.OrganizationPositionId
+                ?? employee.OrganizationSectionId
+                ?? employee.OrganizationDepartmentId
+                ?? employee.OrganizationUnitId;
+            if (!assignedPositionId.HasValue)
+                throw new InvalidOperationException("برای کارمند انتخاب‌شده جایگاه سازمانی ثبت نشده است.");
+
+            var oldPosition = await db.OrganizationNodes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == assignedPositionId.Value, cancellationToken)
+                ?? throw new InvalidOperationException("جایگاه فعلی کارمند یافت نشد.");
+
+            var matchingPositions = nodes
+                .Where(x => x.Code == oldPosition.Code && x.RankType == oldPosition.RankType).ToList();
+            if (matchingPositions.Count != 1)
+                throw new InvalidOperationException("جایگاه کارمند باید با کد و رده یکتا در نسخه فعال ساختار سازمانی قابل شناسایی باشد.");
+            current = matchingPositions[0];
+        }
         if (!current.ParentId.HasValue)
             throw new InvalidOperationException("جایگاه کارمند والد سازمانی ندارد؛ مسیر بالادستی ساخته نشد.");
 

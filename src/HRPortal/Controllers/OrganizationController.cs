@@ -388,7 +388,7 @@ public class OrganizationController(
     }
 
     [HttpPost, Authorize(Policy = "Organization.Delete"), ValidateAntiForgeryToken]
-    public async Task<IActionResult> DeleteDraft(int revisionId)
+    public async Task<IActionResult> DeleteRevision(int revisionId)
     {
         if (!User.HasClaim("IsAdmin", "1"))
         {
@@ -403,13 +403,7 @@ public class OrganizationController(
             return RedirectToAction(nameof(Index));
         }
 
-        if (revision.IsFinalized)
-        {
-            TempData["Error"] = "حذف کامل فقط برای نسخه پیشنویس مجاز است؛ نسخه نهایی قابل حذف نیست.";
-            return RedirectToAction(nameof(Index), new { revisionId });
-        }
-
-        var nodeIds = await db.OrganizationNodes
+var nodeIds = await db.OrganizationNodes
             .Where(x => x.OrganizationStructureRevisionId == revisionId)
             .Select(x => x.Id)
             .ToListAsync();
@@ -424,7 +418,7 @@ public class OrganizationController(
              await db.WorkflowTasks.AnyAsync(x => x.AssignedPositionId.HasValue && nodeIds.Contains(x.AssignedPositionId.Value)) ||
              await db.WorkflowHistory.AnyAsync(x => x.ActorPositionId.HasValue && nodeIds.Contains(x.ActorPositionId.Value))))
         {
-            TempData["Error"] = "این پیش‌نویس به کارکنان یا سوابق گردش کار ارجاع دارد و برای جلوگیری از شکستن ارجاعات حذف نشد.";
+            TempData["Error"] = "این نسخه به کارکنان یا سوابق گردش کار ارجاع دارد و برای جلوگیری از شکستن ارجاعات حذف نشد.";
             return RedirectToAction(nameof(Index), new { revisionId });
         }
 
@@ -444,7 +438,7 @@ public class OrganizationController(
                 .ToHashSet();
             var leaves = remainingNodes.Where(x => !parentIdsWithChildren.Contains(x.Id)).ToList();
             if (leaves.Count == 0)
-                throw new InvalidOperationException("ساختار پیش‌نویس دارای چرخه است و حذف ایمن انجام نشد.");
+                throw new InvalidOperationException("ساختار این نسخه دارای چرخه است و حذف ایمن انجام نشد.");
             db.OrganizationNodes.RemoveRange(leaves);
             await db.SaveChangesAsync();
             var removedIds = leaves.Select(x => x.Id).ToHashSet();
@@ -455,7 +449,7 @@ public class OrganizationController(
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
 
-        TempData["Success"] = "پیش‌نویس ساختار سازمانی به‌همراه تمام گره‌ها و تاریخچه تغییرات آن حذف شد.";
+        TempData["Success"] = "نسخه ساختار سازمانی به‌همراه گره‌ها و تغییرات مربوط حذف شد.";
         return RedirectToAction(nameof(Index));
     }
 

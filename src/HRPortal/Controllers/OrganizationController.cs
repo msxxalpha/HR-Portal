@@ -61,6 +61,7 @@ public class OrganizationController(
         var activeEmployeeNames = activeEmployees.ToDictionary(x => x.id, x => x.name);
         ViewBag.Revisions = revisions;
         ViewBag.IsEditable = revision is not null && !revision.IsFinalized && canEditStructure;
+        ViewBag.CanAssign = revision is not null && (User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Organization.Edit"));
         ViewBag.CanCreate = User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Organization.Create");
         ViewBag.CanEdit = User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Organization.Edit");
         ViewBag.CanDelete = User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Organization.Delete");
@@ -391,66 +392,54 @@ public class OrganizationController(
     public async Task<IActionResult> DeleteRevision(int revisionId)
     {
         if (!User.HasClaim("IsAdmin", "1"))
-        {
             return Forbid();
-        }
 
-        var revision = await db.OrganizationStructureRevisions
-            .FirstOrDefaultAsync(x => x.Id == revisionId);
-        if (revision is null)
+        try
         {
-            TempData["Error"] = "نسخه ساختار یافت نشد.";
+            int? actorId = int.TryParse(User.FindFirst("EmployeeId")?.Value, out var employeeId)
+                ? employeeId : null;
+            TempData["Success"] = await service.DeleteRevisionWithDependenciesAsync(revisionId, actorId);
             return RedirectToAction(nameof(Index));
         }
-
-        var nodeIds = await db.OrganizationNodes
-            .Where(x => x.OrganizationStructureRevisionId == revisionId)
-            .Select(x => x.Id)
-            .ToListAsync();
-
-        if (nodeIds.Count > 0 &&
-            (await db.Employees.AnyAsync(e =>
-                (e.OrganizationUnitId.HasValue && nodeIds.Contains(e.OrganizationUnitId.Value)) ||
-                (e.OrganizationDepartmentId.HasValue && nodeIds.Contains(e.OrganizationDepartmentId.Value)) ||
-                (e.OrganizationSectionId.HasValue && nodeIds.Contains(e.OrganizationSectionId.Value)) ||
-                (e.OrganizationPositionId.HasValue && nodeIds.Contains(e.OrganizationPositionId.Value))) ||
-             await db.WorkflowSteps.AnyAsync(x => x.OrganizationNodeId.HasValue && nodeIds.Contains(x.OrganizationNodeId.Value)) ||
-             await db.WorkflowTasks.AnyAsync(x => x.AssignedPositionId.HasValue && nodeIds.Contains(x.AssignedPositionId.Value)) ||
-             await db.WorkflowHistory.AnyAsync(x => x.ActorPositionId.HasValue && nodeIds.Contains(x.ActorPositionId.Value))))
+        catch (Exception ex)
         {
-            TempData["Error"] = "این نسخه به کارکنان یا سوابق گردش کار ارجاع دارد و برای جلوگیری از شکستن ارجاعات حذف نشد.";
+            TempData["Error"] = "حذف نسخه انجام نشد و تغییرات بازگردانده شد: " + ex.Message;
             return RedirectToAction(nameof(Index), new { revisionId });
         }
+    }
 
-        await using var transaction = await db.Database.BeginTransactionAsync();
-        db.OrganizationChanges.RemoveRange(
-            db.OrganizationChanges.Where(x => x.OrganizationStructureRevisionId == revisionId));
-        await db.SaveChangesAsync();
+    // A finalized structure is immutable except for its position holders.
+    // Do not route this through UpdateNode: title/rank/hierarchy must remain read-only.
+    [HttpPost, Authorize(Policy = "Organization.Edit"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateAssignments(int id, string? assignedEmployeeIdsCsv)
+    {
+        var node = await db.OrganizationNodes
+            .Include(x => x.Revision)
+            .FirstOrDefaultAsync(x => x.Id == id);
+        if (node is null)
+            return Json(new { success = false, message = "جایگاه سازمانی یافت نشد." });
+        if (!node.IsActive)
+            return Json(new { success = false, message = "انتساب کارکنان فقط به جایگاه فعال مجاز است." });
 
-        var remainingNodes = await db.OrganizationNodes
-            .Where(x => x.OrganizationStructureRevisionId == revisionId)
-            .ToListAsync();
-        while (remainingNodes.Count > 0)
+        var ids = ParseEmployeeIds(assignedEmployeeIdsCsv, null);
+        if (node.RankType == "مدیرعامل" && ids.Count != 1)
+            return Json(new { success = false, message = "برای جایگاه مدیرعامل دقیقاً یک کارمند فعال انتخاب کنید." });
+
+        var validation = await ValidateAssignedEmployeesAsync(node.OrganizationStructureRevisionId, ids, node.Id);
+        if (validation is not null)
+            return Json(new { success = false, message = validation });
+
+        node.AssignedEmployeeIdsCsv = ids.Count == 0 ? null : string.Join(",", ids);
+        node.PositionHolderEmployeeId = ids.Count == 1 ? ids[0] : null;
+        db.OrganizationChanges.Add(new OrganizationChange
         {
-            var parentIdsWithChildren = remainingNodes
-                .Where(x => x.ParentId.HasValue)
-                .Select(x => x.ParentId!.Value)
-                .ToHashSet();
-            var leaves = remainingNodes.Where(x => !parentIdsWithChildren.Contains(x.Id)).ToList();
-            if (leaves.Count == 0)
-                throw new InvalidOperationException("ساختار این نسخه دارای چرخه است و حذف ایمن انجام نشد.");
-            db.OrganizationNodes.RemoveRange(leaves);
-            await db.SaveChangesAsync();
-            var removedIds = leaves.Select(x => x.Id).ToHashSet();
-            remainingNodes.RemoveAll(x => removedIds.Contains(x.Id));
-        }
-
-        db.OrganizationStructureRevisions.Remove(revision);
+            OrganizationStructureRevisionId = node.OrganizationStructureRevisionId,
+            ChangeType = "انتساب کارکنان",
+            EntityCode = node.Code,
+            Description = "به‌روزرسانی متصدیان جایگاه «" + node.Title + "» (" + ids.Count + " نفر)"
+        });
         await db.SaveChangesAsync();
-        await transaction.CommitAsync();
-
-        TempData["Success"] = "نسخه ساختار سازمانی به‌همراه گره‌ها و تغییرات مربوط حذف شد.";
-        return RedirectToAction(nameof(Index));
+        return Json(new { success = true });
     }
 
     [HttpPost, Authorize(Policy = "Organization.Finalize"), ValidateAntiForgeryToken]

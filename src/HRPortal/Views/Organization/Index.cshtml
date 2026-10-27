@@ -3,6 +3,7 @@
     ViewData["Title"] = "ساختار سازمانی";
     var revisions = ViewBag.Revisions as List<HRPortal.Models.OrganizationStructureRevision> ?? [];
     var editable = (bool?)ViewBag.IsEditable ?? false;
+    var canAssign = (bool?)ViewBag.CanAssign ?? false;
     var revisionId = (int?)ViewBag.RevisionId ?? 0;
     var treeJson = (string?)ViewBag.TreeJson ?? "[]";
     var companyName = (string?)ViewBag.CompanyName ?? "شرکت";
@@ -17,7 +18,7 @@
     <div class="actions">
         @if (revisionId > 0 && isAdmin)
         {
-            <form method="post" action="/Organization/DeleteRevision" onsubmit="return confirm('این نسخه ساختار سازمانی و گره‌های آن حذف شود؟ این عملیات قابل بازگشت نیست. نسخه‌های دارای ارجاع به کارکنان یا گردش کار حذف نخواهند شد.');">
+            <form method="post" action="/Organization/DeleteRevision" onsubmit="return confirm('این نسخه حذف شود؟ ارجاعات قابل انتقال به نسخه نهایی دیگر منتقل می‌شوند؛ گردش‌کارهای بدون مقصد جایگزین لغو و برخی تنظیمات پاک می‌شوند. این عملیات قابل بازگشت نیست؛ ابتدا از پایگاه داده نسخه پشتیبان تهیه کنید.');">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="revisionId" value="@revisionId" />
                 <button class="btn btn-outline danger" type="submit">@(editable ? "حذف کامل پیش‌نویس" : "حذف نسخه نهایی")</button>
@@ -46,7 +47,7 @@
         @if (!editable)
         {
             <div class="note">
-                نسخه‌های نهایی همیشه فقط برای مشاهده هستند. برای شروع اصلاحات، از فرم «ایجاد نسخه بازنگری» استفاده کنید؛ با باز کردن صفحه یا انتخاب نسخه نهایی، پیش‌نویس جدیدی ساخته نمی‌شود.
+                عنوان، رده و درخت نسخه نهایی قابل تغییر نیست؛ ولی کاربران مجاز می‌توانند متصدیان جایگاه‌ها را بدون ایجاد پیش‌نویس تغییر دهند. برای اصلاح خود ساختار، نسخه بازنگری جدید ایجاد کنید.
             </div>
         }
 
@@ -148,7 +149,7 @@
     }
 </div>
 
-@if (editable)
+@if (editable || canAssign)
 {
     <div id="nodeModal" class="modal-backdrop hidden">
         <div class="modal-card">
@@ -207,17 +208,21 @@
         </div>
     </div>
 
+    @if (editable)
+    {
     <div id="treeContextMenu" class="tree-context-menu hidden" role="menu">
         <button type="button" data-menu-action="create">افزودن زیرگره</button>
         <button type="button" data-menu-action="edit">ویرایش گره</button>
         <button type="button" data-menu-action="delete" class="danger">حذف گره</button>
     </div>
+    }
 }
 
 @section Scripts {
 <script>
 (function () {
     const editable = @editable.ToString().ToLowerInvariant();
+    const canAssign = @canAssign.ToString().ToLowerInvariant();
     const revisionId = @revisionId;
     const companyName = "@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(companyName))";
     const nodes = @Html.Raw(treeJson);
@@ -320,6 +325,15 @@
             row.appendChild(createElement("span", "org-tree-title", node.title));
             row.appendChild(createElement("span", "org-tree-code", node.code));
             row.appendChild(createElement("span", "org-tree-rank", node.rankType));
+            if (canAssign && !editable) {
+                const assignButton = createElement("button", "btn btn-outline btn-sm", "انتساب کارکنان");
+                assignButton.type = "button";
+                assignButton.addEventListener("click", function (event) {
+                    event.stopPropagation();
+                    openNodeModal("assign", String(node.id));
+                });
+                row.appendChild(assignButton);
+            }
             if (!node.isActive) row.appendChild(createElement("span", "org-tree-status", "غیرفعال"));
 
             li.appendChild(row);
@@ -458,13 +472,14 @@
         hideContextMenu();
         showNodeError("");
 
-        const isEdit = mode === "edit";
+        const isEdit = mode !== "create";
+        const assignmentOnly = mode === "assign";
         const node = isEdit ? dataById.get(String(nodeId)) : null;
         const parentNode = !isEdit && nodeId && nodeId !== "root" ? dataById.get(String(nodeId)) : null;
         const actualParentId = isEdit ? (node?.parentId == null ? "" : String(node.parentId)) : (parentNode ? String(parentNode.id) : "");
 
-        document.getElementById("nodeModalTitle").textContent = isEdit ? "ویرایش گره" : "افزودن گره";
-        document.getElementById("nodeModalSubtitle").textContent = isEdit ? "اطلاعات گره انتخاب‌شده" : "اطلاعات گره جدید";
+        document.getElementById("nodeModalTitle").textContent = assignmentOnly ? "انتساب کارکنان به جایگاه" : (isEdit ? "ویرایش گره" : "افزودن گره");
+        document.getElementById("nodeModalSubtitle").textContent = assignmentOnly ? "مشخصات ساختار نهایی فقط خواندنی است؛ متصدیان را مدیریت کنید." : (isEdit ? "اطلاعات گره انتخاب‌شده" : "اطلاعات گره جدید");
         document.getElementById("nodeId").value = isEdit ? String(node.id) : "";
         document.getElementById("nodeParentId").value = actualParentId;
 
@@ -557,8 +572,11 @@
             return;
         }
 
+        ["nodeTitle", "nodeCode", "nodeRank", "nodeSortOrder", "nodeActive", "nodeNotes"].forEach(function (field) {
+            document.getElementById(field).disabled = assignmentOnly;
+        });
         document.getElementById("nodeModal").classList.remove("hidden");
-        document.getElementById("nodeTitle").focus();
+        document.getElementById(assignmentOnly ? "nodeEmployeeSearch" : "nodeTitle").focus();
         document.getElementById("nodeForm").dataset.mode = mode;
     }
 
@@ -609,7 +627,7 @@
             assignedEmployeeIdsCsv: (window.nodeAssignedEmployeeIds || []).join(",")
         };
 
-        if (mode === "edit") {
+        if (mode === "edit" || mode === "assign") {
             values.id = document.getElementById("nodeId").value;
         } else {
             values.parentId = document.getElementById("nodeParentId").value;
@@ -620,7 +638,7 @@
             return;
         }
 
-        const url = mode === "edit" ? "/Organization/UpdateNode" : "/Organization/CreateNode";
+        const url = mode === "assign" ? "/Organization/UpdateAssignments" : (mode === "edit" ? "/Organization/UpdateNode" : "/Organization/CreateNode");
         api(url, values).then(function (result) {
             if (!result.success) {
                 showNodeError(result.message || "ذخیره نود انجام نشد.");

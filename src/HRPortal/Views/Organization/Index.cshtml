@@ -15,12 +15,12 @@
         <p class="muted">برای گردش کار پویا، «مدیرعامل» را در ریشه درخت تعریف کنید و معاونت‌ها را زیر آن قرار دهید. در هر نسخه فقط یک گره مدیرعامل مجاز است و باید به دقیقاً یک کارمند فعال تخصیص داده شود.</p>
     </div>
     <div class="actions">
-        @if (editable && isAdmin)
+        @if (revisionId > 0 && isAdmin)
         {
-            <form method="post" action="/Organization/DeleteDraft" onsubmit="return confirm('تمام گره‌ها و تاریخچه این پیش‌نویس به‌طور کامل حذف شود؟ این عملیات قابل بازگشت نیست.');">
+            <form method="post" action="/Organization/DeleteRevision" onsubmit="return confirm('این نسخه ساختار سازمانی و گره‌های آن حذف شود؟ این عملیات قابل بازگشت نیست. نسخه‌های دارای ارجاع به کارکنان یا گردش کار حذف نخواهند شد.');">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="revisionId" value="@revisionId" />
-                <button class="btn btn-outline danger" type="submit">حذف کامل پیش‌نویس</button>
+                <button class="btn btn-outline danger" type="submit">@(editable ? "حذف کامل پیش‌نویس" : "حذف نسخه نهایی")</button>
             </form>
         }
         @if (editable)

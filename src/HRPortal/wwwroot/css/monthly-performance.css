@@ -65,3 +65,21 @@
 .mp .jalali-picker,.exec-report .jalali-picker{top:calc(100% + 6px);right:0}
 @media(max-width:1000px){.mp-rank-grid{grid-template-columns:1fr}}
 @media(max-width:600px){.mp .mp-assign-form{grid-template-columns:1fr}.mp .mp-wide{grid-column:span 1}}
+
+/* Rank/question mapping tables: fit their cards without horizontal scrolling. */
+.mp-rank-grid{grid-template-columns:minmax(0,1fr)}
+.mp-rank-grid .mp-table-wrap{overflow-x:hidden;max-width:100%;min-width:0}
+.mp-rank-grid .mp-filter-table{width:100%;min-width:0;table-layout:fixed}
+.mp-rank-grid .mp-filter-table th,.mp-rank-grid .mp-filter-table td{white-space:normal;overflow-wrap:anywhere;word-break:normal;padding:10px 7px}
+.mp-rank-grid .mp-filter-table th:first-child{width:38%}
+.mp-rank-grid .mp-filter-table th:nth-child(2){width:17%}
+.mp-rank-grid .mp-filter-table th:nth-child(3){width:17%}
+.mp-rank-grid .mp-filter-table th:last-child{width:28%}
+.mp-rank-grid .mp-filter-table .mp-controls{display:flex;flex-wrap:wrap;align-items:center;gap:7px}
+.mp-rank-grid .mp-filter-table input[type=number]{width:75px;max-width:100%;min-width:0}
+.mp-rank-grid .mp-filter-table .btn{white-space:normal;max-width:100%}
+@media(max-width:650px){
+ .mp-rank-grid .mp-filter-table{font-size:.76rem}
+ .mp-rank-grid .mp-filter-table th,.mp-rank-grid .mp-filter-table td{padding:7px 4px}
+ .mp-rank-grid .mp-filter-table input[type=number]{width:62px}
+}

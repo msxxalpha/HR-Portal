@@ -18,8 +18,11 @@ public class SystemSettingsService(HRPortalDbContext db)
         if (current is null) db.SystemSettings.Add(model);
         else
         {
+            var adminControlledDeductionSetting = current.EnableHrDisciplinaryScoreDeduction;
             model.Id = current.Id;
             db.Entry(current).CurrentValues.SetValues(model);
+            // This feature flag is changed only by the AdminOnly endpoint.
+            current.EnableHrDisciplinaryScoreDeduction = adminControlledDeductionSetting;
             current.UpdatedAt = DateTime.UtcNow;
         }
         await db.SaveChangesAsync();

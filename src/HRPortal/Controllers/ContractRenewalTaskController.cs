@@ -55,6 +55,10 @@ public class ContractRenewalTaskController(
         if (request is null) return NotFound();
 
         var stageKind = GetStageKind(task.WorkflowStep.Code);
+        var enableHrDisciplinaryScoreDeduction = stageKind == "HumanResources" &&
+            (await db.SystemSettings.AsNoTracking()
+                .Select(x => (bool?)x.EnableHrDisciplinaryScoreDeduction)
+                .FirstOrDefaultAsync() ?? true);
         var isLastEvaluationStage = false;
         decimal? completedEvaluationScore = null;
 
@@ -115,10 +119,13 @@ public class ContractRenewalTaskController(
             {
                 if (!contractMonths.HasValue || contractMonths.Value is < 0 or > 12)
                     throw new InvalidOperationException("مدت قرارداد باید عدد صحیحی بین صفر تا ۱۲ ماه باشد.");
-                if (!disciplinaryDeductionPercent.HasValue || disciplinaryDeductionPercent.Value < 0m || disciplinaryDeductionPercent.Value > 100m)
-                    throw new InvalidOperationException("درصد کسر بابت سوابق انضباطی باید بین صفر تا ۱۰۰ باشد.");
-                if (disciplinaryDeductionPercent.Value != decimal.Round(disciplinaryDeductionPercent.Value, 2))
-                    throw new InvalidOperationException("درصد کسر حداکثر می‌تواند دو رقم اعشار داشته باشد.");
+                if (enableHrDisciplinaryScoreDeduction)
+                {
+                    if (!disciplinaryDeductionPercent.HasValue || disciplinaryDeductionPercent.Value < 0m || disciplinaryDeductionPercent.Value > 100m)
+                        throw new InvalidOperationException("درصد کسر بابت سوابق انضباطی باید بین صفر تا ۱۰۰ باشد.");
+                    if (disciplinaryDeductionPercent.Value != decimal.Round(disciplinaryDeductionPercent.Value, 2))
+                        throw new InvalidOperationException("درصد کسر حداکثر می‌تواند دو رقم اعشار داشته باشد.");
+                }
             }
             else if (stageKind == "CEO")
             {
@@ -160,8 +167,15 @@ public class ContractRenewalTaskController(
             {
                 var baseScore = request.OriginalEvaluationScore ?? request.FinalEvaluationScore ?? 0m;
                 request.OriginalEvaluationScore ??= baseScore;
-                request.HrDisciplinaryDeductionPercent = disciplinaryDeductionPercent!.Value;
-                request.FinalEvaluationScore = decimal.Round(baseScore * (100m - disciplinaryDeductionPercent.Value) / 100m, 2, MidpointRounding.AwayFromZero);
+                // The feature flag is enforced on the server. A crafted or stale POST
+                // cannot apply a deduction while the system administrator has disabled it.
+                var deductionPercent = enableHrDisciplinaryScoreDeduction
+                    ? disciplinaryDeductionPercent!.Value
+                    : 0m;
+                request.HrDisciplinaryDeductionPercent = deductionPercent;
+                request.FinalEvaluationScore = enableHrDisciplinaryScoreDeduction
+                    ? decimal.Round(baseScore * (100m - deductionPercent) / 100m, 2, MidpointRounding.AwayFromZero)
+                    : baseScore;
                 request.HrProposedContractMonths = contractMonths;
                 request.HrComment = comment?.Trim();
                 request.Status = "در انتظار تأیید نهایی مدیرعامل";
@@ -196,6 +210,10 @@ public class ContractRenewalTaskController(
     private async Task<ContractRenewalStageViewModel> BuildStageViewModelAsync(
         WorkflowTask task, ContractRenewalRequest request, string stageKind)
     {
+        var enableHrDisciplinaryScoreDeduction = await db.SystemSettings.AsNoTracking()
+            .Select(x => (bool?)x.EnableHrDisciplinaryScoreDeduction)
+            .FirstOrDefaultAsync() ?? true;
+
         var allSteps = await db.WorkflowSteps.AsNoTracking()
             .Include(x => x.OrganizationNode)
             .Where(x => x.WorkflowDefinitionId == task.WorkflowInstance.WorkflowDefinitionId)
@@ -242,6 +260,7 @@ public class ContractRenewalTaskController(
             Request = request,
             SubjectEmployee = request.Employee,
             StageKind = stageKind,
+            IsHrDisciplinaryScoreDeductionEnabled = enableHrDisciplinaryScoreDeduction,
             CurrentScores = currentScores,
             PreviousStageScores = previousScores,
             AllScoreStages = groups,
@@ -252,7 +271,10 @@ public class ContractRenewalTaskController(
             PreviousStageComment = previousStep is null
                 ? null
                 : completedStageTasks.FirstOrDefault(x => x.WorkflowStepId == previousStep.Id)?.Comment,
-            SuggestedContractMonths = ContractRenewalWorkflowService.SuggestedContractMonths(request.FinalEvaluationScore)
+            SuggestedContractMonths = ContractRenewalWorkflowService.SuggestedContractMonths(
+                stageKind == "HumanResources" && !enableHrDisciplinaryScoreDeduction
+                    ? request.OriginalEvaluationScore ?? request.FinalEvaluationScore
+                    : request.FinalEvaluationScore)
         };
     }
 

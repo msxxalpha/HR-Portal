@@ -7,7 +7,7 @@
     var editingScores = Model.StageKind == "Evaluation";
     var viewingAllScores = Model.StageKind is "Security" or "HumanResources" or "CEO";
     var suggested = Model.SuggestedContractMonths ?? 0;
-    var displayedFinalScore = Model.StageKind == "HumanResources" && !Model.IsHrDisciplinaryScoreDeductionEnabled
+    var displayedFinalScore = Model.StageKind == "HumanResources" && !Model.IsHrDisciplinaryScoreDeductionEnabled && !Model.IsReadOnly
         ? r.OriginalEvaluationScore ?? r.FinalEvaluationScore
         : r.FinalEvaluationScore;
     string score(decimal? value) => value.HasValue ? value.Value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) : "—";

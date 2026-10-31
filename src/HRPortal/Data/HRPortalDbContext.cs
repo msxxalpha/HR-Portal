@@ -184,6 +184,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.HasIndex(x => x.CreatedAt);
         });
         modelBuilder.Entity<SystemSettings>().HasKey(x => x.Id);
+        modelBuilder.Entity<SystemSettings>().Property(x => x.EnableHrDisciplinaryScoreDeduction).HasDefaultValue(true);
         modelBuilder.Entity<OtpSettings>().HasKey(x => x.Id);
         modelBuilder.Entity<SmsSettings>().HasKey(x => x.Id);
         modelBuilder.Entity<PayrollReportSettings>().HasKey(x => x.Id);

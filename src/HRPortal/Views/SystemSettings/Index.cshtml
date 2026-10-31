@@ -36,6 +36,10 @@
         <button type="button" class="tab" data-tab="announcement-categories">اطلاعات پایه / دسته‌بندی اطلاعیه</button>
         <button type="button" class="tab" data-tab="organization-ranks">اطلاعات پایه / رده‌های سازمانی</button>
         <button type="button" class="tab" data-tab="maintenance">نگهداری</button>
+        @if (User.HasClaim("IsAdmin", "1"))
+        {
+            <button type="button" class="tab" data-tab="contract-workflow">گردش کار تمدید قرارداد</button>
+        }
     </div>
 
     <section id="general" class="tab-panel active">
@@ -527,6 +531,33 @@
         <button class="btn btn-main" type="submit" name="command" value="save">ذخیره همه تنظیمات</button>
     </div>
 </form>
+
+    @if (User.HasClaim("IsAdmin", "1"))
+    {
+        <section id="contract-workflow" class="tab-panel">
+            <div class="settings-section-intro">
+                <strong>تنظیمات گردش کار تمدید قرارداد</strong>
+                <span>این گزینه فقط توسط مدیر سیستم قابل تغییر است و به‌صورت پیش‌فرض فعال است.</span>
+            </div>
+            <form method="post" action="/SystemSettings/SaveHrDisciplinaryDeduction" class="category-editor-card">
+                @Html.AntiForgeryToken()
+                <label class="toggle-card">
+                    <span class="toggle-text">
+                        <strong>امکان کسر درصدی امتیاز بابت سوابق انضباطی</strong>
+                        <small>در صورت فعال بودن، مدیر منابع انسانی می‌تواند درصد کسر امتیاز را ثبت کند؛ در حالت غیرفعال، امتیاز بدون کسر مبنای پیشنهاد مدت قرارداد خواهد بود.</small>
+                    </span>
+                    <span class="switch-control">
+                        <input type="checkbox" name="enabled" value="true" @((Model.EnableHrDisciplinaryScoreDeduction ?? true) ? "checked" : "") aria-label="امکان کسر درصدی امتیاز" />
+                        <input type="hidden" name="enabled" value="false" />
+                        <span class="switch-slider"></span>
+                    </span>
+                </label>
+                <div class="actions">
+                    <button class="btn btn-main" type="submit">ذخیره تنظیم گردش کار</button>
+                </div>
+            </form>
+        </section>
+    }
 
     <section id="announcement-categories" class="tab-panel">
         <div class="settings-section-intro">

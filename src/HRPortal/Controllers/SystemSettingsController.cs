@@ -159,6 +159,9 @@ public class SystemSettingsController(
     {
         ViewBag.OrganizationRanks = await db.OrganizationRankDefinitions.AsNoTracking()
             .OrderBy(x => x.SortOrder).ThenBy(x => x.Title).ToListAsync();
+        model.EnableHrDisciplinaryScoreDeduction = await db.SystemSettings.AsNoTracking()
+            .Select(x => (bool?)x.EnableHrDisciplinaryScoreDeduction)
+            .FirstOrDefaultAsync() ?? true;
         return model;
     }
 

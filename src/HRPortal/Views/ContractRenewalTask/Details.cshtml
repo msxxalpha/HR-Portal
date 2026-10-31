@@ -227,7 +227,7 @@
 @if (Model.StageKind == "HumanResources")
 {
     <section class="card">
-        <div class="section-head"><div><h3>پیشنهاد مدت قرارداد</h3><span class="muted">مدت پیشنهادی از روی امتیاز نهایی محاسبه شده و قابل ویرایش است.</span></div></div>
+        <div class="section-head"><div><h3>پیشنهاد مدت قرارداد</h3><span class="muted">@(Model.IsHrDisciplinaryScoreDeductionEnabled ? "مدت پیشنهادی از روی امتیاز نهایی محاسبه شده و قابل ویرایش است." : "مدت پیشنهادی بر اساس امتیاز اصلی ارزشیابی محاسبه شده و قابل ویرایش است.")</span></div></div>
         <div class="contract-score-summary" id="hrScoreSummary" data-original-score="@((r.OriginalEvaluationScore ?? r.FinalEvaluationScore ?? 0m).ToString(System.Globalization.CultureInfo.InvariantCulture))">
             <div><span>امتیاز اولیه ارزیابی سازمانی</span><div class="contract-score-value">@score(r.OriginalEvaluationScore ?? r.FinalEvaluationScore) <small>از ۱۰۰</small></div></div>
             @if (Model.IsHrDisciplinaryScoreDeductionEnabled)
@@ -274,7 +274,7 @@
             @Html.AntiForgeryToken()
             <input type="hidden" name="id" value="@Model.Task.Id" />
             <div class="contract-score-summary">
-                <div><span>امتیاز نهایی پس از کسر سوابق انضباطی</span><div class="contract-score-value">@score(r.FinalEvaluationScore) <small>از ۱۰۰</small></div></div>
+                <div><span>@(r.HrDisciplinaryDeductionPercent > 0m ? "امتیاز نهایی پس از کسر سوابق انضباطی" : "امتیاز نهایی ارزشیابی")</span><div class="contract-score-value">@score(r.FinalEvaluationScore) <small>از ۱۰۰</small></div></div>
                 <div><span>مدت پیشنهادی سیستم</span><div class="contract-score-value">@suggested <small>ماه</small></div></div>
                 <div><span>پیشنهاد مدیر منابع انسانی</span><div class="contract-score-value">@(r.HrProposedContractMonths ?? 0) <small>ماه</small></div></div>
             </div>

@@ -229,8 +229,6 @@ public class EnvironmentSettingsService(HRPortalDbContext db, ReportCredentialPr
         entity.FaviconUrl = model.FaviconUrl?.Trim() ?? "";
         entity.ItemsPerPage = model.ItemsPerPage;
         entity.PayrollMinimumYear = model.PayrollMinimumYear;
-        if (model.EnableHrDisciplinaryScoreDeduction.HasValue)
-            entity.EnableHrDisciplinaryScoreDeduction = model.EnableHrDisciplinaryScoreDeduction.Value;
         entity.EnableAuditLog = model.EnableAuditLog;
         entity.MaintenanceMode = model.MaintenanceMode;
         entity.MaintenanceMessage = model.MaintenanceMessage?.Trim() ?? "";

@@ -23,6 +23,42 @@ public class SystemSettingsController(
         return View("Index", await PreparePageAsync(await service.GetEditAsync()));
     }
 
+    [HttpPost("SaveHrDisciplinaryDeduction")]
+    [Authorize(Policy = "AdminOnly")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveHrDisciplinaryDeduction(bool enabled)
+    {
+        try
+        {
+            var settings = await db.SystemSettings.FirstOrDefaultAsync();
+            if (settings is null)
+            {
+                settings = new SystemSettings();
+                db.SystemSettings.Add(settings);
+            }
+
+            settings.EnableHrDisciplinaryScoreDeduction = enabled;
+            settings.UpdatedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync();
+            await audit.WriteAsync(
+                "تغییر امکان کسر درصدی امتیاز در گردش کار منابع انسانی",
+                nameof(SystemSettings),
+                settings.Id.ToString(),
+                enabled ? "فعال" : "غیرفعال");
+
+            TempData["Success"] = enabled
+                ? "امکان کسر درصدی امتیاز در مرحله مدیر منابع انسانی فعال شد."
+                : "امکان کسر درصدی امتیاز در مرحله مدیر منابع انسانی غیرفعال شد.";
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Saving HR disciplinary score deduction setting failed.");
+            TempData["Error"] = "ذخیره تنظیم گردش کار انجام نشد: " + ex.Message;
+        }
+
+        return Redirect("/SystemSettings#contract-workflow");
+    }
+
 
     [HttpPost("SaveAnnouncementCategory")]
     [Authorize(Policy = "Settings.Edit")]

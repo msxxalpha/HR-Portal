@@ -235,7 +235,7 @@
                 <div><span>کسر سوابق انضباطی ثبت‌شده</span><div class="contract-score-value">@score(r.HrDisciplinaryDeductionPercent) <small>٪</small></div></div>
                 <div><span>امتیاز نهایی پس از کسر</span><div class="contract-score-value"><span id="liveFinalScore">@score(r.FinalEvaluationScore)</span> <small>از ۱۰۰</small></div></div>
             }
-            <div><span>مدت پیشنهادی سیستم بر اساس امتیاز ارزشیابی</span><div class="contract-score-value"><span id="systemSuggestedMonths">@suggested</span> <small>ماه</small></div></div>
+            <div><span>مدت پیشنهادی سیستم بر اساس امتیاز ارزشیابی</span><div class="contract-score-value">@suggested <small>ماه</small></div></div>
         </div>
         @if (Model.IsHrDisciplinaryScoreDeductionEnabled)
         {

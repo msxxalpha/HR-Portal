@@ -15,7 +15,12 @@ public class SystemSettingsService(HRPortalDbContext db)
     public async Task SaveAsync(SystemSettings model)
     {
         var current = await db.SystemSettings.FirstOrDefaultAsync();
-        if (current is null) db.SystemSettings.Add(model);
+        if (current is null)
+        {
+            // The flag starts enabled; only the dedicated AdminOnly action may change it.
+            model.EnableHrDisciplinaryScoreDeduction = true;
+            db.SystemSettings.Add(model);
+        }
         else
         {
             var adminControlledDeductionSetting = current.EnableHrDisciplinaryScoreDeduction;

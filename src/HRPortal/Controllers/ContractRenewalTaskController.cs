@@ -272,7 +272,7 @@ public class ContractRenewalTaskController(
                 ? null
                 : completedStageTasks.FirstOrDefault(x => x.WorkflowStepId == previousStep.Id)?.Comment,
             SuggestedContractMonths = ContractRenewalWorkflowService.SuggestedContractMonths(
-                stageKind == "HumanResources" && !enableHrDisciplinaryScoreDeduction
+                stageKind == "HumanResources" && !enableHrDisciplinaryScoreDeduction && task.Status == "Pending"
                     ? request.OriginalEvaluationScore ?? request.FinalEvaluationScore
                     : request.FinalEvaluationScore)
         };

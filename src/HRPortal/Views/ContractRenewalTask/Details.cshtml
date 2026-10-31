@@ -7,6 +7,9 @@
     var editingScores = Model.StageKind == "Evaluation";
     var viewingAllScores = Model.StageKind is "Security" or "HumanResources" or "CEO";
     var suggested = Model.SuggestedContractMonths ?? 0;
+    var displayedFinalScore = Model.StageKind == "HumanResources" && !Model.IsHrDisciplinaryScoreDeductionEnabled
+        ? r.OriginalEvaluationScore ?? r.FinalEvaluationScore
+        : r.FinalEvaluationScore;
     string score(decimal? value) => value.HasValue ? value.Value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) : "—";
     string faDate(DateTime? value) => value.HasValue ? PersianDateService.Format(value.Value) : "سابقه‌ای ثبت نشده است";
     string securityDecisionTitle(string? value) => value switch
@@ -34,7 +37,7 @@
     <div><span>تاریخ ثبت</span><strong>@PersianDateService.Format(r.CreatedAt)</strong></div>
     @if (viewingAllScores)
     {
-        <div><span>امتیاز نهایی ارزشیابی</span><strong>@score(r.FinalEvaluationScore) از ۱۰۰</strong></div>
+        <div><span>امتیاز نهایی ارزشیابی</span><strong>@score(displayedFinalScore) از ۱۰۰</strong></div>
     }
     @if (Model.StageKind is "Security" or "HumanResources" or "CEO")
     {
@@ -225,20 +228,33 @@
 {
     <section class="card">
         <div class="section-head"><div><h3>پیشنهاد مدت قرارداد</h3><span class="muted">مدت پیشنهادی از روی امتیاز نهایی محاسبه شده و قابل ویرایش است.</span></div></div>
-        <div class="contract-score-summary" id="hrDisciplinarySummary" data-original-score="@((r.OriginalEvaluationScore ?? r.FinalEvaluationScore ?? 0m).ToString(System.Globalization.CultureInfo.InvariantCulture))">
+        <div class="contract-score-summary" id="hrScoreSummary" data-original-score="@((r.OriginalEvaluationScore ?? r.FinalEvaluationScore ?? 0m).ToString(System.Globalization.CultureInfo.InvariantCulture))">
             <div><span>امتیاز اولیه ارزیابی سازمانی</span><div class="contract-score-value">@score(r.OriginalEvaluationScore ?? r.FinalEvaluationScore) <small>از ۱۰۰</small></div></div>
-            <div><span>کسر سوابق انضباطی ثبت‌شده</span><div class="contract-score-value">@score(r.HrDisciplinaryDeductionPercent) <small>٪</small></div></div>
-            <div><span>امتیاز نهایی پس از کسر</span><div class="contract-score-value"><span id="liveFinalScore">@score(r.FinalEvaluationScore)</span> <small>از ۱۰۰</small></div></div>
-            <div><span>مدت پیشنهادی سیستم بر اساس امتیاز نهایی</span><div class="contract-score-value">@suggested <small>ماه</small></div></div>
+            @if (Model.IsHrDisciplinaryScoreDeductionEnabled)
+            {
+                <div><span>کسر سوابق انضباطی ثبت‌شده</span><div class="contract-score-value">@score(r.HrDisciplinaryDeductionPercent) <small>٪</small></div></div>
+                <div><span>امتیاز نهایی پس از کسر</span><div class="contract-score-value"><span id="liveFinalScore">@score(r.FinalEvaluationScore)</span> <small>از ۱۰۰</small></div></div>
+            }
+            <div><span>مدت پیشنهادی سیستم بر اساس امتیاز ارزشیابی</span><div class="contract-score-value"><span id="systemSuggestedMonths">@suggested</span> <small>ماه</small></div></div>
         </div>
-        <div class="note">قاعده پیشنهادی فعلی: کمتر از ۳۰ = صفر ماه؛ ۳۰ تا ۳۵ = یک ماه؛ ۳۶ تا ۵۲ = سه ماه؛ ۵۳ تا ۷۰ = شش ماه؛ ۷۱ تا ۸۷ = نه ماه؛ ۸۸ تا ۱۰۰ = دوازده ماه. امتیازهای ۳۰ و ۸۸ برای جلوگیری از بازه خالی به‌ترتیب در گروه یک‌ماهه و دوازده‌ماهه قرار گرفته‌اند.</div>
+        @if (Model.IsHrDisciplinaryScoreDeductionEnabled)
+        {
+            <div class="note">قاعده پیشنهادی فعلی: کمتر از ۳۰ = صفر ماه؛ ۳۰ تا ۳۵ = یک ماه؛ ۳۶ تا ۵۲ = سه ماه؛ ۵۳ تا ۷۰ = شش ماه؛ ۷۱ تا ۸۷ = نه ماه؛ ۸۸ تا ۱۰۰ = دوازده ماه. امتیازهای ۳۰ و ۸۸ برای جلوگیری از بازه خالی به‌ترتیب در گروه یک‌ماهه و دوازده‌ماهه قرار گرفته‌اند.</div>
+        }
+        else
+        {
+            <div class="note">مدت پیشنهادی سیستم بر اساس امتیاز اصلی ارزشیابی محاسبه شده است.</div>
+        }
         @if (!Model.IsReadOnly) { <form method="post" action="/ContractRenewalTask/Submit" class="form-stack">
             @Html.AntiForgeryToken()
             <input type="hidden" name="id" value="@Model.Task.Id" />
-            <label>درصد کسر امتیاز بابت سوابق انضباطی *
-                <input id="disciplinaryDeductionPercent" type="number" name="disciplinaryDeductionPercent" min="0" max="100" step="0.01" required value="@score(r.HrDisciplinaryDeductionPercent)" />
-            </label>
-            <p class="muted">امتیاز نهایی پس از کسر از امتیاز اولیه محاسبه می‌شود و پیشنهاد سیستم بر اساس امتیاز جدید به‌روزرسانی خواهد شد.</p>
+            @if (Model.IsHrDisciplinaryScoreDeductionEnabled)
+            {
+                <label>درصد کسر امتیاز بابت سوابق انضباطی *
+                    <input id="disciplinaryDeductionPercent" type="number" name="disciplinaryDeductionPercent" min="0" max="100" step="0.01" required value="@score(r.HrDisciplinaryDeductionPercent)" />
+                </label>
+                <p class="muted">امتیاز نهایی پس از کسر از امتیاز اولیه محاسبه می‌شود و پیشنهاد سیستم بر اساس امتیاز جدید به‌روزرسانی خواهد شد.</p>
+            }
             <label>مدت پیشنهادی تمدید قرارداد (ماه؛ عدد صحیح از صفر تا ۱۲) *
                 <input id="hrContractMonths" type="number" name="contractMonths" min="0" max="12" step="1" required value="@suggested" />
             </label>
@@ -273,11 +289,11 @@
     </section>
 }
 
-@if (Model.StageKind == "HumanResources" && !Model.IsReadOnly)
+@if (Model.StageKind == "HumanResources" && Model.IsHrDisciplinaryScoreDeductionEnabled && !Model.IsReadOnly)
 {
 <script>
 (function () {
-    const summary = document.getElementById("hrDisciplinarySummary");
+    const summary = document.getElementById("hrScoreSummary");
     const deduction = document.getElementById("disciplinaryDeductionPercent");
     const suggestion = document.getElementById("systemSuggestedMonths");
     const finalScoreDisplay = document.getElementById("liveFinalScore");

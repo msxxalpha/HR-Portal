@@ -23,6 +23,8 @@ public class SystemSettingsEditModel
     public string? FaviconUrl { get; set; }
     public int ItemsPerPage { get; set; }
     public int PayrollMinimumYear { get; set; } = 1400;
+    // Nullable so the general settings form does not overwrite this admin-only option.
+    public bool? EnableHrDisciplinaryScoreDeduction { get; set; }
 
     // Security / OTP
     public int OtpLength { get; set; }

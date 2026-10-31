@@ -13,7 +13,12 @@ public static class DatabaseInitializer
 IF OBJECT_ID(N'dbo.SystemSettings', N'U') IS NOT NULL
 AND COL_LENGTH(N'dbo.SystemSettings', N'PayrollMinimumYear') IS NULL
     ALTER TABLE [dbo].[SystemSettings] ADD [PayrollMinimumYear] int NOT NULL
-        CONSTRAINT [DF_SystemSettings_PayrollMinimumYear] DEFAULT (1400) WITH VALUES;");
+        CONSTRAINT [DF_SystemSettings_PayrollMinimumYear] DEFAULT (1400) WITH VALUES;
+
+IF OBJECT_ID(N'dbo.SystemSettings', N'U') IS NOT NULL
+AND COL_LENGTH(N'dbo.SystemSettings', N'EnableHrDisciplinaryScoreDeduction') IS NULL
+    ALTER TABLE [dbo].[SystemSettings] ADD [EnableHrDisciplinaryScoreDeduction] bit NOT NULL
+        CONSTRAINT [DF_SystemSettings_EnableHrDisciplinaryScoreDeduction] DEFAULT (1) WITH VALUES;");
 
         await EnsureAdminTableAsync(db);
         await EnsureAdminColumnsAsync(db);

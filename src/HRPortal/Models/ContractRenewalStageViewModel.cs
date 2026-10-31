@@ -7,6 +7,7 @@ public class ContractRenewalStageViewModel
     public Employee SubjectEmployee { get; set; } = null!;
     public string StageKind { get; set; } = "";
     public bool IsReadOnly { get; set; }
+    public bool IsHrDisciplinaryScoreDeductionEnabled { get; set; } = true;
     public List<EmployeePerformanceEvaluationScore> CurrentScores { get; set; } = [];
     public List<EmployeePerformanceEvaluationScore> PreviousStageScores { get; set; } = [];
     public List<ContractRenewalScoreStageGroup> AllScoreStages { get; set; } = [];

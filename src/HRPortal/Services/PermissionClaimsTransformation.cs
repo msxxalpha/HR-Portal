@@ -11,7 +11,7 @@ public sealed class PermissionClaimsTransformation(RoleService roles) : IClaimsT
 {
     public async Task<ClaimsPrincipal> TransformAsync(ClaimsPrincipal principal)
     {
-        if (principal.Identity?.IsAuthenticated != true || principal.HasClaim("IsAdmin", "1"))
+        if (!principal.Identities.Any(x => x.IsAuthenticated) || principal.HasClaim("IsAdmin", "1"))
             return principal;
 
         // Locate the actual employee identity by its stable employee key. Do not

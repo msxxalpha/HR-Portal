@@ -89,6 +89,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         var defaultRole = await db.Roles.FirstOrDefaultAsync(x => x.Code == "EMPLOYEE" && x.IsActive);
         if (defaultRole is not null)
             await roles.SaveEmployeeRolesAsync(employee.Id, new[] { defaultRole.Id });
+        await roles.SynchronizePerformanceEvaluatorRoleAsync(employee.Id, employee.IsPerformanceEvaluator);
 
         await audit.WriteAsync("ایجاد کارمند", "Employee", employee.Id.ToString(), employee.PersonnelNumber);
         return RedirectToAction(nameof(Index));
@@ -139,6 +140,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         existing.IsSystemUser = existing.Status == "فعال";
         existing.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
+        await roles.SynchronizePerformanceEvaluatorRoleAsync(existing.Id, existing.IsPerformanceEvaluator);
 
         await audit.WriteAsync("ویرایش کارمند", "Employee", existing.Id.ToString(), existing.PersonnelNumber);
         return RedirectToAction(nameof(Index));

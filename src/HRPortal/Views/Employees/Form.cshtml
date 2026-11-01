@@ -79,6 +79,7 @@
             </label>
             <label class="inline-check">ارزیاب عملکرد ماهانه
                 <input type="checkbox" name="IsPerformanceEvaluator" value="true" checked="@Model.Employee.IsPerformanceEvaluator" />
+                <small class="muted">با فعال‌سازی این گزینه، نقش «ارزیاب عملکرد» نیز به کاربر اختصاص داده می‌شود؛ دامنه ارزیابی همچنان بر اساس ساختار سازمانی کنترل خواهد شد.</small>
             </label>
             <label class="inline-check">غیرقراردادی
                 <input type="checkbox" id="isNonContractual" name="isNonContractual" value="true" checked="@(Model.Employee.EmploymentType == "غیرقراردادی")" />

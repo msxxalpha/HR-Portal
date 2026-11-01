@@ -126,7 +126,7 @@ public class UsersController(HRPortalDbContext db, RoleService roles, AuditServi
         try
         {
             await roles.SaveRoleRankTypesAsync(roleId, rankTypes ?? []);
-            TempData["Success"] = "تخصیص رده‌های سازمانی به نقش ذخیره شد. کاربران باید یک‌بار خارج و دوباره وارد سامانه شوند تا دسترسی‌های جدید در نشست آن‌ها اعمال شود.";
+            TempData["Success"] = "تخصیص رده‌های سازمانی به نقش ذخیره شد؛ دسترسی‌های مؤثر کاربران در درخواست بعدی بر اساس ساختار نهایی و تمام نقش‌های فعال محاسبه می‌شود.";
         }
         catch (InvalidOperationException ex)
         {

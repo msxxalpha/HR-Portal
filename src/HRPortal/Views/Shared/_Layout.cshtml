@@ -33,7 +33,7 @@
 
         <nav class="nav">
             <a class="nav-dashboard" href="/"><span class="nav-icon">⌂</span>داشبورد</a>
-            @if (Can("Workflow.Inbox")) {
+            @if (Can("Workflow.Inbox") || Can("ContractRenewal.Manage")) {
                 <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Workflow") ? "open" : null)">
                     <summary><span class="nav-icon">▤</span>درخواست‌ها</summary><div class="nav-submenu">
                         <a href="/Workflow/MyRequests">درخواست‌های من</a><a href="/Workflow/Inbox">کارتابل</a>
@@ -55,7 +55,8 @@
                     </div>
                 </details>
             }
-            @if (isAdmin || Can("ContractRenewal.Manage") || User.HasClaim("UserType","Employee")) {
+            @if (isAdmin || Can("ContractRenewal.Manage") || Can("MonthlyPerformance.View") ||
+                Can("MonthlyPerformance.Evaluate") || Can("MonthlyPerformance.Manage") || Can("MonthlyPerformance.Reports")) {
                 <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/EmployeeContracts") || (Context.Request.Path.StartsWithSegments("/MonthlyPerformance") || Context.Request.Path.StartsWithSegments("/MonthlyPerformanceAdmin") || Context.Request.Path.StartsWithSegments("/MonthlyPerformanceReports")) ? "open" : null)">
                     <summary><span class="nav-icon">▦</span>ماژول‌ها</summary>
                     <div class="nav-submenu">
@@ -70,17 +71,18 @@
                             </div>
                         </details>
                         }
-                        @if (isAdmin || User.HasClaim("UserType","Employee")) {
+                        @if (isAdmin || Can("MonthlyPerformance.View") || Can("MonthlyPerformance.Evaluate") ||
+                            Can("MonthlyPerformance.Manage") || Can("MonthlyPerformance.Reports")) {
                         <details class="nav-subgroup" open="@(Context.Request.Path.StartsWithSegments("/MonthlyPerformance") ? "open" : null)">
                             <summary>ارزیابی عملکرد کارکنان</summary>
                             <div class="nav-submenu nav-submenu-nested">
-                                @if (isAdmin) { <a href="/MonthlyPerformanceAdmin/Basic">اطلاعات پایه ماژول</a> }
-                                @if (isAdmin) { <a href="/MonthlyPerformanceAdmin/Periods">دوره‌های ارزیابی</a> }
-                                @if (isAdmin) { <a href="/MonthlyPerformanceAdmin/Ranks">رده‌های پستی</a> }
-                                @if (isAdmin) { <a href="/MonthlyPerformanceAdmin/Questions">بانک سؤالات</a> }
-                                @if (isAdmin) { <a href="/MonthlyPerformanceReports/Index">گزارش‌های مدیریتی عملکرد</a> }
-                                @if (User.HasClaim("IsPerformanceEvaluator","1")) { <a href="/MonthlyPerformance/Dashboard">داشبورد ارزیاب و کارتابل عملکرد</a> }
-                                @if (User.HasClaim("UserType","Employee")) { <a href="/MonthlyPerformance/Mine">داشبورد عملکرد شخصی</a> }
+                                @if (isAdmin || Can("MonthlyPerformance.Manage")) { <a href="/MonthlyPerformanceAdmin/Basic">اطلاعات پایه ماژول</a> }
+                                @if (isAdmin || Can("MonthlyPerformance.Manage")) { <a href="/MonthlyPerformanceAdmin/Periods">دوره‌های ارزیابی</a> }
+                                @if (isAdmin || Can("MonthlyPerformance.Manage")) { <a href="/MonthlyPerformanceAdmin/Ranks">رده‌های پستی</a> }
+                                @if (isAdmin || Can("MonthlyPerformance.Manage")) { <a href="/MonthlyPerformanceAdmin/Questions">بانک سؤالات</a> }
+                                @if (isAdmin || Can("MonthlyPerformance.Reports")) { <a href="/MonthlyPerformanceReports/Index">گزارش‌های مدیریتی عملکرد</a> }
+                                @if (Can("MonthlyPerformance.Evaluate") && User.HasClaim("IsPerformanceEvaluator","1")) { <a href="/MonthlyPerformance/Dashboard">داشبورد ارزیاب و کارتابل عملکرد</a> }
+                                @if (Can("MonthlyPerformance.View")) { <a href="/MonthlyPerformance/Mine">داشبورد عملکرد شخصی</a> }
                             </div>
                         </details>
                         }

@@ -8,8 +8,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HRPortal.Controllers;
 
-[Authorize(Policy = "AdminOnly")]
-public class MonthlyPerformanceAdminController(HRPortalDbContext db) : Controller
+[Authorize(Policy = "MonthlyPerformance.Manage")]
+public class MonthlyPerformanceAdminController(HRPortalDbContext db, RoleService roles) : Controller
 {
     private static string Code(string? supplied, string prefix, IEnumerable<string> existing)
     {
@@ -303,7 +303,8 @@ public class MonthlyPerformanceAdminController(HRPortalDbContext db) : Controlle
         if (employee is null) return NotFound();
         employee.IsPerformanceEvaluator = isEvaluator;
         await db.SaveChangesAsync();
-        TempData["Success"] = "ویژگی ارزیاب کارمند ذخیره شد.";
+        await roles.SynchronizePerformanceEvaluatorRoleAsync(employeeId, isEvaluator);
+        TempData["Success"] = "ویژگی ارزیاب کارمند و نقش متناظر آن ذخیره شد.";
         return RedirectToAction("Index", "Employees");
     }
 

@@ -112,6 +112,38 @@ if (!MonthlyPerformanceScopeResolver.Resolve(100,nodes,reconciledPeople,ranks,jo
     .Any(x => x.EmployeeId == 103))
     throw new Exception("Employee with a cloned-structure department reference is missing from evaluator scope.");
 
+var unionPermissions = RoleService.AggregatePermissionCodes(
+    new[] { "Employees.View", "MonthlyPerformance.View", "Workflow.Inbox" },
+    new[] { "MonthlyPerformance.Evaluate", "ContractRenewal.Manage" },
+    new[] { "employees.view", "MonthlyPerformance.Reports" });
+var expectedUnion = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+    "Employees.View", "MonthlyPerformance.View", "Workflow.Inbox",
+    "MonthlyPerformance.Evaluate", "ContractRenewal.Manage", "MonthlyPerformance.Reports"
+};
+if (!unionPermissions.SetEquals(expectedUnion))
+    throw new Exception($"Multiple-role permissions were not unioned correctly: [{string.Join(", ", unionPermissions)}]");
+
+var inheritedRanks = RoleService.ResolveRankTypesForEmployee(
+    777, 910, "ORG-MANAGER-A",
+    new[]
+    {
+        new RoleService.OrganizationRankNode(10, "ORG-MANAGER-A", "مدیریت", null, null),
+        new RoleService.OrganizationRankNode(11, "ORG-TEAM", "کارشناس", null, "776،777"),
+        new RoleService.OrganizationRankNode(12, "ORG-TEAM-2", "سرپرستی", null, "777؛778"),
+        new RoleService.OrganizationRankNode(13, "ORG-OTHER", "مدیریت", 999, "900")
+    });
+if (!inheritedRanks.SetEquals(new[] { "مدیریت", "کارشناس", "سرپرستی" }))
+    throw new Exception($"Stale position mapping/Persian CSV rank inheritance failed: [{string.Join(", ", inheritedRanks)}]");
+
+var requiredModulePermissions = new[]
+{
+    "MonthlyPerformance.View", "MonthlyPerformance.Evaluate",
+    "MonthlyPerformance.Manage", "MonthlyPerformance.Reports"
+};
+if (requiredModulePermissions.Any(code => !RoleService.DefaultPermissions.Any(x => x.Code == code)))
+    throw new Exception("A monthly-performance permission is missing from the role-management catalogue.");
+
 Console.WriteLine("PASS: Strict hierarchy, two staff in one child node, department-only membership,");
 Console.WriteLine("      no sibling/peer access, nested descendants, stale profile precedence,");
 Console.WriteLine("      inactive staff, invalid branches, Persian CSV delimiters, and no duplicates.");

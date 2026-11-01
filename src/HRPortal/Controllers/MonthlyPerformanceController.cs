@@ -14,7 +14,7 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
     private bool TryEmployee(out int id) => int.TryParse(User.FindFirst("EmployeeId")?.Value, out id);
     private bool IsAdmin => User.HasClaim("IsAdmin", "1");
 
-    [HttpGet]
+    [HttpGet, Authorize(Policy = "MonthlyPerformance.Evaluate")]
     public async Task<IActionResult> Dashboard(int? periodId)
     {
         if (!TryEmployee(out var actor) || !await performance.IsEvaluatorAsync(actor)) return Forbid();
@@ -90,7 +90,7 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
         return View(model);
     }
 
-    [HttpGet]
+    [HttpGet, Authorize(Policy = "MonthlyPerformance.Evaluate")]
     public async Task<IActionResult> Evaluate(int employeeId, int periodId)
     {
         if (!TryEmployee(out var actor) || !await performance.IsEvaluatorAsync(actor)) return Forbid();
@@ -158,7 +158,7 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
         return View(model);
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "MonthlyPerformance.Evaluate"), ValidateAntiForgeryToken]
     public async Task<IActionResult> Save(int employeeId, int periodId, Dictionary<int, decimal> scores,
         Dictionary<int, string?>? notes, string? reason, string? expectedVersion)
     {
@@ -181,7 +181,7 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
         return RedirectToAction(nameof(Evaluate), new { employeeId, periodId });
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "MonthlyPerformance.Evaluate"), ValidateAntiForgeryToken]
     public async Task<IActionResult> QuickAll(int periodId)
     {
         if (!TryEmployee(out var actor) || !await performance.IsEvaluatorAsync(actor)) return Forbid();
@@ -195,7 +195,7 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
         return RedirectToAction(nameof(Dashboard), new { periodId });
     }
 
-    [HttpGet]
+    [HttpGet, Authorize(Policy = "MonthlyPerformance.View")]
     public async Task<IActionResult> Mine()
     {
         if (!TryEmployee(out var actor)) return Forbid();
@@ -206,7 +206,7 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
         return View(rows);
     }
 
-    [HttpGet]
+    [HttpGet, Authorize(Policy = "MonthlyPerformance.View")]
     public async Task<IActionResult> MyDetails(int periodId)
     {
         if (!TryEmployee(out var actor)) return Forbid();
@@ -216,7 +216,7 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
         return eval is null ? NotFound() : View(eval);
     }
 
-    [HttpGet]
+    [HttpGet, Authorize(Policy = "MonthlyPerformance.View")]
     public async Task<IActionResult> ExportMine()
     {
         if (!TryEmployee(out var employeeId)) return Forbid();
@@ -257,7 +257,7 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
         return File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "my-monthly-performance.xlsx");
     }
 
-    [HttpGet]
+    [HttpGet, Authorize(Policy = "MonthlyPerformance.ReadEvaluation")]
     public async Task<IActionResult> ExportEvaluation(int employeeId, int periodId)
     {
         if (!TryEmployee(out var actor)) return Forbid();
@@ -294,7 +294,7 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
             $"performance-{periodId}-{employeeId}.xlsx");
     }
 
-    [HttpGet]
+    [HttpGet, Authorize(Policy = "MonthlyPerformance.Evaluate")]
     public async Task<IActionResult> Export(int periodId)
     {
         if (!TryEmployee(out var actor) || !await performance.IsEvaluatorAsync(actor)) return Forbid();

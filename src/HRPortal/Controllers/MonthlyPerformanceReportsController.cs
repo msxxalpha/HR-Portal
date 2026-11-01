@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace HRPortal.Controllers;
 
 // Aggregates only the most recent score snapshots, never historical superseded values.
-[Authorize(Policy = "AdminOnly")]
+[Authorize(Policy = "MonthlyPerformance.Reports")]
 public class MonthlyPerformanceReportsController(HRPortalDbContext db) : Controller
 {
     public sealed class ReportRow

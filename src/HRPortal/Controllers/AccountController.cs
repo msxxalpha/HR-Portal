@@ -154,7 +154,8 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
             return RedirectToAction(nameof(PersonalPassword));
         // Evaluators still enter their dashboard when no period is active, to see
         // the closed-period warning and their own historical evaluations.
-        var landing = employee.IsPerformanceEvaluator ? "/MonthlyPerformance/Dashboard" : "/MonthlyPerformance/Mine";
+        var canEvaluate = employee.IsPerformanceEvaluator && permissions.Contains("MonthlyPerformance.Evaluate");
+        var landing = canEvaluate ? "/MonthlyPerformance/Dashboard" : "/MonthlyPerformance/Mine";
         return Redirect(!string.IsNullOrWhiteSpace(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl) ? model.ReturnUrl : landing);
     }
 
@@ -293,7 +294,8 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
         await audit.WriteAsync("ورود موفق کارمند", "Account", employee.Id.ToString(), employee.PersonnelNumber, employee.Id);
         // Evaluators still enter their dashboard when no period is active, to see
         // the closed-period warning and their own historical evaluations.
-        var landing = employee.IsPerformanceEvaluator ? "/MonthlyPerformance/Dashboard" : "/MonthlyPerformance/Mine";
+        var canEvaluate = employee.IsPerformanceEvaluator && permissions.Contains("MonthlyPerformance.Evaluate");
+        var landing = canEvaluate ? "/MonthlyPerformance/Dashboard" : "/MonthlyPerformance/Mine";
         return Redirect(!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl) ? returnUrl : landing);
     }
 

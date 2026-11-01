@@ -1,5 +1,6 @@
 using HRPortal.Data;
 using HRPortal.Services;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -75,6 +76,7 @@ builder.Services.AddScoped<AnnouncementService>();
 builder.Services.AddScoped<EmployeeExcelService>();
 builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<RoleService>();
+builder.Services.AddScoped<IClaimsTransformation, PermissionClaimsTransformation>();
 builder.Services.AddScoped<WorkflowService>();
 builder.Services.AddScoped<MonthlyPerformanceService>();
 builder.Services.AddScoped<ContractRenewalWorkflowService>();
@@ -95,11 +97,23 @@ builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("AdminOnly", policy => policy.RequireClaim("IsAdmin", "1"));
 
-    foreach (var permission in RoleService.DefaultPermissions)
+    foreach (var permission in RoleService.DefaultPermissions.Where(x => x.Code != "Workflow.Inbox"))
         options.AddPolicy(permission.Code, policy =>
             policy.RequireAssertion(context =>
                 context.User.HasClaim("IsAdmin", "1") ||
                 context.User.HasClaim("Permission", permission.Code)));
+
+    options.AddPolicy("Workflow.Inbox", policy =>
+        policy.RequireAssertion(context =>
+            context.User.HasClaim("IsAdmin", "1") ||
+            context.User.HasClaim("Permission", "Workflow.Inbox") ||
+            context.User.HasClaim("Permission", "ContractRenewal.Manage")));
+
+    options.AddPolicy("MonthlyPerformance.ReadEvaluation", policy =>
+        policy.RequireAssertion(context =>
+            context.User.HasClaim("IsAdmin", "1") ||
+            context.User.HasClaim("Permission", "MonthlyPerformance.View") ||
+            context.User.HasClaim("Permission", "MonthlyPerformance.Evaluate")));
 
     options.AddPolicy("UsersRoles.Manage", policy =>
         policy.RequireAssertion(context =>

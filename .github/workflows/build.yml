@@ -19,14 +19,13 @@ jobs:
       - name: Verify embedded Git build identity
         shell: pwsh
         run: |
-          $assemblyInfoPath = Join-Path $PWD "src/HRPortal/obj/Release/net8.0/HRPortal.AssemblyInfo.cs"
-          $assemblyInfo = Get-Content -Raw $assemblyInfoPath
+          $buildInfoPath = Join-Path $PWD "src/HRPortal/obj/Release/net8.0/GitBuildInfo.g.cs"
+          $buildInfo = Get-Content -Raw $buildInfoPath
           $expected = $env:GITHUB_SHA.Substring(0, 12)
-          if (-not $assemblyInfo.Contains($expected)) {
-            throw "Generated assembly information does not identify Git commit '$expected'."
+          if (-not $buildInfo.Contains($expected)) {
+            throw "Generated build identity does not identify Git commit '$expected'."
           }
-          $versionLine = ($assemblyInfo -split "`r?`n" | Where-Object { $_ -match "AssemblyInformationalVersion" } | Select-Object -First 1)
-          Write-Host "Verified HR Portal build identity: $versionLine"
+          Write-Host "Verified HR Portal build identity: $expected"
       - name: Verify evaluator hierarchical scope regression
         run: dotnet run --project tests/HRPortal.ScopeSmoke/HRPortal.ScopeSmoke.csproj --configuration Release
       - name: Verify Persian calendar conversion

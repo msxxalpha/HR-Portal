@@ -5,25 +5,35 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>HRPortal</RootNamespace>
     <Version>1.0.0</Version>
-    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
-  <!-- Embed the checked-out Git commit in the assembly so local Visual Studio
-       builds can be compared directly with the GitHub branch head. -->
-  <Target Name="SetGitCommitInformationalVersion" BeforeTargets="GenerateAssemblyInfo" Condition="'$(DesignTimeBuild)' != 'true'">
+  <!-- Generate a tiny source file before compilation. This works for both
+       Visual Studio and CI builds, without requiring Git metadata at runtime. -->
+  <Target Name="GenerateGitBuildInfo" BeforeTargets="CoreCompile" Condition="'$(DesignTimeBuild)' != 'true'">
+    <PropertyGroup>
+      <_GitCommitHash Condition="'$(SourceRevisionId)' != ''">$(SourceRevisionId)</_GitCommitHash>
+    </PropertyGroup>
     <Exec Command="git rev-parse --short=12 HEAD"
           WorkingDirectory="$(MSBuildProjectDirectory)"
           IgnoreExitCode="true"
           ConsoleToMSBuild="true"
-          Condition="'$(SourceRevisionId)' == ''">
+          Condition="'$(_GitCommitHash)' == ''">
       <Output TaskParameter="ConsoleOutput" PropertyName="_GitCommitHash" />
     </Exec>
     <PropertyGroup>
       <_GitCommitHashTrimmed>$([System.String]::Copy('$(_GitCommitHash)').Trim())</_GitCommitHashTrimmed>
-      <InformationalVersion Condition="'$(_GitCommitHashTrimmed)' != ''">$(Version)+$(_GitCommitHashTrimmed)</InformationalVersion>
-      <InformationalVersion Condition="'$(_GitCommitHashTrimmed)' == '' and '$(SourceRevisionId)' != ''">$(Version)+$(SourceRevisionId)</InformationalVersion>
-      <InformationalVersion Condition="'$(_GitCommitHashTrimmed)' == '' and '$(SourceRevisionId)' == ''">$(Version)+unknown</InformationalVersion>
+      <_GitCommitHashTrimmed Condition="'$(_GitCommitHashTrimmed)' == ''">unknown</_GitCommitHashTrimmed>
     </PropertyGroup>
+    <ItemGroup>
+      <_GitBuildInfoLine Include="namespace HRPortal%3B" />
+      <_GitBuildInfoLine Include="public static partial class BuildInfo" />
+      <_GitBuildInfoLine Include="{" />
+      <_GitBuildInfoLine Include="    static partial void SetGitCommit(ref string commit) { commit = &quot;$(_GitCommitHashTrimmed)&quot;%3B }" />
+      <_GitBuildInfoLine Include="}" />
+      <Compile Include="$(IntermediateOutputPath)GitBuildInfo.g.cs" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(IntermediateOutputPath)GitBuildInfo.g.cs" Lines="@(_GitBuildInfoLine)" Overwrite="true" />
+    <Message Importance="High" Text="HR Portal source commit: $(_GitCommitHashTrimmed)" />
   </Target>
   <ItemGroup>
     <PackageReference Include="ClosedXML" Version="0.104.2" />

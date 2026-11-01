@@ -136,6 +136,21 @@ var inheritedRanks = RoleService.ResolveRankTypesForEmployee(
 if (!inheritedRanks.SetEquals(new[] { "مدیریت", "کارشناس", "سرپرستی" }))
     throw new Exception($"Stale position mapping/Persian CSV rank inheritance failed: [{string.Join(", ", inheritedRanks)}]");
 
+if (!RoleService.IsMonthlyPerformanceManagerRole("CUSTOM_ROLE_01", "مدیریت ارزیابی عملکرد") ||
+    !RoleService.IsMonthlyPerformanceManagerRole("MONTHLY_PERFORMANCE_MANAGER", "مدیر ماژول ارزیابی عملکرد") ||
+    !RoleService.IsMonthlyPerformanceManagerRole("PERFORMANCE_ADMIN", "مدیریت ماژول ارزیابی عملکرد") ||
+    RoleService.IsMonthlyPerformanceManagerRole("EMPLOYEE", "کاربر کارکنان"))
+    throw new Exception("Existing Persian performance-management roles were not recognized safely.");
+
+var managerPermissions = RoleService.AggregatePermissionCodes(
+    new[] { "Payroll.View", "MonthlyPerformance.View" },
+    new[] { "MonthlyPerformance.Manage", "MonthlyPerformance.Reports" });
+if (!managerPermissions.Contains("MonthlyPerformance.Manage") ||
+    !managerPermissions.Contains("MonthlyPerformance.View") ||
+    !managerPermissions.Contains("Payroll.View") ||
+    !managerPermissions.Contains("MonthlyPerformance.Reports"))
+    throw new Exception("An employee holding both employee and performance-manager roles did not receive the union of permissions.");
+
 var requiredModulePermissions = new[]
 {
     "MonthlyPerformance.View", "MonthlyPerformance.Evaluate",

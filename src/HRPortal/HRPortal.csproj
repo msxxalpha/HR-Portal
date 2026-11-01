@@ -4,7 +4,27 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>HRPortal</RootNamespace>
+    <Version>1.0.0</Version>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
+
+  <!-- Embed the checked-out Git commit in the assembly so local Visual Studio
+       builds can be compared directly with the GitHub branch head. -->
+  <Target Name="SetGitCommitInformationalVersion" BeforeTargets="GenerateAssemblyInfo" Condition="'$(DesignTimeBuild)' != 'true'">
+    <Exec Command="git rev-parse --short=12 HEAD"
+          WorkingDirectory="$(MSBuildProjectDirectory)"
+          IgnoreExitCode="true"
+          ConsoleToMSBuild="true"
+          Condition="'$(SourceRevisionId)' == ''">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_GitCommitHash" />
+    </Exec>
+    <PropertyGroup>
+      <_GitCommitHashTrimmed>$([System.String]::Copy('$(_GitCommitHash)').Trim())</_GitCommitHashTrimmed>
+      <InformationalVersion Condition="'$(_GitCommitHashTrimmed)' != ''">$(Version)+$(_GitCommitHashTrimmed)</InformationalVersion>
+      <InformationalVersion Condition="'$(_GitCommitHashTrimmed)' == '' and '$(SourceRevisionId)' != ''">$(Version)+$(SourceRevisionId)</InformationalVersion>
+      <InformationalVersion Condition="'$(_GitCommitHashTrimmed)' == '' and '$(SourceRevisionId)' == ''">$(Version)+unknown</InformationalVersion>
+    </PropertyGroup>
+  </Target>
   <ItemGroup>
     <PackageReference Include="ClosedXML" Version="0.104.2" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.20" />

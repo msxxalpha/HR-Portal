@@ -42,6 +42,22 @@ public class RoleService(HRPortalDbContext db)
     public sealed record OrganizationRankNode(
         int Id, string Code, string RankType, int? PositionHolderEmployeeId, string? AssignedEmployeeIdsCsv);
 
+    public static bool IsMonthlyPerformanceManagerRole(string? roleCode, string? roleTitle)
+    {
+        var code = (roleCode ?? string.Empty).Trim().Replace("-", "_").ToUpperInvariant();
+        var title = (roleTitle ?? string.Empty).Trim()
+            .Replace("ي", "ی", StringComparison.Ordinal)
+            .Replace("ك", "ک", StringComparison.Ordinal)
+            .Replace("‌", string.Empty, StringComparison.Ordinal)
+            .Replace(" ", string.Empty, StringComparison.Ordinal);
+
+        return code is "PERFORMANCE_MANAGER" or "MONTHLY_PERFORMANCE_MANAGER" or "PERFORMANCE_ADMIN" ||
+            title.StartsWith("مدیریتارزیابیعملکرد", StringComparison.Ordinal) ||
+            title.StartsWith("مدیریتماژولارزیابیعملکرد", StringComparison.Ordinal) ||
+            title.StartsWith("مدیرارزیابیعملکرد", StringComparison.Ordinal) ||
+            title.StartsWith("مدیرماژولارزیابیعملکرد", StringComparison.Ordinal);
+    }
+
     public static HashSet<string> AggregatePermissionCodes(params IEnumerable<string>[] permissionSets)
     {
         var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -118,6 +134,22 @@ public class RoleService(HRPortalDbContext db)
         await EnsureRoleAsync("WORKFLOW_MANAGER", "مدیریت گردش کار", "تعریف گردش کار و تخصیص مراحل به جایگاه‌های سازمانی",
             ["Workflow.Inbox", "Workflow.Manage"]);
 
+        // The manager role is a first-class seeded role. Existing locally-created
+        // roles with the established Persian title are repaired in place below,
+        // so their current employee assignments are preserved.
+        await EnsureRoleAsync(
+            "PERFORMANCE_MANAGER", "مدیریت ارزیابی عملکرد",
+            "مدیریت اطلاعات پایه، دوره‌ها و گزارش‌های ماژول ارزیابی عملکرد کارکنان",
+            ["MonthlyPerformance.Manage", "MonthlyPerformance.Reports"]);
+
+        var managementRoles = await db.Roles.ToListAsync();
+        foreach (var managementRole in managementRoles.Where(x =>
+            IsMonthlyPerformanceManagerRole(x.Code, x.Title)))
+        {
+            await EnsureRolePermissionsAsync(
+                managementRole, ["MonthlyPerformance.Manage", "MonthlyPerformance.Reports"]);
+        }
+
         var evaluatorRoleExisted = await db.Roles.AnyAsync(x => x.Code == "PERFORMANCE_EVALUATOR");
         var evaluatorRole = await EnsureRoleAsync(
             "PERFORMANCE_EVALUATOR", "ارزیاب عملکرد",
@@ -149,16 +181,27 @@ public class RoleService(HRPortalDbContext db)
             await db.SaveChangesAsync();
         }
 
+        await EnsureRolePermissionsAsync(role, permissionCodes);
+        return role;
+    }
+
+    private async Task EnsureRolePermissionsAsync(Role role, IEnumerable<string> permissionCodes)
+    {
+        var codes = permissionCodes.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         var permissionIds = await db.Permissions
-            .Where(x => permissionCodes.Contains(x.Code))
+            .Where(x => codes.Contains(x.Code))
             .Select(x => x.Id)
             .ToListAsync();
 
-        var existing = await db.RolePermissions.Where(x => x.RoleId == role.Id).Select(x => x.PermissionId).ToListAsync();
+        var existing = await db.RolePermissions
+            .Where(x => x.RoleId == role.Id)
+            .Select(x => x.PermissionId)
+            .ToListAsync();
+
         foreach (var id in permissionIds.Except(existing))
             db.RolePermissions.Add(new RolePermission { RoleId = role.Id, PermissionId = id });
+
         await db.SaveChangesAsync();
-        return role;
     }
 
     public async Task<List<Role>> GetRolesAsync() =>

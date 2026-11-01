@@ -1,6 +1,5 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
 
 namespace HRPortal.Services;
 
@@ -15,10 +14,11 @@ public sealed class PermissionClaimsTransformation(RoleService roles) : IClaimsT
         if (principal.Identity?.IsAuthenticated != true || principal.HasClaim("IsAdmin", "1"))
             return principal;
 
+        // Locate the actual employee identity by its stable employee key. Do not
+        // depend on AuthenticationType: cookie schemes can be renamed by hosting
+        // or authentication configuration without changing the employee identity.
         var identity = principal.Identities.FirstOrDefault(x =>
-            x.IsAuthenticated &&
-            string.Equals(x.AuthenticationType, CookieAuthenticationDefaults.AuthenticationScheme,
-                StringComparison.Ordinal));
+            x.IsAuthenticated && x.HasClaim(claim => claim.Type == "EmployeeId"));
 
         if (identity is null ||
             !int.TryParse(identity.FindFirst("EmployeeId")?.Value, out var employeeId))

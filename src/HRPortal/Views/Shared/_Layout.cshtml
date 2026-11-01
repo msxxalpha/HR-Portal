@@ -127,7 +127,19 @@
         </nav>
 
         <div class="sidebar-foot">
-            @(isAdmin ? "مدیر سامانه" : "کاربر کارکنان")
+            <div>@(isAdmin ? "مدیر سامانه" : "کاربر کارکنان")</div>
+            @if (HRPortal.BuildInfo.Commit != "نامشخص")
+            {
+                <a class="build-version" href="https://github.com/msxxalpha/HR-Portal/commit/@HRPortal.BuildInfo.Commit"
+                   target="_blank" rel="noopener noreferrer"
+                   title="نسخه منبع: @HRPortal.BuildInfo.Commit">
+                    نسخه @HRPortal.BuildInfo.Number · @HRPortal.BuildInfo.Commit
+                </a>
+            }
+            else
+            {
+                <span class="build-version">نسخه @HRPortal.BuildInfo.Number · Commit نامشخص</span>
+            }
         </div>
     </aside>
 
@@ -161,7 +173,7 @@
                     <span> | @company.OrganizationName</span>
                 }
             </span>
-            <span class="build-version">Build @HRPortal.BuildInfo.Number</span>
+            <span class="build-version">نسخه @HRPortal.BuildInfo.Number · Commit @HRPortal.BuildInfo.Commit</span>
         </footer>
     </div>
 </div>

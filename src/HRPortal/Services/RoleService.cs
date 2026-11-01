@@ -186,6 +186,13 @@ public class RoleService(HRPortalDbContext db)
 
     public async Task<HashSet<string>> GetEmployeePermissionsAsync(int employeeId)
     {
+        // A deactivated employee must lose all role-derived access even if their
+        // browser still holds an otherwise valid authentication cookie.
+        var isActiveSystemUser = await db.Employees.AsNoTracking()
+            .AnyAsync(x => x.Id == employeeId && x.IsSystemUser && x.Status == "فعال");
+        if (!isActiveSystemUser)
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         var directCodes = await db.EmployeeRoles.AsNoTracking()
             .Where(er => er.EmployeeId == employeeId && er.Role.IsActive)
             .SelectMany(er => db.RolePermissions.Where(rp => rp.RoleId == er.RoleId)
@@ -242,7 +249,8 @@ public class RoleService(HRPortalDbContext db)
 
     public async Task<bool> IsPerformanceEvaluatorAsync(int employeeId) =>
         await db.Employees.AsNoTracking()
-            .AnyAsync(x => x.Id == employeeId && x.Status == "فعال" && x.IsPerformanceEvaluator);
+            .AnyAsync(x => x.Id == employeeId && x.IsSystemUser &&
+                x.Status == "فعال" && x.IsPerformanceEvaluator);
 
     public async Task SynchronizePerformanceEvaluatorRoleAsync(int employeeId, bool isEvaluator)
     {

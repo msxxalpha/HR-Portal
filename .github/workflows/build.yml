@@ -16,6 +16,17 @@ jobs:
         run: dotnet restore src/HRPortal/HRPortal.csproj
       - name: Build
         run: dotnet build src/HRPortal/HRPortal.csproj --configuration Release --no-restore
+      - name: Verify embedded Git build identity
+        shell: pwsh
+        run: |
+          $assemblyPath = Join-Path $PWD "src/HRPortal/bin/Release/net8.0/HRPortal.dll"
+          $assembly = [System.Reflection.Assembly]::LoadFile($assemblyPath)
+          $attribute = $assembly.GetCustomAttributes([System.Reflection.AssemblyInformationalVersionAttribute], $false) | Select-Object -First 1
+          $expected = $env:GITHUB_SHA.Substring(0, 12)
+          if ($null -eq $attribute -or -not $attribute.InformationalVersion.Contains($expected)) {
+            throw "Embedded assembly version '$($attribute.InformationalVersion)' does not identify Git commit '$expected'."
+          }
+          Write-Host "Verified HR Portal build identity: $($attribute.InformationalVersion)"
       - name: Verify evaluator hierarchical scope regression
         run: dotnet run --project tests/HRPortal.ScopeSmoke/HRPortal.ScopeSmoke.csproj --configuration Release
       - name: Verify Persian calendar conversion

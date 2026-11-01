@@ -13,7 +13,7 @@ public static class BuildInfo
     {
         get
         {
-            var informationalVersion = Assembly.GetEntryAssembly()?
+            var informationalVersion = typeof(BuildInfo).Assembly
                 .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
             if (string.IsNullOrWhiteSpace(informationalVersion))
                 return "نامشخص";
@@ -23,9 +23,10 @@ public static class BuildInfo
                 return "نامشخص";
 
             var commit = informationalVersion[(separator + 1)..].Trim();
-            return string.IsNullOrWhiteSpace(commit) || commit.Equals("unknown", StringComparison.OrdinalIgnoreCase)
-                ? "نامشخص"
-                : commit;
+            if (string.IsNullOrWhiteSpace(commit) || commit.Equals("unknown", StringComparison.OrdinalIgnoreCase))
+                return "نامشخص";
+
+            return commit.Length > 12 ? commit[..12] : commit;
         }
     }
 }

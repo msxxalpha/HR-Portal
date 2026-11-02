@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.20" />
     <ProjectReference Include="../../src/HRPortal/HRPortal.csproj" />
   </ItemGroup>
 </Project>

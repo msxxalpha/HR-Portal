@@ -15,7 +15,8 @@ public class SuggestionsController(HRPortalDbContext db, IWebHostEnvironment env
     private static readonly string[] Resources = ["بدون هزینه یا منبع اضافی","نیروی انسانی","تجهیزات و ماشین‌آلات","نرم‌افزار و فناوری اطلاعات","مواد و ملزومات","بودجه مالی","آموزش","سایر"];
     private bool IsAdmin => User.HasClaim("IsAdmin", "1");
     private bool Has(string code) => IsAdmin || User.HasClaim("Permission", code);
-    private bool CanManage => Has("Suggestions.Manage") || Has("Suggestions.ViewAll");
+    private bool CanManage => Has("Suggestions.Manage");
+    private bool CanViewAll => Has("Suggestions.ViewAll") || CanManage;
     private bool CanSubmit => Has("Suggestions.Submit") || CanManage;
     private bool TryEmployeeId(out int id) => int.TryParse(User.FindFirst("EmployeeId")?.Value, out id);
 
@@ -28,9 +29,9 @@ public class SuggestionsController(HRPortalDbContext db, IWebHostEnvironment env
     [HttpGet]
     public async Task<IActionResult> Index()
     {
-        if (!CanSubmit) return Forbid();
+        if (!CanSubmit && !CanViewAll) return Forbid();
         IQueryable<Suggestion> query = db.Suggestions.AsNoTracking();
-        if (!CanManage)
+        if (!CanViewAll)
         {
             if (!TryEmployeeId(out var employeeId)) return Forbid();
             query = query.Where(x => x.ProposerEmployeeId == employeeId);
@@ -95,7 +96,7 @@ public class SuggestionsController(HRPortalDbContext db, IWebHostEnvironment env
     public async Task<IActionResult> Details(int id)
     {
         var query = db.Suggestions.AsNoTracking().Include(x=>x.Members).Include(x=>x.Attachments).AsQueryable();
-        if (!CanManage)
+        if (!CanViewAll)
         {
             if (!TryEmployeeId(out var owner)) return Forbid();
             query = query.Where(x=>x.ProposerEmployeeId==owner);
@@ -195,7 +196,7 @@ public class SuggestionsController(HRPortalDbContext db, IWebHostEnvironment env
     public async Task<IActionResult> Download(int id)
     {
         var query=db.SuggestionAttachments.Include(x=>x.Suggestion).AsQueryable();
-        if(!CanManage)
+        if(!CanViewAll)
         {
             if(!TryEmployeeId(out var owner)) return Forbid();
             query=query.Where(x=>x.Suggestion!.ProposerEmployeeId==owner);

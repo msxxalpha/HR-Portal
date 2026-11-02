@@ -93,6 +93,10 @@ public class ContractRenewalWorkflowService(HRPortalDbContext db, WorkflowServic
         if (questions.Count == 0 || questions.Sum(x => x.MaxScore) != 100m)
             throw new InvalidOperationException("شروع گردش کار ممکن نیست؛ مجموع سقف امتیاز پرسش‌های فعال باید دقیقاً ۱۰۰ باشد.");
 
+        await using var transaction = db.Database.CurrentTransaction is null
+            ? await db.Database.BeginTransactionAsync(cancellationToken)
+            : null;
+
         var code = $"__internal_contractrenewal_{request.Id}";
         var definition = new WorkflowDefinition
         {
@@ -198,6 +202,8 @@ public class ContractRenewalWorkflowService(HRPortalDbContext db, WorkflowServic
             }
         }
         await db.SaveChangesAsync(cancellationToken);
+        if (transaction is not null)
+            await transaction.CommitAsync(cancellationToken);
         return instance;
     }
 

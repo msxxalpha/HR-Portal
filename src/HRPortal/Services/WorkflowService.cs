@@ -1195,6 +1195,19 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .FirstAsync(x => x.Id == task.WorkflowInstanceId);
 
         await using var transaction = await db.Database.BeginTransactionAsync();
+
+        // Atomically reserve the still-pending task inside the transaction. This prevents
+        // two current assignees from completing the same Any-mode task (or saving a draft
+        // after another actor has already completed it). A failed request rolls the
+        // reservation back with the rest of the workflow transition.
+        var reserved = await db.WorkflowTasks
+            .Where(x => x.Id == task.Id && x.Status == "Pending")
+            .ExecuteUpdateAsync(setters => setters.SetProperty(
+                x => x.Status, action == "SaveDraft" ? "Pending" : "Processing"));
+        if (reserved != 1)
+            throw new InvalidOperationException("این وظیفه هم‌زمان توسط کاربر دیگری تعیین تکلیف شده است؛ کارتابل را تازه‌سازی کنید.");
+        task.Status = action == "SaveDraft" ? "Pending" : "Processing";
+
         if (action == "SaveDraft")
         {
             await SaveTaskFieldValuesAsync(task, actorEmployeeId, values, false, CancellationToken.None);

@@ -150,10 +150,12 @@ public class SuggestionsController(HRPortalDbContext db, IWebHostEnvironment env
         }
         var item=await query.FirstOrDefaultAsync(x=>x.Id==id);
         if(item is null) return NotFound();
-        ViewBag.CanDeleteSuggestion=(item.Status=="Draft" || item.Status=="Submitted") &&
-            (CanManage || (TryEmployeeId(out var ownerId) && item.ProposerEmployeeId==ownerId));
-        ViewBag.CanEditSuggestion=(item.Status=="Draft" && (CanManage || (TryEmployeeId(out var ownerId) && item.ProposerEmployeeId==ownerId))) ||
-            (IsAdmin && item.Status=="Submitted");
+        var hasCurrentEmployee = TryEmployeeId(out var currentEmployeeId);
+        var isOwner = hasCurrentEmployee && item.ProposerEmployeeId == currentEmployeeId;
+        ViewBag.CanDeleteSuggestion = (item.Status == "Draft" || item.Status == "Submitted") &&
+            (CanManage || isOwner);
+        ViewBag.CanEditSuggestion = (item.Status == "Draft" && (CanManage || isOwner)) ||
+            (IsAdmin && item.Status == "Submitted");
         return View(item);
     }
 

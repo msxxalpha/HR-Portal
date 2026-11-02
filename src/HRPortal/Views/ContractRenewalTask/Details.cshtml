@@ -278,7 +278,7 @@
                 <div><span>مدت پیشنهادی سیستم</span><div class="contract-score-value">@suggested <small>ماه</small></div></div>
                 <div><span>پیشنهاد مدیر منابع انسانی</span><div class="contract-score-value">@(r.HrProposedContractMonths ?? 0) <small>ماه</small></div></div>
             </div>
-            <label>مدت نهایی قرارداد (ماه؛ عدد صحیح از صفر تا ۱۲) *
+            <label>مدت نهایی قرارداد (ماه؛ عدد صحیح از صفر تا @Model.MaximumAllowedContractMonths) *
                 <input type="number" name="contractMonths" min="0" max="@Model.MaximumAllowedContractMonths" step="1" required value="@Math.Clamp(r.HrProposedContractMonths ?? suggested, 0, Model.MaximumAllowedContractMonths)" />
             </label>
             <label>توضیحات نهایی مدیرعامل
@@ -300,6 +300,7 @@
     const months = document.getElementById("hrContractMonths");
     if (!summary || !deduction || !suggestion || !finalScoreDisplay || !months) return;
     const original = Number(summary.dataset.originalScore || 0);
+    const maxAllowedMonths = @Model.MaximumAllowedContractMonths;
     let monthsTouched = false;
     months.addEventListener("input", function () { monthsTouched = true; });
     function suggestedMonths(score) {
@@ -313,7 +314,7 @@
     function refresh() {
         const percent = Math.min(100, Math.max(0, Number(deduction.value || 0)));
         const finalScore = Math.round((original * (100 - percent) / 100) * 100) / 100;
-        const monthsSuggested = suggestedMonths(finalScore);
+        const monthsSuggested = Math.min(suggestedMonths(finalScore), maxAllowedMonths);
         finalScoreDisplay.textContent = finalScore.toLocaleString("en-US", { maximumFractionDigits: 2 });
         suggestion.textContent = String(monthsSuggested);
         if (!monthsTouched) months.value = String(monthsSuggested);

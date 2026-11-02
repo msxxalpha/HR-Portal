@@ -867,7 +867,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         }
 
         if (!string.IsNullOrWhiteSpace(status))
-            authorizedTasks = authorizedTasks.Where(x => x.Status == status);
+            authorizedTasks = authorizedTasks.Where(x => x.Status == status).ToList();
 
         return authorizedTasks.Select(x => new WorkflowInboxRow
         {

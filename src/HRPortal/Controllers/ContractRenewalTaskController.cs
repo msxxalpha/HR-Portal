@@ -119,6 +119,8 @@ public class ContractRenewalTaskController(
             {
                 if (!contractMonths.HasValue || contractMonths.Value is < 0 or > 12)
                     throw new InvalidOperationException("مدت قرارداد باید عدد صحیحی بین صفر تا ۱۲ ماه باشد.");
+                if (contractMonths.Value > ContractRenewalWorkflowService.MaximumAllowedContractMonths(request.SecurityDecision))
+                    throw new InvalidOperationException("با توجه به تصمیم حراست، مدت تمدید قرارداد نمی‌تواند بیش از یک ماه باشد.");
                 if (enableHrDisciplinaryScoreDeduction)
                 {
                     if (!disciplinaryDeductionPercent.HasValue || disciplinaryDeductionPercent.Value < 0m || disciplinaryDeductionPercent.Value > 100m)
@@ -131,6 +133,8 @@ public class ContractRenewalTaskController(
             {
                 if (!contractMonths.HasValue || contractMonths.Value is < 0 or > 12)
                     throw new InvalidOperationException("مدت قرارداد باید عدد صحیحی بین صفر تا ۱۲ ماه باشد.");
+                if (contractMonths.Value > ContractRenewalWorkflowService.MaximumAllowedContractMonths(request.SecurityDecision))
+                    throw new InvalidOperationException("تصمیم حراست تمدید بیش از یک ماه را مجاز نمی‌داند.");
             }
             else
             {

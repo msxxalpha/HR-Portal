@@ -1372,14 +1372,29 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
             // Explicit assignments (CSV) are authoritative over the legacy position
             // holder and employee organization fields, even when exactly one employee
-            // is listed. Multiple active assignees share one position-owned task.
-            db.WorkflowTasks.Add(new WorkflowTask
+            // is listed. Any mode shares one position-owned task; All mode creates one
+            // task per assignee and binds each task to its designated employee.
+            if (step.AssignmentMode == "All")
             {
-                WorkflowInstanceId = instance.Id,
-                WorkflowStepId = step.Id,
-                AssignedPositionId = positionId,
-                AssignedEmployeeId = activeAssigneeIds.Count == 1 ? activeAssigneeIds[0] : null
-            });
+                foreach (var assigneeId in activeAssigneeIds)
+                    db.WorkflowTasks.Add(new WorkflowTask
+                    {
+                        WorkflowInstanceId = instance.Id,
+                        WorkflowStepId = step.Id,
+                        AssignedPositionId = positionId,
+                        AssignedEmployeeId = assigneeId
+                    });
+            }
+            else
+            {
+                db.WorkflowTasks.Add(new WorkflowTask
+                {
+                    WorkflowInstanceId = instance.Id,
+                    WorkflowStepId = step.Id,
+                    AssignedPositionId = positionId,
+                    AssignedEmployeeId = activeAssigneeIds.Count == 1 ? activeAssigneeIds[0] : null
+                });
+            }
             await db.SaveChangesAsync(cancellationToken);
             return;
         }
@@ -1403,7 +1418,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 AssignedPositionId = positionId
             });
         }
-        else
+        else if (step.AssignmentMode == "All")
         {
             foreach (var employee in employees)
                 db.WorkflowTasks.Add(new WorkflowTask
@@ -1413,6 +1428,16 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                     AssignedPositionId = positionId,
                     AssignedEmployeeId = employee.Id
                 });
+        }
+        else
+        {
+            db.WorkflowTasks.Add(new WorkflowTask
+            {
+                WorkflowInstanceId = instance.Id,
+                WorkflowStepId = step.Id,
+                AssignedPositionId = positionId,
+                AssignedEmployeeId = employees.Count == 1 ? employees[0].Id : null
+            });
         }
 
         await db.SaveChangesAsync(cancellationToken);

@@ -4,6 +4,7 @@ using HRPortal.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
+using QuestPDF.Infrastructure;
 
 static void Check(bool condition, string message)
 {
@@ -731,5 +732,33 @@ static async Task VerifyContractRenewalRuntimeFlowAsync()
     Check(await db.WorkflowTasks.CountAsync(x => x.WorkflowInstanceId == instance.Id && x.Status == "Completed") == 6,
         "All three evaluation stages plus security, HR and CEO tasks must be completed.");
 
-    Console.WriteLine("PASS: contract renewal runtime flow from hierarchical evaluation through security, HR and CEO.");
+    request.Status = "تکمیل شده";
+    request.CompletedAt = DateTime.UtcNow;
+    request.SecurityDecision = "ApproveFull";
+    request.OriginalEvaluationScore = 90m;
+    request.FinalEvaluationScore = 90m;
+    request.HrProposedContractMonths = 6;
+    request.FinalContractMonths = 6;
+    await db.SaveChangesAsync();
+
+    var pdfSteps = await db.WorkflowSteps.AsNoTracking()
+        .Include(x => x.OrganizationNode)
+        .Where(x => x.WorkflowDefinitionId == instance.WorkflowDefinitionId)
+        .OrderBy(x => x.SortOrder).ToListAsync();
+    var pdfTasks = await db.WorkflowTasks.AsNoTracking()
+        .Include(x => x.WorkflowStep)
+        .Include(x => x.AssignedEmployee)
+        .Include(x => x.AssignedPosition)
+        .Where(x => x.WorkflowInstanceId == instance.Id)
+        .OrderBy(x => x.CreatedAt).ToListAsync();
+    var pdfScores = await db.EmployeePerformanceEvaluationScores.AsNoTracking()
+        .Include(x => x.EvaluatorEmployee)
+        .Where(x => x.WorkflowInstanceId == instance.Id).ToListAsync();
+    var history = await workflow.GetHistoryAsync(instance.Id);
+    QuestPDF.Settings.License = LicenseType.Professional;
+    var pdf = new ContractRenewalPdfService().Generate(request, pdfSteps, pdfTasks, pdfScores, history);
+    Check(pdf.Length > 1000 && System.Text.Encoding.ASCII.GetString(pdf, 0, 4) == "%PDF",
+        "The completed renewal case must generate a valid PDF report.");
+
+    Console.WriteLine("PASS: contract renewal runtime flow from hierarchical evaluation through security, HR, CEO and PDF output.");
 }

@@ -1,19 +1,24 @@
 @model IReadOnlyList<Suggestion>
-@{var canManage=(bool)(ViewBag.CanManageSuggestions??false);var canSubmit=(bool)(ViewBag.CanSubmitSuggestions??false);var canViewAll=(bool)(ViewBag.CanViewAllSuggestions??false);var currentEmployeeId=(int)(ViewBag.CurrentEmployeeId??0);ViewData["Title"]=canManage||canViewAll||ViewBag.CurrentEmployeeId==0?"فهرست پیشنهادها":"پیشنهادهای من";}
+@{var canManage=(bool)(ViewBag.CanManageSuggestions??false);var canSubmit=(bool)(ViewBag.CanSubmitSuggestions??false);var canViewAll=(bool)(ViewBag.CanViewAllSuggestions??false);var currentEmployeeId=(int)(ViewBag.CurrentEmployeeId??0);ViewData["Title"]=canManage||canViewAll?"فهرست پیشنهادها":"پیشنهادهای من";}
 <div class="suggestion-module-page">
-    <div class="suggestion-page-heading">
-        <div><span class="suggestion-eyebrow">سامانه پیشنهادات کارکنان</span><h1>@ViewData["Title"]</h1><p>ایده‌ها و پیشنهادهای ثبت‌شده را مشاهده و وضعیت آن‌ها را پیگیری کنید.</p></div>
+    @if(TempData["Success"] is string success){<div class="suggestion-feedback success">✓ @success</div>}
+    @if(TempData["Warning"] is string warning){<div class="suggestion-feedback warning">! @warning</div>}
+    <div class="suggestion-page-heading"><div><span class="suggestion-eyebrow">سامانه پیشنهادات کارکنان</span><h1>@ViewData["Title"]</h1><p>ایده‌ها و پیشنهادهای ثبت‌شده را مشاهده و وضعیت آن‌ها را پیگیری کنید.</p></div>
         @if(canSubmit){<a class="suggestion-primary-action" href="/Suggestions/Create"><span>＋</span> ثبت پیشنهاد جدید</a>}
     </div>
     <section class="suggestion-list-card">
         <div class="suggestion-card-heading"><div><h2>سوابق پیشنهادها</h2><p>فهرست پیشنهادها و پیش‌نویس‌های شما</p></div><span class="suggestion-count">@Model.Count مورد</span></div>
-        @if(Model.Count==0){
-            <div class="suggestion-empty-state"><div class="suggestion-empty-icon">✦</div><strong>هنوز پیشنهادی ثبت نشده است</strong><p>اگر ایده‌ای برای بهبود فرایندها، کیفیت یا محیط کار دارید، آن را ثبت کنید.</p>@if(canSubmit){<a class="suggestion-primary-action" href="/Suggestions/Create">شروع ثبت پیشنهاد</a>}</div>
-        }else{
-            <div class="suggestion-table-wrap"><table class="suggestion-table"><thead><tr><th>شماره پیگیری</th><th>عنوان پیشنهاد</th><th>دسته‌بندی</th><th>وضعیت</th><th>آخرین تغییر</th><th>عملیات</th></tr></thead><tbody>
-            @foreach(var x in Model){<tr><td class="suggestion-number" dir="ltr">@x.SuggestionNumber</td><td class="suggestion-title-cell">@x.Title</td><td>@x.Category</td><td><span class="suggestion-status @(x.Status=="Draft"?"draft":"submitted")">@(x.Status=="Draft"?"پیش‌نویس":"ثبت‌شده")</span></td><td class="suggestion-date">@x.UpdatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td><td>@if(x.Status=="Draft"&&(canManage||x.ProposerEmployeeId==currentEmployeeId)){<a class="suggestion-row-link" href="/Suggestions/Create/@x.Id">ادامه تکمیل</a>}else{<a class="suggestion-row-link" href="/Suggestions/Details/@x.Id">مشاهده جزئیات</a>}</td></tr>}
-            </tbody></table></div>
-        }
+        @if(Model.Count==0){<div class="suggestion-empty-state"><div class="suggestion-empty-icon">✦</div><strong>هنوز پیشنهادی ثبت نشده است</strong><p>اگر ایده‌ای برای بهبود فرایندها، کیفیت یا محیط کار دارید، آن را ثبت کنید.</p>@if(canSubmit){<a class="suggestion-primary-action" href="/Suggestions/Create">شروع ثبت پیشنهاد</a>}</div>}
+        else{<div class="suggestion-table-wrap"><table class="suggestion-table"><thead><tr><th>شماره پیگیری</th><th>عنوان پیشنهاد</th><th>دسته‌بندی</th><th>وضعیت</th><th>آخرین تغییر</th><th>عملیات</th></tr></thead><tbody>
+        @foreach(var x in Model){var eligible=x.Status=="Draft"||x.Status=="Submitted";var own=x.ProposerEmployeeId==currentEmployeeId;var canDelete=eligible&&(canManage||own);var canEdit=(x.Status=="Draft"&&(canManage||own))||(User.HasClaim("IsAdmin","1")&&x.Status=="Submitted");<tr>
+            <td class="suggestion-number" dir="ltr">@x.SuggestionNumber</td><td class="suggestion-title-cell">@x.Title</td><td>@x.Category</td>
+            <td><span class="suggestion-status @(x.Status=="Draft"?"draft":x.Status=="Submitted"?"submitted":"evaluating")">@(x.Status=="Draft"?"پیش‌نویس":x.Status=="Submitted"?"ثبت‌شده":"در حال ارزیابی")</span></td>
+            <td class="suggestion-date">@x.UpdatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+            <td><div class="suggestion-row-actions"><a class="suggestion-row-link" href="/Suggestions/Details/@x.Id">مشاهده</a>
+            @if(canEdit){<a class="suggestion-row-link" href="/Suggestions/Create/@x.Id">@(x.Status=="Draft"?"ویرایش پیش‌نویس":"ویرایش")</a>}
+            @if(canDelete){<form method="post" action="/Suggestions/Delete/@x.Id" onsubmit="return confirm('آیا از حذف این پیشنهاد و فایل‌های پیوست آن اطمینان دارید؟');">@Html.AntiForgeryToken()<button class="suggestion-delete-action" type="submit">حذف</button></form>}
+            </div></td></tr>}
+        </tbody></table></div>}
     </section>
-    <div class="suggestion-list-footnote">پیشنهادهای ثبت‌شده پس از تکمیل فرم، دارای شماره پیگیری اختصاصی خواهند بود.</div>
+    <div class="suggestion-list-footnote">حذف پیشنهاد فقط تا پیش از شروع ارزیابی امکان‌پذیر است. پس از ورود به گردش کار، دسترسی‌ها بر اساس مرحله جاری کنترل می‌شوند.</div>
 </div>

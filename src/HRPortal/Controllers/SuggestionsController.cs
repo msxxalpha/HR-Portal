@@ -58,7 +58,8 @@ public class SuggestionsController(HRPortalDbContext db, IWebHostEnvironment env
             }
             var item = await query.FirstOrDefaultAsync(x => x.Id == id.Value);
             if (item is null) return NotFound();
-            if (item.Status != "Draft") return RedirectToAction(nameof(Details), new { id });
+            if (item.Status != "Draft" && !(IsAdmin && item.Status == "Submitted")) return RedirectToAction(nameof(Details), new { id });
+            ViewBag.IsAdminEditingSubmitted = IsAdmin && item.Status == "Submitted";
             model = new SuggestionFormVm {
                 Id=item.Id, ProposerEmployeeId=item.ProposerEmployeeId, Title=item.Title, Category=item.Category,
                 RelatedArea=item.RelatedArea, ShortDescription=item.ShortDescription, ProblemDescription=item.ProblemDescription,
@@ -96,6 +97,48 @@ public class SuggestionsController(HRPortalDbContext db, IWebHostEnvironment env
                     x.OrganizationDepartment != null ? x.OrganizationDepartment.Title : "—" }).ToListAsync());
     }
 
+
+    [HttpGet]
+    public async Task<IActionResult> Submitted(int id)
+    {
+        var query=db.Suggestions.AsNoTracking().AsQueryable();
+        if(!CanViewAll)
+        {
+            if(!TryEmployeeId(out var owner)) return Forbid();
+            query=query.Where(x=>x.ProposerEmployeeId==owner);
+        }
+        var item=await query.FirstOrDefaultAsync(x=>x.Id==id && x.Status=="Submitted");
+        if(item is null) return NotFound();
+        ViewBag.ProposerName=await db.Employees.AsNoTracking().Where(x=>x.Id==item.ProposerEmployeeId)
+            .Select(x=>x.FirstName+" "+x.LastName).FirstOrDefaultAsync() ?? "همکار گرامی";
+        return View(item);
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var query=db.Suggestions.Include(x=>x.Attachments).Include(x=>x.Members).AsQueryable();
+        if(!CanManage)
+        {
+            if(!TryEmployeeId(out var owner)) return Forbid();
+            query=query.Where(x=>x.ProposerEmployeeId==owner);
+        }
+        var item=await query.FirstOrDefaultAsync(x=>x.Id==id);
+        if(item is null) return NotFound();
+        if(item.Status!="Draft" && item.Status!="Submitted")
+        {
+            TempData["Error"]="این پیشنهاد وارد مرحله ارزیابی شده یا وضعیت آن اجازه حذف نمی‌دهد.";
+            return RedirectToAction(nameof(Details),new{id});
+        }
+        var folder=Path.Combine(env.WebRootPath??Path.Combine(env.ContentRootPath,"wwwroot"),"uploads","suggestions",item.Id.ToString());
+        db.Suggestions.Remove(item);
+        await db.SaveChangesAsync();
+        try { if(Directory.Exists(folder)) Directory.Delete(folder,true); }
+        catch { TempData["Warning"]="پیشنهاد حذف شد، اما پاکسازی برخی فایل‌های پیوست به تعویق افتاد."; }
+        TempData["Success"]="پیشنهاد و پیوست‌های آن با موفقیت حذف شد.";
+        return RedirectToAction(nameof(Index));
+    }
+
     [HttpGet]
     public async Task<IActionResult> Details(int id)
     {
@@ -106,7 +149,12 @@ public class SuggestionsController(HRPortalDbContext db, IWebHostEnvironment env
             query = query.Where(x=>x.ProposerEmployeeId==owner);
         }
         var item=await query.FirstOrDefaultAsync(x=>x.Id==id);
-        return item is null ? NotFound() : View(item);
+        if(item is null) return NotFound();
+        ViewBag.CanDeleteSuggestion=(item.Status=="Draft" || item.Status=="Submitted") &&
+            (CanManage || (TryEmployeeId(out var ownerId) && item.ProposerEmployeeId==ownerId));
+        ViewBag.CanEditSuggestion=(item.Status=="Draft" && (CanManage || (TryEmployeeId(out var ownerId) && item.ProposerEmployeeId==ownerId))) ||
+            (IsAdmin && item.Status=="Submitted");
+        return View(item);
     }
 
     [HttpPost, ValidateAntiForgeryToken, RequestSizeLimit(25_000_000)]
@@ -126,7 +174,7 @@ public class SuggestionsController(HRPortalDbContext db, IWebHostEnvironment env
             if(!elevated) existingQuery=existingQuery.Where(x=>x.ProposerEmployeeId==proposerId);
             item=await existingQuery.FirstOrDefaultAsync(x=>x.Id==model.Id.Value);
             if(item is null) return NotFound();
-            if(item.Status!="Draft") return Forbid();
+            if(item.Status!="Draft" && !(IsAdmin && item.Status=="Submitted")) return Forbid();
             proposerId=item.ProposerEmployeeId;
         }
         else
@@ -158,6 +206,7 @@ public class SuggestionsController(HRPortalDbContext db, IWebHostEnvironment env
             return View("Create",model);
         }
 
+        var editingSubmitted = item.Status == "Submitted";
         item.ProposerEmployeeId=proposerId; item.Title=(model.Title??"").Trim(); item.Category=model.Category??"";
         item.RelatedArea=model.RelatedArea?.Trim(); item.ShortDescription=model.ShortDescription??"";
         item.ProblemDescription=model.ProblemDescription??""; item.ProposedSolution=model.ProposedSolution??"";
@@ -190,10 +239,20 @@ public class SuggestionsController(HRPortalDbContext db, IWebHostEnvironment env
                 item.Attachments.Add(new SuggestionAttachment { OriginalFileName=Path.GetFileName(file.FileName),StoredFileName=stored,ContentType=file.ContentType??"application/octet-stream",FileSize=file.Length });
             }
         }
-        if(submit){item.Status="Submitted";item.SubmittedAtUtc=DateTime.UtcNow;}
+        if(submit && !editingSubmitted){item.Status="Submitted";item.SubmittedAtUtc=DateTime.UtcNow;}
         await db.SaveChangesAsync();
-        TempData["Success"]=submit?"پیشنهاد ثبت شد. شماره پیگیری: "+item.SuggestionNumber:"پیش‌نویس ذخیره شد.";
-        return RedirectToAction(submit?nameof(Details):nameof(Create),new{id=item.Id});
+        if(editingSubmitted)
+        {
+            TempData["Success"]="اصلاحات پیشنهاد با موفقیت ذخیره شد.";
+            return RedirectToAction(nameof(Details),new{id=item.Id});
+        }
+        if(submit)
+        {
+            TempData["Success"]="پیشنهاد با موفقیت ثبت شد.";
+            return RedirectToAction(nameof(Submitted),new{id=item.Id});
+        }
+        TempData["Success"]="پیش‌نویس ذخیره شد.";
+        return RedirectToAction(nameof(Create),new{id=item.Id});
     }
 
     [HttpGet]

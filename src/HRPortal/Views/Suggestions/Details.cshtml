@@ -1,13 +1,14 @@
 @model Suggestion
 @using System.Text.Json
-@{ViewData["Title"]="جزئیات پیشنهاد";var benefits=JsonSerializer.Deserialize<List<string>>(Model.BenefitsJson)??new();}
+@{ViewData["Title"]="جزئیات پیشنهاد";var benefits=JsonSerializer.Deserialize<List<string>>(Model.BenefitsJson)??new();var canDelete=(bool)(ViewBag.CanDeleteSuggestion??false);var canEdit=(bool)(ViewBag.CanEditSuggestion??false);}
 <div class="suggestion-module-page">
-    <div class="suggestion-page-heading">
-        <div><span class="suggestion-eyebrow">سامانه پیشنهادات کارکنان</span><h1>جزئیات پیشنهاد</h1><p>اطلاعات کامل پیشنهاد ثبت‌شده و مستندات مرتبط</p></div>
-        <a class="suggestion-secondary-action" href="/Suggestions">بازگشت به فهرست</a>
-    </div>
+    @if(TempData["Success"] is string success){<div class="suggestion-feedback success">✓ @success</div>}
+    <div class="suggestion-page-heading"><div><span class="suggestion-eyebrow">سامانه پیشنهادات کارکنان</span><h1>جزئیات پیشنهاد</h1><p>اطلاعات کامل پیشنهاد ثبت‌شده و مستندات مرتبط</p></div><div class="suggestion-detail-actions">
+        @if(canEdit){<a class="suggestion-secondary-action" href="/Suggestions/Create/@Model.Id">ویرایش پیشنهاد</a>}
+        @if(canDelete){<form method="post" action="/Suggestions/Delete/@Model.Id" onsubmit="return confirm('آیا از حذف این پیشنهاد و فایل‌های پیوست آن اطمینان دارید؟');">@Html.AntiForgeryToken()<button class="suggestion-delete-action" type="submit">حذف پیشنهاد</button></form>}
+        <a class="suggestion-secondary-action" href="/Suggestions">بازگشت به فهرست</a></div></div>
     <section class="suggestion-detail-card">
-        <div class="suggestion-detail-hero"><div><span class="suggestion-eyebrow">شماره پیگیری</span><strong class="suggestion-number" dir="ltr">@Model.SuggestionNumber</strong><h2>@Model.Title</h2><span class="suggestion-status submitted">ثبت‌شده</span></div></div>
+        <div class="suggestion-detail-hero"><div><span class="suggestion-eyebrow">شماره پیگیری</span><strong class="suggestion-number" dir="ltr">@Model.SuggestionNumber</strong><h2>@Model.Title</h2><span class="suggestion-status @(Model.Status=="Draft"?"draft":"submitted")">@(Model.Status=="Draft"?"پیش‌نویس":Model.Status=="Submitted"?"ثبت‌شده":"در حال ارزیابی")</span></div></div>
         <div class="suggestion-detail-body">
             <section class="suggestion-detail-section"><h3>خلاصه پیشنهاد</h3><p>@Model.ShortDescription</p></section>
             <section class="suggestion-detail-section"><h3>مسئله یا فرصت موجود</h3><p>@Model.ProblemDescription</p></section>
@@ -15,7 +16,7 @@
             <section class="suggestion-detail-section"><h3>منافع مورد انتظار</h3><div class="suggestion-tags">@foreach(var benefit in benefits){<span>@benefit</span>}</div>@if(!string.IsNullOrWhiteSpace(Model.BenefitDetails)){<p>@Model.BenefitDetails</p>}</section>
             <section class="suggestion-detail-section"><h3>اعضای گروه پیشنهاد</h3><ul class="suggestion-people-list">@foreach(var m in Model.Members){<li><span>@m.EmployeeNameSnapshot</span><small>@m.PersonnelNumberSnapshot</small></li>}</ul></section>
             <section class="suggestion-detail-section"><h3>پیوست‌ها</h3>@if(Model.Attachments.Count==0){<p class="suggestion-muted">برای این پیشنهاد فایلی پیوست نشده است.</p>}else{<ul class="suggestion-attachment-list">@foreach(var a in Model.Attachments){<li><a href="/Suggestions/Download/@a.Id">↙ @a.OriginalFileName</a></li>}</ul>}</section>
-            <div class="suggestion-next-phase-note">گردش کار بررسی و ارزیابی پیشنهادها در مرحله بعدی توسعه سامانه اضافه خواهد شد.</div>
+            @if(Model.Status=="Submitted"){<div class="suggestion-next-phase-note">پیشنهاد شما ثبت شده است و در انتظار آغاز فرایند بررسی و ارزیابی قرار دارد.</div>}
         </div>
     </section>
 </div>

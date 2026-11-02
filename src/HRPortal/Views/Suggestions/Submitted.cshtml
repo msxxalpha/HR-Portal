@@ -1,0 +1,17 @@
+@model Suggestion
+@{ViewData["Title"]="سپاس از مشارکت شما";}
+<div class="suggestion-module-page suggestion-thanks-page">
+    <section class="suggestion-thanks-hero">
+        <div class="suggestion-thanks-mark">✓</div>
+        <span class="suggestion-eyebrow" style="color:#e4d4ae">سامانه پیشنهادات کارکنان</span>
+        <h1>سپاسگزاریم از اینکه به بهبود سازمان می‌اندیشید</h1>
+        <p>@ViewBag.ProposerName گرامی، پیشنهاد ارزشمند شما با موفقیت دریافت شد. مشارکت و نگاه سازنده شما سرمایه‌ای برای رشد، یادگیری و بهتر شدن سازمان است. از زمانی که برای ارائه این ایده صرف کرده‌اید صمیمانه سپاسگزاریم.</p>
+    </section>
+    <section class="suggestion-thanks-card">
+        <h2>پیشنهاد شما با موفقیت ثبت شد</h2>
+        <p>اطلاعات پیشنهاد در سامانه ذخیره شده و برای پیگیری‌های بعدی در دسترس شما خواهد بود.</p>
+        <div class="suggestion-thanks-number"><span>شماره پیگیری اختصاصی</span><strong>@Model.SuggestionNumber</strong></div>
+        <div class="suggestion-thanks-next"><span>✦</span><span>لطفاً شماره پیگیری را نزد خود نگه دارید. پس از آغاز فرایند بررسی و ارزیابی، وضعیت پیشنهاد از طریق فهرست پیشنهادهای شما قابل مشاهده خواهد بود.</span></div>
+        <div class="suggestion-thanks-actions"><a class="suggestion-primary-action" href="/Suggestions/Details/@Model.Id">مشاهده پیشنهاد ثبت‌شده</a><a class="suggestion-secondary-action" href="/Suggestions">بازگشت به پیشنهادهای من</a></div>
+    </section>
+</div>

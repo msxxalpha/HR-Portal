@@ -7,6 +7,12 @@ namespace HRPortal.Services;
 /// </summary>
 public static class WorkflowPositionAssignmentResolver
 {
+    public static bool CanViewInstance(
+        bool isRequester,
+        bool hasActedPreviously,
+        bool isCurrentAssigneeOfPendingTask) =>
+        isRequester || hasActedPreviously || isCurrentAssigneeOfPendingTask;
+
     public static int? SelectCurrentRevisionId(
         IEnumerable<(int Id, DateTime EffectiveDate, bool IsFinalized)> revisions,
         DateTime effectiveOn)

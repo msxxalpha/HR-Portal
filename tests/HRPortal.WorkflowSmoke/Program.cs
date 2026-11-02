@@ -195,6 +195,7 @@ Console.WriteLine("      unassigned report filters and server-side reassignment 
 await VerifyWorkflowServiceAuthorizationAsync();
 await VerifyExplicitPositionTaskCreationAsync();
 await VerifyWorkflowTransitionLifecycleAsync();
+await VerifyContractRenewalRuntimeFlowAsync();
 
 static async Task VerifyWorkflowServiceAuthorizationAsync()
 {
@@ -555,4 +556,180 @@ static async Task VerifyWorkflowTransitionLifecycleAsync()
         "The full draft/approve/return/re-approve/reject lifecycle must retain its history.");
 
     Console.WriteLine("PASS: workflow lifecycle draft validation, approval, return, rejection, task creation and audit history.");
+}
+
+static async Task VerifyContractRenewalRuntimeFlowAsync()
+{
+    var options = new DbContextOptionsBuilder<HRPortalDbContext>()
+        .UseInMemoryDatabase("contract-renewal-runtime-flow")
+        .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+        .Options;
+    await using var db = new HRPortalDbContext(options);
+
+    static Employee Person(int id) => new()
+    {
+        Id = id, PersonnelNumber = $"CR{id}", NationalId = $"CN{id}",
+        FirstName = $"کارمند{id}", LastName = "آزمایشی",
+        Mobile = "09120000000", Gender = "مرد", Status = "فعال"
+    };
+
+    var subject = Person(1);
+    var supervisor = Person(2);
+    var manager = Person(3);
+    var deputy = Person(4);
+    var security = Person(5);
+    var hr = Person(6);
+    var ceo = Person(7);
+    var requester = Person(10);
+
+    var revision = new OrganizationStructureRevision
+    {
+        Id = 1, RevisionCode = "RENEWAL-E2E", Title = "ساختار آزمون تمدید",
+        EffectiveDate = DateTime.Today.AddDays(-1), IsFinalized = true
+    };
+    var subjectPosition = new OrganizationNode
+    {
+        Id = 101, OrganizationStructureRevisionId = 1, Revision = revision,
+        Code = "SUBJECT", Title = "بخش کارمند", RankType = "بخش",
+        IsActive = true, AssignedEmployeeIdsCsv = "1", ParentId = 102
+    };
+    var supervisorPosition = new OrganizationNode
+    {
+        Id = 102, OrganizationStructureRevisionId = 1, Revision = revision,
+        Code = "SUPERVISOR", Title = "سرپرستی", RankType = "سرپرستی",
+        IsActive = true, AssignedEmployeeIdsCsv = "2", PositionHolderEmployeeId = 2, ParentId = 103
+    };
+    var managerPosition = new OrganizationNode
+    {
+        Id = 103, OrganizationStructureRevisionId = 1, Revision = revision,
+        Code = "MANAGER", Title = "ریاست", RankType = "ریاست",
+        IsActive = true, AssignedEmployeeIdsCsv = "3", PositionHolderEmployeeId = 3, ParentId = 104
+    };
+    var deputyPosition = new OrganizationNode
+    {
+        Id = 104, OrganizationStructureRevisionId = 1, Revision = revision,
+        Code = "DEPUTY", Title = "معاونت", RankType = "معاونت",
+        IsActive = true, AssignedEmployeeIdsCsv = "4", PositionHolderEmployeeId = 4, ParentId = 105
+    };
+    var ceoPosition = new OrganizationNode
+    {
+        Id = 105, OrganizationStructureRevisionId = 1, Revision = revision,
+        Code = "CEO", Title = "مدیرعامل", RankType = "مدیرعامل",
+        IsActive = true, PositionHolderEmployeeId = 7
+    };
+    var securityPosition = new OrganizationNode
+    {
+        Id = 106, OrganizationStructureRevisionId = 1, Revision = revision,
+        Code = "SECURITY", Title = "حراست", RankType = "مدیریت",
+        IsActive = true, AssignedEmployeeIdsCsv = "5", PositionHolderEmployeeId = 5
+    };
+    var hrPosition = new OrganizationNode
+    {
+        Id = 107, OrganizationStructureRevisionId = 1, Revision = revision,
+        Code = "HR", Title = "مدیریت منابع انسانی", RankType = "مدیریت",
+        IsActive = true, AssignedEmployeeIdsCsv = "6", PositionHolderEmployeeId = 6
+    };
+    revision.Nodes.Add(subjectPosition);
+    revision.Nodes.Add(supervisorPosition);
+    revision.Nodes.Add(managerPosition);
+    revision.Nodes.Add(deputyPosition);
+    revision.Nodes.Add(ceoPosition);
+    revision.Nodes.Add(securityPosition);
+    revision.Nodes.Add(hrPosition);
+
+    var request = new ContractRenewalRequest
+    {
+        Id = 1, RequestCode = "CR-E2E-001", EmployeeId = 1,
+        Employee = subject, CreatedByEmployeeId = 10,
+        EmployeeNameSnapshot = "کارمند آزمایشی",
+        PersonnelNumberSnapshot = "CR1",
+        OrganizationUnitSnapshot = "واحد آزمون",
+        PositionTitleSnapshot = "کارشناس",
+        Status = "Submitted"
+    };
+    var settings = new ContractRenewalWorkflowSettings
+    {
+        Id = 1, SecurityPositionId = 106, HumanResourcesPositionId = 107,
+        CeoEmployeeId = 7
+    };
+    var question = new EmployeePerformanceEvaluationQuestion
+    {
+        Id = 1, QuestionText = "کیفیت انجام وظایف",
+        MaxScore = 100m, ScoringGuidance = "ارزیابی کلی",
+        IsActive = true, SortOrder = 1
+    };
+    db.AddRange(subject, supervisor, manager, deputy, security, hr, ceo, requester,
+        revision, subjectPosition, supervisorPosition, managerPosition, deputyPosition,
+        ceoPosition, securityPosition, hrPosition, request, settings, question);
+    await db.SaveChangesAsync();
+
+    var audit = new AuditService(db, new HttpContextAccessor());
+    var workflow = new WorkflowService(db, audit);
+    var renewal = new ContractRenewalWorkflowService(db, workflow);
+    var instance = await renewal.StartAsync(request, requesterEmployeeId: 10);
+
+    var evaluationSteps = await db.WorkflowSteps.AsNoTracking()
+        .Where(x => x.WorkflowDefinitionId == instance.WorkflowDefinitionId && x.Code.StartsWith("Evaluation_H"))
+        .OrderBy(x => x.SortOrder).ToListAsync();
+    Check(evaluationSteps.Count == 3,
+        "The contract renewal route must include every intermediate supervisor/manager/deputy position.");
+    Check(await db.EmployeePerformanceEvaluationScores.CountAsync(x => x.WorkflowInstanceId == instance.Id) == 3,
+        "Each evaluation stage must receive a question score snapshot.");
+    Check(await db.WorkflowTasks.CountAsync(x => x.WorkflowInstanceId == instance.Id && x.Status == "Pending") == 1,
+        "Only the first evaluation stage should be pending when the workflow starts.");
+
+    var evaluationActors = new[] { 2, 3, 4 };
+    foreach (var actorId in evaluationActors)
+    {
+        var task = await db.WorkflowTasks
+            .Include(x => x.WorkflowStep)
+            .Where(x => x.WorkflowInstanceId == instance.Id && x.Status == "Pending")
+            .SingleAsync();
+        Check(await workflow.GetTaskAsync(task.Id, actorId) is not null,
+            $"Expected evaluation stage to be assigned to employee {actorId}.");
+        var scoreRows = await db.EmployeePerformanceEvaluationScores
+            .Where(x => x.WorkflowInstanceId == instance.Id && x.WorkflowStepId == task.WorkflowStepId)
+            .ToListAsync();
+        foreach (var score in scoreRows)
+        {
+            score.Score = 90m;
+            score.EvaluatorEmployeeId = actorId;
+        }
+        await db.SaveChangesAsync();
+        await workflow.CompleteTaskAsync(task.Id, actorId, "Approve", "ارزیابی تأیید شد");
+    }
+
+    async Task CompletePositionStageAsync(string code, int actorId)
+    {
+        var task = await db.WorkflowTasks
+            .Include(x => x.WorkflowStep)
+            .Where(x => x.WorkflowInstanceId == instance.Id && x.Status == "Pending")
+            .SingleAsync();
+        Check(task.WorkflowStep.Code == code,
+            $"Expected {code} stage, but current stage was {task.WorkflowStep.Code}.");
+        Check(await workflow.GetTaskAsync(task.Id, actorId) is not null,
+            $"Expected {code} stage to be assigned to employee {actorId}.");
+        await workflow.CompleteTaskAsync(task.Id, actorId, "Approve", $"تأیید مرحله {code}");
+    }
+
+    await CompletePositionStageAsync("Security", 5);
+    await CompletePositionStageAsync("HumanResources", 6);
+
+    var ceoTask = await db.WorkflowTasks
+        .Include(x => x.WorkflowStep)
+        .SingleAsync(x => x.WorkflowInstanceId == instance.Id && x.Status == "Pending");
+    Check(ceoTask.WorkflowStep.Code == "CEO" &&
+          await workflow.GetTaskAsync(ceoTask.Id, 7) is not null,
+        "The final task must be routed to the active CEO employee.");
+    await workflow.CompleteTaskAsync(ceoTask.Id, 7, "Approve", "تصمیم نهایی تأیید شد");
+
+    var completed = await db.WorkflowInstances.SingleAsync(x => x.Id == instance.Id);
+    Check(completed.Status == "Approved" && completed.CurrentStepId is null && completed.CompletedAt.HasValue,
+        "The renewal workflow must finish only after the CEO approves.");
+    Check(await db.WorkflowHistory.CountAsync(x => x.WorkflowInstanceId == instance.Id) == 7,
+        "The complete renewal chain must retain submission and all six approval events.");
+    Check(await db.WorkflowTasks.CountAsync(x => x.WorkflowInstanceId == instance.Id && x.Status == "Completed") == 6,
+        "All three evaluation stages plus security, HR and CEO tasks must be completed.");
+
+    Console.WriteLine("PASS: contract renewal runtime flow from hierarchical evaluation through security, HR and CEO.");
 }

@@ -629,3 +629,14 @@
     .employee-row-actions { flex-direction: column; align-items: flex-start; }
     .employee-directory .employee-bulkbar { align-items: flex-start; }
 }
+
+/* Persistent, accessible right-hand navigation groups */
+.sidebar .nav details > summary{display:flex;align-items:center;gap:9px;min-height:40px;padding:10px 12px;border-radius:9px;color:#ecf2f6;font-size:12px;cursor:pointer;list-style:none;user-select:none}
+.sidebar .nav details > summary::-webkit-details-marker{display:none}
+.sidebar .nav details > summary::after{content:"";width:7px;height:7px;margin-right:auto;border-left:1.5px solid #b9c9d4;border-bottom:1.5px solid #b9c9d4;transform:rotate(45deg);transition:transform .15s}
+.sidebar .nav details[open] > summary::after{transform:rotate(-45deg)}
+.sidebar .nav details > summary:hover{background:rgba(255,255,255,.08)}
+.sidebar .nav .nav-submenu{padding:3px 8px 7px 0}
+.sidebar .nav .nav-submenu-nested{padding-right:10px}
+.sidebar .nav details > summary:focus-visible,.sidebar .nav a:focus-visible{outline:2px solid #d7bd82;outline-offset:2px}
+.sidebar .nav details[open] > summary{color:#fff}

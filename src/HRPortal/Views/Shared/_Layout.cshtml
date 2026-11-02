@@ -188,5 +188,41 @@
 </div>
 <script src="@Url.Content("~/js/jalali-datepicker.js")" asp-append-version="true"></script>
 @RenderSection("Scripts", required: false)
+
+<script>
+(() => {
+    const storageKey = 'hrportal.sidebar.groups.v1';
+    let saved = {};
+    try { saved = JSON.parse(sessionStorage.getItem(storageKey) || '{}') || {}; } catch { saved = {}; }
+    const groups = [...document.querySelectorAll('.sidebar .nav details')];
+    const keyOf = el => {
+        const parts = [];
+        let node = el;
+        while (node && node.matches && node.matches('details')) {
+            const label = node.querySelector(':scope > summary')?.textContent?.trim() || 'group';
+            parts.unshift(label);
+            node = node.parentElement?.closest('details');
+        }
+        return parts.join(' / ');
+    };
+    const currentPath = window.location.pathname.toLowerCase().replace(/\/$/, '') || '/';
+    groups.forEach(group => {
+        const key = keyOf(group);
+        const hasCurrentLink = [...group.querySelectorAll('a[href]')].some(a => {
+            try {
+                const path = new URL(a.href, window.location.origin).pathname.toLowerCase().replace(/\/$/, '') || '/';
+                return path === currentPath;
+            } catch { return false; }
+        });
+        if (Object.prototype.hasOwnProperty.call(saved, key)) group.open = !!saved[key];
+        if (hasCurrentLink) group.open = true;
+        group.dataset.navStateKey = key;
+        group.addEventListener('toggle', () => {
+            saved[group.dataset.navStateKey] = group.open;
+            try { sessionStorage.setItem(storageKey, JSON.stringify(saved)); } catch { }
+        });
+    });
+})();
+</script>
 </body>
 </html>

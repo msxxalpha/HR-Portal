@@ -394,6 +394,15 @@ public class ContractRenewalTaskController(
             });
         }
 
+        var returnComment = stageKind == "RequesterEdit"
+            ? await db.WorkflowHistory.AsNoTracking()
+                .Where(x => x.WorkflowInstanceId == task.WorkflowInstanceId &&
+                    x.WorkflowStep.Code == "IntakeApproval" && x.Action == "Return")
+                .OrderByDescending(x => x.CreatedAt)
+                .Select(x => x.Comment)
+                .FirstOrDefaultAsync()
+            : null;
+
         var returnedEdit = stageKind == "RequesterEdit" ? new ContractRenewalIntakeViewModel
         {
             RequestId = request.Id, IsEditMode = true, EmployeeId = request.EmployeeId,
@@ -422,6 +431,7 @@ public class ContractRenewalTaskController(
         {
             Task = task,
             ReturnedEdit = returnedEdit,
+            ReturnComment = returnComment,
             IsReadOnly = task.Status != "Pending",
             Request = request,
             SubjectEmployee = request.Employee,

@@ -51,6 +51,7 @@ BEGIN
     );
 END;
 
+-- Upgrade older databases with the configurable initial-information approval position.
 IF OBJECT_ID(N'dbo.ContractRenewalWorkflowSettings', N'U') IS NOT NULL
 AND COL_LENGTH(N'dbo.ContractRenewalWorkflowSettings', N'RequestApprovalPositionId') IS NULL
     ALTER TABLE [dbo].[ContractRenewalWorkflowSettings] ADD [RequestApprovalPositionId] int NULL;

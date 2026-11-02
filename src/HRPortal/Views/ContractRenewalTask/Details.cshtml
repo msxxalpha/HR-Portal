@@ -255,8 +255,8 @@
                 </label>
                 <p class="muted">امتیاز نهایی پس از کسر از امتیاز اولیه محاسبه می‌شود و پیشنهاد سیستم بر اساس امتیاز جدید به‌روزرسانی خواهد شد.</p>
             }
-            <label>مدت پیشنهادی تمدید قرارداد (ماه؛ عدد صحیح از صفر تا ۱۲) *
-                <input id="hrContractMonths" type="number" name="contractMonths" min="0" max="12" step="1" required value="@suggested" />
+            <label>مدت پیشنهادی تمدید قرارداد (ماه؛ عدد صحیح از صفر تا @Model.MaximumAllowedContractMonths) *
+                <input id="hrContractMonths" type="number" name="contractMonths" min="0" max="@Model.MaximumAllowedContractMonths" step="1" required value="@suggested" />
             </label>
             <label>توضیحات مدیر منابع انسانی و خدمات پشتیبانی
                 <textarea name="comment" rows="4" maxlength="2000" placeholder="دلایل پیشنهاد مدت قرارداد و ملاحظات منابع انسانی"></textarea>

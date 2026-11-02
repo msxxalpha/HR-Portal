@@ -3,6 +3,7 @@ using HRPortal.Data;
 using HRPortal.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.AspNetCore.Http;
 
 static void Check(bool condition, string message)
 {

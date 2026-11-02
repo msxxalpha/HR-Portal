@@ -40,6 +40,9 @@ public static class WorkflowTaskAssignmentHealthResolver
             }
 
             var hasInvalidAssignment = assignedIds.Any(id => id <= 0 || !activeIds.Contains(id));
+            if (task.WorkflowStep.AssignmentMode == "All" &&
+                (!task.AssignedEmployeeId.HasValue || !assignedIds.Contains(task.AssignedEmployeeId.Value)))
+                hasInvalidAssignment = true;
             var hasActiveHolder = assignedIds.Any(activeIds.Contains);
             if (!hasActiveHolder) return "NoActiveHolder";
             if (hasInvalidAssignment) return "InvalidAssignment";

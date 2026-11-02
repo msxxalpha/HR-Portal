@@ -7,6 +7,31 @@ namespace HRPortal.Services;
 /// </summary>
 public static class WorkflowPositionAssignmentResolver
 {
+    public static int? SelectCurrentRevisionId(
+        IEnumerable<(int Id, DateTime EffectiveDate, bool IsFinalized)> revisions,
+        DateTime effectiveOn)
+    {
+        var current = revisions
+            .Where(x => x.IsFinalized && x.EffectiveDate.Date <= effectiveOn.Date)
+            .OrderByDescending(x => x.EffectiveDate)
+            .ThenByDescending(x => x.Id)
+            .FirstOrDefault();
+        return current.Id > 0 ? current.Id : null;
+    }
+
+    public static T? FindByStableCode<T>(
+        IEnumerable<T> candidates,
+        string? stableCode,
+        Func<T, string?> codeSelector) where T : class
+    {
+        if (string.IsNullOrWhiteSpace(stableCode))
+            return null;
+
+        return candidates.FirstOrDefault(candidate =>
+            string.Equals(codeSelector(candidate)?.Trim(), stableCode.Trim(),
+                StringComparison.OrdinalIgnoreCase));
+    }
+
     public static List<int> GetAssignedEmployeeIds(string? assignedEmployeeIdsCsv, int? positionHolderEmployeeId)
     {
         var ids = (assignedEmployeeIdsCsv ?? string.Empty)

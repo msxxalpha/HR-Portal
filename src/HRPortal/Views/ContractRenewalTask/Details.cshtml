@@ -279,7 +279,7 @@
                 <div><span>پیشنهاد مدیر منابع انسانی</span><div class="contract-score-value">@(r.HrProposedContractMonths ?? 0) <small>ماه</small></div></div>
             </div>
             <label>مدت نهایی قرارداد (ماه؛ عدد صحیح از صفر تا ۱۲) *
-                <input type="number" name="contractMonths" min="0" max="12" step="1" required value="@Math.Clamp(r.HrProposedContractMonths ?? suggested, 0, 12)" />
+                <input type="number" name="contractMonths" min="0" max="@Model.MaximumAllowedContractMonths" step="1" required value="@Math.Clamp(r.HrProposedContractMonths ?? suggested, 0, Model.MaximumAllowedContractMonths)" />
             </label>
             <label>توضیحات نهایی مدیرعامل
                 <textarea name="comment" rows="4" maxlength="2000" placeholder="توضیحات یا دلایل تغییر مدت پیشنهادی در صورت نیاز"></textarea>

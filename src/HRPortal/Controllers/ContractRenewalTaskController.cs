@@ -275,10 +275,13 @@ public class ContractRenewalTaskController(
             PreviousStageComment = previousStep is null
                 ? null
                 : completedStageTasks.FirstOrDefault(x => x.WorkflowStepId == previousStep.Id)?.Comment,
-            SuggestedContractMonths = ContractRenewalWorkflowService.SuggestedContractMonths(
-                stageKind == "HumanResources" && !enableHrDisciplinaryScoreDeduction && task.Status == "Pending"
-                    ? request.OriginalEvaluationScore ?? request.FinalEvaluationScore
-                    : request.FinalEvaluationScore)
+            MaximumAllowedContractMonths = ContractRenewalWorkflowService.MaximumAllowedContractMonths(request.SecurityDecision),
+            SuggestedContractMonths = Math.Min(
+                ContractRenewalWorkflowService.SuggestedContractMonths(
+                    stageKind == "HumanResources" && !enableHrDisciplinaryScoreDeduction && task.Status == "Pending"
+                        ? request.OriginalEvaluationScore ?? request.FinalEvaluationScore
+                        : request.FinalEvaluationScore),
+                ContractRenewalWorkflowService.MaximumAllowedContractMonths(request.SecurityDecision))
         };
     }
 

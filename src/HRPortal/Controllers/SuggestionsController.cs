@@ -30,6 +30,9 @@ public class SuggestionsController(HRPortalDbContext db, IWebHostEnvironment env
     public async Task<IActionResult> Index()
     {
         if (!CanSubmit && !CanViewAll) return Forbid();
+        ViewBag.CanManageSuggestions = CanManage;
+        ViewBag.CanSubmitSuggestions = CanSubmit;
+        ViewBag.CurrentEmployeeId = TryEmployeeId(out var currentEmployeeId) ? currentEmployeeId : 0;
         IQueryable<Suggestion> query = db.Suggestions.AsNoTracking();
         if (!CanViewAll)
         {

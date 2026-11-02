@@ -57,7 +57,7 @@
                 </details>
             }
             @if (isAdmin || Can("ContractRenewal.Manage") || Can("MonthlyPerformance.View") ||
-                Can("MonthlyPerformance.Evaluate") || Can("MonthlyPerformance.Manage") || Can("MonthlyPerformance.Reports") || Can("Suggestions.Submit") || Can("Suggestions.ViewAll") || Can("Suggestions.Manage") || Can("Suggestions.Evaluate")) {
+                Can("MonthlyPerformance.Evaluate") || Can("MonthlyPerformance.Manage") || Can("MonthlyPerformance.Reports") || Can("Suggestions.Submit") || Can("Suggestions.ViewAll") || Can("Suggestions.Manage"))) {
                 <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/EmployeeContracts") || (Context.Request.Path.StartsWithSegments("/MonthlyPerformance") || Context.Request.Path.StartsWithSegments("/MonthlyPerformanceAdmin") || Context.Request.Path.StartsWithSegments("/MonthlyPerformanceReports") || Context.Request.Path.StartsWithSegments("/Suggestions")) ? "open" : null)">
                     <summary><span class="nav-icon">▦</span>ماژول‌ها</summary>
                     <div class="nav-submenu">

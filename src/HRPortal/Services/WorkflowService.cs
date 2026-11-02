@@ -675,6 +675,45 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         return runtime;
     }
 
+    private async Task<bool> IsCurrentPositionAssigneeAsync(WorkflowTask task, int employeeId)
+    {
+        if (!task.AssignedPositionId.HasValue || task.AssignedPosition is null)
+            return false;
+
+        var revisionId = await db.OrganizationStructureRevisions.AsNoTracking()
+            .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
+            .OrderByDescending(x => x.EffectiveDate).ThenByDescending(x => x.Id)
+            .Select(x => (int?)x.Id)
+            .FirstOrDefaultAsync();
+        if (!revisionId.HasValue)
+            return false;
+
+        // Resolve by stable position code so a new effective organization revision
+        // changes the current assignee without moving or rewriting an in-flight task.
+        var currentPosition = await db.OrganizationNodes.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.OrganizationStructureRevisionId == revisionId.Value &&
+                                      x.Code == task.AssignedPosition.Code && x.IsActive);
+        if (currentPosition is null)
+            return false;
+
+        if (!await db.Employees.AsNoTracking()
+                .AnyAsync(x => x.Id == employeeId && x.Status == "فعال"))
+            return false;
+
+        var explicitAssignments = GetAssignedEmployeeIds(currentPosition);
+        if (currentPosition.PositionHolderEmployeeId.HasValue ||
+            !string.IsNullOrWhiteSpace(currentPosition.AssignedEmployeeIdsCsv))
+            return explicitAssignments.Contains(employeeId);
+
+        // Compatibility for older structures that have no explicit position-holder list.
+        return await db.Employees.AsNoTracking().AnyAsync(x =>
+            x.Id == employeeId && x.Status == "فعال" &&
+            (x.OrganizationUnitId == currentPosition.Id ||
+             x.OrganizationDepartmentId == currentPosition.Id ||
+             x.OrganizationSectionId == currentPosition.Id ||
+             x.OrganizationPositionId == currentPosition.Id));
+    }
+
     private static List<int> GetAssignedEmployeeIds(OrganizationNode position)
     {
         var ids = (position.AssignedEmployeeIdsCsv ?? "")
@@ -826,24 +865,26 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .Include(x => x.WorkflowInstance).ThenInclude(x => x.RequesterEmployee)
             .Include(x => x.WorkflowStep).ThenInclude(x => x.OrganizationNode)
             .Include(x => x.AssignedPosition)
+            // Position tasks remain position-owned even when AssignedEmployeeId stores
+            // the original holder as an audit snapshot. Current holders are resolved below.
             .Where(x => x.Status == "Pending" &&
-                        (x.AssignedEmployeeId == employeeId ||
-                         (x.AssignedEmployeeId == null && x.AssignedPositionId.HasValue)))
+                        (x.AssignedPositionId.HasValue || x.AssignedEmployeeId == employeeId))
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync();
 
-        var authorizedTasks = tasks.Where(task =>
+        var authorizedTasks = new List<WorkflowTask>();
+        foreach (var task in tasks)
         {
-            if (task.AssignedEmployeeId == employeeId) return true;
-            if (!task.AssignedPositionId.HasValue) return false;
-            var position = task.AssignedPosition;
-            if (position is not null && !string.IsNullOrWhiteSpace(position.AssignedEmployeeIdsCsv))
-                return GetAssignedEmployeeIds(position).Contains(employeeId);
-            return employee.OrganizationUnitId == task.AssignedPositionId ||
-                   employee.OrganizationDepartmentId == task.AssignedPositionId ||
-                   employee.OrganizationSectionId == task.AssignedPositionId ||
-                   employee.OrganizationPositionId == task.AssignedPositionId;
-        });
+            if (task.AssignedPositionId.HasValue)
+            {
+                if (await IsCurrentPositionAssigneeAsync(task, employeeId))
+                    authorizedTasks.Add(task);
+            }
+            else if (task.AssignedEmployeeId == employeeId)
+            {
+                authorizedTasks.Add(task);
+            }
+        }
 
         if (!string.IsNullOrWhiteSpace(status))
             authorizedTasks = authorizedTasks.Where(x => x.Status == status);
@@ -1031,24 +1072,17 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .Include(x => x.WorkflowStep).ThenInclude(x => x.OrganizationNode)
             .Include(x => x.AssignedPosition)
             .FirstOrDefaultAsync(x => x.Id == id && x.Status == "Pending" &&
-                (x.AssignedEmployeeId == employeeId ||
-                 (x.AssignedEmployeeId == null && x.AssignedPositionId.HasValue)));
-        if (task is not null && !task.AssignedEmployeeId.HasValue)
-        {
-            var position = task.AssignedPosition;
-            var hasExplicitAssignments = position is not null && !string.IsNullOrWhiteSpace(position.AssignedEmployeeIdsCsv);
-            var isExplicitlyAssigned = position is not null &&
-                GetAssignedEmployeeIds(position).Contains(employeeId) &&
-                await db.Employees.AnyAsync(e => e.Id == employeeId && e.Status == "فعال");
-            var isLegacyMember = !hasExplicitAssignments &&
-                await db.Employees.AnyAsync(e => e.Id == employeeId && e.Status == "فعال" &&
-                    (e.OrganizationUnitId == task.AssignedPositionId ||
-                     e.OrganizationDepartmentId == task.AssignedPositionId ||
-                     e.OrganizationSectionId == task.AssignedPositionId ||
-                     e.OrganizationPositionId == task.AssignedPositionId));
-            if (!isLegacyMember && !isExplicitlyAssigned)
-                return null;
-        }
+                (x.AssignedPositionId.HasValue || x.AssignedEmployeeId == employeeId));
+
+        // A position task is authorized against the current effective structure,
+        // not the employee snapshot captured when the task was created. This allows
+        // reassignment to take effect without rewriting the task or its audit trail.
+        if (task is not null && task.AssignedPositionId.HasValue &&
+            !await IsCurrentPositionAssigneeAsync(task, employeeId))
+            return null;
+        if (task is not null && !task.AssignedPositionId.HasValue &&
+            task.AssignedEmployeeId != employeeId)
+            return null;
         if (task is not null && !task.ClaimedAt.HasValue)
         {
             task.ClaimedAt = DateTime.UtcNow;

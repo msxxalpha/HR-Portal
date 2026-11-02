@@ -55,59 +55,25 @@ public class WorkflowController(
         var rows = new List<UnassignedWorkflowTaskRow>();
         foreach (var task in tasks)
         {
-            string? issueCode = null;
-            string? issue = null;
             var positionCode = task.AssignedPosition?.Code ?? task.WorkflowStep.OrganizationNode?.Code;
             var positionTitle = task.AssignedPosition?.Title ?? task.WorkflowStep.OrganizationNode?.Title ?? "—";
-
-            if (task.AssignedPositionId.HasValue)
-            {
-                if (string.IsNullOrWhiteSpace(positionCode) ||
-                    !positionByCode.TryGetValue(positionCode.Trim(), out var currentPosition))
-                {
-                    issueCode = "PositionMissing";
-                    issue = "جایگاه متناظر در آخرین نسخه نهایی و مؤثر ساختار پیدا نشد.";
-                }
-                else
-                {
-                    positionTitle = currentPosition.Title;
-                    var assignedIds = (currentPosition.AssignedEmployeeIdsCsv ?? "")
-                        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                        .Select(value => int.TryParse(value, out var parsedId) ? parsedId : 0)
-                        .ToList();
-                    if (assignedIds.Count == 0 && currentPosition.PositionHolderEmployeeId.HasValue)
-                        assignedIds.Add(currentPosition.PositionHolderEmployeeId.Value);
-                    if (assignedIds.Count == 0)
-                    {
-                        assignedIds = activeEmployees.Where(e =>
-                            e.OrganizationUnitId == currentPosition.Id ||
-                            e.OrganizationDepartmentId == currentPosition.Id ||
-                            e.OrganizationSectionId == currentPosition.Id ||
-                            e.OrganizationPositionId == currentPosition.Id)
-                            .Select(e => e.Id).ToList();
-                    }
-
-                    var hasInvalidAssignment = assignedIds.Any(id => id <= 0 || !activeIds.Contains(id));
-                    var hasActiveHolder = assignedIds.Any(activeIds.Contains);
-                    if (!hasActiveHolder)
-                    {
-                        issueCode = "NoActiveHolder";
-                        issue = "جایگاه در ساختار وجود دارد، اما متصدی فعال و قابل اقدام ندارد.";
-                    }
-                    else if (hasInvalidAssignment)
-                    {
-                        issueCode = "InvalidAssignment";
-                        issue = "فهرست متصدیان جایگاه شامل شناسه نامعتبر یا کارمند غیرفعال است.";
-                    }
-                }
-            }
-            else if (!task.AssignedEmployeeId.HasValue || !activeIds.Contains(task.AssignedEmployeeId.Value))
-            {
-                issueCode = "EmployeeMissing";
-                issue = "تخصیص مستقیم کارمند خالی است یا کارمند تخصیص‌یافته فعال نیست.";
-            }
-
+            var issueCode = WorkflowTaskAssignmentHealthResolver.GetIssueCode(
+                task, positionByCode, activeEmployees);
             if (issueCode is null) continue;
+
+            if (!string.IsNullOrWhiteSpace(positionCode) &&
+                positionByCode.TryGetValue(positionCode.Trim(), out var currentPosition))
+                positionTitle = currentPosition.Title;
+
+            var issue = issueCode switch
+            {
+                "PositionMissing" => "جایگاه متناظر در آخرین نسخه نهایی و مؤثر ساختار پیدا نشد.",
+                "NoActiveHolder" => "جایگاه در ساختار وجود دارد، اما متصدی فعال و قابل اقدام ندارد.",
+                "InvalidAssignment" => "فهرست متصدیان جایگاه شامل شناسه نامعتبر یا کارمند غیرفعال است.",
+                "EmployeeMissing" => "تخصیص مستقیم کارمند خالی است یا کارمند تخصیص‌یافته فعال نیست.",
+                _ => "تخصیص وظیفه نیازمند بررسی مدیریتی است."
+            };
+
             rows.Add(new UnassignedWorkflowTaskRow
             {
                 TaskId = task.Id,
@@ -122,7 +88,7 @@ public class WorkflowController(
                 PositionTitle = positionTitle,
                 CreatedAt = task.CreatedAt,
                 ReasonCode = issueCode,
-                Reason = issue!
+                Reason = issue
             });
         }
 

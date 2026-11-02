@@ -10,8 +10,184 @@ namespace HRPortal.Controllers;
 public class WorkflowController(
     WorkflowService workflow,
     HRPortal.Data.HRPortalDbContext db,
-    ContractRenewalPdfService contractRenewalPdf) : Controller
+    ContractRenewalPdfService contractRenewalPdf,
+    AuditService audit) : Controller
 {
+
+    [HttpGet]
+    [Authorize(Policy = "Workflow.Manage")]
+    public async Task<IActionResult> UnassignedTasks(string? q = null, string? reason = null, int? workflowId = null)
+    {
+        var revision = await db.OrganizationStructureRevisions.AsNoTracking()
+            .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
+            .OrderByDescending(x => x.EffectiveDate).ThenByDescending(x => x.Id)
+            .FirstOrDefaultAsync();
+        var positions = revision is null
+            ? new List<HRPortal.Models.OrganizationNode>()
+            : await db.OrganizationNodes.AsNoTracking()
+                .Where(x => x.OrganizationStructureRevisionId == revision.Id && x.IsActive)
+                .ToListAsync();
+        var positionByCode = positions
+            .Where(x => !string.IsNullOrWhiteSpace(x.Code))
+            .GroupBy(x => x.Code.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.OrderByDescending(n => n.Id).First(), StringComparer.OrdinalIgnoreCase);
+        var activeEmployees = await db.Employees.AsNoTracking()
+            .Where(x => x.Status == "فعال").ToListAsync();
+        var activeIds = activeEmployees.Select(x => x.Id).ToHashSet();
+
+        var tasks = await db.WorkflowTasks.AsNoTracking()
+            .Include(x => x.WorkflowInstance).ThenInclude(x => x.WorkflowDefinition)
+            .Include(x => x.WorkflowInstance).ThenInclude(x => x.RequesterEmployee)
+            .Include(x => x.WorkflowStep).ThenInclude(x => x.OrganizationNode)
+            .Include(x => x.AssignedPosition)
+            .Include(x => x.AssignedEmployee)
+            .Where(x => x.Status == "Pending")
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync();
+
+        var rows = new List<UnassignedWorkflowTaskRow>();
+        foreach (var task in tasks)
+        {
+            string? issueCode = null;
+            string? issue = null;
+            var positionCode = task.AssignedPosition?.Code ?? task.WorkflowStep.OrganizationNode?.Code;
+            var positionTitle = task.AssignedPosition?.Title ?? task.WorkflowStep.OrganizationNode?.Title ?? "—";
+
+            if (task.AssignedPositionId.HasValue)
+            {
+                if (string.IsNullOrWhiteSpace(positionCode) ||
+                    !positionByCode.TryGetValue(positionCode.Trim(), out var currentPosition))
+                {
+                    issueCode = "PositionMissing";
+                    issue = "جایگاه متناظر در آخرین نسخه نهایی و مؤثر ساختار پیدا نشد.";
+                }
+                else
+                {
+                    positionTitle = currentPosition.Title;
+                    var assignedIds = (currentPosition.AssignedEmployeeIdsCsv ?? "")
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                        .Select(value => int.TryParse(value, out var parsedId) ? parsedId : 0)
+                        .ToList();
+                    if (assignedIds.Count == 0 && currentPosition.PositionHolderEmployeeId.HasValue)
+                        assignedIds.Add(currentPosition.PositionHolderEmployeeId.Value);
+                    if (assignedIds.Count == 0)
+                    {
+                        assignedIds = activeEmployees.Where(e =>
+                            e.OrganizationUnitId == currentPosition.Id ||
+                            e.OrganizationDepartmentId == currentPosition.Id ||
+                            e.OrganizationSectionId == currentPosition.Id ||
+                            e.OrganizationPositionId == currentPosition.Id)
+                            .Select(e => e.Id).ToList();
+                    }
+
+                    var hasInvalidAssignment = assignedIds.Any(id => id <= 0 || !activeIds.Contains(id));
+                    var hasActiveHolder = assignedIds.Any(activeIds.Contains);
+                    if (!hasActiveHolder)
+                    {
+                        issueCode = "NoActiveHolder";
+                        issue = "جایگاه در ساختار وجود دارد، اما متصدی فعال و قابل اقدام ندارد.";
+                    }
+                    else if (hasInvalidAssignment)
+                    {
+                        issueCode = "InvalidAssignment";
+                        issue = "فهرست متصدیان جایگاه شامل شناسه نامعتبر یا کارمند غیرفعال است.";
+                    }
+                }
+            }
+            else if (!task.AssignedEmployeeId.HasValue || !activeIds.Contains(task.AssignedEmployeeId.Value))
+            {
+                issueCode = "EmployeeMissing";
+                issue = "تخصیص مستقیم کارمند خالی است یا کارمند تخصیص‌یافته فعال نیست.";
+            }
+
+            if (issueCode is null) continue;
+            rows.Add(new UnassignedWorkflowTaskRow
+            {
+                TaskId = task.Id,
+                WorkflowInstanceId = task.WorkflowInstanceId,
+                WorkflowId = task.WorkflowInstance.WorkflowDefinitionId,
+                WorkflowTitle = task.WorkflowInstance.WorkflowDefinition.Title,
+                EntityType = task.WorkflowInstance.EntityType,
+                EntityId = task.WorkflowInstance.EntityId,
+                RequesterName = task.WorkflowInstance.RequesterEmployee.FirstName + " " + task.WorkflowInstance.RequesterEmployee.LastName,
+                StepTitle = task.WorkflowStep.Title,
+                PositionCode = positionCode ?? "—",
+                PositionTitle = positionTitle,
+                CreatedAt = task.CreatedAt,
+                ReasonCode = issueCode,
+                Reason = issue!
+            });
+        }
+
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            var term = q.Trim();
+            rows = rows.Where(x =>
+                x.WorkflowTitle.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                x.EntityType.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                x.EntityId.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                x.RequesterName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                x.StepTitle.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                x.PositionTitle.Contains(term, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+        if (!string.IsNullOrWhiteSpace(reason))
+            rows = rows.Where(x => x.ReasonCode == reason).ToList();
+        if (workflowId.HasValue)
+            rows = rows.Where(x => x.WorkflowId == workflowId.Value).ToList();
+
+        ViewBag.Search = q;
+        ViewBag.Reason = reason;
+        ViewBag.WorkflowId = workflowId;
+        ViewBag.ActiveEmployees = activeEmployees.OrderBy(x => x.LastName).ThenBy(x => x.FirstName).ToList();
+        ViewBag.WorkflowDefinitions = tasks.Select(x => x.WorkflowInstance.WorkflowDefinition)
+            .DistinctBy(x => x.Id).OrderBy(x => x.Title).ToList();
+        return View(rows);
+    }
+
+    [HttpPost]
+    [Authorize(Policy = "Workflow.Manage")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ReassignUnassignedTask(int id, int employeeId)
+    {
+        var employee = await db.Employees.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == employeeId && x.Status == "فعال");
+        if (employee is null)
+        {
+            TempData["Error"] = "فقط می‌توان وظیفه را به کارمند فعال واگذار کرد.";
+            return RedirectToAction(nameof(UnassignedTasks));
+        }
+
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        var task = await db.WorkflowTasks
+            .Include(x => x.AssignedPosition)
+            .Include(x => x.WorkflowStep)
+            .Include(x => x.WorkflowInstance)
+            .FirstOrDefaultAsync(x => x.Id == id && x.Status == "Pending");
+        if (task is null)
+        {
+            TempData["Error"] = "وظیفه باز موردنظر پیدا نشد یا قبلاً تعیین تکلیف شده است.";
+            return RedirectToAction(nameof(UnassignedTasks));
+        }
+
+        var previousOwner = task.AssignedPosition is not null
+            ? $"جایگاه {task.AssignedPosition.Code} - {task.AssignedPosition.Title}"
+            : $"کارمند شناسه {task.AssignedEmployeeId?.ToString() ?? "نامشخص"}";
+        task.AssignedPositionId = null;
+        task.AssignedEmployeeId = employeeId;
+        task.ClaimedAt = null;
+        await db.SaveChangesAsync();
+        await audit.WriteAsync(
+            "ReassignUnassignedWorkflowTask",
+            "WorkflowTask",
+            task.Id.ToString(),
+            $"وظیفه باز از تخصیص قبلی ({previousOwner}) به کارمند فعال {employee.FirstName} {employee.LastName} منتقل شد. شناسه گردش: {task.WorkflowInstanceId}؛ مرحله: {task.WorkflowStep.Title}.",
+            int.TryParse(User.FindFirst("EmployeeId")?.Value, out var actorId) ? actorId : null);
+        await transaction.CommitAsync();
+
+        TempData["Success"] = "وظیفه با حفظ شناسه و تاریخچه به کارمند فعال واگذار شد.";
+        return RedirectToAction(nameof(UnassignedTasks));
+    }
+
     [HttpGet]
     [Authorize(Policy = "Workflow.Inbox")]
     public async Task<IActionResult> Inbox()

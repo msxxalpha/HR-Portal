@@ -65,5 +65,25 @@ public class HomeController(HRPortalDbContext db, AnnouncementService announceme
         return View();
     }
 
+    [AllowAnonymous]
+    [HttpGet]
+    public async Task<IActionResult> Maintenance()
+    {
+        if (User.HasClaim("IsAdmin", "1"))
+            return RedirectToAction(nameof(Index));
+
+        var settings = await db.SystemSettings.AsNoTracking().FirstOrDefaultAsync();
+        if (settings?.MaintenanceMode != true)
+        {
+            return User.Identity?.IsAuthenticated == true
+                ? RedirectToAction(nameof(Index))
+                : RedirectToAction("Login", "Account");
+        }
+
+        Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
+        return View("Maintenance", settings);
+    }
+
     public IActionResult Error() => View();
 }

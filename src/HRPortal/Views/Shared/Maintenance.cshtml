@@ -1,0 +1,203 @@
+@model HRPortal.Models.SystemSettings
+@{
+    Layout = null;
+    ViewData["Title"] = "تعمیر و نگهداری سامانه";
+    var applicationName = string.IsNullOrWhiteSpace(Model.ApplicationName) ? "پورتال جامع منابع انسانی" : Model.ApplicationName;
+    var organizationName = string.IsNullOrWhiteSpace(Model.OrganizationName) ? applicationName : Model.OrganizationName;
+    var maintenanceMessage = string.IsNullOrWhiteSpace(Model.MaintenanceMessage)
+        ? "سامانه برای انجام عملیات فنی و بهبود کیفیت خدمات، موقتاً در دسترس کاربران نیست."
+        : Model.MaintenanceMessage;
+}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#142b40" />
+    <title>تعمیر و نگهداری | @applicationName</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazir-font@v30.1.0/dist/font-face.css" />
+    <link rel="stylesheet" href="@Url.Content("~/css/maintenance.css")" />
+</head>
+<body class="maintenance-page">
+    <div class="maintenance-backdrop" aria-hidden="true">
+        <span class="backdrop-orb orb-one"></span>
+        <span class="backdrop-orb orb-two"></span>
+        <span class="backdrop-grid"></span>
+    </div>
+
+    <main class="maintenance-shell">
+        <header class="maintenance-header">
+            <div class="maintenance-brand">
+                <div class="brand-mark" aria-hidden="true">
+                    <svg viewBox="0 0 48 48" role="presentation">
+                        <path d="M24 4 42 14.5v19L24 44 6 33.5v-19L24 4Z" fill="none" stroke="currentColor" stroke-width="1.8" />
+                        <path d="M15 29V18l9-5 9 5v11l-9 5-9-5Z" fill="none" stroke="currentColor" stroke-width="1.8" />
+                        <path d="M15 18l9 5 9-5M24 23v11" fill="none" stroke="currentColor" stroke-width="1.8" />
+                    </svg>
+                </div>
+                <div class="brand-copy">
+                    <strong>@applicationName</strong>
+                    <span>@organizationName</span>
+                </div>
+            </div>
+
+            <div class="maintenance-status">
+                <span class="status-dot"></span>
+                <span>عملیات نگهداری فعال است</span>
+            </div>
+        </header>
+
+        <section class="maintenance-hero" aria-labelledby="maintenance-title">
+            <div class="maintenance-copy">
+                <div class="eyebrow">
+                    <span class="eyebrow-line"></span>
+                    اطلاعیه خدمات سامانه
+                    <span class="eyebrow-code">SERVICE 503</span>
+                </div>
+
+                <h1 id="maintenance-title">
+                    در حال آماده‌سازی
+                    <span>تجربه‌ای بهتر</span>
+                </h1>
+
+                <p class="maintenance-lead">
+                    برای ارتقای پایداری، امنیت و کیفیت خدمات، دسترسی کاربران به سامانه موقتاً متوقف شده است.
+                    از شکیبایی شما سپاسگزاریم.
+                </p>
+
+                <div class="maintenance-message">
+                    <div class="message-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 3.5 20 7v5.2c0 4.2-2.8 7-8 8.8-5.2-1.8-8-4.6-8-8.8V7l8-3.5Z" />
+                            <path d="M8.5 12h7M12 8.5v7" />
+                        </svg>
+                    </div>
+                    <div>
+                        <span class="message-label">پیام واحد پشتیبانی سامانه</span>
+                        <p>@maintenanceMessage</p>
+                    </div>
+                </div>
+
+                <div class="maintenance-actions">
+                    <a class="action-primary" href="/Home/Maintenance">
+                        <span>بررسی مجدد وضعیت</span>
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M20 11a8 8 0 0 0-14.8-3L3 11m0 0V5m0 6h6M4 13a8 8 0 0 0 14.8 3L21 13m0 0v6m0-6h-6" />
+                        </svg>
+                    </a>
+                    <a class="action-secondary" href="/Account/Login">صفحه ورود</a>
+                </div>
+
+                <div class="administrator-note">
+                    <span class="admin-note-icon" aria-hidden="true">⌘</span>
+                    <span>مدیر سامانه هستید؟ <a href="/Account/Login?mode=admin">ورود به پنل مدیریت</a></span>
+                </div>
+            </div>
+
+            <div class="maintenance-visual" aria-hidden="true">
+                <div class="visual-orbit orbit-large"></div>
+                <div class="visual-orbit orbit-small"></div>
+                <div class="visual-cross cross-one"></div>
+                <div class="visual-cross cross-two"></div>
+
+                <div class="visual-server-card">
+                    <div class="server-card-head">
+                        <div class="server-card-brand">
+                            <span class="server-brand-dot"></span>
+                            <span>HR PORTAL</span>
+                        </div>
+                        <span class="server-card-tag">SYSTEM CARE</span>
+                    </div>
+
+                    <svg class="server-illustration" viewBox="0 0 430 300" role="img">
+                        <defs>
+                            <linearGradient id="serverBody" x1="0" x2="1" y1="0" y2="1">
+                                <stop offset="0" stop-color="#24445f" />
+                                <stop offset="1" stop-color="#112b43" />
+                            </linearGradient>
+                            <linearGradient id="serverFace" x1="0" x2="1">
+                                <stop offset="0" stop-color="#365d79" />
+                                <stop offset="1" stop-color="#25445f" />
+                            </linearGradient>
+                            <linearGradient id="serverGlow" x1="0" x2="1">
+                                <stop offset="0" stop-color="#76c4bb" />
+                                <stop offset="1" stop-color="#b1d9c8" />
+                            </linearGradient>
+                            <filter id="serverShadow" x="-30%" y="-30%" width="160%" height="170%">
+                                <feGaussianBlur stdDeviation="12" />
+                            </filter>
+                        </defs>
+                        <ellipse cx="213" cy="254" rx="142" ry="17" fill="#0c263b" opacity=".16" filter="url(#serverShadow)" />
+                        <path d="m93 71 142-43 107 46-142 45L93 71Z" fill="#53758d" />
+                        <path d="m93 71 107 48v133L93 204V71Z" fill="url(#serverBody)" />
+                        <path d="m200 119 142-45v132l-142 46V119Z" fill="url(#serverFace)" />
+                        <path d="m110 91 83 37v22l-83-37V91Zm0 39 83 37v22l-83-37v-22Zm0 39 83 37v22l-83-37v-22Z" fill="#7694a8" opacity=".28" />
+                        <path d="m214 137 112-36v23l-112 36v-23Zm0 39 112-36v23l-112 36v-23Zm0 39 112-36v23l-112 36v-23Z" fill="#102a40" opacity=".42" />
+                        <path d="m226 146 14-5v8l-14 5v-8Zm0 39 14-5v8l-14 5v-8Zm0 39 14-5v8l-14 5v-8Z" fill="url(#serverGlow)" />
+                        <path d="m253 137 50-16m-50 55 50-16m-50 55 50-16" stroke="#a9c2d0" stroke-width="3" stroke-linecap="round" opacity=".7" />
+                        <path d="m93 204 107 48 142-46" fill="none" stroke="#7697ab" stroke-width="2" opacity=".55" />
+                        <path d="m200 119 0 133" stroke="#6c8ba0" stroke-width="2" opacity=".55" />
+                        <circle cx="326" cy="67" r="31" fill="#d8ece8" opacity=".95" />
+                        <path d="M314 67.5 323 77l17-21" fill="none" stroke="#2e8277" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+                        <path d="M79 232h-27m27 0-8-8m8 8-8 8m283-27h27m-27 0 8-8m-8 8 8 8" fill="none" stroke="#7ba8ad" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity=".7" />
+                    </svg>
+
+                    <div class="server-card-foot">
+                        <div class="server-foot-label">
+                            <span>زیرساخت سامانه</span>
+                            <small>در حال بررسی و نگهداری</small>
+                        </div>
+                        <div class="server-indicators"><i></i><i></i><i></i></div>
+                    </div>
+                </div>
+
+                <div class="floating-tile tile-shield">
+                    <svg viewBox="0 0 32 32">
+                        <path d="M16 3.5 27 8v7.2c0 6-4 10.1-11 13.3-7-3.2-11-7.3-11-13.3V8l11-4.5Z" />
+                        <path d="m10.5 16 3.7 3.7 7.4-8" />
+                    </svg>
+                </div>
+                <div class="floating-tile tile-gear">
+                    <svg viewBox="0 0 32 32">
+                        <path d="M13 3h6l1 3.4 2.4 1.4 3.3-1.2 3 5.2-2.5 2.5v2.8l2.5 2.5-3 5.2-3.3-1.2-2.4 1.4L19 28h-6l-1-3.4-2.4-1.4-3.3 1.2-3-5.2 2.5-2.5v-2.8l-2.5-2.5 3-5.2 3.3 1.2L12 6.4 13 3Z" />
+                        <circle cx="16" cy="15.5" r="4.1" />
+                    </svg>
+                </div>
+                <div class="floating-label"><span></span> محیط عملیاتی تحت مراقبت</div>
+            </div>
+        </section>
+
+        <section class="maintenance-summary" aria-label="وضعیت خدمات">
+            <div class="summary-item">
+                <span class="summary-index">۰۱</span>
+                <div>
+                    <small>وضعیت دسترسی</small>
+                    <strong>موقتاً متوقف</strong>
+                </div>
+            </div>
+            <div class="summary-divider"></div>
+            <div class="summary-item">
+                <span class="summary-index">۰۲</span>
+                <div>
+                    <small>نوع پاسخ</small>
+                    <strong>Service Unavailable · 503</strong>
+                </div>
+            </div>
+            <div class="summary-divider"></div>
+            <div class="summary-item">
+                <span class="summary-index">۰۳</span>
+                <div>
+                    <small>زمان بازگشت</small>
+                    <strong>پس از پایان عملیات نگهداری</strong>
+                </div>
+            </div>
+        </section>
+
+        <footer class="maintenance-footer">
+            <span>@(string.IsNullOrWhiteSpace(Model.FooterText) ? applicationName : Model.FooterText)</span>
+            <span>@organizationName</span>
+        </footer>
+    </main>
+</body>
+</html>

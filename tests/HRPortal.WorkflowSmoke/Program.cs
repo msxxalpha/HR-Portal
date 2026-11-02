@@ -1,6 +1,8 @@
 using HRPortal.Services;
 using HRPortal.Data;
 using HRPortal.Models;
+using HRPortal.Middleware;
+using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
@@ -193,10 +195,73 @@ Console.WriteLine("PASS: multi-assignee position ownership, holder fallback, mal
 Console.WriteLine("      explicit employee-only routing, inactive/invalid employee denial,");
 Console.WriteLine("      effective revision selection, stable-code mapping, and instance visibility;");
 Console.WriteLine("      unassigned report filters and server-side reassignment eligibility checks.");
+await VerifyMaintenanceModeBypassAsync();
 await VerifyWorkflowServiceAuthorizationAsync();
 await VerifyExplicitPositionTaskCreationAsync();
 await VerifyWorkflowTransitionLifecycleAsync();
 await VerifyContractRenewalRuntimeFlowAsync();
+
+static async Task VerifyMaintenanceModeBypassAsync()
+{
+    var options = new DbContextOptionsBuilder<HRPortalDbContext>()
+        .UseInMemoryDatabase("maintenance-mode-access-smoke")
+        .Options;
+    await using var db = new HRPortalDbContext(options);
+    db.SystemSettings.Add(new SystemSettings { Id = 1, MaintenanceMode = true });
+    await db.SaveChangesAsync();
+
+    static ClaimsPrincipal Principal(string? isAdmin) =>
+        new(new ClaimsIdentity(
+            isAdmin is null ? Array.Empty<Claim>() : new[] { new Claim("IsAdmin", isAdmin) },
+            "MaintenanceSmoke"));
+
+    async Task<(bool NextCalled, bool Redirected)> RunAsync(ClaimsPrincipal user, string path)
+    {
+        var context = new DefaultHttpContext();
+        context.User = user;
+        context.Request.Path = path;
+        var nextCalled = false;
+        var middleware = new MaintenanceModeMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(context, db);
+        var redirected = context.Response.StatusCode == StatusCodes.Status302Found &&
+            string.Equals(context.Response.Headers["Location"].ToString(), "/Home/Maintenance", StringComparison.Ordinal);
+        return (nextCalled, redirected);
+    }
+
+    var administrator = await RunAsync(Principal("1"), "/Employees");
+    Check(administrator.NextCalled && !administrator.Redirected,
+        "An authenticated system administrator must bypass maintenance mode.");
+
+    var employee = Principal("0");
+    var employeeRequest = await RunAsync(employee, "/Employees");
+    Check(!employeeRequest.NextCalled && employeeRequest.Redirected,
+        "An ordinary employee must be redirected to the maintenance page.");
+
+    var anonymousRequest = await RunAsync(new ClaimsPrincipal(new ClaimsIdentity()), "/");
+    Check(!anonymousRequest.NextCalled && anonymousRequest.Redirected,
+        "An anonymous application request must be redirected during maintenance.");
+
+    foreach (var exemptPath in new[] { "/Account/Login", "/SystemSettings", "/Home/Maintenance" })
+    {
+        var exemptRequest = await RunAsync(employee, exemptPath);
+        Check(exemptRequest.NextCalled && !exemptRequest.Redirected,
+            $"The maintenance-exempt endpoint '{exemptPath}' must remain reachable.");
+    }
+
+    var settings = await db.SystemSettings.SingleAsync();
+    settings.MaintenanceMode = false;
+    await db.SaveChangesAsync();
+    var normalOperation = await RunAsync(employee, "/Employees");
+    Check(normalOperation.NextCalled && !normalOperation.Redirected,
+        "Normal employee access must resume after maintenance mode is disabled.");
+
+    Console.WriteLine("PASS: maintenance mode blocks ordinary/anonymous users and permits authenticated admins.");
+}
 
 static async Task VerifyWorkflowServiceAuthorizationAsync()
 {

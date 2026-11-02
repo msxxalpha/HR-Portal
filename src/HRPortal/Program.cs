@@ -1,4 +1,5 @@
 using HRPortal.Data;
+using HRPortal.Middleware;
 using HRPortal.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -139,31 +140,13 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 
-app.Use(async (ctx, next) =>
-{
-    var path = ctx.Request.Path.Value ?? "";
-
-    if (!path.StartsWith("/Account", StringComparison.OrdinalIgnoreCase) &&
-        !path.StartsWith("/SystemSettings", StringComparison.OrdinalIgnoreCase))
-    {
-        var db = ctx.RequestServices.GetRequiredService<HRPortalDbContext>();
-        var settings = await db.SystemSettings.AsNoTracking().FirstOrDefaultAsync();
-
-        if (settings?.MaintenanceMode == true)
-        {
-            ctx.Response.StatusCode = 503;
-            await ctx.Response.WriteAsync(
-                $"<html lang='fa' dir='rtl'><meta charset='utf-8'><body style='font-family:Vazir,Arial;text-align:center;padding:80px'><h2>{settings.ApplicationName}</h2><p>{settings.MaintenanceMessage}</p></body></html>");
-            return;
-        }
-    }
-
-    await next();
-});
-
 app.UseRouting();
 app.UseSession();
 app.UseAuthentication();
+
+// Maintenance enforcement runs after cookie authentication so a signed-in
+// system administrator can continue working while employee access is paused.
+app.UseMiddleware<MaintenanceModeMiddleware>();
 app.Use(async (ctx, next) =>
 {
     // First-login national ID credentials are temporary. Only password change and logout

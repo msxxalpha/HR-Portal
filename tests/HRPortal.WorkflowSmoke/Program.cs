@@ -176,6 +176,7 @@ Console.WriteLine("      effective revision selection, stable-code mapping, and 
 Console.WriteLine("      unassigned report filters and server-side reassignment eligibility checks.");
 await VerifyWorkflowServiceAuthorizationAsync();
 await VerifyExplicitPositionTaskCreationAsync();
+await VerifyWorkflowTransitionLifecycleAsync();
 
 static async Task VerifyWorkflowServiceAuthorizationAsync()
 {
@@ -422,4 +423,118 @@ static async Task VerifyExplicitPositionTaskCreationAsync()
         "Every active explicit assignee must be able to open the shared position task.");
 
     Console.WriteLine("PASS: actual task creation honors explicit single and multi-assignee lists over legacy holder data.");
+}
+
+static async Task VerifyWorkflowTransitionLifecycleAsync()
+{
+    var options = new DbContextOptionsBuilder<HRPortalDbContext>()
+        .UseInMemoryDatabase("workflow-transition-lifecycle")
+        .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+        .Options;
+    await using var db = new HRPortalDbContext(options);
+
+    static Employee Person(int id) => new()
+    {
+        Id = id, PersonnelNumber = $"PL{id}", NationalId = $"NL{id}",
+        FirstName = $"کارمند{id}", LastName = "آزمایشی",
+        Mobile = "09120000000", Gender = "مرد", Status = "فعال"
+    };
+
+    var requester = Person(11);
+    var reviewer = Person(12);
+    var definition = new WorkflowDefinition
+    {
+        Id = 1, Code = "LIFECYCLE", Title = "چرخه عمر آزمون",
+        IsActive = true, Version = 1
+    };
+    var first = new WorkflowStep
+    {
+        Id = 1, WorkflowDefinitionId = 1, WorkflowDefinition = definition,
+        Code = "FIRST", Title = "مرحله اول", SortOrder = 10,
+        AssignmentType = "Employee", AssignedEmployeeId = 11,
+        AllowApprove = true, AllowReject = false, AllowReturn = false
+    };
+    var second = new WorkflowStep
+    {
+        Id = 2, WorkflowDefinitionId = 1, WorkflowDefinition = definition,
+        Code = "SECOND", Title = "مرحله دوم", SortOrder = 20,
+        AssignmentType = "Employee", AssignedEmployeeId = 12,
+        AllowApprove = true, AllowReject = true, AllowReturn = true
+    };
+    first.Fields.Add(new WorkflowStepField
+    {
+        Id = 1, WorkflowStepId = 1, WorkflowStep = first,
+        Code = "ReviewNote", Title = "یادداشت بررسی",
+        FieldType = "Text", IsRequired = true, MaxLength = 200
+    });
+    definition.Steps.Add(first);
+    definition.Steps.Add(second);
+    db.AddRange(requester, reviewer, definition, first, second,
+        new WorkflowTransition
+        {
+            Id = 1, WorkflowStepId = 2, WorkflowStep = second,
+            ToStepId = 1, ToStep = first, Action = "Return", Title = "بازگشت به مرحله اول"
+        });
+    await db.SaveChangesAsync();
+
+    var audit = new AuditService(db, new HttpContextAccessor());
+    var service = new WorkflowService(db, audit);
+    var instance = await service.StartAsync("LIFECYCLE", "Smoke", "lifecycle", 11);
+
+    var firstTask = await db.WorkflowTasks.SingleAsync(x => x.WorkflowInstanceId == instance.Id);
+    Check(await service.GetTaskAsync(firstTask.Id, 12) is null,
+        "An employee not assigned to the first step must not open its action form.");
+    Check(await service.GetTaskAsync(firstTask.Id, 11) is not null,
+        "The assigned employee must be able to open the first action form.");
+
+    await service.CompleteTaskAsync(firstTask.Id, 11, "SaveDraft", "ذخیره موقت",
+        new Dictionary<string, string?> { ["ReviewNote"] = "پیش‌نویس" });
+    Check(await db.WorkflowTasks.AnyAsync(x => x.Id == firstTask.Id && x.Status == "Pending"),
+        "Saving a draft must not complete or advance the task.");
+    Check(await db.WorkflowHistory.AnyAsync(x => x.WorkflowInstanceId == instance.Id && x.Action == "SaveDraft"),
+        "Saving a draft must create an auditable workflow history entry.");
+
+    var requiredFieldRejected = false;
+    try
+    {
+        await service.CompleteTaskAsync(firstTask.Id, 11, "Approve", "تأیید");
+    }
+    catch (InvalidOperationException)
+    {
+        requiredFieldRejected = true;
+    }
+    Check(requiredFieldRejected &&
+          await db.WorkflowTasks.AnyAsync(x => x.Id == firstTask.Id && x.Status == "Pending"),
+        "An approval with a missing required field must be rejected without completing the task.");
+
+    await service.CompleteTaskAsync(firstTask.Id, 11, "Approve", "تأیید مرحله اول",
+        new Dictionary<string, string?> { ["ReviewNote"] = "بررسی انجام شد" });
+    var secondTask = await db.WorkflowTasks.SingleAsync(x =>
+        x.WorkflowInstanceId == instance.Id && x.WorkflowStepId == second.Id && x.Status == "Pending");
+    Check(await db.WorkflowTasks.AnyAsync(x => x.Id == firstTask.Id && x.Status == "Completed"),
+        "Approval must complete the first task.");
+    Check((await db.WorkflowInstances.SingleAsync(x => x.Id == instance.Id)).CurrentStepId == second.Id,
+        "Approval must advance the workflow to its configured next step.");
+
+    await service.CompleteTaskAsync(secondTask.Id, 12, "Return", "نیازمند اصلاح");
+    var returnedInstance = await db.WorkflowInstances.SingleAsync(x => x.Id == instance.Id);
+    Check(returnedInstance.Status == "InProgress" && returnedInstance.CurrentStepId == first.Id,
+        "Return must route to the configured previous step without terminating the instance.");
+    var returnedTask = await db.WorkflowTasks.SingleAsync(x =>
+        x.WorkflowInstanceId == instance.Id && x.WorkflowStepId == first.Id && x.Status == "Pending");
+    Check(await db.WorkflowHistory.AnyAsync(x => x.WorkflowInstanceId == instance.Id && x.Action == "Return"),
+        "Return must be recorded in workflow history.");
+
+    await service.CompleteTaskAsync(returnedTask.Id, 11, "Approve", "تأیید مجدد",
+        new Dictionary<string, string?> { ["ReviewNote"] = "اصلاح انجام شد" });
+    var finalReviewTask = await db.WorkflowTasks.SingleAsync(x =>
+        x.WorkflowInstanceId == instance.Id && x.WorkflowStepId == second.Id && x.Status == "Pending");
+    await service.CompleteTaskAsync(finalReviewTask.Id, 12, "Reject", "عدم تأیید");
+    var rejectedInstance = await db.WorkflowInstances.SingleAsync(x => x.Id == instance.Id);
+    Check(rejectedInstance.Status == "Rejected" && rejectedInstance.CurrentStepId is null,
+        "Reject without a configured route must terminate the workflow as Rejected.");
+    Check(await db.WorkflowHistory.CountAsync(x => x.WorkflowInstanceId == instance.Id) >= 6,
+        "The full draft/approve/return/re-approve/reject lifecycle must retain its history.");
+
+    Console.WriteLine("PASS: workflow lifecycle draft validation, approval, return, rejection, task creation and audit history.");
 }

@@ -125,5 +125,5 @@ Check(WorkflowPositionAssignmentResolver.FindByStableCode(
 
 Console.WriteLine("PASS: multi-assignee position ownership, holder fallback, malformed/duplicate IDs,");
 Console.WriteLine("      explicit employee-only routing, inactive/invalid employee denial,");
-Console.WriteLine("      effective finalized revision selection, stable-code mapping, instance visibility,");
-c=c.replace("Console.WriteLine(\"      and unassigned report filtering by request, reason, workflow, step, position, and date range.\");
+Console.WriteLine("      effective revision selection, stable-code mapping, and instance visibility;");
+Console.WriteLine("      unassigned report filtering by request, reason, workflow, step, position, and date range.");

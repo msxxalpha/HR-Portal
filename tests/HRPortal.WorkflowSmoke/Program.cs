@@ -1,4 +1,7 @@
 using HRPortal.Services;
+using HRPortal.Data;
+using HRPortal.Models;
+using Microsoft.EntityFrameworkCore;
 
 static void Check(bool condition, string message)
 {
@@ -127,3 +130,174 @@ Console.WriteLine("PASS: multi-assignee position ownership, holder fallback, mal
 Console.WriteLine("      explicit employee-only routing, inactive/invalid employee denial,");
 Console.WriteLine("      effective revision selection, stable-code mapping, and instance visibility;");
 Console.WriteLine("      unassigned report filtering by request, reason, workflow, step, position, and date range.");
+await VerifyWorkflowServiceAuthorizationAsync();
+
+static async Task VerifyWorkflowServiceAuthorizationAsync()
+{
+    var options = new DbContextOptionsBuilder<HRPortalDbContext>()
+        .UseInMemoryDatabase("workflow-service-authorization-smoke")
+        .Options;
+    await using var db = new HRPortalDbContext(options);
+
+    static Employee Person(int id, string status = "فعال") => new()
+    {
+        Id = id,
+        PersonnelNumber = $"P{id}",
+        NationalId = $"N{id}",
+        FirstName = $"کارمند{id}",
+        LastName = "آزمایشی",
+        Mobile = "09120000000",
+        Gender = "مرد",
+        Status = status
+    };
+
+    var requester = Person(1);
+    var priorActor = Person(2);
+    var currentHolder = Person(3);
+    var formerHolder = Person(4);
+    var outsider = Person(5);
+    var inactiveAssignee = Person(6, "غیرفعال");
+
+    var oldRevision = new OrganizationStructureRevision
+    {
+        Id = 1, RevisionCode = "OLD", Title = "نسخه قبلی",
+        EffectiveDate = DateTime.Today.AddDays(-60), IsFinalized = true
+    };
+    var currentRevision = new OrganizationStructureRevision
+    {
+        Id = 2, RevisionCode = "CURRENT", Title = "نسخه جاری",
+        EffectiveDate = DateTime.Today.AddDays(-10), IsFinalized = true
+    };
+    var oldPosition = new OrganizationNode
+    {
+        Id = 9, OrganizationStructureRevisionId = 1, Revision = oldRevision,
+        Code = "ORG-OPS", Title = "عملیات", RankType = "مدیریت",
+        IsActive = true, PositionHolderEmployeeId = 4, AssignedEmployeeIdsCsv = "4"
+    };
+    var currentPosition = new OrganizationNode
+    {
+        Id = 10, OrganizationStructureRevisionId = 2, Revision = currentRevision,
+        Code = "ORG-OPS", Title = "عملیات", RankType = "مدیریت",
+        IsActive = true, PositionHolderEmployeeId = 3, AssignedEmployeeIdsCsv = "3,6"
+    };
+    oldRevision.Nodes.Add(oldPosition);
+    currentRevision.Nodes.Add(currentPosition);
+
+    var definition = new WorkflowDefinition
+    {
+        Id = 1, Code = "SMOKE", Title = "گردش آزمایشی", IsActive = true
+    };
+    var step = new WorkflowStep
+    {
+        Id = 1, WorkflowDefinitionId = 1, WorkflowDefinition = definition,
+        Code = "REVIEW", Title = "بررسی", SortOrder = 1,
+        AssignmentType = "Position", OrganizationNodeId = 9,
+        OrganizationNode = oldPosition
+    };
+    definition.Steps.Add(step);
+
+    WorkflowInstance Instance(int id) => new()
+    {
+        Id = id, WorkflowDefinitionId = 1, WorkflowDefinition = definition,
+        EntityType = "Smoke", EntityId = id.ToString(),
+        RequesterEmployeeId = 1, RequesterEmployee = requester,
+        CurrentStepId = 1, CurrentStep = step, Status = "InProgress"
+    };
+    var instance100 = Instance(100);
+    var instance101 = Instance(101);
+    var instance102 = Instance(102);
+    var instance103 = Instance(103);
+
+    var positionTask = new WorkflowTask
+    {
+        Id = 1001, WorkflowInstanceId = 100, WorkflowInstance = instance100,
+        WorkflowStepId = 1, WorkflowStep = step,
+        AssignedPositionId = 9, AssignedPosition = oldPosition,
+        AssignedEmployeeId = 4, Status = "Pending"
+    };
+    var priorActorTask = new WorkflowTask
+    {
+        Id = 1002, WorkflowInstanceId = 101, WorkflowInstance = instance101,
+        WorkflowStepId = 1, WorkflowStep = step,
+        AssignedPositionId = 9, AssignedPosition = oldPosition,
+        AssignedEmployeeId = 4, Status = "Pending"
+    };
+    var employeeTask = new WorkflowTask
+    {
+        Id = 1003, WorkflowInstanceId = 102, WorkflowInstance = instance102,
+        WorkflowStepId = 1, WorkflowStep = step,
+        AssignedEmployeeId = 2, Status = "Pending"
+    };
+    var inactiveTask = new WorkflowTask
+    {
+        Id = 1004, WorkflowInstanceId = 103, WorkflowInstance = instance103,
+        WorkflowStepId = 1, WorkflowStep = step,
+        AssignedEmployeeId = 6, Status = "Pending"
+    };
+    db.AddRange(requester, priorActor, currentHolder, formerHolder, outsider, inactiveAssignee,
+        oldRevision, currentRevision, oldPosition, currentPosition, definition, step,
+        instance100, instance101, instance102, instance103,
+        positionTask, priorActorTask, employeeTask, inactiveTask,
+        new WorkflowHistory
+        {
+            Id = 1, WorkflowInstanceId = 101, WorkflowInstance = instance101,
+            WorkflowStepId = 1, WorkflowStep = step,
+            ActorEmployeeId = 2, ActorEmployee = priorActor,
+            Action = "Approve", FromStatus = "InProgress", ToStatus = "Approve"
+        });
+    await db.SaveChangesAsync();
+
+    var service = new WorkflowService(db, audit: null!);
+
+    var currentInbox = await service.GetInboxAsync(3);
+    Check(currentInbox.Any(x => x.TaskId == 1001),
+        "The current position holder must see a task created against the previous structure revision.");
+    Check(!(await service.GetInboxAsync(4)).Any(x => x.TaskId == 1001),
+        "The former holder snapshot must not retain access after position reassignment.");
+    Check(!(await service.GetInboxAsync(6)).Any(x => x.TaskId == 1001),
+        "An inactive employee listed on a position must not see its task.");
+    Check((await service.GetInboxAsync(2)).Any(x => x.TaskId == 1003),
+        "The explicitly assigned employee must see an employee-routed task.");
+    Check(!(await service.GetInboxAsync(3)).Any(x => x.TaskId == 1003),
+        "A position colleague must not see an employee-routed task.");
+
+    Check(await service.GetInstanceAsync(100, 1) is not null,
+        "The requester must retain access to the request.");
+    Check(await service.GetInstanceAsync(100, 3) is not null,
+        "The current position assignee must view the pending workflow.");
+    Check(await service.GetInstanceAsync(100, 4) is null,
+        "A former position holder must not view the workflow solely from a stale task snapshot.");
+    Check(await service.GetInstanceAsync(100, 5) is null,
+        "An unrelated employee must not view the workflow.");
+    Check(await service.GetInstanceAsync(100, 6) is null,
+        "An inactive current-position CSV member must not view the workflow.");
+    Check(await service.GetInstanceAsync(101, 2) is not null,
+        "A previous actor must retain read access to workflow history.");
+    Check(await service.GetInstanceAsync(102, 3) is null,
+        "A position colleague must not view a workflow with an employee-specific pending task.");
+
+    Check(await service.GetTaskAsync(1001, 3) is not null,
+        "The current position assignee must be able to open the action form.");
+    Check(await service.GetTaskAsync(1001, 4) is null,
+        "The former position holder must be denied the action form.");
+    Check(await service.GetTaskAsync(1003, 2) is not null,
+        "The directly assigned employee must be able to open the action form.");
+    Check(await service.GetTaskAsync(1003, 3) is null,
+        "An unassigned colleague must be denied the employee-specific action form.");
+    Check(await service.GetTaskAsync(1004, 6) is null,
+        "An inactive employee must be denied an employee-specific action form.");
+
+    // Reading the details page must not claim a pending task. Opening the action
+    // form is the explicit claim boundary and records ClaimedAt.
+    var taskBeforeActionForm = await db.WorkflowTasks.SingleAsync(x => x.Id == 1001);
+    Check(taskBeforeActionForm.ClaimedAt is null,
+        "Viewing workflow details unexpectedly claimed the task.");
+    await service.GetTaskAsync(1001, 3);
+    var taskAfterActionForm = await db.WorkflowTasks.SingleAsync(x => x.Id == 1001);
+    Check(taskAfterActionForm.ClaimedAt.HasValue,
+        "Opening the authorized action form did not claim the task.");
+
+    Console.WriteLine("PASS: real WorkflowService authorization against EF Core InMemory data,");
+    Console.WriteLine("      current-vs-former position holder, employee-only routing, inactive users,");
+    Console.WriteLine("      requester/prior actor/current assignee visibility, and claim boundary.");
+}

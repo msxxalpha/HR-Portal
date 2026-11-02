@@ -844,23 +844,33 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .Include(x => x.WorkflowInstance).ThenInclude(x => x.RequesterEmployee)
             .Include(x => x.WorkflowStep).ThenInclude(x => x.OrganizationNode)
             .Include(x => x.AssignedPosition)
+            // Position-routed tasks are resolved against the current occupants, even
+            // when older rows also contain the former holder in AssignedEmployeeId.
+            // Employee-routed tasks have no AssignedPositionId and remain person-specific.
             .Where(x => x.Status == "Pending" &&
-                        (x.AssignedEmployeeId == employeeId ||
-                         (x.AssignedEmployeeId == null && x.AssignedPositionId.HasValue)))
+                        (x.AssignedPositionId.HasValue || x.AssignedEmployeeId == employeeId))
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync();
 
         var authorizedTasks = tasks.Where(task =>
         {
-            if (task.AssignedEmployeeId == employeeId) return true;
-            if (!task.AssignedPositionId.HasValue) return false;
-            var position = task.AssignedPosition;
-            if (position is not null && !string.IsNullOrWhiteSpace(position.AssignedEmployeeIdsCsv))
-                return GetAssignedEmployeeIds(position).Contains(employeeId);
-            return employee.OrganizationUnitId == task.AssignedPositionId ||
-                   employee.OrganizationDepartmentId == task.AssignedPositionId ||
-                   employee.OrganizationSectionId == task.AssignedPositionId ||
-                   employee.OrganizationPositionId == task.AssignedPositionId;
+            // A task tied to a position belongs to the position, not to the person
+            // who occupied it when the task was created. Resolve its current holder(s).
+            if (task.AssignedPositionId.HasValue)
+            {
+                var position = task.AssignedPosition;
+                if (position is not null && !string.IsNullOrWhiteSpace(position.AssignedEmployeeIdsCsv))
+                    return GetAssignedEmployeeIds(position).Contains(employeeId);
+                if (position?.PositionHolderEmployeeId == employeeId) return true;
+                return employee.OrganizationUnitId == task.AssignedPositionId ||
+                       employee.OrganizationDepartmentId == task.AssignedPositionId ||
+                       employee.OrganizationSectionId == task.AssignedPositionId ||
+                       employee.OrganizationPositionId == task.AssignedPositionId;
+            }
+
+            // Explicit employee assignments remain personal and are not transferred
+            // merely because that employee later receives another organizational role.
+            return task.AssignedEmployeeId == employeeId;
         });
 
         if (!string.IsNullOrWhiteSpace(status))
@@ -1049,22 +1059,26 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .Include(x => x.WorkflowStep).ThenInclude(x => x.OrganizationNode)
             .Include(x => x.AssignedPosition)
             .FirstOrDefaultAsync(x => x.Id == id && x.Status == "Pending" &&
-                (x.AssignedEmployeeId == employeeId ||
-                 (x.AssignedEmployeeId == null && x.AssignedPositionId.HasValue)));
-        if (task is not null && !task.AssignedEmployeeId.HasValue)
+                (x.AssignedPositionId.HasValue || x.AssignedEmployeeId == employeeId));
+        if (task is not null && task.AssignedPositionId.HasValue)
         {
             var position = task.AssignedPosition;
-            var hasExplicitAssignments = position is not null && !string.IsNullOrWhiteSpace(position.AssignedEmployeeIdsCsv);
-            var isExplicitlyAssigned = position is not null &&
-                GetAssignedEmployeeIds(position).Contains(employeeId) &&
-                await db.Employees.AnyAsync(e => e.Id == employeeId && e.Status == "فعال");
+            if (position is null) return null;
+            var isActiveEmployee = await db.Employees.AnyAsync(e =>
+                e.Id == employeeId && e.Status == "فعال");
+            if (!isActiveEmployee) return null;
+
+            var hasExplicitAssignments = !string.IsNullOrWhiteSpace(position.AssignedEmployeeIdsCsv);
+            var isExplicitlyAssigned = GetAssignedEmployeeIds(position).Contains(employeeId) ||
+                position.PositionHolderEmployeeId == employeeId;
             var isLegacyMember = !hasExplicitAssignments &&
+                position.PositionHolderEmployeeId != employeeId &&
                 await db.Employees.AnyAsync(e => e.Id == employeeId && e.Status == "فعال" &&
                     (e.OrganizationUnitId == task.AssignedPositionId ||
                      e.OrganizationDepartmentId == task.AssignedPositionId ||
                      e.OrganizationSectionId == task.AssignedPositionId ||
                      e.OrganizationPositionId == task.AssignedPositionId));
-            if (!isLegacyMember && !isExplicitlyAssigned)
+            if (!isExplicitlyAssigned && !isLegacyMember)
                 return null;
         }
         if (task is not null && !task.ClaimedAt.HasValue)

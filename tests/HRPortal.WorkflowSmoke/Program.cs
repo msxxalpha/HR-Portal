@@ -246,12 +246,32 @@ static async Task VerifyMaintenanceModeBypassAsync()
     Check(!anonymousRequest.NextCalled && anonymousRequest.Redirected,
         "An anonymous application request must be redirected during maintenance.");
 
-    foreach (var exemptPath in new[] { "/Account/Login", "/SystemSettings", "/Home/Maintenance" })
+    var anonymous = new ClaimsPrincipal(new ClaimsIdentity());
+    var adminLoginPage = await RunAsync(anonymous, "/Account/AdminLogin");
+    Check(adminLoginPage.NextCalled && !adminLoginPage.Redirected,
+        "The dedicated administrator sign-in page must remain reachable during maintenance.");
+
+    foreach (var blockedPath in new[] { "/", "/Account/Login", "/Account/EmployeeLogin", "/Account/EmployeePasswordLogin", "/Account/Verify", "/SystemSettings" })
+    {
+        var blockedRequest = await RunAsync(anonymous, blockedPath);
+        Check(!blockedRequest.NextCalled && blockedRequest.Redirected,
+            $"The ordinary endpoint '{blockedPath}' must be redirected to the maintenance notice.");
+        Check(!MaintenanceModeMiddleware.IsExemptPath(new PathString(blockedPath)),
+            $"The endpoint '{blockedPath}' must not bypass the maintenance gate.");
+    }
+
+    foreach (var exemptPath in new[] { "/Account/AdminLogin", "/Account/Logout", "/Home/Maintenance" })
     {
         var exemptRequest = await RunAsync(employee, exemptPath);
         Check(exemptRequest.NextCalled && !exemptRequest.Redirected,
-            $"The maintenance-exempt endpoint '{exemptPath}' must remain reachable.");
+            $"The intended maintenance endpoint '{exemptPath}' must remain reachable.");
+        Check(MaintenanceModeMiddleware.IsExemptPath(new PathString(exemptPath)),
+            $"The intended maintenance endpoint '{exemptPath}' must be explicitly exempt.");
     }
+
+    var employeeLogout = await RunAsync(employee, "/Account/Logout");
+    Check(employeeLogout.NextCalled && !employeeLogout.Redirected,
+        "Users must retain access to safe logout during maintenance.");
 
     var settings = await db.SystemSettings.SingleAsync();
     settings.MaintenanceMode = false;
@@ -259,8 +279,11 @@ static async Task VerifyMaintenanceModeBypassAsync()
     var normalOperation = await RunAsync(employee, "/Employees");
     Check(normalOperation.NextCalled && !normalOperation.Redirected,
         "Normal employee access must resume after maintenance mode is disabled.");
+    var normalLogin = await RunAsync(anonymous, "/Account/Login");
+    Check(normalLogin.NextCalled && !normalLogin.Redirected,
+        "The regular login page must become available again after maintenance mode is disabled.");
 
-    Console.WriteLine("PASS: maintenance mode blocks ordinary/anonymous users and permits authenticated admins.");
+    Console.WriteLine("PASS: maintenance mode routes direct entry/employee login to the notice, allows admin-only sign-in and safe logout, and restores normal login when disabled.");
 }
 
 static async Task VerifyWorkflowServiceAuthorizationAsync()

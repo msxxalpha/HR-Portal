@@ -159,6 +159,15 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
         return Redirect(!string.IsNullOrWhiteSpace(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl) ? model.ReturnUrl : landing);
     }
 
+    [HttpGet, AllowAnonymous]
+    public IActionResult AdminLogin(string? returnUrl = null)
+    {
+        if (User.Identity?.IsAuthenticated == true && User.HasClaim("IsAdmin", "1"))
+            return RedirectToAction("Index", "Home");
+
+        return View(new LoginVm { ReturnUrl = returnUrl, Mode = "admin" });
+    }
+
     [HttpPost, AllowAnonymous, ValidateAntiForgeryToken]
     public async Task<IActionResult> AdminLogin(LoginVm model)
     {
@@ -167,7 +176,7 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
         if (string.IsNullOrWhiteSpace(model.Username) || string.IsNullOrWhiteSpace(model.Password))
         {
             ModelState.AddModelError("", "نام کاربری و رمز عبور مدیر الزامی است.");
-            return View("Login", model);
+            return View("AdminLogin", model);
         }
 
         var admin = await admins.FindAsync(model.Username);
@@ -176,7 +185,7 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
         {
             await audit.WriteAsync("ورود ناموفق مدیر", "AdminUser", model.Username, "نام کاربری یا رمز عبور نادرست است.");
             ModelState.AddModelError("", "نام کاربری یا رمز عبور صحیح نیست.");
-            return View("Login", model);
+            return View("AdminLogin", model);
         }
 
         await admins.MarkLoginAsync(admin);

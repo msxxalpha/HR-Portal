@@ -1,0 +1,52 @@
+@model HRPortal.Controllers.AccountController.LoginVm
+@{
+    Layout = "~/Views/Shared/_AuthLayout.cshtml";
+    ViewData["Title"] = "ورود مدیر سامانه";
+}
+<div class="auth-shell">
+    <div class="auth-card">
+        <div class="auth-brand">
+            <div class="auth-logo">HR</div>
+            <div>
+                <strong>پورتال جامع منابع انسانی</strong>
+                <span>ورود اختصاصی مدیر سامانه</span>
+            </div>
+        </div>
+
+        <div class="auth-intro">
+            <h1>ورود به پنل مدیریت</h1>
+            <p>این مسیر فقط برای حساب‌های مدیر سامانه است و ورود کارکنان از این صفحه امکان‌پذیر نیست.</p>
+        </div>
+
+        @if (!ViewData.ModelState.IsValid)
+        {
+            <div class="alert error">
+                @foreach (var error in ViewData.ModelState.Values.SelectMany(value => value.Errors))
+                {
+                    <div>@error.ErrorMessage</div>
+                }
+            </div>
+        }
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert error">@TempData["Error"]</div>
+        }
+
+        <form method="post" action="/Account/AdminLogin" class="login-form">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
+            <label>
+                نام کاربری مدیر
+                <input name="Username" value="@Model.Username" autocomplete="username" autofocus required />
+            </label>
+            <label>
+                رمز عبور
+                <input type="password" name="Password" autocomplete="current-password" required />
+            </label>
+            <button type="submit" class="btn btn-main btn-block">ورود مدیر سامانه</button>
+        </form>
+
+        <div class="auth-note">این صفحه در زمان نگهداری فقط برای ورود مدیر سامانه در دسترس است.</div>
+        <div class="login-build-version">Build @HRPortal.BuildInfo.Number</div>
+    </div>
+</div>

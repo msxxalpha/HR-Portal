@@ -38,7 +38,9 @@ public sealed class MaintenanceModeMiddleware(RequestDelegate next)
     }
 
     public static bool IsExemptPath(PathString path) =>
-        path.StartsWithSegments("/Account", StringComparison.OrdinalIgnoreCase) ||
-        path.StartsWithSegments("/SystemSettings", StringComparison.OrdinalIgnoreCase) ||
+        // During maintenance, only the dedicated administrator sign-in,
+        // safe sign-out, and maintenance notice itself remain public.
+        path.StartsWithSegments("/Account/AdminLogin", StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWithSegments("/Account/Logout", StringComparison.OrdinalIgnoreCase) ||
         path.StartsWithSegments("/Home/Maintenance", StringComparison.OrdinalIgnoreCase);
 }

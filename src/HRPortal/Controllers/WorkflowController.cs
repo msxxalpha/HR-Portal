@@ -40,7 +40,6 @@ public class WorkflowController(
             .ToDictionary(x => x.Key, x => x.OrderByDescending(n => n.Id).First(), StringComparer.OrdinalIgnoreCase);
         var activeEmployees = await db.Employees.AsNoTracking()
             .Where(x => x.Status == "فعال").ToListAsync();
-        var activeIds = activeEmployees.Select(x => x.Id).ToHashSet();
 
         var tasks = await db.WorkflowTasks.AsNoTracking()
             .Include(x => x.WorkflowInstance).ThenInclude(x => x.WorkflowDefinition)
@@ -130,6 +129,28 @@ public class WorkflowController(
         if (task is null)
         {
             TempData["Error"] = "وظیفه باز موردنظر پیدا نشد یا قبلاً تعیین تکلیف شده است.";
+            return RedirectToAction(nameof(UnassignedTasks));
+        }
+
+        var currentRevision = await db.OrganizationStructureRevisions.AsNoTracking()
+            .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
+            .OrderByDescending(x => x.EffectiveDate).ThenByDescending(x => x.Id)
+            .FirstOrDefaultAsync();
+        var currentPositions = currentRevision is null
+            ? new List<HRPortal.Models.OrganizationNode>()
+            : await db.OrganizationNodes.AsNoTracking()
+                .Where(x => x.OrganizationStructureRevisionId == currentRevision.Id && x.IsActive)
+                .ToListAsync();
+        var currentPositionByCode = currentPositions
+            .Where(x => !string.IsNullOrWhiteSpace(x.Code))
+            .GroupBy(x => x.Code.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.OrderByDescending(n => n.Id).First(), StringComparer.OrdinalIgnoreCase);
+        var activeEmployees = await db.Employees.AsNoTracking()
+            .Where(x => x.Status == "فعال").ToListAsync();
+        if (WorkflowTaskAssignmentHealthResolver.GetIssueCode(
+                task, currentPositionByCode, activeEmployees) is null)
+        {
+            TempData["Error"] = "این وظیفه در حال حاضر تخصیص معتبر و متصدی فعال دارد و از فهرست وظایف بلاتکلیف خارج شده است.";
             return RedirectToAction(nameof(UnassignedTasks));
         }
 

@@ -87,6 +87,40 @@ builder.Services
         o.AccessDeniedPath = "/Account/Denied";
         o.ExpireTimeSpan = TimeSpan.FromHours(8);
         o.SlidingExpiration = true;
+        o.Events.OnValidatePrincipal = async context =>
+        {
+            var principal = context.Principal;
+            var identity = principal?.Identity as System.Security.Claims.ClaimsIdentity;
+            var employeeIdValue = principal?.FindFirst("EmployeeId")?.Value;
+            if (identity is null || !int.TryParse(employeeIdValue, out var employeeId))
+                return; // Admin and non-employee cookies do not use employee role claims.
+
+            // Permission and organizational-rank changes must take effect on the next
+            // request, rather than waiting for the employee's authentication cookie to expire.
+            await using var scope = context.HttpContext.RequestServices.CreateAsyncScope();
+            var roleService = scope.ServiceProvider.GetRequiredService<RoleService>();
+            var permissions = await roleService.GetEmployeePermissionsAsync(employeeId);
+            var existing = identity.FindAll("Permission")
+                .Select(x => x.Value)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            if (existing.SetEquals(permissions))
+                return;
+
+            var refreshedClaims = identity.Claims
+                .Where(x => !string.Equals(x.Type, "Permission", StringComparison.Ordinal))
+                .ToList();
+            refreshedClaims.AddRange(permissions.Select(code =>
+                new System.Security.Claims.Claim("Permission", code)));
+
+            var refreshedIdentity = new System.Security.Claims.ClaimsIdentity(
+                refreshedClaims,
+                identity.AuthenticationType,
+                identity.NameClaimType,
+                identity.RoleClaimType);
+            context.ReplacePrincipal(new System.Security.Claims.ClaimsPrincipal(refreshedIdentity));
+            context.ShouldRenew = true;
+        };
     });
 
 builder.Services.AddAuthorization(options =>

@@ -120,7 +120,7 @@ public class WorkflowController(
             return RedirectToAction(nameof(UnassignedTasks));
         }
 
-        await using var transaction = await db.Database.BeginTransactionAsync();
+        await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
         var task = await db.WorkflowTasks
             .Include(x => x.AssignedPosition)
             .Include(x => x.WorkflowStep)

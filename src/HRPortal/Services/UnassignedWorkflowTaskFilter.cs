@@ -40,9 +40,9 @@ public static class UnassignedWorkflowTaskFilter
             rows = rows.Where(x => Contains(x.PositionCode, term) || Contains(x.PositionTitle, term));
         }
         if (createdFrom.HasValue)
-            rows = rows.Where(x => x.CreatedAt.Date >= createdFrom.Value.Date);
+            rows = rows.Where(x => x.CreatedAt.ToLocalTime().Date >= createdFrom.Value.Date);
         if (createdTo.HasValue)
-            rows = rows.Where(x => x.CreatedAt.Date <= createdTo.Value.Date);
+            rows = rows.Where(x => x.CreatedAt.ToLocalTime().Date <= createdTo.Value.Date);
 
         return rows.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.TaskId).ToList();
     }

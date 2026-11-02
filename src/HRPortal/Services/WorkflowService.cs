@@ -675,16 +675,9 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         return runtime;
     }
 
-    private static List<int> GetAssignedEmployeeIds(OrganizationNode position)
-    {
-        var ids = (position.AssignedEmployeeIdsCsv ?? "")
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(value => int.TryParse(value, out var id) ? id : 0)
-            .Where(id => id > 0).Distinct().ToList();
-        if (ids.Count == 0 && position.PositionHolderEmployeeId.HasValue)
-            ids.Add(position.PositionHolderEmployeeId.Value);
-        return ids;
-    }
+    private static List<int> GetAssignedEmployeeIds(OrganizationNode position) =>
+        WorkflowPositionAssignmentResolver.GetAssignedEmployeeIds(
+            position.AssignedEmployeeIdsCsv, position.PositionHolderEmployeeId);
 
     private async Task<List<OrganizationNode>> BuildHierarchyRouteAsync(
         int subjectEmployeeId, string stopRankType, CancellationToken cancellationToken)
@@ -860,7 +853,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 if (await IsCurrentPositionAssigneeAsync(employeeId, task))
                     authorizedTasks.Add(task);
             }
-            else if (task.AssignedEmployeeId == employeeId)
+            else if (WorkflowPositionAssignmentResolver.IsExplicitEmployeeAssignee(
+                         employeeId, task.AssignedEmployeeId, isActiveEmployee: true))
             {
                 authorizedTasks.Add(task);
             }
@@ -1078,7 +1072,9 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
         var assignedIds = GetAssignedEmployeeIds(currentPosition);
         if (assignedIds.Count > 0)
-            return assignedIds.Contains(employeeId);
+            return WorkflowPositionAssignmentResolver.IsPositionAssignee(
+                employeeId, isActiveEmployee: true,
+                currentPosition.AssignedEmployeeIdsCsv, currentPosition.PositionHolderEmployeeId);
 
         return await db.Employees.AnyAsync(x => x.Id == employeeId && x.Status == "فعال" &&
             (x.OrganizationUnitId == currentPosition.Id ||
@@ -1118,6 +1114,10 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             return null;
         if (task is not null && !task.AssignedPositionId.HasValue &&
             !await db.Employees.AnyAsync(e => e.Id == employeeId && e.Status == "فعال"))
+            return null;
+        if (task is not null && !task.AssignedPositionId.HasValue &&
+            !WorkflowPositionAssignmentResolver.IsExplicitEmployeeAssignee(
+                employeeId, task.AssignedEmployeeId, isActiveEmployee: true))
             return null;
         if (task is not null && !task.ClaimedAt.HasValue)
         {

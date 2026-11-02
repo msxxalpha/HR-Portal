@@ -41,6 +41,18 @@
                 }
             </select>
         </label>
+        <label>مرحله
+            <input type="search" name="step" value="@ViewBag.Step" placeholder="عنوان مرحله" />
+        </label>
+        <label>جایگاه
+            <input type="search" name="position" value="@ViewBag.Position" placeholder="عنوان یا کد جایگاه" />
+        </label>
+        <label>از تاریخ ایجاد
+            <input type="date" name="createdFrom" value="@ViewBag.CreatedFrom" />
+        </label>
+        <label>تا تاریخ ایجاد
+            <input type="date" name="createdTo" value="@ViewBag.CreatedTo" />
+        </label>
         <button class="btn btn-main" type="submit">اعمال فیلتر</button>
     </form>
 </section>

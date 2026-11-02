@@ -1091,6 +1091,19 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         if (currentPosition is null) return false;
 
         var assignedIds = GetAssignedEmployeeIds(currentPosition);
+        if (task.WorkflowStep.AssignmentMode == "All")
+        {
+            if (task.AssignedEmployeeId != employeeId)
+                return false;
+            if (assignedIds.Count > 0)
+                return assignedIds.Contains(employeeId);
+            return await db.Employees.AnyAsync(x => x.Id == employeeId && x.Status == "فعال" &&
+                (x.OrganizationUnitId == currentPosition.Id ||
+                 x.OrganizationDepartmentId == currentPosition.Id ||
+                 x.OrganizationSectionId == currentPosition.Id ||
+                 x.OrganizationPositionId == currentPosition.Id));
+        }
+
         if (assignedIds.Count > 0)
             return WorkflowPositionAssignmentResolver.IsPositionAssignee(
                 employeeId, isActiveEmployee: true,

@@ -2,6 +2,7 @@ using HRPortal.Services;
 using HRPortal.Data;
 using HRPortal.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 static void Check(bool condition, string message)
 {
@@ -174,6 +175,7 @@ Console.WriteLine("      explicit employee-only routing, inactive/invalid employ
 Console.WriteLine("      effective revision selection, stable-code mapping, and instance visibility;");
 Console.WriteLine("      unassigned report filters and server-side reassignment eligibility checks.");
 await VerifyWorkflowServiceAuthorizationAsync();
+await VerifyExplicitPositionTaskCreationAsync();
 
 static async Task VerifyWorkflowServiceAuthorizationAsync()
 {
@@ -343,4 +345,81 @@ static async Task VerifyWorkflowServiceAuthorizationAsync()
     Console.WriteLine("PASS: real WorkflowService authorization against EF Core InMemory data,");
     Console.WriteLine("      current-vs-former position holder, employee-only routing, inactive users,");
     Console.WriteLine("      requester/prior actor/current assignee visibility, and claim boundary.");
+}
+
+static async Task VerifyExplicitPositionTaskCreationAsync()
+{
+    var options = new DbContextOptionsBuilder<HRPortalDbContext>()
+        .UseInMemoryDatabase("workflow-explicit-position-task-creation")
+        .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+        .Options;
+    await using var db = new HRPortalDbContext(options);
+
+    static Employee Person(int id, int? legacyPositionId = null) => new()
+    {
+        Id = id,
+        PersonnelNumber = $"PX{id}",
+        NationalId = $"NX{id}",
+        FirstName = $"کارمند{id}",
+        LastName = "آزمایشی",
+        Mobile = "09120000000",
+        Gender = "مرد",
+        Status = "فعال",
+        OrganizationPositionId = legacyPositionId
+    };
+
+    var first = Person(11, 20);
+    var legacyHolder = Person(12, 20);
+    var revision = new OrganizationStructureRevision
+    {
+        Id = 1, RevisionCode = "TASK-TEST", Title = "نسخه آزمون",
+        EffectiveDate = DateTime.Today.AddDays(-1), IsFinalized = true
+    };
+    var position = new OrganizationNode
+    {
+        Id = 20, OrganizationStructureRevisionId = 1, Revision = revision,
+        Code = "TEST-POS", Title = "جایگاه آزمون", RankType = "مدیریت",
+        IsActive = true, PositionHolderEmployeeId = 12, AssignedEmployeeIdsCsv = "11"
+    };
+    revision.Nodes.Add(position);
+    var definition = new WorkflowDefinition
+    {
+        Id = 1, Code = "POSITION-TASK-TEST", Title = "آزمون تخصیص صریح",
+        IsActive = true, Version = 1
+    };
+    var step = new WorkflowStep
+    {
+        Id = 1, WorkflowDefinitionId = 1, WorkflowDefinition = definition,
+        Code = "REVIEW", Title = "بررسی", SortOrder = 1,
+        AssignmentType = "Position", OrganizationNodeId = 20
+    };
+    definition.Steps.Add(step);
+    db.AddRange(first, legacyHolder, revision, position, definition, step);
+    await db.SaveChangesAsync();
+
+    var audit = new AuditService(db, new HttpContextAccessor());
+    var service = new WorkflowService(db, audit);
+
+    var singleInstance = await service.StartAsync(
+        "POSITION-TASK-TEST", "Smoke", "single", 11);
+    var singleTask = await db.WorkflowTasks.SingleAsync(x => x.WorkflowInstanceId == singleInstance.Id);
+    Check(singleTask.AssignedPositionId == 20 && singleTask.AssignedEmployeeId == 11,
+        "A single explicit CSV assignee must override a different legacy position holder.");
+    Check(await service.GetTaskAsync(singleTask.Id, 11) is not null,
+        "The explicitly assigned single employee must be able to open the task.");
+    Check(await service.GetTaskAsync(singleTask.Id, 12) is null,
+        "The legacy holder must not gain access when a different explicit single assignee exists.");
+
+    position.AssignedEmployeeIdsCsv = "11,12";
+    await db.SaveChangesAsync();
+    var multiInstance = await service.StartAsync(
+        "POSITION-TASK-TEST", "Smoke", "multi", 11);
+    var sharedTask = await db.WorkflowTasks.SingleAsync(x => x.WorkflowInstanceId == multiInstance.Id);
+    Check(sharedTask.AssignedPositionId == 20 && sharedTask.AssignedEmployeeId is null,
+        "Multiple explicit position assignees must share one position-owned task.");
+    Check(await service.GetTaskAsync(sharedTask.Id, 11) is not null &&
+          await service.GetTaskAsync(sharedTask.Id, 12) is not null,
+        "Every active explicit assignee must be able to open the shared position task.");
+
+    Console.WriteLine("PASS: actual task creation honors explicit single and multi-assignee lists over legacy holder data.");
 }

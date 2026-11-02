@@ -212,6 +212,9 @@ public class ContractRenewalWorkflowService(HRPortalDbContext db, WorkflowServic
         return ids;
     }
 
+    public static int MaximumAllowedContractMonths(string? securityDecision) =>
+        securityDecision == "ApproveOneMonth" ? 1 : 12;
+
     public static int SuggestedContractMonths(decimal? score)
     {
         if (!score.HasValue) return 0;

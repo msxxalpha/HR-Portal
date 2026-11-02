@@ -606,6 +606,7 @@ static async Task VerifyContractRenewalRuntimeFlowAsync()
     var hr = Person(6);
     var ceo = Person(7);
     var requester = Person(10);
+    var initialApprover = Person(8);
 
     var revision = new OrganizationStructureRevision
     {
@@ -654,6 +655,12 @@ static async Task VerifyContractRenewalRuntimeFlowAsync()
         Code = "HR", Title = "مدیریت منابع انسانی", RankType = "مدیریت",
         IsActive = true, AssignedEmployeeIdsCsv = "6", PositionHolderEmployeeId = 6
     };
+    var approvalPosition = new OrganizationNode
+    {
+        Id = 108, OrganizationStructureRevisionId = 1, Revision = revision,
+        Code = "REQUEST-APPROVAL", Title = "تأییدکننده اطلاعات اولیه", RankType = "مدیریت",
+        IsActive = true, AssignedEmployeeIdsCsv = "8", PositionHolderEmployeeId = 8
+    };
     revision.Nodes.Add(subjectPosition);
     revision.Nodes.Add(supervisorPosition);
     revision.Nodes.Add(managerPosition);
@@ -661,6 +668,7 @@ static async Task VerifyContractRenewalRuntimeFlowAsync()
     revision.Nodes.Add(ceoPosition);
     revision.Nodes.Add(securityPosition);
     revision.Nodes.Add(hrPosition);
+    revision.Nodes.Add(approvalPosition);
 
     var request = new ContractRenewalRequest
     {
@@ -674,7 +682,8 @@ static async Task VerifyContractRenewalRuntimeFlowAsync()
     };
     var settings = new ContractRenewalWorkflowSettings
     {
-        Id = 1, SecurityPositionId = 106, HumanResourcesPositionId = 107,
+        Id = 1, RequestApprovalPositionId = 108,
+        SecurityPositionId = 106, HumanResourcesPositionId = 107,
         CeoEmployeeId = 7
     };
     var question = new EmployeePerformanceEvaluationQuestion
@@ -683,9 +692,9 @@ static async Task VerifyContractRenewalRuntimeFlowAsync()
         MaxScore = 100m, ScoringGuidance = "ارزیابی کلی",
         IsActive = true, SortOrder = 1
     };
-    db.AddRange(subject, supervisor, manager, deputy, security, hr, ceo, requester,
+    db.AddRange(subject, supervisor, manager, deputy, security, hr, ceo, requester, initialApprover,
         revision, subjectPosition, supervisorPosition, managerPosition, deputyPosition,
-        ceoPosition, securityPosition, hrPosition, request, settings, question);
+        ceoPosition, securityPosition, hrPosition, approvalPosition, request, settings, question);
     await db.SaveChangesAsync();
 
     var audit = new AuditService(db, new HttpContextAccessor());
@@ -700,8 +709,36 @@ static async Task VerifyContractRenewalRuntimeFlowAsync()
         "The contract renewal route must include every intermediate supervisor/manager/deputy position.");
     Check(await db.EmployeePerformanceEvaluationScores.CountAsync(x => x.WorkflowInstanceId == instance.Id) == 3,
         "Each evaluation stage must receive a question score snapshot.");
-    Check(await db.WorkflowTasks.CountAsync(x => x.WorkflowInstanceId == instance.Id && x.Status == "Pending") == 1,
-        "Only the first evaluation stage should be pending when the workflow starts.");
+    var firstApproval = await db.WorkflowTasks.Include(x => x.WorkflowStep)
+        .SingleAsync(x => x.WorkflowInstanceId == instance.Id && x.Status == "Pending");
+    Check(firstApproval.WorkflowStep.Code == "IntakeApproval" &&
+          await workflow.GetTaskAsync(firstApproval.Id, 8) is not null,
+        "A new request must first be assigned to the configured organizational approver.");
+    Check(await workflow.GetTaskAsync(firstApproval.Id, 10) is null,
+        "The requester must not be able to act on the organizational approval task.");
+
+    await workflow.CompleteTaskAsync(firstApproval.Id, 8, "Return", "لطفاً سوابق را تکمیل کنید.");
+    var correctionTask = await db.WorkflowTasks.Include(x => x.WorkflowStep)
+        .SingleAsync(x => x.WorkflowInstanceId == instance.Id && x.Status == "Pending");
+    Check(correctionTask.WorkflowStep.Code == "RequesterEdit" &&
+          correctionTask.AssignedEmployeeId == 10 &&
+          await workflow.GetTaskAsync(correctionTask.Id, 10) is not null,
+        "Returning the request must create a correction task for the original requester.");
+    Check(await workflow.GetTaskAsync(correctionTask.Id, 8) is null,
+        "The organizational approver must not be able to act on the requester's correction task.");
+
+    await workflow.CompleteTaskAsync(correctionTask.Id, 10, "Approve", "اطلاعات اصلاح شد.");
+    var secondApproval = await db.WorkflowTasks.Include(x => x.WorkflowStep)
+        .SingleAsync(x => x.WorkflowInstanceId == instance.Id && x.Status == "Pending");
+    Check(secondApproval.WorkflowStep.Code == "IntakeApproval" &&
+          await workflow.GetTaskAsync(secondApproval.Id, 8) is not null,
+        "A corrected request must return to the same organizational approver.");
+
+    await workflow.CompleteTaskAsync(secondApproval.Id, 8, "Approve", "اطلاعات اولیه تأیید شد.");
+    var firstEvaluation = await db.WorkflowTasks.Include(x => x.WorkflowStep)
+        .SingleAsync(x => x.WorkflowInstanceId == instance.Id && x.Status == "Pending");
+    Check(firstEvaluation.WorkflowStep.Code.StartsWith("Evaluation_H"),
+        "Only after approval may the hierarchical evaluation chain begin.");
 
     var evaluationActors = new[] { 2, 3, 4 };
     foreach (var actorId in evaluationActors)
@@ -751,10 +788,10 @@ static async Task VerifyContractRenewalRuntimeFlowAsync()
     var completed = await db.WorkflowInstances.SingleAsync(x => x.Id == instance.Id);
     Check(completed.Status == "Approved" && completed.CurrentStepId is null && completed.CompletedAt.HasValue,
         "The renewal workflow must finish only after the CEO approves.");
-    Check(await db.WorkflowHistory.CountAsync(x => x.WorkflowInstanceId == instance.Id) == 7,
-        "The complete renewal chain must retain submission and all six approval events.");
-    Check(await db.WorkflowTasks.CountAsync(x => x.WorkflowInstanceId == instance.Id && x.Status == "Completed") == 6,
-        "All three evaluation stages plus security, HR and CEO tasks must be completed.");
+    Check(await db.WorkflowHistory.CountAsync(x => x.WorkflowInstanceId == instance.Id) == 10,
+        "The workflow history must retain submission, the return/correction/re-approval loop, and all later approvals.");
+    Check(await db.WorkflowTasks.CountAsync(x => x.WorkflowInstanceId == instance.Id && x.Status == "Completed") == 9,
+        "The initial approval, requester correction, re-approval, three evaluations, security, HR and CEO tasks must be completed.");
 
     request.Status = "تکمیل شده";
     request.CompletedAt = DateTime.UtcNow;

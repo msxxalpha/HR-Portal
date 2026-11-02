@@ -398,6 +398,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
         {
             e.HasKey(x => x.Id);
             e.Property(x => x.Id).ValueGeneratedNever();
+            e.HasOne(x => x.RequestApprovalPosition).WithMany().HasForeignKey(x => x.RequestApprovalPositionId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.SecurityPosition).WithMany().HasForeignKey(x => x.SecurityPositionId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.HumanResourcesPosition).WithMany().HasForeignKey(x => x.HumanResourcesPositionId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.CeoEmployee).WithMany().HasForeignKey(x => x.CeoEmployeeId).OnDelete(DeleteBehavior.Restrict);

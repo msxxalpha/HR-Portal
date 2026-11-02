@@ -69,6 +69,114 @@
     </div>
 </section>
 
+@if (Model.StageKind == "IntakeApproval" && !Model.IsReadOnly)
+{
+    <section class="card">
+        <div class="section-head">
+            <div><h3>بررسی اطلاعات اولیه درخواست</h3><span class="muted">در صورت تأیید، درخواست وارد زنجیره ارزشیابی عملکرد می‌شود؛ در صورت برگشت، برای اصلاح به ثبت‌کننده ارسال خواهد شد.</span></div>
+        </div>
+        <form method="post" action="/ContractRenewalTask/Submit" class="form-stack">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@Model.Task.Id" />
+            <input type="hidden" name="action" value="Approve" />
+            <button class="btn btn-main" type="submit">تأیید اطلاعات و ارجاع به ارزشیابی</button>
+        </form>
+        <form method="post" action="/ContractRenewalTask/Submit" class="form-stack" style="margin-top:1rem">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@Model.Task.Id" />
+            <input type="hidden" name="action" value="Return" />
+            <label>توضیحات و موارد لازم برای اصلاح *
+                <textarea name="comment" rows="4" maxlength="2000" required placeholder="مواردی را که ثبت‌کننده باید اصلاح یا تکمیل کند، مشخص کنید."></textarea>
+            </label>
+            <button class="btn btn-outline" type="submit">برگشت به ثبت‌کننده برای اصلاح</button>
+        </form>
+    </section>
+}
+
+@if (Model.StageKind == "RequesterEdit" && !Model.IsReadOnly && Model.ReturnedEdit is not null)
+{
+    var edit = Model.ReturnedEdit;
+    string editScore(decimal value) => value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+    <section class="card">
+        <div class="section-head"><div><h3>اصلاح اطلاعات اولیه درخواست</h3><span class="muted">درخواست برای اصلاح به حساب ثبت‌کننده بازگشته است. پس از ذخیره، دوباره برای تأیید به جایگاه سازمانی ارسال می‌شود.</span></div></div>
+        <div class="note">کارمند موضوع درخواست: <strong>@r.EmployeeNameSnapshot</strong> — شماره پرسنلی @r.PersonnelNumberSnapshot. کارمند انتخاب‌شده قابل تغییر نیست.</div>
+        <form method="post" action="/ContractRenewalTask/SaveReturnedRequest" class="form-stack">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@Model.Task.Id" />
+            <div class="grid-3">
+                <label>مدت تمدید دوره قبلی اول (ماه) *
+                    <input name="PreviousExtensionMonths1" type="number" min="0" max="120" required value="@edit.PreviousExtensionMonths1" />
+                </label>
+                <label>مدت تمدید دوره قبلی دوم (ماه) *
+                    <input name="PreviousExtensionMonths2" type="number" min="0" max="120" required value="@edit.PreviousExtensionMonths2" />
+                </label>
+                <label>مدت تمدید دوره قبلی سوم (ماه) *
+                    <input name="PreviousExtensionMonths3" type="number" min="0" max="120" required value="@edit.PreviousExtensionMonths3" />
+                </label>
+            </div>
+            <h4>سوابق انضباطی و حضور</h4>
+            <div class="grid-2">
+                <label class="inline-check"><input type="checkbox" name="HasDisciplinaryWarnings" value="true" checked="@edit.HasDisciplinaryWarnings" /> سابقه اخطار کتبی دارد</label>
+                <label>تعداد اخطارها
+                    <input name="DisciplinaryWarningCount" type="number" min="0" max="100000" value="@edit.DisciplinaryWarningCount" />
+                </label>
+                <label class="inline-check"><input type="checkbox" name="HasDisciplinaryCommitteeResolution" value="true" checked="@edit.HasDisciplinaryCommitteeResolution" /> مصوبه کمیته انضباطی دارد</label>
+                <label>تعداد مصوبه‌ها
+                    <input name="DisciplinaryCommitteeResolutionCount" type="number" min="0" max="100000" value="@edit.DisciplinaryCommitteeResolutionCount" />
+                </label>
+            </div>
+            <h4>سوابق مرخصی</h4>
+            <div class="grid-3">
+                <label class="inline-check"><input type="checkbox" name="HasUnpaidLeave" value="true" checked="@edit.HasUnpaidLeave" /> مرخصی بدون حقوق دارد</label>
+                <label>روزهای مرخصی بدون حقوق
+                    <input name="UnpaidLeaveDays" type="number" min="0" max="100000" value="@edit.UnpaidLeaveDays" />
+                </label>
+                <label class="inline-check"><input type="checkbox" name="HasSickLeave" value="true" checked="@edit.HasSickLeave" /> مرخصی بیماری دارد</label>
+                <label>روزهای مرخصی بیماری
+                    <input name="SickLeaveDays" type="number" min="0" max="100000" value="@edit.SickLeaveDays" />
+                </label>
+                <label class="inline-check"><input type="checkbox" name="HasAccidentLeave" value="true" checked="@edit.HasAccidentLeave" /> مرخصی حادثه دارد</label>
+                <label>روزهای مرخصی حادثه
+                    <input name="AccidentLeaveDays" type="number" min="0" max="100000" value="@edit.AccidentLeaveDays" />
+                </label>
+            </div>
+            <h4>سوابق تشویق</h4>
+            <div class="grid-2">
+                <label class="inline-check"><input type="checkbox" name="HasCommendations" value="true" checked="@edit.HasCommendations" /> سابقه تشویق دارد</label>
+                <label>تعداد تشویق‌ها
+                    <input name="CommendationCount" type="number" min="0" max="100000" value="@edit.CommendationCount" />
+                </label>
+            </div>
+            <h4>امتیاز دو دوره پیشین</h4>
+            <div class="grid-2">
+                <label>امتیاز آخرین دوره پیشین
+                    @if (edit.PreviousPeriodScore1FromHistory)
+                    {
+                        <input type="number" value="@editScore(edit.PreviousPeriodScore1)" readonly />
+                        <small class="muted">از سابقه سامانه خوانده شده و قابل تغییر نیست.</small>
+                    }
+                    else
+                    {
+                        <input name="PreviousPeriodScore1" type="number" min="0" max="100" step="0.01" required value="@editScore(edit.PreviousPeriodScore1)" />
+                    }
+                </label>
+                <label>امتیاز دوره قبل از آن
+                    @if (edit.PreviousPeriodScore2FromHistory)
+                    {
+                        <input type="number" value="@editScore(edit.PreviousPeriodScore2)" readonly />
+                        <small class="muted">از سابقه سامانه خوانده شده و قابل تغییر نیست.</small>
+                    }
+                    else
+                    {
+                        <input name="PreviousPeriodScore2" type="number" min="0" max="100" step="0.01" required value="@editScore(edit.PreviousPeriodScore2)" />
+                    }
+                </label>
+            </div>
+            <div class="actions"><button class="btn btn-main" type="submit">ذخیره اصلاحات و ارسال مجدد برای تأیید</button></div>
+        </form>
+    </section>
+}
+
 @if (editingScores)
 {
     <section class="card">

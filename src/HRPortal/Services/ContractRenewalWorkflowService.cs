@@ -25,8 +25,28 @@ public class ContractRenewalWorkflowService(HRPortalDbContext db, WorkflowServic
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new InvalidOperationException("نسخه نهایی فعال ساختار سازمانی یافت نشد.");
 
-        // Settings may reference nodes from an older finalized revision. Resolve their stable
-        // codes into the currently effective revision so a new org revision does not break routing.
+        // Resolve the configured information approver by stable node code against the
+        // effective revision, as the setting may point to an older finalized revision.
+        var configuredApproval = settings.RequestApprovalPositionId.HasValue
+            ? await db.OrganizationNodes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == settings.RequestApprovalPositionId.Value, cancellationToken)
+            : null;
+        var requestApprovalPosition = configuredApproval is null
+            ? null
+            : await db.OrganizationNodes.AsNoTracking().FirstOrDefaultAsync(x =>
+                x.OrganizationStructureRevisionId == revision.Id && x.Code == configuredApproval.Code && x.IsActive,
+                cancellationToken);
+        if (requestApprovalPosition is null)
+            throw new InvalidOperationException("جایگاه تأییدکننده اطلاعات اولیه درخواست را در اطلاعات پایه انتخاب کنید؛ جایگاه ذخیره‌شده در نسخه فعال ساختار یافت نشد.");
+        var requestApprovalAssignees = GetAssignedEmployeeIds(requestApprovalPosition);
+        var activeApprovalAssignees = requestApprovalAssignees.Count == 0 ? new List<int>() :
+            await db.Employees.AsNoTracking()
+                .Where(x => requestApprovalAssignees.Contains(x.Id) && x.Status == "فعال")
+                .Select(x => x.Id).ToListAsync(cancellationToken);
+        if (requestApprovalAssignees.Count == 0 || activeApprovalAssignees.Count != requestApprovalAssignees.Count)
+            throw new InvalidOperationException("برای جایگاه تأییدکننده اطلاعات اولیه درخواست باید دست‌کم یک کارمند فعال و معتبر در ساختار سازمانی تعیین شود.");
+
+        // Resolve Security and HR settings through their stable node codes as well.
         var configuredSecurity = settings.SecurityPositionId.HasValue
             ? await db.OrganizationNodes.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == settings.SecurityPositionId.Value, cancellationToken)
@@ -115,9 +135,37 @@ public class ContractRenewalWorkflowService(HRPortalDbContext db, WorkflowServic
             new WorkflowStep
             {
                 WorkflowDefinitionId = definition.Id,
+                Code = "IntakeApproval",
+                Title = "تأیید اطلاعات اولیه درخواست",
+                SortOrder = 10,
+                AssignmentType = "Position",
+                OrganizationNodeId = requestApprovalPosition.Id,
+                AssignmentMode = "Any",
+                AllowApprove = true,
+                AllowReject = false,
+                AllowReturn = true,
+                RequireCommentOnReturn = true,
+                IsFinalStep = false
+            },
+            new WorkflowStep
+            {
+                WorkflowDefinitionId = definition.Id,
+                Code = "RequesterEdit",
+                Title = "اصلاح اطلاعات اولیه توسط ثبت‌کننده درخواست",
+                SortOrder = 15,
+                AssignmentType = "Employee",
+                AssignedEmployeeId = requesterEmployeeId,
+                AllowApprove = true,
+                AllowReject = false,
+                AllowReturn = false,
+                IsFinalStep = false
+            },
+            new WorkflowStep
+            {
+                WorkflowDefinitionId = definition.Id,
                 Code = "Evaluation",
                 Title = "ارزشیابی عملکرد",
-                SortOrder = 10,
+                SortOrder = 20,
                 AssignmentType = "Hierarchy",
                 HierarchyStopRankType = "مدیرعامل",
                 AssignmentMode = "Any",
@@ -169,6 +217,19 @@ public class ContractRenewalWorkflowService(HRPortalDbContext db, WorkflowServic
                 IsFinalStep = true
             });
 
+        await db.SaveChangesAsync(cancellationToken);
+
+        // Approve -> first evaluation; Return -> requester correction; correction -> same approver.
+        var approvalStep = await db.WorkflowSteps.SingleAsync(
+            x => x.WorkflowDefinitionId == definition.Id && x.Code == "IntakeApproval", cancellationToken);
+        var requesterEditStep = await db.WorkflowSteps.SingleAsync(
+            x => x.WorkflowDefinitionId == definition.Id && x.Code == "RequesterEdit", cancellationToken);
+        var evaluationStep = await db.WorkflowSteps.SingleAsync(
+            x => x.WorkflowDefinitionId == definition.Id && x.Code == "Evaluation", cancellationToken);
+        db.WorkflowTransitions.AddRange(
+            new WorkflowTransition { WorkflowStepId = approvalStep.Id, ToStepId = evaluationStep.Id, Action = "Approve", Title = "تأیید اطلاعات اولیه" },
+            new WorkflowTransition { WorkflowStepId = approvalStep.Id, ToStepId = requesterEditStep.Id, Action = "Return", Title = "بازگشت برای اصلاح اطلاعات" },
+            new WorkflowTransition { WorkflowStepId = requesterEditStep.Id, ToStepId = approvalStep.Id, Action = "Approve", Title = "ارسال مجدد برای تأیید" });
         await db.SaveChangesAsync(cancellationToken);
 
         var instance = await workflow.StartAsync(

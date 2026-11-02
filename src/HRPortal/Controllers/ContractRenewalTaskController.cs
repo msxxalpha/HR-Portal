@@ -38,6 +38,7 @@ public class ContractRenewalTaskController(
     public async Task<IActionResult> Submit(
         int id,
         string? comment,
+        string? action,
         Dictionary<string, decimal?>? scores,
         string? securityDecision,
         int? contractMonths,
@@ -67,7 +68,14 @@ public class ContractRenewalTaskController(
             if (comment is { Length: > 2000 })
                 throw new InvalidOperationException("توضیحات هر مرحله حداکثر می‌تواند ۲۰۰۰ نویسه باشد؛ این محدودیت برای حفظ کامل سابقه پایگاه داده اعمال می‌شود.");
 
-            if (stageKind == "Evaluation")
+            if (stageKind == "IntakeApproval")
+            {
+                if (action is not ("Approve" or "Return"))
+                    throw new InvalidOperationException("برای این مرحله فقط تأیید یا برگشت به ثبت‌کننده مجاز است.");
+                if (action == "Return" && string.IsNullOrWhiteSpace(comment))
+                    throw new InvalidOperationException("برای برگشت درخواست، توضیح اصلاحات الزامی است.");
+            }
+            else if (stageKind == "Evaluation")
             {
                 var currentRows = await db.EmployeePerformanceEvaluationScores
                     .Where(x => x.WorkflowInstanceId == task.WorkflowInstanceId && x.WorkflowStepId == task.WorkflowStepId)
@@ -142,7 +150,13 @@ public class ContractRenewalTaskController(
             }
 
             // Keep business data and workflow transition in the same WorkflowService transaction.
-            if (stageKind == "Evaluation" && isLastEvaluationStage)
+            if (stageKind == "IntakeApproval")
+            {
+                request.Status = action == "Return"
+                    ? "برگشت برای اصلاح اطلاعات اولیه"
+                    : "در حال ارزیابی سازمانی";
+            }
+            else if (stageKind == "Evaluation" && isLastEvaluationStage)
             {
                 request.OriginalEvaluationScore = completedEvaluationScore;
                 request.FinalEvaluationScore = completedEvaluationScore;
@@ -193,11 +207,17 @@ public class ContractRenewalTaskController(
             }
 
             // Security's negative decision is a real workflow rejection, not an approval.
-            var workflowAction = stageKind == "Security" && securityDecision == "Reject" ? "Reject" : "Approve";
+            var workflowAction = stageKind == "IntakeApproval"
+                ? action!
+                : stageKind == "Security" && securityDecision == "Reject" ? "Reject" : "Approve";
             await workflow.CompleteTaskAsync(id, employeeId, workflowAction, comment);
             await audit.WriteAsync("ثبت مرحله ارزشیابی تمدید قرارداد", nameof(ContractRenewalRequest),
                 request.Id.ToString(), $"{task.WorkflowStep.Title} | {stageKind}");
-            TempData["Success"] = stageKind == "CEO"
+            TempData["Success"] = stageKind == "IntakeApproval" && workflowAction == "Return"
+                ? $"درخواست {request.RequestCode} برای اصلاح اطلاعات به ثبت‌کننده برگشت داده شد."
+                : stageKind == "IntakeApproval"
+                    ? $"اطلاعات اولیه درخواست {request.RequestCode} تأیید شد و وارد زنجیره ارزشیابی سازمانی شد."
+                    : stageKind == "CEO"
                 ? $"درخواست {request.RequestCode} با تأیید مدیرعامل تکمیل شد."
                 : stageKind == "Security" && securityDecision == "Reject"
                     ? $"درخواست {request.RequestCode} با تصمیم عدم موافقت حراست خاتمه یافت."
@@ -209,6 +229,86 @@ public class ContractRenewalTaskController(
             TempData["Error"] = ex.Message;
             return RedirectToAction(nameof(Details), new { id });
         }
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveReturnedRequest(int id, ContractRenewalIntakeViewModel input)
+    {
+        if (!TryGetEmployeeId(out var employeeId)) return Forbid();
+        var task = await workflow.GetTaskAsync(id, employeeId);
+        if (task is null) return NotFound();
+        if (task.WorkflowInstance.EntityType != ContractRenewalWorkflowService.WorkflowEntityType ||
+            task.WorkflowStep.Code != "RequesterEdit" ||
+            task.WorkflowInstance.RequesterEmployeeId != employeeId)
+            return Forbid();
+
+        if (!int.TryParse(task.WorkflowInstance.EntityId, out var requestId)) return NotFound();
+        var request = await db.ContractRenewalRequests
+            .FirstOrDefaultAsync(x => x.Id == requestId && x.WorkflowInstanceId == task.WorkflowInstanceId);
+        if (request is null || request.CreatedByEmployeeId != employeeId) return Forbid();
+
+        if (input.PreviousExtensionMonths1 is < 0 or > 120 ||
+            input.PreviousExtensionMonths2 is < 0 or > 120 ||
+            input.PreviousExtensionMonths3 is < 0 or > 120)
+            ModelState.AddModelError("", "مدت تمدیدهای قبلی باید عددی بین صفر تا ۱۲۰ ماه باشد.");
+        ValidateReturnedCount(input.HasDisciplinaryWarnings, input.DisciplinaryWarningCount, "تعداد اخطارهای انضباطی");
+        ValidateReturnedCount(input.HasDisciplinaryCommitteeResolution, input.DisciplinaryCommitteeResolutionCount, "تعداد مصوبه‌های کمیته انضباطی");
+        ValidateReturnedCount(input.HasUnpaidLeave, input.UnpaidLeaveDays, "روزهای مرخصی بدون حقوق");
+        ValidateReturnedCount(input.HasSickLeave, input.SickLeaveDays, "روزهای مرخصی بیماری");
+        ValidateReturnedCount(input.HasAccidentLeave, input.AccidentLeaveDays, "روزهای مرخصی حادثه");
+        ValidateReturnedCount(input.HasCommendations, input.CommendationCount, "تعداد تشویق‌ها");
+        if ((!request.PreviousPeriodScore1FromHistory && (input.PreviousPeriodScore1 is < 0 or > 100 ||
+                input.PreviousPeriodScore1 != decimal.Round(input.PreviousPeriodScore1, 2))) ||
+            (!request.PreviousPeriodScore2FromHistory && (input.PreviousPeriodScore2 is < 0 or > 100 ||
+                input.PreviousPeriodScore2 != decimal.Round(input.PreviousPeriodScore2, 2))))
+            ModelState.AddModelError("", "امتیازهای دستی دوره‌های پیشین باید بین صفر تا ۱۰۰ و حداکثر دو رقم اعشار باشند.");
+
+        if (!ModelState.IsValid)
+        {
+            TempData["Error"] = string.Join(" ", ModelState.Values.SelectMany(x => x.Errors).Select(x => x.ErrorMessage));
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        await PreserveRequestRevisionAsync(request, "BeforeRequesterCorrection", employeeId);
+        request.PreviousExtensionMonths1 = input.PreviousExtensionMonths1;
+        request.PreviousExtensionMonths2 = input.PreviousExtensionMonths2;
+        request.PreviousExtensionMonths3 = input.PreviousExtensionMonths3;
+        request.HasDisciplinaryWarnings = input.HasDisciplinaryWarnings;
+        request.DisciplinaryWarningCount = input.HasDisciplinaryWarnings ? input.DisciplinaryWarningCount : 0;
+        request.HasDisciplinaryCommitteeResolution = input.HasDisciplinaryCommitteeResolution;
+        request.DisciplinaryCommitteeResolutionCount = input.HasDisciplinaryCommitteeResolution ? input.DisciplinaryCommitteeResolutionCount : 0;
+        request.HasUnpaidLeave = input.HasUnpaidLeave;
+        request.UnpaidLeaveDays = input.HasUnpaidLeave ? input.UnpaidLeaveDays : 0;
+        request.HasSickLeave = input.HasSickLeave;
+        request.SickLeaveDays = input.HasSickLeave ? input.SickLeaveDays : 0;
+        request.HasAccidentLeave = input.HasAccidentLeave;
+        request.AccidentLeaveDays = input.HasAccidentLeave ? input.AccidentLeaveDays : 0;
+        request.HasCommendations = input.HasCommendations;
+        request.CommendationCount = input.HasCommendations ? input.CommendationCount : 0;
+        if (!request.PreviousPeriodScore1FromHistory) request.PreviousPeriodScore1 = input.PreviousPeriodScore1;
+        if (!request.PreviousPeriodScore2FromHistory) request.PreviousPeriodScore2 = input.PreviousPeriodScore2;
+        request.Status = "در انتظار تأیید مجدد اطلاعات اولیه";
+
+        try
+        {
+            await workflow.CompleteTaskAsync(id, employeeId, "Approve",
+                "اطلاعات اولیه توسط ثبت‌کننده اصلاح و برای تأیید مجدد ارسال شد.");
+            await audit.WriteAsync("اصلاح اطلاعات اولیه درخواست تمدید قرارداد", nameof(ContractRenewalRequest),
+                request.Id.ToString(), request.RequestCode);
+            TempData["Success"] = "اصلاحات ذخیره و برای تأیید مجدد به جایگاه تأییدکننده ارسال شد.";
+            return RedirectToAction("Inbox", "Workflow");
+        }
+        catch (Exception ex)
+        {
+            TempData["Error"] = ex.Message;
+            return RedirectToAction(nameof(Details), new { id });
+        }
+    }
+
+    private void ValidateReturnedCount(bool hasRecord, int count, string title)
+    {
+        if (count < 0 || count > 100000 || (hasRecord && count == 0))
+            ModelState.AddModelError("", $"مقدار «{title}» باید نامنفی و در صورت وجود سابقه بیشتر از صفر باشد.");
     }
 
     private async Task<ContractRenewalStageViewModel> BuildStageViewModelAsync(
@@ -257,9 +357,34 @@ public class ContractRenewalTaskController(
             });
         }
 
+        var returnedEdit = stageKind == "RequesterEdit" ? new ContractRenewalIntakeViewModel
+        {
+            RequestId = request.Id, IsEditMode = true, EmployeeId = request.EmployeeId,
+            PreviousExtensionMonths1 = request.PreviousExtensionMonths1,
+            PreviousExtensionMonths2 = request.PreviousExtensionMonths2,
+            PreviousExtensionMonths3 = request.PreviousExtensionMonths3,
+            HasDisciplinaryWarnings = request.HasDisciplinaryWarnings,
+            DisciplinaryWarningCount = request.DisciplinaryWarningCount,
+            HasDisciplinaryCommitteeResolution = request.HasDisciplinaryCommitteeResolution,
+            DisciplinaryCommitteeResolutionCount = request.DisciplinaryCommitteeResolutionCount,
+            HasUnpaidLeave = request.HasUnpaidLeave,
+            UnpaidLeaveDays = request.UnpaidLeaveDays,
+            HasSickLeave = request.HasSickLeave,
+            SickLeaveDays = request.SickLeaveDays,
+            HasAccidentLeave = request.HasAccidentLeave,
+            AccidentLeaveDays = request.AccidentLeaveDays,
+            HasCommendations = request.HasCommendations,
+            CommendationCount = request.CommendationCount,
+            PreviousPeriodScore1 = request.PreviousPeriodScore1,
+            PreviousPeriodScore2 = request.PreviousPeriodScore2,
+            PreviousPeriodScore1FromHistory = request.PreviousPeriodScore1FromHistory,
+            PreviousPeriodScore2FromHistory = request.PreviousPeriodScore2FromHistory
+        } : null;
+
         return new ContractRenewalStageViewModel
         {
             Task = task,
+            ReturnedEdit = returnedEdit,
             IsReadOnly = task.Status != "Pending",
             Request = request,
             SubjectEmployee = request.Employee,
@@ -290,6 +415,8 @@ public class ContractRenewalTaskController(
         if (code.StartsWith("Evaluation_H", StringComparison.Ordinal)) return "Evaluation";
         return code switch
         {
+            "IntakeApproval" => "IntakeApproval",
+            "RequesterEdit" => "RequesterEdit",
             "Security" => "Security",
             "HumanResources" => "HumanResources",
             "CEO" => "CEO",

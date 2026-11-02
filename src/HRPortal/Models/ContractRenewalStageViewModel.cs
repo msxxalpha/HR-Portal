@@ -5,6 +5,7 @@ public class ContractRenewalStageViewModel
     public WorkflowTask Task { get; set; } = null!;
     public ContractRenewalRequest Request { get; set; } = null!;
     public Employee SubjectEmployee { get; set; } = null!;
+    public ContractRenewalIntakeViewModel? ReturnedEdit { get; set; }
     public string StageKind { get; set; } = "";
     public bool IsReadOnly { get; set; }
     public bool IsHrDisciplinaryScoreDeductionEnabled { get; set; } = true;

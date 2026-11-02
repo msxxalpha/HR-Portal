@@ -253,7 +253,7 @@ public class EmployeeContractsController(
         Redirect("/EmployeeContracts/BasicInformation#workflow-settings");
 
     [HttpPost, Authorize(Policy = "AdminOnly"), ValidateAntiForgeryToken]
-    public async Task<IActionResult> SaveWorkflowSettings(int? securityPositionId, int? humanResourcesPositionId)
+    public async Task<IActionResult> SaveWorkflowSettings(int? requestApprovalPositionId, int? securityPositionId, int? humanResourcesPositionId)
     {
         var current = await CurrentRevisionAsync();
         if (current is null)
@@ -265,12 +265,17 @@ public class EmployeeContractsController(
         var nodes = await db.OrganizationNodes
             .Where(x => x.OrganizationStructureRevisionId == current.Id && x.IsActive)
             .ToListAsync();
+        if (!requestApprovalPositionId.HasValue || !nodes.Any(x => x.Id == requestApprovalPositionId.Value))
+            ModelState.AddModelError(nameof(requestApprovalPositionId), "جایگاه فعال تأییدکننده اطلاعات اولیه درخواست را انتخاب کنید.");
         if (!securityPositionId.HasValue || !nodes.Any(x => x.Id == securityPositionId.Value))
             ModelState.AddModelError(nameof(securityPositionId), "جایگاه فعال مدیر حراست را انتخاب کنید.");
         if (!humanResourcesPositionId.HasValue || !nodes.Any(x => x.Id == humanResourcesPositionId.Value))
             ModelState.AddModelError(nameof(humanResourcesPositionId), "جایگاه فعال مدیر منابع انسانی و خدمات پشتیبانی را انتخاب کنید.");
         if (securityPositionId.HasValue && securityPositionId == humanResourcesPositionId)
             ModelState.AddModelError(nameof(humanResourcesPositionId), "جایگاه مدیر حراست و مدیر منابع انسانی و خدمات پشتیبانی باید متفاوت باشد.");
+        if (requestApprovalPositionId.HasValue &&
+            (requestApprovalPositionId == securityPositionId || requestApprovalPositionId == humanResourcesPositionId))
+            ModelState.AddModelError(nameof(requestApprovalPositionId), "جایگاه تأییدکننده اطلاعات اولیه باید با جایگاه حراست و منابع انسانی متفاوت باشد.");
 
         var ceoNodes = nodes.Where(x => x.RankType == "مدیرعامل").ToList();
         if (ceoNodes.Count != 1)
@@ -299,6 +304,7 @@ public class EmployeeContractsController(
         {
             var basicInfo = await BuildBasicInfoViewModelAsync();
             basicInfo.WorkflowSettings = await BuildWorkflowSettingsViewModelAsync();
+            basicInfo.WorkflowSettings.Settings.RequestApprovalPositionId = requestApprovalPositionId;
             basicInfo.WorkflowSettings.Settings.SecurityPositionId = securityPositionId;
             basicInfo.WorkflowSettings.Settings.HumanResourcesPositionId = humanResourcesPositionId;
             basicInfo.WorkflowSettings.ErrorMessage = string.Join(" ", ModelState.Values
@@ -313,6 +319,7 @@ public class EmployeeContractsController(
             settings = new ContractRenewalWorkflowSettings { Id = 1 };
             db.ContractRenewalWorkflowSettings.Add(settings);
         }
+        settings.RequestApprovalPositionId = requestApprovalPositionId;
         settings.SecurityPositionId = securityPositionId;
         settings.HumanResourcesPositionId = humanResourcesPositionId;
         settings.CeoEmployeeId = ceoEmployees[0].Id;
@@ -325,7 +332,7 @@ public class EmployeeContractsController(
         {
             db.ChangeTracker.Clear();
             var basicInfo = await BuildBasicInfoViewModelAsync();
-            basicInfo.WorkflowSettings = await BuildWorkflowSettingsViewModelAsync(securityPositionId, humanResourcesPositionId);
+            basicInfo.WorkflowSettings = await BuildWorkflowSettingsViewModelAsync(securityPositionId, humanResourcesPositionId, requestApprovalPositionId);
             basicInfo.WorkflowSettings.ErrorMessage = "ذخیره تنظیمات مراحل ثابت در پایگاه داده انجام نشد. ارتباط پایگاه داده و ساختار فعال را بررسی کنید؛ مقادیر انتخاب‌شده حفظ شده‌اند.";
             ViewBag.ActiveTab = "workflow-settings";
             return View("BasicInformation", basicInfo);
@@ -469,13 +476,13 @@ public class EmployeeContractsController(
 
             var instance = await renewalWorkflow.StartAsync(request, requesterEmployeeId);
             request.WorkflowInstanceId = instance.Id;
-            request.Status = "در حال ارزیابی سازمانی";
+            request.Status = "در انتظار تأیید اطلاعات اولیه";
             await db.SaveChangesAsync();
             await transaction.CommitAsync();
 
             await audit.WriteAsync("ثبت و شروع ارزشیابی تمدید قرارداد", nameof(ContractRenewalRequest),
                 request.Id.ToString(), request.RequestCode);
-            TempData["Success"] = $"درخواست {request.RequestCode} ثبت شد و برای ارزشیابی به زنجیره جایگاه‌های سازمانی ارجاع شد.";
+            TempData["Success"] = $"درخواست {request.RequestCode} ثبت شد و برای بررسی اطلاعات اولیه به جایگاه تأییدکننده ارجاع شد.";
             return RedirectToAction(nameof(Renewal));
         }
         catch (Exception ex)
@@ -534,7 +541,8 @@ public class EmployeeContractsController(
                     _ => "مرحله جاری ثبت نشده"
                 }),
                 HasAnyEvaluation = hasEvaluation,
-                CanEditOrDelete = active && !hasEvaluation && request.Status != "متوقف شده",
+                CanEditOrDelete = active && !hasEvaluation && request.Status != "متوقف شده" &&
+                    instance?.CurrentStep?.Code is not ("IntakeApproval" or "RequesterEdit"),
                 CanStop = active
             };
         }).ToList();
@@ -667,10 +675,11 @@ public class EmployeeContractsController(
     public async Task<IActionResult> Edit(int id)
     {
         var request = await db.ContractRenewalRequests
-            .Include(x => x.WorkflowInstance)
+            .Include(x => x.WorkflowInstance).ThenInclude(x => x!.CurrentStep)
             .FirstOrDefaultAsync(x => x.Id == id && x.Status != "حذف شده");
         if (request is null) return NotFound();
         if (request.WorkflowInstance is null || request.WorkflowInstance.Status != "InProgress" ||
+            request.WorkflowInstance.CurrentStep?.Code is "IntakeApproval" or "RequesterEdit" ||
             await HasEvaluationActivityAsync(request.WorkflowInstance.Id))
         {
             TempData["Error"] = "ویرایش فقط تا پیش از ثبت اولین ارزیابی سازمانی امکان‌پذیر است؛ سوابق ثبت‌شده حفظ می‌شوند.";
@@ -714,10 +723,11 @@ public class EmployeeContractsController(
     public async Task<IActionResult> UpdateRequest(ContractRenewalIntakeViewModel input)
     {
         var request = await db.ContractRenewalRequests
-            .Include(x => x.WorkflowInstance)
+            .Include(x => x.WorkflowInstance).ThenInclude(x => x!.CurrentStep)
             .FirstOrDefaultAsync(x => x.Id == input.RequestId && x.Status != "حذف شده");
         if (request is null) return NotFound();
         if (request.WorkflowInstance is null || request.WorkflowInstance.Status != "InProgress" ||
+            request.WorkflowInstance.CurrentStep?.Code is "IntakeApproval" or "RequesterEdit" ||
             await HasEvaluationActivityAsync(request.WorkflowInstance.Id))
         {
             TempData["Error"] = "این درخواست پس از شروع ارزیابی قابل ویرایش نیست.";
@@ -1015,6 +1025,9 @@ public class EmployeeContractsController(
                 ? await db.Employees.CountAsync(x => x.Id == ceoNode.PositionHolderEmployeeId.Value && x.Status == "فعال")
                 : await db.Employees.CountAsync(x => x.Status == "فعال" && x.OrganizationPositionId == ceoNode.Id);
         }
+        var configuredApproval = config?.RequestApprovalPositionId is int approvalId
+            ? await db.OrganizationNodes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == approvalId)
+            : null;
         var configuredSecurity = config?.SecurityPositionId is int securityId
             ? await db.OrganizationNodes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == securityId)
             : null;
@@ -1022,8 +1035,10 @@ public class EmployeeContractsController(
             ? await db.OrganizationNodes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == hrId)
             : null;
         input.WorkflowSettingsReady = current is not null &&
-            configuredSecurity is not null && configuredHr is not null &&
+            configuredApproval is not null && configuredSecurity is not null && configuredHr is not null &&
             currentCeoNodeIds.Count == 1 && currentCeoCount == 1 &&
+            await db.OrganizationNodes.AnyAsync(x => x.OrganizationStructureRevisionId == current.Id &&
+                x.Code == configuredApproval.Code && x.IsActive) &&
             await db.OrganizationNodes.AnyAsync(x => x.OrganizationStructureRevisionId == current.Id &&
                 x.Code == configuredSecurity.Code && x.IsActive) &&
             await db.OrganizationNodes.AnyAsync(x => x.OrganizationStructureRevisionId == current.Id &&
@@ -1103,7 +1118,7 @@ public class EmployeeContractsController(
             if (!model.QuestionsReady)
                 ModelState.AddModelError("", "مجموع سقف امتیاز پرسش‌های فعال باید دقیقاً ۱۰۰ باشد.");
             if (!model.WorkflowSettingsReady)
-                ModelState.AddModelError("", "تنظیم جایگاه حراست، منابع انسانی و مدیرعامل یا نسخه نهایی ساختار سازمانی کامل نیست.");
+                ModelState.AddModelError("", "جایگاه تأییدکننده اطلاعات اولیه، حراست، منابع انسانی یا متصدی مدیرعامل در نسخه نهایی ساختار سازمانی کامل نیست.");
         }
     }
 
@@ -1123,7 +1138,8 @@ public class EmployeeContractsController(
 
     private async Task<ContractRenewalWorkflowSettingsViewModel> BuildWorkflowSettingsViewModelAsync(
         int? requestedSecurityPositionId = null,
-        int? requestedHumanResourcesPositionId = null)
+        int? requestedHumanResourcesPositionId = null,
+        int? requestedApprovalPositionId = null)
     {
         var current = await CurrentRevisionAsync();
         var persisted = await db.ContractRenewalWorkflowSettings.AsNoTracking()
@@ -1131,12 +1147,17 @@ public class EmployeeContractsController(
         var positions = current is null ? new List<OrganizationNode>() : await db.OrganizationNodes.AsNoTracking()
             .Where(x => x.OrganizationStructureRevisionId == current.Id && x.IsActive)
             .OrderBy(x => x.RankType).ThenBy(x => x.Title).ToListAsync();
+        var persistedApprovalNode = persisted.RequestApprovalPositionId.HasValue
+            ? await db.OrganizationNodes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == persisted.RequestApprovalPositionId.Value)
+            : null;
         var persistedSecurityNode = persisted.SecurityPositionId.HasValue
             ? await db.OrganizationNodes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == persisted.SecurityPositionId.Value)
             : null;
         var persistedHrNode = persisted.HumanResourcesPositionId.HasValue
             ? await db.OrganizationNodes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == persisted.HumanResourcesPositionId.Value)
             : null;
+        var selectedApprovalPositionId = requestedApprovalPositionId ??
+            (persistedApprovalNode is null ? null : positions.FirstOrDefault(x => x.Code == persistedApprovalNode.Code)?.Id);
         var selectedSecurityPositionId = requestedSecurityPositionId ??
             (persistedSecurityNode is null ? null : positions.FirstOrDefault(x => x.Code == persistedSecurityNode.Code)?.Id);
         var selectedHrPositionId = requestedHumanResourcesPositionId ??
@@ -1163,6 +1184,7 @@ public class EmployeeContractsController(
         {
             Settings = new ContractRenewalWorkflowSettings
             {
+                RequestApprovalPositionId = selectedApprovalPositionId,
                 SecurityPositionId = selectedSecurityPositionId,
                 HumanResourcesPositionId = selectedHrPositionId,
                 CeoEmployeeId = ceoEmployees.Count == 1 ? ceoEmployees[0].Id : null

@@ -112,6 +112,16 @@
                     <span>برای جابجایی، نود را روی نود مقصد یا ریشه رها کنید</span>
                 }
             </div>
+            <div class="organization-tree-toolbar" style="display:flex;align-items:end;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin:1rem 0;">
+                <label for="organizationTreeSearch">فیلتر عنوان گره‌ها
+                    <input id="organizationTreeSearch" type="search" placeholder="بخشی از عنوان گره را بنویسید..." autocomplete="off" />
+                </label>
+                <div class="actions">
+                    <button class="btn btn-outline btn-sm" type="button" id="expandAllNodes" title="باز کردن همه گره‌ها">＋ باز کردن همه</button>
+                    <button class="btn btn-outline btn-sm" type="button" id="collapseAllNodes" title="بستن همه گره‌ها">− بستن همه</button>
+                </div>
+                <small id="organizationTreeFilterCount" class="muted" aria-live="polite"></small>
+            </div>
 
             <div id="organizationTree" class="organization-tree" role="tree" aria-label="ساختار سازمانی" data-editable="@editable.ToString().ToLowerInvariant()"></div>
         }
@@ -245,6 +255,10 @@
     const token = document.querySelector('#nodeModal input[name="__RequestVerificationToken"]')?.value || "";
     const menu = document.getElementById("treeContextMenu");
     const state = { menuNodeId: null };
+    const searchInput = document.getElementById("organizationTreeSearch");
+    const filterCount = document.getElementById("organizationTreeFilterCount");
+    const collapsedNodeIds = new Set();
+    let rootCollapsed = false;
 
     const dataById = new Map();
     const childrenByParent = new Map();
@@ -272,8 +286,22 @@
         return el;
     }
 
+    function matchesSubtree(node, term) {
+        if (!term) return true;
+        if (String(node.title || "").toLocaleLowerCase().includes(term)) return true;
+        return sortChildren(childrenByParent.get(String(node.id)) || [])
+            .some(function (child) { return matchesSubtree(child, term); });
+    }
+
     function buildTree() {
         treeHost.innerHTML = "";
+        const term = (searchInput?.value || "").trim().toLocaleLowerCase();
+        const matchingCount = nodes.filter(function (node) {
+            return String(node.data.title || "").toLocaleLowerCase().includes(term);
+        }).length;
+        if (filterCount) filterCount.textContent = term
+            ? matchingCount + " گره با عنوان منطبق"
+            : nodes.length + " گره";
 
         const rootLi = createElement("li", "org-tree-item org-tree-root");
         rootLi.dataset.nodeId = "root";
@@ -282,9 +310,10 @@
         rootRow.dataset.nodeId = "root";
         rootRow.setAttribute("role", "treeitem");
 
-        const rootCaret = createElement("button", "org-tree-caret", "⌄");
+        const rootCaret = createElement("button", "org-tree-caret", rootCollapsed && !term ? "‹" : "⌄");
         rootCaret.type = "button";
-        rootCaret.title = "باز/بسته کردن";
+        rootCaret.disabled = !!term;
+        rootCaret.title = term ? "برای مشاهده مسیر کامل، فیلتر را پاک کنید" : "باز/بسته کردن";
         rootRow.appendChild(rootCaret);
         rootRow.appendChild(createElement("span", "org-tree-icon", "▦"));
         rootRow.appendChild(createElement("span", "org-tree-title", "ساختار سازمانی - " + companyName));
@@ -294,6 +323,7 @@
         const rootChildren = createElement("ul", "org-tree-children");
         rootChildren.setAttribute("role", "group");
         appendChildren(rootChildren, null);
+        rootChildren.classList.toggle("collapsed", rootCollapsed && !term);
         rootLi.appendChild(rootChildren);
         treeHost.appendChild(rootLi);
 
@@ -306,11 +336,17 @@
     }
 
     function appendChildren(parentUl, parentId) {
-        const children = sortChildren(childrenByParent.get(parentId) || []);
+        const term = (searchInput?.value || "").trim().toLocaleLowerCase();
+        const allChildren = sortChildren(childrenByParent.get(parentId) || []);
+        const children = term
+            ? allChildren.filter(function (node) { return matchesSubtree(node, term); })
+            : allChildren;
         if (!children.length) {
             const empty = createElement("li", "org-tree-empty");
-            empty.textContent = parentId === null ? "هنوز هیچ نود سازمانی ایجاد نشده است. روی ریشه کلیک راست کنید." : "زیرگره‌ای ثبت نشده است.";
-            if (!editable && parentId === null) empty.textContent = "در این نسخه نود سازمانی ثبت نشده است.";
+            empty.textContent = term
+                ? "گرهی با عنوان منطبق با عبارت جستجو پیدا نشد."
+                : parentId === null ? "هنوز هیچ نود سازمانی ایجاد نشده است. روی ریشه کلیک راست کنید." : "زیرگره‌ای ثبت نشده است.";
+            if (!editable && parentId === null && !term) empty.textContent = "در این نسخه نود سازمانی ثبت نشده است.";
             parentUl.appendChild(empty);
             return;
         }
@@ -324,11 +360,15 @@
             row.dataset.nodeId = String(node.id);
             row.draggable = !!editable;
 
-            const childList = childrenByParent.get(String(node.id)) || [];
-            const caret = createElement("button", "org-tree-caret", childList.length ? "⌄" : "•");
+            const allChildList = sortChildren(childrenByParent.get(String(node.id)) || []);
+            const childList = term
+                ? allChildList.filter(function (child) { return matchesSubtree(child, term); })
+                : allChildList;
+            const collapsed = !term && collapsedNodeIds.has(String(node.id));
+            const caret = createElement("button", "org-tree-caret", childList.length ? (collapsed ? "‹" : "⌄") : "•");
             caret.type = "button";
-            caret.disabled = !childList.length;
-            caret.title = childList.length ? "باز/بسته کردن" : "";
+            caret.disabled = !childList.length || !!term;
+            caret.title = childList.length ? (term ? "برای دیدن همه گره‌ها فیلتر را پاک کنید" : "باز/بسته کردن") : "";
 
             row.appendChild(caret);
             row.appendChild(createElement("span", "org-tree-icon", "▸"));
@@ -343,6 +383,7 @@
                 const childUl = createElement("ul", "org-tree-children");
                 childUl.setAttribute("role", "group");
                 appendChildren(childUl, String(node.id));
+                childUl.classList.toggle("collapsed", collapsed);
                 li.appendChild(childUl);
 
                 caret.addEventListener("click", function (event) {
@@ -360,6 +401,10 @@
         const list = li.querySelector(":scope > .org-tree-children");
         if (!list) return;
         const collapsed = list.classList.toggle("collapsed");
+        const nodeId = li.dataset.nodeId || "root";
+        if (nodeId === "root") rootCollapsed = collapsed;
+        else if (collapsed) collapsedNodeIds.add(nodeId);
+        else collapsedNodeIds.delete(nodeId);
         caret.textContent = collapsed ? "‹" : "⌄";
     }
 
@@ -713,6 +758,24 @@
     document.getElementById("cancelNode")?.addEventListener("click", closeNodeModal);
     document.getElementById("nodeModal")?.addEventListener("click", function (event) {
         if (event.target === this) closeNodeModal();
+    });
+
+    searchInput?.addEventListener("input", buildTree);
+    document.getElementById("expandAllNodes")?.addEventListener("click", function () {
+        if (searchInput) searchInput.value = "";
+        rootCollapsed = false;
+        collapsedNodeIds.clear();
+        buildTree();
+    });
+    document.getElementById("collapseAllNodes")?.addEventListener("click", function () {
+        if (searchInput) searchInput.value = "";
+        rootCollapsed = true;
+        collapsedNodeIds.clear();
+        nodes.forEach(function (node) {
+            if ((childrenByParent.get(String(node.data.id)) || []).length > 0)
+                collapsedNodeIds.add(String(node.data.id));
+        });
+        buildTree();
     });
 
     buildTree();

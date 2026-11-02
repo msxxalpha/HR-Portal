@@ -51,6 +51,10 @@ BEGIN
     );
 END;
 
+IF OBJECT_ID(N'dbo.ContractRenewalWorkflowSettings', N'U') IS NOT NULL
+AND COL_LENGTH(N'dbo.ContractRenewalWorkflowSettings', N'RequestApprovalPositionId') IS NULL
+    ALTER TABLE [dbo].[ContractRenewalWorkflowSettings] ADD [RequestApprovalPositionId] int NULL;
+
 IF OBJECT_ID(N'dbo.ContractRenewalRequests', N'U') IS NULL
 BEGIN
     CREATE TABLE [dbo].[ContractRenewalRequests](
@@ -114,6 +118,13 @@ IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_ContractRenewalRequests_
     CREATE INDEX [IX_ContractRenewalRequests_Employee_CreatedAt] ON [dbo].[ContractRenewalRequests]([EmployeeId],[CreatedAt]);
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_ContractRenewalRequests_Status_CreatedAt' AND object_id=OBJECT_ID(N'dbo.ContractRenewalRequests'))
     CREATE INDEX [IX_ContractRenewalRequests_Status_CreatedAt] ON [dbo].[ContractRenewalRequests]([Status],[CreatedAt]);
+
+IF OBJECT_ID(N'dbo.ContractRenewalWorkflowSettings', N'U') IS NOT NULL
+AND OBJECT_ID(N'dbo.OrganizationNodes', N'U') IS NOT NULL
+AND COL_LENGTH(N'dbo.ContractRenewalWorkflowSettings', N'RequestApprovalPositionId') IS NOT NULL
+AND NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name=N'FK_ContractRenewalWorkflowSettings_RequestApprovalPosition')
+    ALTER TABLE [dbo].[ContractRenewalWorkflowSettings] ADD CONSTRAINT [FK_ContractRenewalWorkflowSettings_RequestApprovalPosition]
+    FOREIGN KEY([RequestApprovalPositionId]) REFERENCES [dbo].[OrganizationNodes]([Id]) ON DELETE NO ACTION;
 
 IF OBJECT_ID(N'dbo.ContractRenewalWorkflowSettings', N'U') IS NOT NULL
 AND OBJECT_ID(N'dbo.OrganizationNodes', N'U') IS NOT NULL

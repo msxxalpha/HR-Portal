@@ -31,6 +31,9 @@ public class RoleService(HRPortalDbContext db)
         ("Roles.Manage", "مدیریت نقش‌ها", "مدیریت کاربران"),
         ("Announcements.Manage", "مدیریت اطلاعیه‌ها", "مدیریت سامانه"),
         ("Suggestions.Submit", "ثبت و پیگیری پیشنهاد", "نظام پیشنهادات"),
+        ("Suggestions.ViewAll", "مشاهده همه پیشنهادها", "نظام پیشنهادات"),
+        ("Suggestions.Manage", "مدیریت پیشنهادها و تعیین پیشنهاددهنده", "نظام پیشنهادات"),
+        ("Suggestions.Evaluate", "ارزیابی تخصصی پیشنهادها", "نظام پیشنهادات"),
         ("Workflow.Inbox", "کارتابل گردش کار", "گردش کار"),
         ("Workflow.Manage", "مدیریت گردش کار", "گردش کار"),
         ("ContractRenewal.Manage", "ثبت و پیگیری تمدید قرارداد", "ماژول مدیریت قراردادهای کارکنان"),
@@ -134,6 +137,8 @@ public class RoleService(HRPortalDbContext db)
             ["Roles.Manage"]);
         await EnsureRoleAsync("WORKFLOW_MANAGER", "مدیریت گردش کار", "تعریف گردش کار و تخصیص مراحل به جایگاه‌های سازمانی",
             ["Workflow.Inbox", "Workflow.Manage"]);
+        await EnsureRoleAsync("SUGGESTION_MANAGER", "مدیریت نظام پیشنهادات", "مشاهده و مدیریت پیشنهادها و دسترسی به ارزیابی تخصصی در مراحل بعدی",
+            ["Suggestions.ViewAll", "Suggestions.Manage", "Suggestions.Evaluate"]);
 
         // The manager role is a first-class seeded role. Existing locally-created
         // roles with the established Persian title are repaired in place below,

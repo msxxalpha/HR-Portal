@@ -1,1 +1,14 @@
-@{ViewData["Title"]="عدم دسترسی";}<div class="card"><h2>دسترسی مجاز نیست</h2><p>کاربر شما مجوز مشاهده این بخش را ندارد.</p></div>
+@{ ViewData["Title"] = "عدم دسترسی"; }
+<div class="access-denied-page">
+    <div class="access-denied-card">
+        <div class="access-denied-icon">!</div>
+        <span class="access-denied-kicker">کنترل دسترسی سامانه</span>
+        <h1>امکان دسترسی به این بخش وجود ندارد</h1>
+        <p>نقش یا مجوز لازم برای مشاهده این صفحه به حساب کاربری شما اختصاص داده نشده است. اگر برای انجام وظیفه سازمانی به این بخش نیاز دارید، با مدیر سامانه تماس بگیرید.</p>
+        <div class="access-denied-actions">
+            <a class="btn btn-primary" href="/">بازگشت به داشبورد</a>
+            <a class="btn btn-outline" href="/Account/Logout">خروج از سامانه</a>
+        </div>
+        <small>در صورت تداوم مشکل، نام ماژول و زمان بروز خطا را به پشتیبانی اعلام کنید.</small>
+    </div>
+</div>

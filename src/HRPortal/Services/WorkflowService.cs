@@ -1200,10 +1200,14 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         // two current assignees from completing the same Any-mode task (or saving a draft
         // after another actor has already completed it). A failed request rolls the
         // reservation back with the rest of the workflow transition.
-        var reserved = await db.WorkflowTasks
-            .Where(x => x.Id == task.Id && x.Status == "Pending")
-            .ExecuteUpdateAsync(setters => setters.SetProperty(
-                x => x.Status, action == "SaveDraft" ? "Pending" : "Processing"));
+        var reserved = db.Database.IsRelational()
+            ? await db.WorkflowTasks
+                .Where(x => x.Id == task.Id && x.Status == "Pending")
+                .ExecuteUpdateAsync(setters => setters.SetProperty(
+                    x => x.Status, action == "SaveDraft" ? "Pending" : "Processing"))
+            : await db.WorkflowTasks.AnyAsync(x => x.Id == task.Id && x.Status == "Pending")
+                ? 1
+                : 0;
         if (reserved != 1)
             throw new InvalidOperationException("این وظیفه هم‌زمان توسط کاربر دیگری تعیین تکلیف شده است؛ کارتابل را تازه‌سازی کنید.");
         task.Status = action == "SaveDraft" ? "Pending" : "Processing";

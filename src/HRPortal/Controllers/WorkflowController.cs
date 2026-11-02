@@ -126,31 +126,8 @@ public class WorkflowController(
             });
         }
 
-        if (!string.IsNullOrWhiteSpace(q))
-        {
-            var term = q.Trim();
-            rows = rows.Where(x =>
-                x.WorkflowTitle.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                x.EntityType.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                x.EntityId.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                x.RequesterName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                x.StepTitle.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                x.PositionTitle.Contains(term, StringComparison.OrdinalIgnoreCase)).ToList();
-        }
-        if (!string.IsNullOrWhiteSpace(reason))
-            rows = rows.Where(x => x.ReasonCode == reason).ToList();
-        if (workflowId.HasValue)
-            rows = rows.Where(x => x.WorkflowId == workflowId.Value).ToList();
-        if (!string.IsNullOrWhiteSpace(step))
-            rows = rows.Where(x => x.StepTitle.Contains(step.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
-        if (!string.IsNullOrWhiteSpace(position))
-            rows = rows.Where(x =>
-                x.PositionCode.Contains(position.Trim(), StringComparison.OrdinalIgnoreCase) ||
-                x.PositionTitle.Contains(position.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
-        if (createdFrom.HasValue)
-            rows = rows.Where(x => x.CreatedAt.Date >= createdFrom.Value.Date).ToList();
-        if (createdTo.HasValue)
-            rows = rows.Where(x => x.CreatedAt.Date <= createdTo.Value.Date).ToList();
+        rows = UnassignedWorkflowTaskFilter.Apply(
+            rows, q, reason, workflowId, step, position, createdFrom, createdTo);
 
         ViewBag.Search = q;
         ViewBag.Reason = reason;

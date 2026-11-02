@@ -5,6 +5,9 @@ namespace HRPortal.Data;
 
 public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : DbContext(options)
 {
+    public DbSet<Suggestion> Suggestions => Set<Suggestion>();
+    public DbSet<SuggestionMember> SuggestionMembers => Set<SuggestionMember>();
+    public DbSet<SuggestionAttachment> SuggestionAttachments => Set<SuggestionAttachment>();
     public DbSet<MonthlyPerformancePeriod> MonthlyPerformancePeriods => Set<MonthlyPerformancePeriod>();
     public DbSet<MonthlyPerformanceDomain> MonthlyPerformanceDomains => Set<MonthlyPerformanceDomain>();
     public DbSet<MonthlyPerformanceRank> MonthlyPerformanceRanks => Set<MonthlyPerformanceRank>();
@@ -53,6 +56,9 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<Suggestion>(e => { e.ToTable("Suggestions"); e.HasKey(x=>x.Id); e.HasIndex(x=>x.SuggestionNumber).IsUnique(); e.HasIndex(x=>new{x.ProposerEmployeeId,x.UpdatedAtUtc}); e.HasOne<Employee>().WithMany().HasForeignKey(x=>x.ProposerEmployeeId).OnDelete(DeleteBehavior.Restrict); });
+        modelBuilder.Entity<SuggestionMember>(e => { e.ToTable("SuggestionMembers"); e.HasKey(x=>x.Id); e.HasIndex(x=>new{x.SuggestionId,x.EmployeeId}).IsUnique(); e.HasOne(x=>x.Suggestion).WithMany(x=>x.Members).HasForeignKey(x=>x.SuggestionId).OnDelete(DeleteBehavior.Cascade); e.HasOne<Employee>().WithMany().HasForeignKey(x=>x.EmployeeId).OnDelete(DeleteBehavior.Restrict); });
+        modelBuilder.Entity<SuggestionAttachment>(e => { e.ToTable("SuggestionAttachments"); e.HasKey(x=>x.Id); e.HasOne(x=>x.Suggestion).WithMany(x=>x.Attachments).HasForeignKey(x=>x.SuggestionId).OnDelete(DeleteBehavior.Cascade); });
         modelBuilder.Entity<MonthlyPerformancePeriod>(e =>
         {
             e.ToTable("MonthlyPerformancePeriods");

@@ -1,0 +1,4 @@
+@model Suggestion
+@using System.Text.Json
+@{ViewData["Title"]="جزئیات پیشنهاد";var benefits=JsonSerializer.Deserialize<List<string>>(Model.BenefitsJson)??new();}
+<div class="page-head"><div><h1>@Model.Title</h1><p>شماره پیگیری: <b dir="ltr">@Model.SuggestionNumber</b></p></div><a class="btn btn-light" href="/Suggestions">بازگشت</a></div><div class="card sugg-detail"><b>وضعیت: ثبت‌شده</b><h3>خلاصه</h3><p>@Model.ShortDescription</p><h3>مسئله</h3><p>@Model.ProblemDescription</p><h3>راه‌حل</h3><p>@Model.ProposedSolution</p><h3>منافع</h3><p>@string.Join("، ",benefits) @Model.BenefitDetails</p><h3>اعضای گروه</h3><ul>@foreach(var m in Model.Members){<li>@m.EmployeeNameSnapshot (@m.PersonnelNumberSnapshot)</li>}</ul><h3>پیوست‌ها</h3><ul>@foreach(var a in Model.Attachments){<li><a href="/Suggestions/Download/@a.Id">@a.OriginalFileName</a></li>}</ul><p>مراحل گردش کار و ارزیابی در فاز بعدی توسعه اضافه خواهد شد.</p></div>

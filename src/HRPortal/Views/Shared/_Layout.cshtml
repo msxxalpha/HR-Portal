@@ -19,6 +19,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazir-font@v30.1.0/dist/font-face.css" />
     <link rel="stylesheet" href="https://unpkg.com/@@majidh1/jalalidatepicker/dist/jalalidatepicker.min.css" />
     <link rel="stylesheet" href="@Url.Content("~/css/site.css")" asp-append-version="true" />
+    <link rel="stylesheet" href="@Url.Content("~/css/suggestions.css")" asp-append-version="true" />
 </head>
 <body style="--navy:@company.PrimaryColor;--navy2:@company.SecondaryColor;">
 <div class="app-shell">
@@ -56,8 +57,8 @@
                 </details>
             }
             @if (isAdmin || Can("ContractRenewal.Manage") || Can("MonthlyPerformance.View") ||
-                Can("MonthlyPerformance.Evaluate") || Can("MonthlyPerformance.Manage") || Can("MonthlyPerformance.Reports")) {
-                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/EmployeeContracts") || (Context.Request.Path.StartsWithSegments("/MonthlyPerformance") || Context.Request.Path.StartsWithSegments("/MonthlyPerformanceAdmin") || Context.Request.Path.StartsWithSegments("/MonthlyPerformanceReports")) ? "open" : null)">
+                Can("MonthlyPerformance.Evaluate") || Can("MonthlyPerformance.Manage") || Can("MonthlyPerformance.Reports") || Can("Suggestions.Submit")) {
+                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/EmployeeContracts") || (Context.Request.Path.StartsWithSegments("/MonthlyPerformance") || Context.Request.Path.StartsWithSegments("/MonthlyPerformanceAdmin") || Context.Request.Path.StartsWithSegments("/MonthlyPerformanceReports") || Context.Request.Path.StartsWithSegments("/Suggestions")) ? "open" : null)">
                     <summary><span class="nav-icon">▦</span>ماژول‌ها</summary>
                     <div class="nav-submenu">
                         @if (isAdmin || Can("ContractRenewal.Manage")) {
@@ -69,6 +70,11 @@
                                 @if (isAdmin || Can("ContractRenewal.Manage")) { <a href="/EmployeeContracts/Requests">فهرست درخواست‌های ارزشیابی و تمدید قرارداد</a> }
                                 @if (isAdmin || Can("ContractRenewal.Manage")) { <a href="/EmployeeContracts/Renewal">تمدید قرارداد</a> }
                             </div>
+                        </details>
+                        }
+                        @if (Can("Suggestions.Submit")) {
+                        <details class="nav-subgroup" open="@(Context.Request.Path.StartsWithSegments("/Suggestions") ? "open" : null)">
+                            <summary>نظام پیشنهادات</summary><div class="nav-submenu nav-submenu-nested"><a href="/Suggestions">پیشنهادهای من</a><a href="/Suggestions/Create">ثبت پیشنهاد جدید</a></div>
                         </details>
                         }
                         @if (isAdmin || Can("MonthlyPerformance.View") || Can("MonthlyPerformance.Evaluate") ||

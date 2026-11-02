@@ -142,7 +142,10 @@
                     <th><a href="@SortUrl("PersonnelNumber")">شماره پرسنلی @SortMark("PersonnelNumber")</a></th>
                     <th><a href="@SortUrl("LastName")">نام و نام خانوادگی @SortMark("LastName")</a></th>
                     <th>شناسه / کد ملی / موبایل</th>
-                    <th><a href="@SortUrl("Gender")">جنسیت @SortMark("Gender")</a><span class="employee-th-sub">وضعیت</span></th>
+                    <th>
+                        <a href="@SortUrl("Gender")">جنسیت @SortMark("Gender")</a>
+                        <span class="employee-th-sub"><a href="@SortUrl("Status")">وضعیت @SortMark("Status")</a></span>
+                    </th>
                     <th>
                         <a href="@SortUrl("EmploymentType")">نوع استخدام @SortMark("EmploymentType")</a>
                         <span class="employee-th-sub"><a href="@SortUrl("ContractEndDate")">پایان قرارداد @SortMark("ContractEndDate")</a></span>

@@ -39,5 +39,36 @@ Check(!WorkflowPositionAssignmentResolver.IsExplicitEmployeeAssignee(401, 401, f
 Check(!WorkflowPositionAssignmentResolver.IsExplicitEmployeeAssignee(0, 0, true),
     "An invalid employee identity was accepted.");
 
+
+var selectedRevision = WorkflowPositionAssignmentResolver.SelectCurrentRevisionId(
+    new[]
+    {
+        (Id: 10, EffectiveDate: new DateTime(2026, 1, 1), IsFinalized: true),
+        (Id: 11, EffectiveDate: new DateTime(2026, 3, 1), IsFinalized: true),
+        (Id: 12, EffectiveDate: new DateTime(2026, 3, 1), IsFinalized: true),
+        (Id: 13, EffectiveDate: new DateTime(2026, 4, 1), IsFinalized: false),
+        (Id: 14, EffectiveDate: new DateTime(2026, 5, 1), IsFinalized: true)
+    },
+    new DateTime(2026, 3, 1));
+Check(selectedRevision == 12,
+    "Current revision must be the latest effective finalized revision, using highest ID as a same-date tie-breaker.");
+Check(WorkflowPositionAssignmentResolver.SelectCurrentRevisionId(
+        new[] { (Id: 15, EffectiveDate: new DateTime(2026, 6, 1), IsFinalized: true) },
+        new DateTime(2026, 3, 1)) is null,
+    "A future-effective revision must not become current.");
+
+var positionCandidates = new[]
+{
+    new { Id = 20, Code = "ORG-HR-MANAGER" },
+    new { Id = 21, Code = "ORG-FINANCE" }
+};
+var stableMatch = WorkflowPositionAssignmentResolver.FindByStableCode(
+    positionCandidates, " org-hr-manager ", x => x.Code);
+Check(stableMatch?.Id == 20, "Stable position codes must match case-insensitively after trimming.");
+Check(WorkflowPositionAssignmentResolver.FindByStableCode(
+        positionCandidates, "ORG-REMOVED", x => x.Code) is null,
+    "A removed position must not fall back to a similarly numbered or unrelated position.");
+
 Console.WriteLine("PASS: multi-assignee position ownership, holder fallback, malformed/duplicate IDs,");
-Console.WriteLine("      explicit employee-only routing, and inactive/invalid employee denial.");
+Console.WriteLine("      explicit employee-only routing, inactive/invalid employee denial,");
+Console.WriteLine("      effective finalized revision selection, and case-insensitive stable-code mapping.");

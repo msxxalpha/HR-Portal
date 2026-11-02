@@ -8,6 +8,10 @@
         <h1>کارتابل من</h1>
         <p>درخواست‌هایی که بر اساس جایگاه سازمانی شما برای اقدام در اختیار شما قرار گرفته‌اند.</p>
     </div>
+    @if (User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Workflow.Manage"))
+    {
+        <a class="btn btn-outline" href="/Workflow/UnassignedTasks">وظایف نیازمند تعیین مسئول</a>
+    }
 </div>
 @if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
 @if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }

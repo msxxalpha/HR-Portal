@@ -28,6 +28,8 @@ jobs:
           Write-Host "Verified HR Portal build identity: $expected"
       - name: Verify evaluator hierarchical scope regression
         run: dotnet run --project tests/HRPortal.ScopeSmoke/HRPortal.ScopeSmoke.csproj --configuration Release
+      - name: Verify workflow assignment and authorization regressions
+        run: dotnet run --project tests/HRPortal.WorkflowSmoke/HRPortal.WorkflowSmoke.csproj --configuration Release
       - name: Verify Persian calendar conversion
         run: |
           node --check src/HRPortal/wwwroot/js/jalali-datepicker.js

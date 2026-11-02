@@ -58,6 +58,49 @@ Check(!WorkflowPositionAssignmentResolver.CanViewInstance(
     "An unrelated employee must not view another employee's workflow instance.");
 
 
+
+var activeHealthEmployees = new[]
+{
+    new HRPortal.Models.Employee { Id = 3, Status = "فعال" },
+    new HRPortal.Models.Employee { Id = 4, Status = "فعال" }
+};
+var healthPosition = new HRPortal.Models.OrganizationNode
+{
+    Id = 30, Code = "ORG-OPS", Title = "عملیات",
+    AssignedEmployeeIdsCsv = "3,4", IsActive = true
+};
+var healthPositions = new Dictionary<string, HRPortal.Models.OrganizationNode>(
+    StringComparer.OrdinalIgnoreCase) { ["ORG-OPS"] = healthPosition };
+var healthTask = new HRPortal.Models.WorkflowTask
+{
+    Id = 50, Status = "Pending", AssignedPositionId = 9,
+    AssignedPosition = new HRPortal.Models.OrganizationNode { Id = 9, Code = "ORG-OPS" },
+    WorkflowStep = new HRPortal.Models.WorkflowStep()
+};
+Check(WorkflowTaskAssignmentHealthResolver.GetIssueCode(
+        healthTask, healthPositions, activeHealthEmployees) is null,
+    "A position task with valid active assignees must not appear in the unassigned report.");
+Check(WorkflowTaskAssignmentHealthResolver.GetIssueCode(
+        healthTask, new Dictionary<string, HRPortal.Models.OrganizationNode>(),
+        activeHealthEmployees) == "PositionMissing",
+    "A position missing from the current finalized revision must be flagged.");
+healthPosition.AssignedEmployeeIdsCsv = "3,6";
+Check(WorkflowTaskAssignmentHealthResolver.GetIssueCode(
+        healthTask, healthPositions, activeHealthEmployees) == "InvalidAssignment",
+    "A mixed active/inactive assignment list must be flagged for repair.");
+healthPosition.AssignedEmployeeIdsCsv = "6";
+Check(WorkflowTaskAssignmentHealthResolver.GetIssueCode(
+        healthTask, healthPositions, activeHealthEmployees) == "NoActiveHolder",
+    "A position with no active assignee must be flagged.");
+var directHealthTask = new HRPortal.Models.WorkflowTask { Status = "Pending", AssignedEmployeeId = 99 };
+Check(WorkflowTaskAssignmentHealthResolver.GetIssueCode(
+        directHealthTask, healthPositions, activeHealthEmployees) == "EmployeeMissing",
+    "A missing or inactive direct assignee must be flagged.");
+directHealthTask.AssignedEmployeeId = 3;
+Check(WorkflowTaskAssignmentHealthResolver.GetIssueCode(
+        directHealthTask, healthPositions, activeHealthEmployees) is null,
+    "A valid direct assignment must not be eligible for managerial reassignment.");
+
 var reportRows = new[]
 {
     new HRPortal.Models.UnassignedWorkflowTaskRow
@@ -129,7 +172,7 @@ Check(WorkflowPositionAssignmentResolver.FindByStableCode(
 Console.WriteLine("PASS: multi-assignee position ownership, holder fallback, malformed/duplicate IDs,");
 Console.WriteLine("      explicit employee-only routing, inactive/invalid employee denial,");
 Console.WriteLine("      effective revision selection, stable-code mapping, and instance visibility;");
-Console.WriteLine("      unassigned report filtering by request, reason, workflow, step, position, and date range.");
+Console.WriteLine("      unassigned report filters and server-side reassignment eligibility checks.");
 await VerifyWorkflowServiceAuthorizationAsync();
 
 static async Task VerifyWorkflowServiceAuthorizationAsync()

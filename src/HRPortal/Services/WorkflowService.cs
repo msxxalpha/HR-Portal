@@ -1023,7 +1023,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         if (instance is null) return null;
         var isRequester = instance.RequesterEmployeeId == employeeId;
 
-        var hasActed = await db.WorkflowHistory.AsNoTracking().AnyAsync(x =>
+        var hasActed = !isRequester && await db.WorkflowHistory.AsNoTracking().AnyAsync(x =>
             x.WorkflowInstanceId == id && x.ActorEmployeeId == employeeId &&
             x.Action != "Created" && x.Action != "Submitted" && x.Action != "Submit");
 

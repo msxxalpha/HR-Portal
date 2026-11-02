@@ -10,6 +10,23 @@ static void Check(bool condition, string message)
     if (!condition) throw new InvalidOperationException(message);
 }
 
+Check(ContractRenewalWorkflowService.MaximumAllowedContractMonths("ApproveOneMonth") == 1,
+    "A one-month security approval must cap the allowed contract duration at one month.");
+Check(ContractRenewalWorkflowService.MaximumAllowedContractMonths("ApproveFull") == 12 &&
+      ContractRenewalWorkflowService.MaximumAllowedContractMonths(null) == 12,
+    "A full or unspecified security approval must retain the normal 12-month maximum.");
+Check(ContractRenewalWorkflowService.SuggestedContractMonths(29.99m) == 0 &&
+      ContractRenewalWorkflowService.SuggestedContractMonths(30m) == 1 &&
+      ContractRenewalWorkflowService.SuggestedContractMonths(35m) == 1 &&
+      ContractRenewalWorkflowService.SuggestedContractMonths(35.01m) == 3 &&
+      ContractRenewalWorkflowService.SuggestedContractMonths(52m) == 3 &&
+      ContractRenewalWorkflowService.SuggestedContractMonths(52.01m) == 6 &&
+      ContractRenewalWorkflowService.SuggestedContractMonths(70m) == 6 &&
+      ContractRenewalWorkflowService.SuggestedContractMonths(70.01m) == 9 &&
+      ContractRenewalWorkflowService.SuggestedContractMonths(87m) == 9 &&
+      ContractRenewalWorkflowService.SuggestedContractMonths(87.01m) == 12,
+    "Contract duration score thresholds or boundaries are incorrect.");
+
 // Multi-assignee position: every active listed employee can act on the same
 // position task, duplicates and malformed tokens cannot create extra identities.
 var shared = WorkflowPositionAssignmentResolver.GetAssignedEmployeeIds("101, 102,101,broken,-5", 999);

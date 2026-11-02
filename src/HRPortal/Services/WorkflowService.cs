@@ -1040,8 +1040,9 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 if (await IsCurrentPositionAssigneeAsync(employeeId, task))
                     return instance;
             }
-            else if (task.AssignedEmployeeId == employeeId &&
-                     await db.Employees.AnyAsync(x => x.Id == employeeId && x.Status == "فعال"))
+            else if (await db.Employees.AnyAsync(x => x.Id == employeeId && x.Status == "فعال") &&
+                     WorkflowPositionAssignmentResolver.IsExplicitEmployeeAssignee(
+                         employeeId, task.AssignedEmployeeId, isActiveEmployee: true))
             {
                 return instance;
             }

@@ -442,7 +442,31 @@ static async Task VerifyExplicitPositionTaskCreationAsync()
           await service.GetTaskAsync(sharedTask.Id, 12) is not null,
         "Every active explicit assignee must be able to open the shared position task.");
 
-    Console.WriteLine("PASS: actual task creation honors explicit single and multi-assignee lists over legacy holder data.");
+    var positionStep = await db.WorkflowSteps.SingleAsync(x => x.Id == 1);
+    positionStep.AssignmentMode = "All";
+    await db.SaveChangesAsync();
+    var allInstance = await service.StartAsync(
+        "POSITION-TASK-TEST", "Smoke", "all", 11);
+    var allTasks = await db.WorkflowTasks
+        .Where(x => x.WorkflowInstanceId == allInstance.Id && x.Status == "Pending")
+        .OrderBy(x => x.AssignedEmployeeId).ToListAsync();
+    Check(allTasks.Count == 2 &&
+          allTasks.All(x => x.AssignedPositionId == 20 && x.AssignedEmployeeId.HasValue),
+        "All mode must create one position-owned task per explicitly assigned employee.");
+    Check(await service.GetTaskAsync(allTasks[0].Id, allTasks[0].AssignedEmployeeId!.Value) is not null &&
+          await service.GetTaskAsync(allTasks[0].Id, allTasks[1].AssignedEmployeeId!.Value) is null,
+        "An All-mode task must be accessible only to its designated employee.");
+    await service.CompleteTaskAsync(allTasks[0].Id, allTasks[0].AssignedEmployeeId!.Value,
+        "Approve", "تأیید نفر اول");
+    Check(await db.WorkflowInstances.AnyAsync(x => x.Id == allInstance.Id && x.Status == "InProgress") &&
+          await db.WorkflowTasks.CountAsync(x => x.WorkflowInstanceId == allInstance.Id && x.Status == "Pending") == 1,
+        "All mode must wait for every assigned employee before advancing.");
+    await service.CompleteTaskAsync(allTasks[1].Id, allTasks[1].AssignedEmployeeId!.Value,
+        "Approve", "تأیید نفر دوم");
+    Check(await db.WorkflowInstances.AnyAsync(x => x.Id == allInstance.Id && x.Status == "Approved"),
+        "All mode must advance only after the last assigned employee approves.");
+
+    Console.WriteLine("PASS: actual task creation honors explicit single/multi assignees and Any/All approval modes.");
 }
 
 static async Task VerifyWorkflowTransitionLifecycleAsync()

@@ -40,6 +40,20 @@ Check(!WorkflowPositionAssignmentResolver.IsExplicitEmployeeAssignee(0, 0, true)
     "An invalid employee identity was accepted.");
 
 
+
+Check(WorkflowPositionAssignmentResolver.CanViewInstance(
+        isRequester: true, hasActedPreviously: false, isCurrentAssigneeOfPendingTask: false),
+    "A requester must be able to view their own request.");
+Check(WorkflowPositionAssignmentResolver.CanViewInstance(
+        isRequester: false, hasActedPreviously: true, isCurrentAssigneeOfPendingTask: false),
+    "A previous actor must retain read access to the workflow history.");
+Check(WorkflowPositionAssignmentResolver.CanViewInstance(
+        isRequester: false, hasActedPreviously: false, isCurrentAssigneeOfPendingTask: true),
+    "The current assignee of a pending task must be able to view the instance.");
+Check(!WorkflowPositionAssignmentResolver.CanViewInstance(
+        isRequester: false, hasActedPreviously: false, isCurrentAssigneeOfPendingTask: false),
+    "An unrelated employee must not view another employee's workflow instance.");
+
 var selectedRevision = WorkflowPositionAssignmentResolver.SelectCurrentRevisionId(
     new[]
     {
@@ -71,4 +85,4 @@ Check(WorkflowPositionAssignmentResolver.FindByStableCode(
 
 Console.WriteLine("PASS: multi-assignee position ownership, holder fallback, malformed/duplicate IDs,");
 Console.WriteLine("      explicit employee-only routing, inactive/invalid employee denial,");
-Console.WriteLine("      effective finalized revision selection, and case-insensitive stable-code mapping.");
+Console.WriteLine("      effective finalized revision selection, stable-code mapping, and instance visibility matrix.");

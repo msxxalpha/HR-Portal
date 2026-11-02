@@ -114,7 +114,7 @@ public sealed class ContractRenewalPdfService
                             {
                                 stage.Item().Text("درصد کسر سوابق انضباطی: " + request.HrDisciplinaryDeductionPercent.ToString("0.##") + "٪").Bold().FontSize(9);
                                 stage.Item().Text("امتیاز نهایی پس از کسر: " + (request.FinalEvaluationScore?.ToString("0.##") ?? "ثبت نشده") + " از ۱۰۰").FontSize(9);
-                                stage.Item().Text("مدت پیشنهادی سیستم: " + ContractRenewalWorkflowService.SuggestedContractMonths(request.FinalEvaluationScore) + " ماه | پیشنهاد مدیر منابع انسانی: " + (request.HrProposedContractMonths?.ToString() ?? "ثبت نشده") + " ماه").FontSize(9);
+                                stage.Item().Text("مدت پیشنهادی سیستم: " + Math.Min(ContractRenewalWorkflowService.SuggestedContractMonths(request.FinalEvaluationScore), ContractRenewalWorkflowService.MaximumAllowedContractMonths(request.SecurityDecision)) + " ماه | پیشنهاد مدیر منابع انسانی: " + (request.HrProposedContractMonths?.ToString() ?? "ثبت نشده") + " ماه").FontSize(9);
                             }
                             if (step.Code == "CEO")
                                 stage.Item().Text("مدت پیشنهادی سیستم: " + ContractRenewalWorkflowService.SuggestedContractMonths(request.FinalEvaluationScore) + " ماه | پیشنهاد منابع انسانی: " + (request.HrProposedContractMonths?.ToString() ?? "ثبت نشده") + " ماه | مدت نهایی مدیرعامل: " + (request.FinalContractMonths?.ToString() ?? "ثبت نشده") + " ماه").Bold().FontSize(9);

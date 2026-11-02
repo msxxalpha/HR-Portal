@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 namespace HRPortal.Data;
 public static class SuggestionSchemaInitializer {
  public static async Task InitializeAsync(HRPortalDbContext db){const string sql=@"

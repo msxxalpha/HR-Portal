@@ -1055,13 +1055,16 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 x.WorkflowInstanceId == id && x.ActorEmployeeId == employeeId))
             return instance;
 
-        var pendingTaskIds = await db.WorkflowTasks.AsNoTracking()
+        var pendingTasks = await db.WorkflowTasks.AsNoTracking()
+            .Include(x => x.AssignedPosition)
             .Where(x => x.WorkflowInstanceId == id && x.Status == "Pending")
-            .Select(x => x.Id)
             .ToListAsync();
-        foreach (var taskId in pendingTaskIds)
+        foreach (var task in pendingTasks)
         {
-            if (await GetTaskAsync(taskId, employeeId) is not null)
+            var isAssigned = task.AssignedPositionId.HasValue
+                ? await IsCurrentPositionAssigneeAsync(task, employeeId)
+                : task.AssignedEmployeeId == employeeId;
+            if (isAssigned)
                 return instance;
         }
 

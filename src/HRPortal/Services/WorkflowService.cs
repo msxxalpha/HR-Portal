@@ -522,6 +522,10 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .FirstOrDefaultAsync(x => x.Id == requesterEmployeeId && x.Status == "فعال", cancellationToken)
             ?? throw new InvalidOperationException("کارمند درخواست‌کننده یافت نشد.");
 
+        await using var transaction = db.Database.CurrentTransaction is null
+            ? await db.Database.BeginTransactionAsync(cancellationToken)
+            : null;
+
         if (definition.Steps.Any(x => x.AssignmentType == "Hierarchy"))
         {
             if (!subjectEmployeeId.HasValue)
@@ -531,8 +535,6 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
         var first = definition.Steps.OrderBy(x => x.SortOrder).FirstOrDefault()
             ?? throw new InvalidOperationException("گردش کار حداقل باید یک مرحله داشته باشد.");
-
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
         var instance = new WorkflowInstance
         {
@@ -561,7 +563,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         await db.SaveChangesAsync(cancellationToken);
 
         await audit.WriteAsync("شروع گردش کار", nameof(WorkflowInstance), instance.Id.ToString(), definition.Title);
-        await transaction.CommitAsync(cancellationToken);
+        if (transaction is not null)
+            await transaction.CommitAsync(cancellationToken);
         return instance;
     }
 

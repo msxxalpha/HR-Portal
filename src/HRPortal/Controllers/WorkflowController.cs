@@ -16,7 +16,14 @@ public class WorkflowController(
 
     [HttpGet]
     [Authorize(Policy = "Workflow.Manage")]
-    public async Task<IActionResult> UnassignedTasks(string? q = null, string? reason = null, int? workflowId = null)
+    public async Task<IActionResult> UnassignedTasks(
+        string? q = null,
+        string? reason = null,
+        int? workflowId = null,
+        string? step = null,
+        string? position = null,
+        DateTime? createdFrom = null,
+        DateTime? createdTo = null)
     {
         var revision = await db.OrganizationStructureRevisions.AsNoTracking()
             .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
@@ -134,10 +141,24 @@ public class WorkflowController(
             rows = rows.Where(x => x.ReasonCode == reason).ToList();
         if (workflowId.HasValue)
             rows = rows.Where(x => x.WorkflowId == workflowId.Value).ToList();
+        if (!string.IsNullOrWhiteSpace(step))
+            rows = rows.Where(x => x.StepTitle.Contains(step.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
+        if (!string.IsNullOrWhiteSpace(position))
+            rows = rows.Where(x =>
+                x.PositionCode.Contains(position.Trim(), StringComparison.OrdinalIgnoreCase) ||
+                x.PositionTitle.Contains(position.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
+        if (createdFrom.HasValue)
+            rows = rows.Where(x => x.CreatedAt.Date >= createdFrom.Value.Date).ToList();
+        if (createdTo.HasValue)
+            rows = rows.Where(x => x.CreatedAt.Date <= createdTo.Value.Date).ToList();
 
         ViewBag.Search = q;
         ViewBag.Reason = reason;
         ViewBag.WorkflowId = workflowId;
+        ViewBag.Step = step;
+        ViewBag.Position = position;
+        ViewBag.CreatedFrom = createdFrom?.ToString("yyyy-MM-dd");
+        ViewBag.CreatedTo = createdTo?.ToString("yyyy-MM-dd");
         ViewBag.ActiveEmployees = activeEmployees.OrderBy(x => x.LastName).ThenBy(x => x.FirstName).ToList();
         ViewBag.WorkflowDefinitions = tasks.Select(x => x.WorkflowInstance.WorkflowDefinition)
             .DistinctBy(x => x.Id).OrderBy(x => x.Title).ToList();

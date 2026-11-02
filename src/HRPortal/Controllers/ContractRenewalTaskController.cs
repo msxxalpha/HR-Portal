@@ -311,6 +311,43 @@ public class ContractRenewalTaskController(
             ModelState.AddModelError("", $"مقدار «{title}» باید نامنفی و در صورت وجود سابقه بیشتر از صفر باشد.");
     }
 
+    private async Task PreserveRequestRevisionAsync(ContractRenewalRequest request, string action, int actorEmployeeId)
+    {
+        var nextRevision = (await db.ContractRenewalRequestRevisions
+            .Where(x => x.ContractRenewalRequestId == request.Id)
+            .Select(x => (int?)x.RevisionNumber)
+            .MaxAsync() ?? 0) + 1;
+        var snapshot = new
+        {
+            request.Id, request.RequestCode, request.EmployeeId, request.CreatedByEmployeeId,
+            request.WorkflowInstanceId, request.Status, request.EmployeeNameSnapshot,
+            request.PersonnelNumberSnapshot, request.OrganizationUnitSnapshot, request.PositionTitleSnapshot,
+            request.PreviousContractEndDate, request.PreviousExtensionMonths1, request.PreviousExtensionMonths2,
+            request.PreviousExtensionMonths3, request.HasDisciplinaryWarnings, request.DisciplinaryWarningCount,
+            request.HasDisciplinaryCommitteeResolution, request.DisciplinaryCommitteeResolutionCount,
+            request.HasUnpaidLeave, request.UnpaidLeaveDays, request.HasSickLeave, request.SickLeaveDays,
+            request.HasAccidentLeave, request.AccidentLeaveDays, request.HasCommendations, request.CommendationCount,
+            request.PreviousPeriodScore1, request.PreviousPeriodScore2,
+            request.PreviousPeriodScore1FromHistory, request.PreviousPeriodScore2FromHistory,
+            request.OriginalEvaluationScore, request.FinalEvaluationScore, request.HrDisciplinaryDeductionPercent,
+            request.SecurityDecision, request.SecurityComment, request.HrProposedContractMonths, request.HrComment,
+            request.FinalContractMonths, request.CeoComment, request.CreatedAt, request.CompletedAt
+        };
+        db.ContractRenewalRequestRevisions.Add(new ContractRenewalRequestRevision
+        {
+            ContractRenewalRequestId = request.Id,
+            RevisionNumber = nextRevision,
+            Action = action,
+            SnapshotJson = System.Text.Json.JsonSerializer.Serialize(snapshot, new System.Text.Json.JsonSerializerOptions
+            {
+                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+                WriteIndented = true
+            }),
+            ChangedByEmployeeId = actorEmployeeId,
+            CreatedAt = DateTime.UtcNow
+        });
+    }
+
     private async Task<ContractRenewalStageViewModel> BuildStageViewModelAsync(
         WorkflowTask task, ContractRenewalRequest request, string stageKind)
     {

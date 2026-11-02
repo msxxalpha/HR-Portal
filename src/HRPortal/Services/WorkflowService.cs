@@ -887,7 +887,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         }
 
         if (!string.IsNullOrWhiteSpace(status))
-            authorizedTasks = authorizedTasks.Where(x => x.Status == status);
+            authorizedTasks = authorizedTasks.Where(x => x.Status == status).ToList();
 
         return authorizedTasks.Select(x => new WorkflowInboxRow
         {
@@ -1040,11 +1040,32 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
     public async Task<WorkflowInstance?> GetInstanceAsync(int id, int employeeId)
     {
-        return await db.WorkflowInstances
+        var instance = await db.WorkflowInstances
             .Include(x => x.WorkflowDefinition)
             .Include(x => x.RequesterEmployee)
             .Include(x => x.CurrentStep).ThenInclude(x => x.OrganizationNode)
-            .FirstOrDefaultAsync(x => x.Id == id && x.RequesterEmployeeId == employeeId);
+            .FirstOrDefaultAsync(x => x.Id == id);
+        if (instance is null || instance.RequesterEmployeeId == employeeId)
+            return instance;
+
+        // Request details are available to a person who actually acted on the request,
+        // or who currently owns one of its pending position tasks. Merely having the
+        // generic inbox permission does not grant access to unrelated requests.
+        if (await db.WorkflowHistory.AsNoTracking().AnyAsync(x =>
+                x.WorkflowInstanceId == id && x.ActorEmployeeId == employeeId))
+            return instance;
+
+        var pendingTaskIds = await db.WorkflowTasks.AsNoTracking()
+            .Where(x => x.WorkflowInstanceId == id && x.Status == "Pending")
+            .Select(x => x.Id)
+            .ToListAsync();
+        foreach (var taskId in pendingTaskIds)
+        {
+            if (await GetTaskAsync(taskId, employeeId) is not null)
+                return instance;
+        }
+
+        return null;
     }
 
     public async Task<WorkflowInstance?> GetInstanceForAdminAsync(int id) =>

@@ -72,7 +72,7 @@
                             </div>
                         </details>
                         }
-                        @if (Can("Suggestions.Submit") || Can("Suggestions.ViewAll") || Can("Suggestions.Manage"))) {
+                        @if (Can("Suggestions.Submit") || Can("Suggestions.ViewAll") || Can("Suggestions.Manage")) {
                         <details class="nav-subgroup" open="@(Context.Request.Path.StartsWithSegments("/Suggestions") ? "open" : null)">
                             <summary>نظام پیشنهادات</summary><div class="nav-submenu nav-submenu-nested">
                             @if (Can("Suggestions.Submit") || Can("Suggestions.ViewAll") || Can("Suggestions.Manage")) { <a href="/Suggestions">@(Can("Suggestions.ViewAll") || Can("Suggestions.Manage") ? "فهرست پیشنهادها" : "پیشنهادهای من")</a> }

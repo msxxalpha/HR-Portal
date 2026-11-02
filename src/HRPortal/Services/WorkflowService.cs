@@ -532,6 +532,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         var first = definition.Steps.OrderBy(x => x.SortOrder).FirstOrDefault()
             ?? throw new InvalidOperationException("گردش کار حداقل باید یک مرحله داشته باشد.");
 
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+
         var instance = new WorkflowInstance
         {
             WorkflowDefinitionId = definition.Id,
@@ -559,6 +561,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         await db.SaveChangesAsync(cancellationToken);
 
         await audit.WriteAsync("شروع گردش کار", nameof(WorkflowInstance), instance.Id.ToString(), definition.Title);
+        await transaction.CommitAsync(cancellationToken);
         return instance;
     }
 
@@ -1354,36 +1357,25 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
         var positionId = position.Id;
         var assignedEmployeeIds = GetAssignedEmployeeIds(position);
-        if (assignedEmployeeIds.Count > 1)
+        if (assignedEmployeeIds.Count > 0)
         {
-            if (!await db.Employees.AnyAsync(e => assignedEmployeeIds.Contains(e.Id) && e.Status == "فعال", cancellationToken))
-                throw new InvalidOperationException($"برای جایگاه «{position.Title}» هیچ کارمند منتسب فعالی وجود ندارد.");
-            // One position task is shared by its assigned employees; the first authorized
-            // employee to complete it advances the workflow, without duplicate pending tasks.
+            var activeAssigneeIds = await db.Employees.AsNoTracking()
+                .Where(e => assignedEmployeeIds.Contains(e.Id) && e.Status == "فعال")
+                .Select(e => e.Id)
+                .ToListAsync(cancellationToken);
+            if (activeAssigneeIds.Count != assignedEmployeeIds.Count)
+                throw new InvalidOperationException(
+                    $"فهرست متصدیان جایگاه «{position.Title}» شامل کارمند نامعتبر یا غیرفعال است؛ ابتدا انتساب‌های جایگاه را اصلاح کنید.");
+
+            // Explicit assignments (CSV) are authoritative over the legacy position
+            // holder and employee organization fields, even when exactly one employee
+            // is listed. Multiple active assignees share one position-owned task.
             db.WorkflowTasks.Add(new WorkflowTask
             {
                 WorkflowInstanceId = instance.Id,
                 WorkflowStepId = step.Id,
                 AssignedPositionId = positionId,
-                AssignedEmployeeId = null
-            });
-            await db.SaveChangesAsync(cancellationToken);
-            return;
-        }
-
-        if (position.PositionHolderEmployeeId.HasValue)
-        {
-            var holderIsActive = await db.Employees.AsNoTracking()
-                .AnyAsync(e => e.Id == position.PositionHolderEmployeeId.Value && e.Status == "فعال", cancellationToken);
-            if (!holderIsActive)
-                throw new InvalidOperationException($"متصدی جایگاه «{position.Title}» فعال نیست؛ متصدی فعال دیگری تعیین کنید.");
-
-            db.WorkflowTasks.Add(new WorkflowTask
-            {
-                WorkflowInstanceId = instance.Id,
-                WorkflowStepId = step.Id,
-                AssignedPositionId = positionId,
-                AssignedEmployeeId = position.PositionHolderEmployeeId.Value
+                AssignedEmployeeId = activeAssigneeIds.Count == 1 ? activeAssigneeIds[0] : null
             });
             await db.SaveChangesAsync(cancellationToken);
             return;

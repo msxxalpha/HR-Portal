@@ -1060,15 +1060,20 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         if (sourcePosition is null || string.IsNullOrWhiteSpace(sourcePosition.Code))
             return false;
 
-        var revision = await db.OrganizationStructureRevisions.AsNoTracking()
+        var revisions = await db.OrganizationStructureRevisions.AsNoTracking()
             .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
-            .OrderByDescending(x => x.EffectiveDate).ThenByDescending(x => x.Id)
-            .FirstOrDefaultAsync();
-        if (revision is null) return false;
+            .Select(x => new { x.Id, x.EffectiveDate, x.IsFinalized })
+            .ToListAsync();
+        var revisionId = WorkflowPositionAssignmentResolver.SelectCurrentRevisionId(
+            revisions.Select(x => (x.Id, x.EffectiveDate, x.IsFinalized)), DateTime.Today);
+        if (!revisionId.HasValue) return false;
 
-        var currentPosition = await db.OrganizationNodes.AsNoTracking()
-            .FirstOrDefaultAsync(x => x.OrganizationStructureRevisionId == revision.Id &&
-                x.IsActive && x.Code == sourcePosition.Code);
+        var currentPositions = await db.OrganizationNodes.AsNoTracking()
+            .Where(x => x.OrganizationStructureRevisionId == revisionId.Value && x.IsActive)
+            .OrderByDescending(x => x.Id)
+            .ToListAsync();
+        var currentPosition = WorkflowPositionAssignmentResolver.FindByStableCode(
+            currentPositions, sourcePosition.Code, x => x.Code);
         if (currentPosition is null) return false;
 
         var assignedIds = GetAssignedEmployeeIds(currentPosition);

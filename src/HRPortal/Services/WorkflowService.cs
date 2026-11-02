@@ -1021,34 +1021,42 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .Include(x => x.CurrentStep).ThenInclude(x => x.OrganizationNode)
             .FirstOrDefaultAsync(x => x.Id == id);
         if (instance is null) return null;
-        if (instance.RequesterEmployeeId == employeeId) return instance;
+        var isRequester = instance.RequesterEmployeeId == employeeId;
 
         var hasActed = await db.WorkflowHistory.AsNoTracking().AnyAsync(x =>
             x.WorkflowInstanceId == id && x.ActorEmployeeId == employeeId &&
             x.Action != "Created" && x.Action != "Submitted" && x.Action != "Submit");
-        if (hasActed) return instance;
 
-        var pendingTasks = await db.WorkflowTasks.AsNoTracking()
-            .Include(x => x.AssignedPosition)
-            .Include(x => x.WorkflowStep).ThenInclude(x => x.OrganizationNode)
-            .Where(x => x.WorkflowInstanceId == id && x.Status == "Pending")
-            .ToListAsync();
-        foreach (var task in pendingTasks)
+        var hasCurrentPendingAssignment = false;
+        if (!isRequester && !hasActed)
         {
-            if (task.AssignedPositionId.HasValue)
+            var pendingTasks = await db.WorkflowTasks.AsNoTracking()
+                .Include(x => x.AssignedPosition)
+                .Include(x => x.WorkflowStep).ThenInclude(x => x.OrganizationNode)
+                .Where(x => x.WorkflowInstanceId == id && x.Status == "Pending")
+                .ToListAsync();
+            foreach (var task in pendingTasks)
             {
-                if (await IsCurrentPositionAssigneeAsync(employeeId, task))
-                    return instance;
-            }
-            else if (await db.Employees.AnyAsync(x => x.Id == employeeId && x.Status == "فعال") &&
-                     WorkflowPositionAssignmentResolver.IsExplicitEmployeeAssignee(
-                         employeeId, task.AssignedEmployeeId, isActiveEmployee: true))
-            {
-                return instance;
+                if (task.AssignedPositionId.HasValue)
+                {
+                    if (await IsCurrentPositionAssigneeAsync(employeeId, task))
+                    {
+                        hasCurrentPendingAssignment = true;
+                        break;
+                    }
+                }
+                else if (await db.Employees.AnyAsync(x => x.Id == employeeId && x.Status == "فعال") &&
+                         WorkflowPositionAssignmentResolver.IsExplicitEmployeeAssignee(
+                             employeeId, task.AssignedEmployeeId, isActiveEmployee: true))
+                {
+                    hasCurrentPendingAssignment = true;
+                    break;
+                }
             }
         }
 
-        return null;
+        return WorkflowPositionAssignmentResolver.CanViewInstance(
+            isRequester, hasActed, hasCurrentPendingAssignment) ? instance : null;
     }
 
     private async Task<bool> IsCurrentPositionAssigneeAsync(int employeeId, WorkflowTask task)

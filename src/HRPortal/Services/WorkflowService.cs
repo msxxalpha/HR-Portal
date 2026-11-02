@@ -1027,11 +1027,71 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
     public async Task<WorkflowInstance?> GetInstanceAsync(int id, int employeeId)
     {
-        return await db.WorkflowInstances
+        var instance = await db.WorkflowInstances
+            .AsNoTracking()
             .Include(x => x.WorkflowDefinition)
             .Include(x => x.RequesterEmployee)
             .Include(x => x.CurrentStep).ThenInclude(x => x.OrganizationNode)
-            .FirstOrDefaultAsync(x => x.Id == id && x.RequesterEmployeeId == employeeId);
+            .FirstOrDefaultAsync(x => x.Id == id);
+        if (instance is null) return null;
+        if (instance.RequesterEmployeeId == employeeId) return instance;
+
+        var hasActed = await db.WorkflowHistory.AsNoTracking().AnyAsync(x =>
+            x.WorkflowInstanceId == id && x.ActorEmployeeId == employeeId &&
+            x.Action != "Created" && x.Action != "Submitted" && x.Action != "Submit");
+        if (hasActed) return instance;
+
+        var pendingTasks = await db.WorkflowTasks.AsNoTracking()
+            .Include(x => x.AssignedPosition)
+            .Include(x => x.WorkflowStep).ThenInclude(x => x.OrganizationNode)
+            .Where(x => x.WorkflowInstanceId == id && x.Status == "Pending")
+            .ToListAsync();
+        foreach (var task in pendingTasks)
+        {
+            if (task.AssignedPositionId.HasValue)
+            {
+                if (await IsCurrentPositionAssigneeAsync(employeeId, task))
+                    return instance;
+            }
+            else if (task.AssignedEmployeeId == employeeId &&
+                     await db.Employees.AnyAsync(x => x.Id == employeeId && x.Status == "فعال"))
+            {
+                return instance;
+            }
+        }
+
+        return null;
+    }
+
+    private async Task<bool> IsCurrentPositionAssigneeAsync(int employeeId, WorkflowTask task)
+    {
+        if (!await db.Employees.AnyAsync(x => x.Id == employeeId && x.Status == "فعال"))
+            return false;
+
+        var sourcePosition = task.AssignedPosition ?? task.WorkflowStep.OrganizationNode;
+        if (sourcePosition is null || string.IsNullOrWhiteSpace(sourcePosition.Code))
+            return false;
+
+        var revision = await db.OrganizationStructureRevisions.AsNoTracking()
+            .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
+            .OrderByDescending(x => x.EffectiveDate).ThenByDescending(x => x.Id)
+            .FirstOrDefaultAsync();
+        if (revision is null) return false;
+
+        var currentPosition = await db.OrganizationNodes.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.OrganizationStructureRevisionId == revision.Id &&
+                x.IsActive && x.Code == sourcePosition.Code);
+        if (currentPosition is null) return false;
+
+        var assignedIds = GetAssignedEmployeeIds(currentPosition);
+        if (assignedIds.Count > 0)
+            return assignedIds.Contains(employeeId);
+
+        return await db.Employees.AnyAsync(x => x.Id == employeeId && x.Status == "فعال" &&
+            (x.OrganizationUnitId == currentPosition.Id ||
+             x.OrganizationDepartmentId == currentPosition.Id ||
+             x.OrganizationSectionId == currentPosition.Id ||
+             x.OrganizationPositionId == currentPosition.Id));
     }
 
     public async Task<WorkflowInstance?> GetInstanceForAdminAsync(int id) =>

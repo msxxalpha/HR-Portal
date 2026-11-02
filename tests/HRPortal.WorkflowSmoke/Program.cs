@@ -276,6 +276,16 @@ static async Task VerifyWorkflowServiceAuthorizationAsync()
     Check(await service.GetInstanceAsync(102, 3) is null,
         "A position colleague must not view a workflow with an employee-specific pending task.");
 
+    // Reading the details page must not claim a pending task. Opening the action
+    // form is the explicit claim boundary and records ClaimedAt.
+    var taskBeforeActionForm = await db.WorkflowTasks.SingleAsync(x => x.Id == 1001);
+    Check(taskBeforeActionForm.ClaimedAt is null,
+        "Viewing workflow details unexpectedly claimed the task.");
+    await service.GetTaskAsync(1001, 3);
+    var taskAfterActionForm = await db.WorkflowTasks.SingleAsync(x => x.Id == 1001);
+    Check(taskAfterActionForm.ClaimedAt.HasValue,
+        "Opening the authorized action form did not claim the task.");
+
     Check(await service.GetTaskAsync(1001, 3) is not null,
         "The current position assignee must be able to open the action form.");
     Check(await service.GetTaskAsync(1001, 4) is null,
@@ -286,16 +296,6 @@ static async Task VerifyWorkflowServiceAuthorizationAsync()
         "An unassigned colleague must be denied the employee-specific action form.");
     Check(await service.GetTaskAsync(1004, 6) is null,
         "An inactive employee must be denied an employee-specific action form.");
-
-    // Reading the details page must not claim a pending task. Opening the action
-    // form is the explicit claim boundary and records ClaimedAt.
-    var taskBeforeActionForm = await db.WorkflowTasks.SingleAsync(x => x.Id == 1001);
-    Check(taskBeforeActionForm.ClaimedAt is null,
-        "Viewing workflow details unexpectedly claimed the task.");
-    await service.GetTaskAsync(1001, 3);
-    var taskAfterActionForm = await db.WorkflowTasks.SingleAsync(x => x.Id == 1001);
-    Check(taskAfterActionForm.ClaimedAt.HasValue,
-        "Opening the authorized action form did not claim the task.");
 
     Console.WriteLine("PASS: real WorkflowService authorization against EF Core InMemory data,");
     Console.WriteLine("      current-vs-former position holder, employee-only routing, inactive users,");

@@ -54,6 +54,46 @@ Check(!WorkflowPositionAssignmentResolver.CanViewInstance(
         isRequester: false, hasActedPreviously: false, isCurrentAssigneeOfPendingTask: false),
     "An unrelated employee must not view another employee's workflow instance.");
 
+
+var reportRows = new[]
+{
+    new HRPortal.Models.UnassignedWorkflowTaskRow
+    {
+        TaskId = 1, WorkflowId = 10, WorkflowTitle = "تمدید قرارداد",
+        EntityType = "ContractRenewal", EntityId = "CR-100",
+        RequesterName = "کارمند الف", StepTitle = "حراست",
+        PositionCode = "SEC-01", PositionTitle = "حراست",
+        CreatedAt = new DateTime(2026, 10, 10, 9, 0, 0),
+        ReasonCode = "NoActiveHolder", Reason = "بدون متصدی"
+    },
+    new HRPortal.Models.UnassignedWorkflowTaskRow
+    {
+        TaskId = 2, WorkflowId = 20, WorkflowTitle = "درخواست دیگر",
+        EntityType = "Other", EntityId = "REQ-200",
+        RequesterName = "کارمند ب", StepTitle = "مدیر منابع انسانی",
+        PositionCode = "HR-02", PositionTitle = "منابع انسانی",
+        CreatedAt = new DateTime(2026, 10, 12, 9, 0, 0),
+        ReasonCode = "PositionMissing", Reason = "جایگاه ناموجود"
+    }
+};
+var filteredReport = UnassignedWorkflowTaskFilter.Apply(
+    reportRows,
+    query: "CR-100",
+    reasonCode: "NoActiveHolder",
+    workflowId: 10,
+    step: "حراست",
+    position: "sec-01",
+    createdFrom: new DateTime(2026, 10, 10),
+    createdTo: new DateTime(2026, 10, 10));
+Check(filteredReport.Count == 1 && filteredReport[0].TaskId == 1,
+    "Combined report filters for request, reason, workflow, step, position and inclusive date range failed.");
+Check(UnassignedWorkflowTaskFilter.Apply(
+        reportRows, createdFrom: new DateTime(2026, 10, 11)).Select(x => x.TaskId).SequenceEqual(new[] { 2 }),
+    "Created-from date filter failed.");
+Check(UnassignedWorkflowTaskFilter.Apply(
+        reportRows, createdTo: new DateTime(2026, 10, 10)).Select(x => x.TaskId).SequenceEqual(new[] { 1 }),
+    "Created-to date filter failed.");
+
 var selectedRevision = WorkflowPositionAssignmentResolver.SelectCurrentRevisionId(
     new[]
     {
@@ -85,4 +125,5 @@ Check(WorkflowPositionAssignmentResolver.FindByStableCode(
 
 Console.WriteLine("PASS: multi-assignee position ownership, holder fallback, malformed/duplicate IDs,");
 Console.WriteLine("      explicit employee-only routing, inactive/invalid employee denial,");
-Console.WriteLine("      effective finalized revision selection, stable-code mapping, and instance visibility matrix.");
+Console.WriteLine("      effective finalized revision selection, stable-code mapping, instance visibility,");
+c=c.replace("Console.WriteLine(\"      and unassigned report filtering by request, reason, workflow, step, position, and date range.\");

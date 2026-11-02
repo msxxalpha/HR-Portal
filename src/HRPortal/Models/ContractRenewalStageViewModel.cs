@@ -15,6 +15,7 @@ public class ContractRenewalStageViewModel
     public decimal? PreviousStageScoreTotal { get; set; }
     public string? PreviousStageComment { get; set; }
     public int? SuggestedContractMonths { get; set; }
+    public int MaximumAllowedContractMonths { get; set; } = 12;
 }
 public class ContractRenewalScoreStageGroup
 {

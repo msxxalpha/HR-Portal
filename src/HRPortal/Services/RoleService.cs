@@ -24,11 +24,15 @@ public class RoleService(HRPortalDbContext db)
         ("Settings.Edit", "ویرایش تنظیمات سامانه", "مدیریت سامانه"),
         ("Payroll.View", "مشاهده فیش حقوقی", "خدمات کارکنان"),
         ("PersonnelOrder.View", "مشاهده حکم کارگزینی", "خدمات کارکنان"),
+        ("Reports.View", "مشاهده گزارش‌ها", "گزارش‌ها"),
         ("InputQueries.View", "مشاهده کوئری‌های ورودی", "مدیریت سامانه"),
         ("InputQueries.Manage", "مدیریت کوئری‌های ورودی", "مدیریت سامانه"),
         ("Users.Manage", "مدیریت کاربران", "مدیریت کاربران"),
         ("Roles.Manage", "مدیریت نقش‌ها", "مدیریت کاربران"),
-        ("Announcements.Manage", "مدیریت اطلاعیه‌ها", "مدیریت سامانه")
+        ("Announcements.Manage", "مدیریت اطلاعیه‌ها", "مدیریت سامانه"),
+        ("Workflow.Inbox", "کارتابل گردش کار", "گردش کار"),
+        ("Workflow.Manage", "مدیریت گردش کار", "گردش کار"),
+        ("ContractRenewal.Manage", "ثبت و پیگیری تمدید قرارداد", "ماژول مدیریت قراردادهای کارکنان")
     ];
 
     public async Task SeedAsync()
@@ -41,18 +45,25 @@ public class RoleService(HRPortalDbContext db)
         await db.SaveChangesAsync();
 
         await EnsureRoleAsync("HR_MANAGER", "مدیریت کارکنان", "دسترسی عملیاتی به اطلاعات کارکنان",
-            ["Employees.View", "Employees.Create", "Employees.Edit", "Employees.Deactivate", "Employees.Delete", "Employees.ImportExport"]);
+            ["Employees.View", "Employees.Create", "Employees.Edit", "Employees.Deactivate", "Employees.Delete", "Employees.ImportExport", "ContractRenewal.Manage"]);
         await EnsureRoleAsync("ORG_MANAGER", "مدیریت ساختار سازمانی", "مدیریت نسخه‌ها و ساختار درختی",
             ["Organization.View", "Organization.Create", "Organization.Edit", "Organization.Delete", "Organization.Move", "Organization.Finalize"]);
         await EnsureRoleAsync("SETTINGS_MANAGER", "مدیریت سامانه", "مدیریت تنظیمات سامانه",
             ["Settings.View", "Settings.Edit", "InputQueries.View", "InputQueries.Manage", "Announcements.Manage"]);
         await EnsureRoleAsync("PAYROLL_USER", "گزارش فیش حقوقی", "دسترسی به فیش حقوقی",
-            ["Payroll.View", "PersonnelOrder.View"]);
+            ["Payroll.View", "PersonnelOrder.View", "Workflow.Inbox"]);
         await EnsureRoleAsync("EMPLOYEE", "کاربر کارکنان", "نقش پیش‌فرض کارکنان برای استفاده از خدمات پرسنلی",
-            ["Payroll.View", "PersonnelOrder.View"]);
+            ["Payroll.View", "PersonnelOrder.View", "Workflow.Inbox"]);
         var defaultRoleId = await db.Roles.Where(x => x.Code == "EMPLOYEE").Select(x => x.Id).SingleAsync();
-        var assignedEmployees = await db.EmployeeRoles.Select(x => x.EmployeeId).Distinct().ToListAsync();
-        var employeesWithoutRole = await db.Employees.Where(x => x.IsSystemUser && !assignedEmployees.Contains(x.Id)).Select(x => x.Id).ToListAsync();
+        var assignedEmployees = await db.EmployeeRoles
+            .Where(x => x.Role.Code == "EMPLOYEE")
+            .Select(x => x.EmployeeId)
+            .Distinct()
+            .ToListAsync();
+        var employeesWithoutRole = await db.Employees
+            .Where(x => !assignedEmployees.Contains(x.Id))
+            .Select(x => x.Id)
+            .ToListAsync();
         foreach (var employeeId in employeesWithoutRole)
             db.EmployeeRoles.Add(new EmployeeRole { EmployeeId = employeeId, RoleId = defaultRoleId });
         if (employeesWithoutRole.Count > 0)
@@ -62,6 +73,8 @@ public class RoleService(HRPortalDbContext db)
             ["Users.Manage"]);
         await EnsureRoleAsync("ROLE_MANAGER", "مدیریت نقش‌ها", "ایجاد و ویرایش نقش‌ها و سطح دسترسی",
             ["Roles.Manage"]);
+        await EnsureRoleAsync("WORKFLOW_MANAGER", "مدیریت گردش کار", "تعریف گردش کار و تخصیص مراحل به جایگاه‌های سازمانی",
+            ["Workflow.Inbox", "Workflow.Manage"]);
     }
 
     private async Task<Role> EnsureRoleAsync(string code, string title, string description, IEnumerable<string> permissionCodes)
@@ -116,7 +129,102 @@ public class RoleService(HRPortalDbContext db)
             .SelectMany(er => db.RolePermissions.Where(rp => rp.RoleId == er.RoleId).Select(rp => rp.Permission.Code))
             .ToListAsync();
 
+        var revisionId = await db.OrganizationStructureRevisions.AsNoTracking()
+            .Where(x => x.IsFinalized)
+            .OrderByDescending(x => x.EffectiveDate)
+            .ThenByDescending(x => x.FinalizedAt)
+            .ThenByDescending(x => x.Id)
+            .Select(x => (int?)x.Id)
+            .FirstOrDefaultAsync();
+
+        if (revisionId.HasValue)
+        {
+            var employee = await db.Employees.AsNoTracking()
+                .Where(x => x.Id == employeeId)
+                .Select(x => new { x.OrganizationPositionId })
+                .FirstOrDefaultAsync();
+            if (employee is not null)
+            {
+                var nodes = await db.OrganizationNodes.AsNoTracking()
+                    .Where(x => x.OrganizationStructureRevisionId == revisionId.Value && x.IsActive)
+                    .Select(x => new { x.Id, x.RankType, x.PositionHolderEmployeeId, x.AssignedEmployeeIdsCsv })
+                    .ToListAsync();
+
+                var rankTypes = nodes
+                    .Where(n => n.PositionHolderEmployeeId == employeeId ||
+                        (employee.OrganizationPositionId.HasValue && n.Id == employee.OrganizationPositionId.Value) ||
+                        (n.AssignedEmployeeIdsCsv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                            .Contains(employeeId.ToString(), StringComparer.Ordinal))
+                    .Select(n => n.RankType)
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                if (rankTypes.Count > 0)
+                {
+                    var rankRoleIds = await db.RoleOrganizationRanks.AsNoTracking()
+                        .Join(db.Roles.AsNoTracking().Where(role => role.IsActive),
+                            assignment => assignment.RoleId,
+                            role => role.Id,
+                            (assignment, role) => new { assignment.RoleId, assignment.RankType })
+                        .Where(x => rankTypes.Contains(x.RankType))
+                        .Select(x => x.RoleId)
+                        .Distinct()
+                        .ToListAsync();
+                    if (rankRoleIds.Count > 0)
+                    {
+                        var inheritedCodes = await db.RolePermissions.AsNoTracking()
+                            .Where(x => rankRoleIds.Contains(x.RoleId))
+                            .Select(x => x.Permission.Code)
+                            .ToListAsync();
+                        codes.AddRange(inheritedCodes);
+                    }
+                }
+            }
+        }
+
         return codes.ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    public async Task<List<string>> GetOrganizationRankTypesAsync()
+    {
+        var configured = await db.OrganizationRankDefinitions.AsNoTracking()
+            .Select(x => x.Title).ToListAsync();
+        var used = await db.OrganizationNodes.AsNoTracking()
+            .Where(x => x.IsActive).Select(x => x.RankType).ToListAsync();
+        return configured.Concat(used)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x)
+            .ToList();
+    }
+
+    public async Task<Dictionary<int, List<string>>> GetRoleRankAssignmentsAsync()
+    {
+        var rows = await db.RoleOrganizationRanks.AsNoTracking().ToListAsync();
+        return rows.GroupBy(x => x.RoleId)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.RankType).ToList());
+    }
+
+    public async Task SaveRoleRankTypesAsync(int roleId, IEnumerable<string> rankTypes)
+    {
+        if (!await db.Roles.AnyAsync(x => x.Id == roleId))
+            throw new InvalidOperationException("نقش یافت نشد.");
+
+        var validTypes = await GetOrganizationRankTypesAsync();
+        var selected = rankTypes
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Where(x => validTypes.Contains(x, StringComparer.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        db.RoleOrganizationRanks.RemoveRange(
+            db.RoleOrganizationRanks.Where(x => x.RoleId == roleId));
+        foreach (var rankType in selected)
+            db.RoleOrganizationRanks.Add(new RoleOrganizationRank { RoleId = roleId, RankType = rankType });
+        await db.SaveChangesAsync();
     }
 
     public async Task SaveEmployeeRolesAsync(int employeeId, IEnumerable<int> roleIds)

@@ -6,13 +6,23 @@
     var revisionId = (int?)ViewBag.RevisionId ?? 0;
     var treeJson = (string?)ViewBag.TreeJson ?? "[]";
     var companyName = (string?)ViewBag.CompanyName ?? "شرکت";
+    var isAdmin = User.HasClaim("IsAdmin", "1");
 }
 <div class="page-head">
     <div>
         <h1>ساختار سازمانی</h1>
         <p>مدیریت ساختار به‌صورت درختی، بازنگری، افزودن، ویرایش، حذف و جابجایی نودها</p>
+        <p class="muted">برای گردش کار پویا، «مدیرعامل» را در ریشه درخت تعریف کنید و معاونت‌ها را زیر آن قرار دهید. در هر نسخه فقط یک گره مدیرعامل مجاز است و باید به دقیقاً یک کارمند فعال تخصیص داده شود.</p>
     </div>
     <div class="actions">
+        @if (editable && isAdmin)
+        {
+            <form method="post" action="/Organization/DeleteDraft" onsubmit="return confirm('تمام گره‌ها و تاریخچه این پیش‌نویس به‌طور کامل حذف شود؟ این عملیات قابل بازگشت نیست.');">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="revisionId" value="@revisionId" />
+                <button class="btn btn-outline danger" type="submit">حذف کامل پیش‌نویس</button>
+            </form>
+        }
         @if (editable)
         {
             <form method="post" action="/Organization/Finalize">
@@ -36,7 +46,7 @@
         @if (!editable)
         {
             <div class="note">
-                برای مدیر سامانه، در صورت نداشتن نسخه کاری، یک نسخه قابل ویرایش از ساختار جاری به‌صورت خودکار ایجاد می‌شود. نسخه‌های نهایی تاریخی فقط برای مشاهده هستند.
+                نسخه‌های نهایی همیشه فقط برای مشاهده هستند. برای شروع اصلاحات، از فرم «ایجاد نسخه بازنگری» استفاده کنید؛ با باز کردن صفحه یا انتخاب نسخه نهایی، پیش‌نویس جدیدی ساخته نمی‌شود.
             </div>
         }
 
@@ -55,14 +65,19 @@
         </form>
 
         <div class="revision-list">
-            @foreach (var r in revisions)
+            @foreach (var dayGroup in revisions.GroupBy(r => r.EffectiveDate.Date).OrderByDescending(g => g.Key))
             {
-                <a class="revision @(revisionId == r.Id ? "selected" : "")" href="/Organization?revisionId=@r.Id">
-                    <strong>@r.Title</strong>
-                    <span>@r.RevisionCode</span>
-                    <span>@HRPortal.Services.PersianDateService.Format(r.EffectiveDate)</span>
-                    <span>@(r.IsFinalized ? "نهایی" : "در حال بازنگری")</span>
-                </a>
+                <div class="revision-day-group">
+                    <div class="revision-day-heading">نسخه بازنگری روز @HRPortal.Services.PersianDateService.Format(dayGroup.Key)</div>
+                    @foreach (var r in dayGroup.OrderByDescending(x => x.FinalizedAt).ThenByDescending(x => x.CreatedAt))
+                    {
+                        <a class="revision @(revisionId == r.Id ? "selected" : "")" href="/Organization?revisionId=@r.Id">
+                            <strong>@r.Title</strong>
+                            <span>@r.RevisionCode</span>
+                            <span>@(r.IsFinalized ? "نهایی" : "در حال بازنگری")</span>
+                        </a>
+                    }
+                </div>
             }
         </div>
     </section>
@@ -150,8 +165,9 @@
                     <label>عنوان گره *
                         <input id="nodeTitle" required />
                     </label>
-                    <label>کد *
-                        <input id="nodeCode" required />
+                    <label>کد * <span class="muted">(پیشنهاد خودکار؛ قابل ویرایش)</span>
+                        <input id="nodeCode" maxlength="100" required autocomplete="off" />
+                        <small class="muted">برای گره جدید کد یکتا خودکار پیشنهاد می‌شود؛ پیش از ذخیره می‌توانید آن را تغییر دهید.</small>
                     </label>
                     <label>رده *
                         <select id="nodeRank" required></select>
@@ -159,6 +175,21 @@
                     <label>ترتیب نمایش
                         <input id="nodeSortOrder" type="number" value="0" />
                     </label>
+                    <div class="wide node-assignment-editor">
+                        <label for="nodeEmployeeSearch">جستجوی کارکنان برای انتساب به جایگاه</label>
+                        <input id="nodeEmployeeSearch" type="search" placeholder="نام، نام خانوادگی یا شماره پرسنلی..." autocomplete="off" />
+                        <div class="node-assignment-add-row">
+                            <select id="nodePositionHolder" aria-label="انتخاب کارمند"><option value="">انتخاب کارمند...</option></select>
+                            <button class="btn btn-outline" type="button" id="addNodeEmployee">＋ افزودن</button>
+                        </div>
+                        <div class="table-wrap">
+                            <table class="node-assignment-table">
+                                <thead><tr><th>ردیف</th><th>نام و نام خانوادگی</th><th>شماره پرسنلی</th><th>عملیات</th></tr></thead>
+                                <tbody id="nodeAssignedEmployees"><tr><td colspan="4" class="muted">هنوز کارمندی اضافه نشده است.</td></tr></tbody>
+                            </table>
+                        </div>
+                        <small class="muted">می‌توانید چند نفر را به یک جایگاه منتسب کنید. با ذخیره فرم، تمام ردیف‌های جدول ثبت می‌شوند.</small>
+                    </div>
                     <label class="inline-check">فعال
                         <input id="nodeActive" type="checkbox" checked />
                     </label>
@@ -190,6 +221,8 @@
     const revisionId = @revisionId;
     const companyName = "@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(companyName))";
     const nodes = @Html.Raw(treeJson);
+    const organizationRanks = @Html.Raw((string?)ViewBag.OrganizationRankJson ?? "[]");
+    const positionHolderEmployees = @Html.Raw((string?)ViewBag.PositionHolderEmployeesJson ?? "[]");
     const treeHost = document.getElementById("organizationTree");
 
     if (!revisionId || !treeHost) return;
@@ -222,14 +255,6 @@
         if (className) el.className = className;
         if (text != null) el.textContent = text;
         return el;
-    }
-
-    function getRankChildren(parentRank) {
-        if (!parentRank) return ["معاونت", "مدیریت"];
-        if (parentRank === "معاونت") return ["مدیریت"];
-        if (parentRank === "مدیریت") return ["ریاست"];
-        if (parentRank === "ریاست") return ["سرپرستی"];
-        return [];
     }
 
     function buildTree() {
@@ -417,6 +442,18 @@
         menu.classList.add("hidden");
     }
 
+    function nextNodeCode() {
+        const usedCodes = new Set(Array.from(dataById.values())
+            .map(function (node) { return String(node.code || "").trim().toLocaleUpperCase(); }));
+        let number = 1;
+        let candidate;
+        do {
+            candidate = "ORG-" + String(number).padStart(3, "0");
+            number++;
+        } while (usedCodes.has(candidate.toLocaleUpperCase()));
+        return candidate;
+    }
+
     function openNodeModal(mode, nodeId) {
         hideContextMenu();
         showNodeError("");
@@ -432,13 +469,70 @@
         document.getElementById("nodeParentId").value = actualParentId;
 
         document.getElementById("nodeTitle").value = isEdit ? node.title : "";
-        document.getElementById("nodeCode").value = isEdit ? node.code : "";
+        document.getElementById("nodeCode").value = isEdit ? node.code : nextNodeCode();
         document.getElementById("nodeSortOrder").value = isEdit ? Number(node.sortOrder || 0) : 0;
         document.getElementById("nodeActive").checked = isEdit ? !!node.isActive : true;
         document.getElementById("nodeNotes").value = isEdit ? (node.notes || "") : "";
+        const holderSelect = document.getElementById("nodePositionHolder");
+        const employeeSearch = document.getElementById("nodeEmployeeSearch");
+        holderSelect.innerHTML = "";
+        employeeSearch.value = "";
+        window.nodeAssignedEmployeeMap = new Map(positionHolderEmployees.map(function (employee) { return [Number(employee.id), employee]; }));
+        window.nodeAssignedEmployeeIds = [];
+        function refreshEmployeeOptions() {
+            const term = employeeSearch.value.trim().toLocaleLowerCase();
+            const selected = holderSelect.value;
+            holderSelect.innerHTML = '<option value="">انتخاب کارمند...</option>';
+            positionHolderEmployees.filter(function (employee) {
+                return !term || (employee.name + " " + employee.personnelNumber).toLocaleLowerCase().includes(term);
+            }).forEach(function (employee) {
+                const option = document.createElement("option");
+                option.value = String(employee.id);
+                option.textContent = employee.name + " (" + employee.personnelNumber + ")";
+                holderSelect.appendChild(option);
+            });
+            if (selected) holderSelect.value = selected;
+        }
+        function renderAssignedEmployees() {
+            const tbody = document.getElementById("nodeAssignedEmployees");
+            tbody.innerHTML = "";
+            if (!window.nodeAssignedEmployeeIds.length) {
+                tbody.innerHTML = '<tr><td colspan="4" class="muted">هنوز کارمندی اضافه نشده است.</td></tr>';
+                return;
+            }
+            window.nodeAssignedEmployeeIds.forEach(function (id, index) {
+                const employee = window.nodeAssignedEmployeeMap.get(Number(id));
+                if (!employee) return;
+                const tr = document.createElement("tr");
+                [String(index + 1), employee.name, employee.personnelNumber].forEach(function (value) {
+                    const td = document.createElement("td"); td.textContent = value; tr.appendChild(td);
+                });
+                const td = document.createElement("td");
+                const remove = document.createElement("button");
+                remove.type = "button"; remove.className = "btn btn-outline"; remove.textContent = "حذف";
+                remove.addEventListener("click", function () {
+                    window.nodeAssignedEmployeeIds = window.nodeAssignedEmployeeIds.filter(function (item) { return Number(item) !== Number(id); });
+                    renderAssignedEmployees();
+                });
+                td.appendChild(remove); tr.appendChild(td); tbody.appendChild(tr);
+            });
+        }
+        employeeSearch.oninput = refreshEmployeeOptions;
+        refreshEmployeeOptions();
+        const initialIds = isEdit && Array.isArray(node.assignedEmployeeIds) && node.assignedEmployeeIds.length
+            ? node.assignedEmployeeIds : (isEdit && node.positionHolderEmployeeId ? [node.positionHolderEmployeeId] : []);
+        window.nodeAssignedEmployeeIds = initialIds.map(Number);
+        renderAssignedEmployees();
+        document.getElementById("addNodeEmployee").onclick = function () {
+            const id = Number(holderSelect.value || 0);
+            if (!id) { showNodeError("ابتدا یک کارمند را جستجو و انتخاب کنید."); return; }
+            if (window.nodeAssignedEmployeeIds.includes(id)) { showNodeError("این کارمند قبلاً به جایگاه اضافه شده است."); return; }
+            window.nodeAssignedEmployeeIds.push(id);
+            showNodeError("");
+            renderAssignedEmployees();
+        };
 
-        const parentRank = actualParentId ? dataById.get(actualParentId)?.rankType : null;
-        const ranks = getRankChildren(parentRank);
+        const ranks = organizationRanks;
         const select = document.getElementById("nodeRank");
         select.innerHTML = "";
 
@@ -459,7 +553,7 @@
         }
 
         if (!select.options.length) {
-            showNodeError("برای این والد، رده مجاز دیگری وجود ندارد.");
+            showNodeError("فهرست رده‌های سازمانی در اطلاعات پایه سامانه خالی است؛ ابتدا رده تعریف کنید.");
             return;
         }
 
@@ -511,7 +605,8 @@
             rankType: document.getElementById("nodeRank").value,
             sortOrder: Number(document.getElementById("nodeSortOrder").value || 0),
             isActive: document.getElementById("nodeActive").checked ? "true" : "false",
-            notes: document.getElementById("nodeNotes").value
+            notes: document.getElementById("nodeNotes").value,
+            assignedEmployeeIdsCsv: (window.nodeAssignedEmployeeIds || []).join(",")
         };
 
         if (mode === "edit") {
@@ -520,8 +615,8 @@
             values.parentId = document.getElementById("nodeParentId").value;
         }
 
-        if (!values.code || !values.title || !values.rankType) {
-            showNodeError("کد، عنوان و رده الزامی است.");
+        if (!values.title || !values.rankType) {
+            showNodeError("عنوان و رده الزامی است. کد به‌صورت خودکار پیشنهاد می‌شود و قابل ویرایش است.");
             return;
         }
 

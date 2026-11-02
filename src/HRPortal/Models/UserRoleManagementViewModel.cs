@@ -5,6 +5,8 @@ public class UserRoleManagementViewModel
     public List<EmployeeRoleRow> Users { get; set; } = [];
     public List<RoleEditModel> Roles { get; set; } = [];
     public List<Permission> Permissions { get; set; } = [];
+    public List<string> OrganizationRankTypes { get; set; } = [];
+    public Dictionary<int, List<string>> RoleRankTypes { get; set; } = [];
 }
 
 public class EmployeeRoleRow

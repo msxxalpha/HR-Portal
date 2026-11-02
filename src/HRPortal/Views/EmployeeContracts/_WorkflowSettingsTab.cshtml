@@ -1,0 +1,50 @@
+@model HRPortal.Models.ContractRenewalWorkflowSettingsViewModel
+<section id="workflow-settings" class="contract-tab-panel">
+    <div class="card contract-settings-note">
+        <strong>تنظیم مراحل ثابت گردش تمدید قرارداد</strong>
+        <p>مراحل پویا از مسیر جایگاه‌های سازمانی در نسخه نهایی ساختار ساخته می‌شوند و خود مدیرعامل در ارزشیابی پویا قرار نمی‌گیرد. در این بخش فقط جایگاه ثابت حراست و منابع انسانی تعیین می‌شود. مسئول مرحله نهایی از جایگاه مدیرعامل شناسایی می‌شود.</p>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <div class="alert error">@Model.ErrorMessage</div>
+    }
+
+    <form method="post" action="/EmployeeContracts/SaveWorkflowSettings" class="card form-stack contract-settings-form">
+        @Html.AntiForgeryToken()
+        <label>جایگاه مدیر حراست *
+            <select name="securityPositionId" required>
+                <option value="">انتخاب جایگاه</option>
+                @foreach (var p in Model.Positions)
+                {
+                    <option value="@p.Id" selected="@(Model.Settings.SecurityPositionId == p.Id)">@p.Title — @p.RankType (@p.Code)</option>
+                }
+            </select>
+        </label>
+        <label>جایگاه مدیر منابع انسانی و خدمات پشتیبانی *
+            <select name="humanResourcesPositionId" required>
+                <option value="">انتخاب جایگاه</option>
+                @foreach (var p in Model.Positions)
+                {
+                    <option value="@p.Id" selected="@(Model.Settings.HumanResourcesPositionId == p.Id)">@p.Title — @p.RankType (@p.Code)</option>
+                }
+            </select>
+        </label>
+        <div class="contract-ceo-resolution">
+            <strong>مسئول نهایی: مدیرعامل تعریف‌شده در ساختار سازمانی</strong>
+            @if (Model.ChiefExecutiveEmployee is not null)
+            {
+                <p>@Model.ChiefExecutiveEmployee.FirstName @Model.ChiefExecutiveEmployee.LastName — شماره پرسنلی @Model.ChiefExecutiveEmployee.PersonnelNumber</p>
+                <small class="muted">کارمند از طریق جایگاه سازمانی با رده مدیرعامل شناسایی می‌شود و انتخاب دستی ندارد.</small>
+            }
+            else
+            {
+                <p class="error-text">در نسخه نهایی ساختار باید دقیقاً یک گره فعال مدیرعامل وجود داشته باشد و به دقیقاً یک کارمند فعال اختصاص یابد.</p>
+                <a href="/Employees">رفتن به مدیریت کارکنان</a>
+            }
+        </div>
+        <div class="actions">
+            <button class="btn btn-main" type="submit">ذخیره تنظیمات مراحل ثابت</button>
+        </div>
+    </form>
+</section>

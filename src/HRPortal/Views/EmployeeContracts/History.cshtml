@@ -1,0 +1,211 @@
+@model List<HRPortal.Models.ContractRenewalRequestRevision>
+@using HRPortal.Models
+@using HRPortal.Services
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var request = ViewBag.Request as ContractRenewalRequest;
+    ViewData["Title"] = "سوابق درخواست تمدید قرارداد";
+    var workflowHistory = ViewBag.WorkflowHistory as List<WorkflowHistory> ?? [];
+    var evaluationStages = ViewBag.EvaluationStages as List<HRPortal.Models.ContractRenewalHistoryScoreStage> ?? [];
+    var workflowSteps = ViewBag.WorkflowSteps as List<WorkflowStep> ?? [];
+    var workflowTasks = ViewBag.WorkflowTasks as List<WorkflowTask> ?? [];
+    string score(decimal? value) => value.HasValue ? value.Value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) : "—";
+    string actionTitle(string action) => action switch
+    {
+        "BeforeEdit" => "نسخه قبل از ویرایش",
+        "BeforeDelete" => "نسخه قبل از حذف نرم",
+        "BeforeStop" => "نسخه قبل از توقف",
+        "Approve" => "تأیید مرحله",
+        "Reject" => "رد مرحله",
+        "Return" => "برگشت مرحله",
+        "Stop" => "توقف گردش",
+        "Delete" => "حذف نرم درخواست",
+        "EditIntake" => "ویرایش اطلاعات اولیه",
+        "Submit" => "ثبت درخواست",
+        _ => action
+    };
+    string statusTitle(string status) => status switch
+    {
+        "New" => "جدید",
+        "InProgress" => "در حال انجام",
+        "Approved" => "تأیید و تکمیل شده",
+        "Rejected" => "رد شده",
+        "Returned" => "برگشت خورده",
+        "Cancelled" => "متوقف یا لغو شده",
+        _ => status
+    };
+}
+<div class="page-head">
+    <div>
+        <h1>سوابق درخواست تمدید قرارداد</h1>
+        <p>@request?.RequestCode — @request?.EmployeeNameSnapshot — شماره پرسنلی @request?.PersonnelNumberSnapshot</p>
+    </div>
+    <div class="actions">
+        @if (request is not null && request.Status == "تکمیل شده" && request.CompletedAt.HasValue)
+        {
+            <a class="btn btn-main" href="/EmployeeContracts/DownloadReport/@request.Id">دریافت گزارش نهایی PDF</a>
+        }
+        <a class="btn btn-outline" href="/EmployeeContracts/Requests">بازگشت به فهرست درخواست‌ها</a>
+    </div>
+</div>
+
+@if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
+<section class="card">
+    <div class="contract-preview-grid">
+        <div><span>آخرین وضعیت</span><strong>@request?.Status</strong></div>
+        <div><span>تاریخ ثبت اولیه</span><strong>@(request is null ? "—" : PersianDateService.Format(request.CreatedAt))</strong></div>
+        <div><span>تعداد نسخه‌های بایگانی‌شده</span><strong>@Model.Count</strong></div>
+    </div>
+    <h3 class="contract-form-subhead">تاریخچه اقدامات گردش کار</h3>
+    @if (workflowHistory.Count == 0)
+    {
+        <div class="empty">تاریخچه اقدامی برای این درخواست ثبت نشده است.</div>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>زمان</th><th>مرحله</th><th>اقدام</th><th>کاربر / جایگاه</th><th>وضعیت قبلی / جدید</th><th>توضیحات</th></tr></thead>
+                <tbody>
+                @foreach (var eventRow in workflowHistory)
+                {
+                    <tr>
+                        <td>@PersianDateService.Format(eventRow.CreatedAt)</td>
+                        <td>@(eventRow.WorkflowStep?.Title ?? "—")</td>
+                        <td>@actionTitle(eventRow.Action)</td>
+                        <td>@(eventRow.ActorEmployee is null ? "کاربر سیستمی / بدون پرونده" : $"{eventRow.ActorEmployee.FirstName} {eventRow.ActorEmployee.LastName}") / @(eventRow.ActorPosition?.Title ?? "—")</td>
+                        <td>@statusTitle(eventRow.FromStatus) / @statusTitle(eventRow.ToStatus)</td>
+                        <td>@(string.IsNullOrWhiteSpace(eventRow.Comment) ? "—" : eventRow.Comment)</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+    <h3 class="contract-form-subhead">سوابق امتیازدهی مرحله‌ای</h3>
+    @if (evaluationStages.Count == 0)
+    {
+        <div class="empty">برای این درخواست سابقه امتیازدهی سازمانی ثبت نشده است.</div>
+    }
+    else
+    {
+        @foreach (var stage in evaluationStages)
+        {
+            <div class="contract-score-stage">
+                <div class="section-head">
+                    <div>
+                        <h4>@stage.StageTitle</h4>
+                        <span class="muted">جایگاه: @stage.PositionTitle</span>
+                    </div>
+                    <span class="badge">@(stage.IsComplete ? $"مجموع: {score(stage.ScoreTotal)} از ۱۰۰" : "مرحله ناقص")</span>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>پرسش</th><th>سقف امتیاز</th><th>امتیاز ثبت‌شده</th></tr></thead>
+                        <tbody>
+                        @foreach (var item in stage.Scores)
+                        {
+                            <tr>
+                                <td>@item.QuestionTextSnapshot</td>
+                                <td>@score(item.MaxScoreSnapshot)</td>
+                                <td>@score(item.Score)</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(stage.Comment))
+                {
+                    <div class="note"><strong>توضیحات ارزیاب:</strong> @stage.Comment</div>
+                }
+            </div>
+        }
+    }
+    <h3 class="contract-form-subhead">جزئیات مراحل ثابت و تصمیم‌های نهایی</h3>
+    @if (workflowSteps.Count == 0)
+    {
+        <div class="empty">اطلاعات مراحل گردش کار برای این درخواست در دسترس نیست.</div>
+    }
+    else
+    {
+        @foreach (var step in workflowSteps.Where(x => !x.Code.StartsWith("Evaluation_H", StringComparison.Ordinal)).OrderBy(x => x.SortOrder))
+        {
+            var stageTasks = workflowTasks.Where(x => x.WorkflowStepId == step.Id).ToList();
+            var stageDone = stageTasks.Any(x => x.Status == "Completed");
+            <div class="contract-score-stage">
+                <div class="section-head">
+                    <div>
+                        <h4>@step.Title</h4>
+                        <span class="muted">جایگاه: @(step.OrganizationNode?.Title ?? (step.AssignmentType == "Employee" ? "کارمند مشخص" : "—"))</span>
+                    </div>
+                    <span class="badge">@(stageDone ? "انجام‌شده" : stageTasks.Any(x => x.Status == "Pending") ? "در انتظار اقدام" : "بدون اقدام ثبت‌شده")</span>
+                </div>
+                @if (request is not null && step.Code == "Security")
+                {
+                    <div class="note"><strong>تصمیم مدیر حراست:</strong> @(request.SecurityDecision switch { "ApproveFull" => "موافقت با تمدید قرارداد", "ApproveOneMonth" => "موافقت با تمدید یک‌ماهه", "Reject" => "عدم موافقت", _ => "ثبت نشده" })<p><strong>توضیحات حراست:</strong> @(string.IsNullOrWhiteSpace(request.SecurityComment) ? "ثبت نشده" : request.SecurityComment)</p></div>
+                }
+                @if (request is not null && step.Code == "HumanResources")
+                {
+                    <div class="note"><strong>درصد کسر انضباطی:</strong> @score(request.HrDisciplinaryDeductionPercent)٪ — <strong>امتیاز نهایی:</strong> @score(request.FinalEvaluationScore) از ۱۰۰ — <strong>مدت پیشنهادی سیستم:</strong> @ContractRenewalWorkflowService.SuggestedContractMonths(request.FinalEvaluationScore) ماه — <strong>پیشنهاد منابع انسانی:</strong> @(request.HrProposedContractMonths?.ToString() ?? "ثبت نشده") ماه<p><strong>توضیحات منابع انسانی:</strong> @(string.IsNullOrWhiteSpace(request.HrComment) ? "ثبت نشده" : request.HrComment)</p></div>
+                }
+                @if (stageTasks.Count == 0)
+                {
+                    <div class="empty">برای این مرحله، اقدام کارتابلی ثبت نشده است.</div>
+                }
+                else
+                {
+                    @foreach (var task in stageTasks)
+                    {
+                        <div class="note">
+                            <p><strong>مسئول:</strong> @(task.AssignedEmployee is null ? task.AssignedPosition?.Title ?? "—" : task.AssignedEmployee.FirstName + " " + task.AssignedEmployee.LastName)</p>
+                            <p><strong>اقدام:</strong> @(task.Action ?? task.Status)</p>
+                            <p><strong>زمان:</strong> @PersianDateService.Format(task.CompletedAt ?? task.CreatedAt)</p>
+                            <p><strong>نظر ثبت‌شده:</strong> @(string.IsNullOrWhiteSpace(task.Comment) ? "نظری ثبت نشده است." : task.Comment)</p>
+                        </div>
+                    }
+                }
+            </div>
+        }
+    }
+
+    <h3 class="contract-form-subhead">جمع‌بندی اطلاعات نهایی درخواست</h3>
+    @if (request is not null)
+    {
+        <div class="table-wrap">
+            <table>
+                <tbody>
+                    <tr><th>کد درخواست</th><td>@request.RequestCode</td><th>وضعیت</th><td>@request.Status</td></tr>
+                    <tr><th>واحد سازمانی</th><td>@request.OrganizationUnitSnapshot</td><th>جایگاه</th><td>@request.PositionTitleSnapshot</td></tr>
+                    <tr><th>پایان قرارداد قبلی</th><td>@(request.PreviousContractEndDate.HasValue ? PersianDateService.Format(request.PreviousContractEndDate.Value) : "—")</td><th>تاریخ تکمیل</th><td>@(request.CompletedAt.HasValue ? PersianDateService.Format(request.CompletedAt.Value) : "—")</td></tr>
+                    <tr><th>امتیاز اولیه ارزشیابی</th><td>@score(request.OriginalEvaluationScore ?? request.FinalEvaluationScore) از ۱۰۰</td><th>درصد کسر سوابق انضباطی</th><td>@score(request.HrDisciplinaryDeductionPercent)٪</td></tr>
+                    <tr><th>امتیاز نهایی پس از کسر</th><td>@score(request.FinalEvaluationScore) از ۱۰۰</td><th>مدت پیشنهادی سیستم</th><td>@ContractRenewalWorkflowService.SuggestedContractMonths(request.FinalEvaluationScore) ماه</td></tr>
+                    <tr><th>تصمیم حراست</th><td>@(request.SecurityDecision switch { "ApproveFull" => "موافقت", "ApproveOneMonth" => "موافقت با تمدید یک‌ماهه", "Reject" => "عدم موافقت", _ => "ثبت نشده" })</td></tr>
+                    <tr><th>نظر مدیر حراست</th><td colspan="3">@(string.IsNullOrWhiteSpace(request.SecurityComment) ? "ثبت نشده" : request.SecurityComment)</td></tr>
+                    <tr><th>پیشنهاد مدت قرارداد منابع انسانی و خدمات پشتیبانی</th><td>@(request.HrProposedContractMonths.HasValue ? request.HrProposedContractMonths.Value + " ماه" : "ثبت نشده")</td><th>مدت نهایی مدیرعامل</th><td>@(request.FinalContractMonths.HasValue ? request.FinalContractMonths.Value + " ماه" : "ثبت نشده")</td></tr>
+                    <tr><th>نظر مدیر منابع انسانی و خدمات پشتیبانی</th><td colspan="3">@(string.IsNullOrWhiteSpace(request.HrComment) ? "ثبت نشده" : request.HrComment)</td></tr>
+                    <tr><th>نظر مدیرعامل</th><td colspan="3">@(string.IsNullOrWhiteSpace(request.CeoComment) ? "ثبت نشده" : request.CeoComment)</td></tr>
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <h3 class="contract-form-subhead">نسخه‌های پیشین اطلاعات درخواست</h3>
+    @if (Model.Count == 0)
+    {
+        <div class="empty">هنوز نسخه‌ای از اطلاعات اولیه بایگانی نشده است. پیش از ویرایش، حذف نرم یا توقف، نسخه پیشین به‌صورت خودکار ثبت می‌شود.</div>
+    }
+    else
+    {
+        @foreach (var revision in Model)
+        {
+            <details class="contract-request-revision">
+                <summary>
+                    <strong>نسخه @revision.RevisionNumber — @actionTitle(revision.Action)</strong>
+                    <span class="muted">@PersianDateService.Format(revision.CreatedAt) · @(revision.ChangedByEmployeeId.HasValue ? $"شناسه کارمند اقدام‌کننده {revision.ChangedByEmployeeId}" : "حساب بدون شناسه کارمندی")</span>
+                </summary>
+                <div class="note">این نسخه فقط برای مشاهده است؛ هیچ داده‌ای از سوابق درخواست حذف نشده است.</div>
+                <pre dir="ltr" class="contract-snapshot-json">@revision.SnapshotJson</pre>
+            </details>
+        }
+    }
+</section>

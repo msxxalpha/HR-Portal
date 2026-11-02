@@ -1,0 +1,212 @@
+@model HRPortal.Models.ExecutiveWorkflowReportViewModel
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "تحلیل گردش درخواست‌های مرتبط با مدیرعامل";
+    var noStructure = (bool?)ViewBag.NoFinalizedStructure ?? false;
+    int maxStatus = Math.Max(1, Model.StatusChart.Select(x => x.Count).DefaultIfEmpty(0).Max());
+    int maxDirection = Math.Max(1, Model.DirectionChart.Select(x => x.Count).DefaultIfEmpty(0).Max());
+    int maxWorkflow = Math.Max(1, Model.WorkflowChart.Select(x => x.Count).DefaultIfEmpty(0).Max());
+}
+<style>
+    .exec-report{display:grid;gap:18px;color:var(--text,#172033)}
+    .exec-hero{border-radius:18px;padding:22px;background:linear-gradient(120deg,#0f2747,#174c68);color:#fff;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+    .exec-hero h1{margin:0 0 8px;font-size:1.45rem}.exec-hero p{margin:0;color:#d7e6f2;line-height:1.9}
+    .exec-hero .hero-mark{font-size:2.3rem;opacity:.95}
+    .exec-filters{display:grid;grid-template-columns:repeat(6,minmax(130px,1fr));gap:12px;align-items:end}
+    .exec-filters label{display:grid;gap:6px;font-size:.82rem;color:#475569}
+    .exec-filters input,.exec-filters select,.exec-search{width:100%;min-width:0;padding:10px;border:1px solid #d5dde8;border-radius:9px;background:#fff;color:#172033;font:inherit}
+    .exec-filter-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .exec-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+    .exec-kpi{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px;position:relative;overflow:hidden;box-shadow:0 4px 14px #0f172a08}
+    .exec-kpi:before{content:"";position:absolute;inset:0 0 0 auto;width:4px;background:var(--accent,#2563eb)}
+    .exec-kpi .kpi-label{font-size:.83rem;color:#64748b}.exec-kpi strong{display:block;font-size:1.8rem;margin:8px 0 3px;color:#0f172a}.exec-kpi small{color:#64748b}
+    .exec-panels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+    .exec-panel{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px;min-width:0}
+    .exec-panel h3{margin:0 0 16px;font-size:1rem}
+    .exec-bar-row{display:grid;grid-template-columns:minmax(80px,1fr) 2fr 38px;gap:10px;align-items:center;margin:12px 0;font-size:.83rem}
+    .exec-bar-track{height:11px;background:#edf2f7;border-radius:20px;overflow:hidden}.exec-bar{height:100%;border-radius:20px;min-width:0}
+    .exec-table-tools{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+    .exec-table-tools .exec-search{max-width:360px}.exec-table-wrap{overflow:auto}
+    .exec-table{width:100%;border-collapse:separate;border-spacing:0;min-width:1050px;font-size:.83rem}
+    .exec-table th{position:sticky;top:0;background:#f1f5f9;color:#334155;text-align:right;white-space:nowrap;padding:12px;border-bottom:1px solid #dbe3ed}
+    .exec-table td{padding:12px;border-bottom:1px solid #edf1f6;vertical-align:top}.exec-table tbody tr:hover{background:#f8fafc}
+    .exec-pill{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:99px;font-size:.75rem;font-weight:700;white-space:nowrap}
+    .exec-pill.success{background:#dcfce7;color:#166534}.exec-pill.danger{background:#fee2e2;color:#991b1b}.exec-pill.warning{background:#fef3c7;color:#92400e}.exec-pill.info{background:#dbeafe;color:#1d4ed8}.exec-pill.neutral{background:#e2e8f0;color:#334155}
+    .exec-row-link{font-weight:700;color:#1d4ed8;text-decoration:none}.exec-muted{color:#64748b;font-size:.78rem;margin-top:4px}.exec-empty{padding:30px;text-align:center;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:12px;color:#64748b}
+    .exec-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;color:#64748b;font-size:.8rem}
+    @@media(max-width:1100px){.exec-filters{grid-template-columns:repeat(3,minmax(0,1fr))}.exec-panels{grid-template-columns:1fr 1fr}.exec-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @@media(max-width:650px){.exec-filters,.exec-panels,.exec-kpis{grid-template-columns:1fr 1fr}.exec-hero{padding:18px}.exec-hero h1{font-size:1.15rem}.exec-bar-row{grid-template-columns:90px 1fr 28px}}
+</style>
+<div class="exec-report">
+    <section class="exec-hero">
+        <div>
+            <h1>داشبورد تحلیلی گردش درخواست‌ها</h1>
+            <p>نمای یکپارچه وضعیت کمی و کیفی درخواست‌های ورودی به کارتابل و درخواست‌های خروجی کارکنانِ مستقر در گره‌های مستقیم زیرمجموعه مدیرعامل، بر اساس آخرین ساختار سازمانی نهایی‌شده.</p>
+        </div>
+        <div class="hero-mark" aria-hidden="true">▥</div>
+    </section>
+
+    @if (noStructure)
+    {
+        <div class="alert warning">برای تولید این گزارش، ابتدا ساختار سازمانی را نهایی کنید و وجود گره‌ای با رتبه «مدیرعامل» را بررسی کنید.</div>
+    }
+    else
+    {
+        <section class="card">
+            <div class="section-head"><div><h3>فیلترهای تحلیلی</h3><span class="muted">فیلترها روی شاخص‌ها، نمودارها و جدول به‌صورت یکپارچه اعمال می‌شوند.</span></div></div>
+            <form method="get" action="/Reports/ExecutiveWorkflow" class="exec-filters">
+                <label>جهت درخواست
+                    <select name="direction">
+                        <option value="all" selected="@(Model.Direction == "all")">ورودی و خروجی</option>
+                        <option value="incoming" selected="@(Model.Direction == "incoming")">ورودی به کارتابل‌ها</option>
+                        <option value="outgoing" selected="@(Model.Direction == "outgoing")">خروجی کارکنان</option>
+                    </select>
+                </label>
+                <label>وضعیت جاری
+                    <select name="status">
+                        <option value="all" selected="@(Model.Status == "all")">همه وضعیت‌ها</option>
+                        <option value="inprogress" selected="@(Model.Status == "inprogress")">در حال گردش</option>
+                        <option value="approved" selected="@(Model.Status == "approved")">تکمیل/تأیید</option>
+                        <option value="rejected" selected="@(Model.Status == "rejected")">ردشده</option>
+                        <option value="returned" selected="@(Model.Status == "returned")">برگشت‌خورده</option>
+                        <option value="cancelled" selected="@(Model.Status == "cancelled")">لغوشده</option>
+                    </select>
+                </label>
+                <label>نوع گردش کار
+                    <select name="workflow"><option value="all">همه انواع</option>
+                        @foreach (var item in Model.WorkflowOptions) { <option value="@item" selected="@(Model.Workflow == item)">@item</option> }
+                    </select>
+                </label>
+                <label>کارمند مرتبط
+                    <select name="employee"><option value="all">همه کارکنان مستقیم</option>
+                        @foreach (var item in Model.EmployeeOptions) { <option value="@item.Id" selected="@(Model.Employee == item.Id)">@item.Title</option> }
+                    </select>
+                </label>
+                <label>از تاریخ ثبت<input type="date" name="from" value="@Model.From?.ToString("yyyy-MM-dd")" /></label>
+                <label>تا تاریخ ثبت<input type="date" name="to" value="@Model.To?.ToString("yyyy-MM-dd")" /></label>
+                <div class="exec-filter-actions">
+                    <button class="btn btn-main" type="submit">اعمال فیلتر</button>
+                    <a class="btn btn-outline" href="/Reports/ExecutiveWorkflow">پاک‌کردن فیلترها</a>
+                </div>
+            </form>
+            @if (!ViewData.ModelState.IsValid) { <div class="alert warning">تاریخ‌های واردشده بررسی شوند.</div> }
+            <div class="exec-muted">گره مرجع: <strong>@Model.CeoTitle</strong> · گره‌های مستقیم زیرمجموعه: @Model.DirectPositionCount · کارکنان فعال شناسایی‌شده: @Model.DirectEmployeeCount</div>
+        </section>
+
+        <section class="exec-kpis">
+            <div class="exec-kpi" style="--accent:#2563eb"><span class="kpi-label">کل درخواست‌های مرتبط</span><strong>@Model.TotalCount.ToString("N0")</strong><small>پس از اعمال فیلترها</small></div>
+            <div class="exec-kpi" style="--accent:#0f766e"><span class="kpi-label">ورودی به کارتابل‌ها</span><strong>@Model.IncomingCount.ToString("N0")</strong><small>درخواست دارای مرحله تخصیص‌یافته به گره/کارمند مرتبط</small></div>
+            <div class="exec-kpi" style="--accent:#7c3aed"><span class="kpi-label">خروجی کارکنان</span><strong>@Model.OutgoingCount.ToString("N0")</strong><small>درخواست ثبت‌شده توسط کارکنان مستقیم</small></div>
+            <div class="exec-kpi" style="--accent:#d97706"><span class="kpi-label">در انتظار اقدام</span><strong>@Model.PendingTaskCount.ToString("N0")</strong><small>وظایف باز در درخواست‌های فیلترشده</small></div>
+            <div class="exec-kpi" style="--accent:#16a34a"><span class="kpi-label">تکمیل/تأیید نهایی</span><strong>@Model.CompletedCount.ToString("N0")</strong><small>نشانگر نتیجه مثبت/تکمیل‌شده</small></div>
+            <div class="exec-kpi" style="--accent:#dc2626"><span class="kpi-label">ردشده</span><strong>@Model.RejectedCount.ToString("N0")</strong><small>برای تحلیل علل رد به جزئیات مراجعه شود</small></div>
+            <div class="exec-kpi" style="--accent:#d97706"><span class="kpi-label">برگشت‌خورده</span><strong>@Model.ReturnedCount.ToString("N0")</strong><small>نیازمند اصلاح یا تکمیل اطلاعات</small></div>
+            <div class="exec-kpi" style="--accent:#be123c"><span class="kpi-label">ماندگاری ۷ روز و بیشتر</span><strong>@Model.AgingCount.ToString("N0")</strong><small>درخواست‌های باز با سن گردش حداقل ۷ روز</small></div>
+        </section>
+
+        <section class="exec-panels">
+            <div class="exec-panel">
+                <h3>ترکیب وضعیت درخواست‌ها</h3>
+                @foreach (var item in Model.StatusChart)
+                {
+                    <div class="exec-bar-row"><span>@item.Label</span><div class="exec-bar-track"><div class="exec-bar" style="width:@(Math.Round(item.Count * 100d / maxStatus, 1))%;background:@item.Color"></div></div><strong>@item.Count</strong></div>
+                }
+            </div>
+            <div class="exec-panel">
+                <h3>مقایسه ورودی و خروجی</h3>
+                @foreach (var item in Model.DirectionChart)
+                {
+                    <div class="exec-bar-row"><span>@item.Label</span><div class="exec-bar-track"><div class="exec-bar" style="width:@(Math.Round(item.Count * 100d / maxDirection, 1))%;background:@item.Color"></div></div><strong>@item.Count</strong></div>
+                }
+                <div class="exec-muted">یک درخواست ممکن است هم ورودی و هم خروجی محسوب شود؛ بنابراین این دو شاخص الزاماً جمعشان برابر کل نیست.</div>
+            </div>
+            <div class="exec-panel">
+                <h3>پرتکرارترین انواع گردش کار</h3>
+                @if (Model.WorkflowChart.Count == 0) { <div class="exec-muted">داده‌ای برای نمایش وجود ندارد.</div> }
+                @foreach (var item in Model.WorkflowChart)
+                {
+                    <div class="exec-bar-row"><span title="@item.Label">@item.Label</span><div class="exec-bar-track"><div class="exec-bar" style="width:@(Math.Round(item.Count * 100d / maxWorkflow, 1))%;background:@item.Color"></div></div><strong>@item.Count</strong></div>
+                }
+            </div>
+        </section>
+
+        <section class="exec-kpis">
+            <div class="exec-kpi" style="--accent:#475569"><span class="kpi-label">میانگین زمان تکمیل</span><strong>@Model.AverageCompletionDays.ToString("N1")</strong><small>روز؛ فقط درخواست‌های دارای زمان تکمیل معتبر</small></div>
+            <div class="exec-kpi" style="--accent:#64748b"><span class="kpi-label">در گردش</span><strong>@Model.InProgressCount.ToString("N0")</strong><small>نیازمند پیگیری کارتابلی</small></div>
+            <div class="exec-kpi" style="--accent:#dc2626"><span class="kpi-label">نیازمند توجه کیفی</span><strong>@Model.Rows.Count(x => x.QualityClass == "danger" || x.QualityClass == "warning")</strong><small>رد، برگشت، ماندگاری بالا یا مالک مرحله نامشخص</small></div>
+            <div class="exec-kpi" style="--accent:#0f766e"><span class="kpi-label">دوره گزارش</span><strong style="font-size:1.1rem">@((Model.From?.ToString("yyyy/MM/dd") ?? "ابتدا")) تا @((Model.To?.ToString("yyyy/MM/dd") ?? "اکنون"))</strong><small>بر اساس تاریخ ثبت درخواست</small></div>
+        </section>
+
+        <section class="card">
+            <div class="section-head"><div><h3>فهرست تحلیلی درخواست‌ها</h3><span class="muted">آخرین وضعیت، مالک مرحله جاری، سن گردش و نشانگر کیفی هر درخواست</span></div><span class="badge">@Model.Rows.Count مورد</span></div>
+            <div class="exec-table-tools">
+                <input class="exec-search" id="requestSearch" type="search" placeholder="جستجو در جدول: نوع درخواست، کارمند، مرحله، وضعیت..." aria-label="جستجو در جدول" />
+                <div class="exec-filter-actions"><button type="button" class="btn btn-outline" id="exportCsv">خروجی CSV</button><button type="button" class="btn btn-outline" onclick="window.print()">چاپ گزارش</button></div>
+            </div>
+            @if (Model.Rows.Count == 0)
+            {
+                <div class="exec-empty">با فیلترهای انتخاب‌شده درخواستی پیدا نشد؛ فیلترها را تغییر دهید یا پاک کنید.</div>
+            }
+            else
+            {
+                <div class="exec-table-wrap">
+                    <table class="exec-table" id="requestTable">
+                        <thead><tr><th>درخواست</th><th>نوع گردش کار</th><th>جهت</th><th>درخواست‌کننده</th><th>وضعیت</th><th>مرحله جاری</th><th>مالک/کارتابل جاری</th><th>تاریخ ثبت</th><th>سن گردش</th><th>آخرین اقدام</th><th>نشانگر کیفی</th><th>جزئیات</th></tr></thead>
+                        <tbody>
+                        @foreach (var row in Model.Rows)
+                        {
+                            <tr>
+                                <td><strong>@row.RequestCode</strong><div class="exec-muted">شناسه گردش: @row.Id</div></td>
+                                <td>@row.WorkflowTitle</td>
+                                <td><span class="exec-pill @(row.Direction.Contains("ورودی") && row.Direction.Contains("خروجی") ? "neutral" : row.Direction == "ورودی" ? "info" : "neutral")">@row.Direction</span></td>
+                                <td>@row.RequesterName<div class="exec-muted">شماره پرسنلی: @row.RequesterPersonnelNumber</div></td>
+                                <td><span class="exec-pill @(row.Status == "Approved" || row.Status == "Completed" ? "success" : row.Status == "Rejected" ? "danger" : row.Status == "Returned" ? "warning" : "info")">@row.StatusTitle</span></td>
+                                <td>@row.CurrentStep</td>
+                                <td>@row.CurrentOwner</td>
+                                <td data-sort="@row.StartedAt.Ticks">@row.StartedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                <td>@row.AgeDays روز</td>
+                                <td>@row.LastAction@if (!string.IsNullOrWhiteSpace(row.LastComment)) { <div class="exec-muted" title="@row.LastComment">@row.LastComment</div> }</td>
+                                <td><span class="exec-pill @row.QualityClass">@(row.QualityClass == "danger" ? "●" : row.QualityClass == "warning" ? "▲" : row.QualityClass == "success" ? "✓" : "●") @row.QualitySignal</span></td>
+                                <td><a class="exec-row-link" href="/Workflow/Details/@row.Id">مشاهده تاریخچه ←</a></td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="exec-foot"><span id="visibleRows">نمایش @Model.Rows.Count ردیف</span><span>سن گردش بر اساس زمان ثبت تا اکنون محاسبه می‌شود؛ برچسب‌های کیفی شاخص‌های هشدار عملیاتی هستند.</span></div>
+            }
+        </section>
+    }
+</div>
+<script>
+(() => {
+    const search = document.getElementById('requestSearch');
+    const table = document.getElementById('requestTable');
+    const visibleRows = document.getElementById('visibleRows');
+    if (search && table) {
+        search.addEventListener('input', () => {
+            const q = search.value.trim().toLocaleLowerCase();
+            let count = 0;
+            table.querySelectorAll('tbody tr').forEach(row => {
+                const match = row.innerText.toLocaleLowerCase().includes(q);
+                row.hidden = !match;
+                if (match) count++;
+            });
+            if (visibleRows) visibleRows.textContent = 'نمایش ' + count + ' ردیف از ' + table.querySelectorAll('tbody tr').length;
+        });
+    }
+    const exportButton = document.getElementById('exportCsv');
+    if (exportButton && table) {
+        exportButton.addEventListener('click', () => {
+            const rows = [...table.querySelectorAll('tr')].filter(row => !row.hidden);
+            const csv = '\uFEFF' + rows.map(row => [...row.querySelectorAll('th,td')]
+                .map(cell => '"' + cell.innerText.replace(/\s+/g, ' ').trim().replace(/"/g, '""') + '"').join(',')).join('\r\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'executive-workflow-report.csv'; a.click();
+            URL.revokeObjectURL(url);
+        });
+    }
+})();
+</script>

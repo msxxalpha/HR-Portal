@@ -16,6 +16,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
             .Include(x => x.OrganizationUnit)
             .Include(x => x.OrganizationDepartment)
             .Include(x => x.OrganizationSection)
+            .Include(x => x.OrganizationPosition)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(q))
@@ -30,7 +31,8 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
                 x.Status.Contains(q) ||
                 (x.OrganizationUnit != null && x.OrganizationUnit.Title.Contains(q)) ||
                 (x.OrganizationDepartment != null && x.OrganizationDepartment.Title.Contains(q)) ||
-                (x.OrganizationSection != null && x.OrganizationSection.Title.Contains(q)));
+                (x.OrganizationSection != null && x.OrganizationSection.Title.Contains(q)) ||
+                (x.OrganizationPosition != null && x.OrganizationPosition.Title.Contains(q)));
 
         if (!string.IsNullOrWhiteSpace(status))
             query = query.Where(x => x.Status == status);
@@ -54,11 +56,13 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         View("Form", await BuildFormVmAsync(new Employee()));
 
     [HttpPost, Authorize(Policy = "Employees.Create"), ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(Employee employee)
+    public async Task<IActionResult> Create(Employee employee, bool isNonContractual = false, string? contractEndDatePersian = null)
     {
         ClearGeneratedRequiredErrors();
         NormalizeEmployee(employee);
+        ApplyEmploymentDetails(employee, isNonContractual, contractEndDatePersian);
         ValidateEmployee(employee);
+        await ValidatePositionTitleAsync(employee);
         await ValidateOrganizationAssignmentsAsync(employee);
 
         if (!ModelState.IsValid)
@@ -100,11 +104,13 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
     }
 
     [HttpPost, Authorize(Policy = "Employees.Edit"), ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(Employee employee)
+    public async Task<IActionResult> Edit(Employee employee, bool isNonContractual = false, string? contractEndDatePersian = null)
     {
         ClearGeneratedRequiredErrors();
         NormalizeEmployee(employee);
+        ApplyEmploymentDetails(employee, isNonContractual, contractEndDatePersian);
         ValidateEmployee(employee);
+        await ValidatePositionTitleAsync(employee);
         await ValidateOrganizationAssignmentsAsync(employee);
 
         if (!ModelState.IsValid)
@@ -157,9 +163,11 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         if (employee is not null)
         {
             if (await db.OtpChallenges.AnyAsync(x => x.EmployeeId == id) ||
-                await db.AuditLogs.AnyAsync(x => x.EmployeeId == id))
+                await db.AuditLogs.AnyAsync(x => x.EmployeeId == id) ||
+                await db.WorkflowInstances.AnyAsync(x => x.RequesterEmployeeId == id) ||
+                await db.OrganizationNodes.AnyAsync(x => x.PositionHolderEmployeeId == id))
             {
-                TempData["Error"] = "این کارمند دارای سوابق سامانه است و حذف مستقیم مجاز نیست؛ او را غیرفعال کنید.";
+                TempData["Error"] = "این کارمند دارای سوابق سامانه یا متصدی یک جایگاه سازمانی است؛ حذف مستقیم مجاز نیست و باید او را غیرفعال کنید یا ابتدا متصدی جایگاه را تغییر دهید.";
             }
             else
             {
@@ -243,7 +251,9 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
             else
             {
                 var hasHistory = await db.OtpChallenges.AnyAsync(x => x.EmployeeId == employee.Id) ||
-                                 await db.AuditLogs.AnyAsync(x => x.EmployeeId == employee.Id);
+                                 await db.AuditLogs.AnyAsync(x => x.EmployeeId == employee.Id) ||
+                                 await db.WorkflowInstances.AnyAsync(x => x.RequesterEmployeeId == employee.Id) ||
+                                 await db.OrganizationNodes.AnyAsync(x => x.PositionHolderEmployeeId == employee.Id);
 
                 if (hasHistory)
                 {
@@ -359,6 +369,35 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         employee.Email = employee.Email?.Trim();
     }
 
+    private void ApplyEmploymentDetails(Employee employee, bool isNonContractual, string? contractEndDatePersian)
+    {
+        if (isNonContractual)
+        {
+            employee.EmploymentType = "غیرقراردادی";
+            employee.ContractEndDate = null;
+            ModelState.Remove(nameof(Employee.ContractEndDate));
+            ModelState.Remove("contractEndDatePersian");
+            return;
+        }
+
+        employee.EmploymentType = "قراردادی";
+        if (string.IsNullOrWhiteSpace(contractEndDatePersian))
+        {
+            employee.ContractEndDate ??= new System.Globalization.PersianCalendar().ToDateTime(1405, 12, 29, 0, 0, 0, 0);
+            return;
+        }
+
+        if (PersianDateService.TryParse(contractEndDatePersian, out var parsed))
+        {
+            employee.ContractEndDate = parsed.Date;
+            ModelState.Remove("contractEndDatePersian");
+        }
+        else
+        {
+            ModelState.AddModelError("contractEndDatePersian", "تاریخ پایان قرارداد را با تقویم شمسی وارد کنید.");
+        }
+    }
+
     private async Task ValidateOrganizationAssignmentsAsync(Employee employee)
     {
         if (employee.OrganizationUnitId.HasValue)
@@ -389,6 +428,38 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
                 (section is null || section.ParentId != employee.OrganizationDepartmentId.Value))
                 ModelState.AddModelError("OrganizationSectionId", "بخش انتخاب‌شده زیرمجموعه اداره انتخاب‌شده نیست.");
         }
+
+        if (employee.OrganizationPositionId.HasValue)
+        {
+            var position = await db.OrganizationNodes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == employee.OrganizationPositionId.Value &&
+                    x.IsActive && x.RankType == "مدیرعامل");
+            if (position is null)
+            {
+                ModelState.AddModelError("OrganizationPositionId", "جایگاه ویژه باید یک جایگاه فعال با رده مدیرعامل باشد.");
+            }
+            else if (employee.Status == "فعال" && await db.Employees.AnyAsync(other =>
+                other.Id != employee.Id && other.Status == "فعال" &&
+                other.OrganizationPositionId.HasValue &&
+                db.OrganizationNodes.Any(node => node.Id == other.OrganizationPositionId.Value &&
+                    node.RankType == "مدیرعامل")))
+            {
+                ModelState.AddModelError("OrganizationPositionId", "در میان کارکنان فعال، فقط یک نفر می‌تواند رده مدیرعامل داشته باشد.");
+            }
+        }
+    }
+
+    private async Task ValidatePositionTitleAsync(Employee employee)
+    {
+        if (string.IsNullOrWhiteSpace(employee.PositionTitle)) return;
+        if (await db.OrganizationPositionDefinitions.AnyAsync(x => x.IsActive && x.Title == employee.PositionTitle))
+            return;
+
+        var existingTitle = employee.Id > 0
+            ? await db.Employees.AsNoTracking().Where(x => x.Id == employee.Id).Select(x => x.PositionTitle).FirstOrDefaultAsync()
+            : null;
+        if (!string.Equals(existingTitle, employee.PositionTitle, StringComparison.Ordinal))
+            ModelState.AddModelError(nameof(Employee.PositionTitle), "سمت جدید باید از میان پست‌های سازمانی فعال انتخاب شود.");
     }
 
     private void ValidateEmployee(Employee employee)
@@ -424,12 +495,42 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
                 .ThenBy(x => x.Title)
                 .ToListAsync();
 
+        var ceoNodes = nodes.Where(x => x.RankType == "مدیرعامل").ToList();
+        if (employee.OrganizationPositionId.HasValue &&
+            ceoNodes.All(x => x.Id != employee.OrganizationPositionId.Value))
+        {
+            var existingPosition = await db.OrganizationNodes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == employee.OrganizationPositionId.Value && x.RankType == "مدیرعامل");
+            if (existingPosition is not null) ceoNodes.Add(existingPosition);
+        }
+
+        var positions = await db.OrganizationPositionDefinitions.AsNoTracking()
+            .Where(x => x.IsActive)
+            .OrderBy(x => x.SortOrder).ThenBy(x => x.Title)
+            .ToListAsync();
+        if (!string.IsNullOrWhiteSpace(employee.PositionTitle) &&
+            !positions.Any(x => x.Title == employee.PositionTitle))
+        {
+            var historicalPosition = await db.OrganizationPositionDefinitions.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Title == employee.PositionTitle);
+            positions.Add(historicalPosition ?? new OrganizationPositionDefinition
+            {
+                Code = "قدیمی",
+                Title = employee.PositionTitle,
+                IsActive = false,
+                SortOrder = int.MaxValue,
+                Description = "عنوان قدیمی کارمند؛ برای سوابق نگه داشته شده است."
+            });
+        }
+
         return new FormVm
         {
             Employee = employee,
+            Positions = positions.OrderBy(x => x.SortOrder).ThenBy(x => x.Title).ToList(),
             Units = nodes.Where(x => x.RankType == "مدیریت").ToList(),
             Departments = nodes.Where(x => x.RankType == "ریاست").ToList(),
-            Sections = nodes.Where(x => x.RankType == "سرپرستی").ToList()
+            Sections = nodes.Where(x => x.RankType == "سرپرستی").ToList(),
+            SpecialPositions = ceoNodes
         };
     }
 
@@ -439,5 +540,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         public List<OrganizationNode> Units { get; set; } = [];
         public List<OrganizationNode> Departments { get; set; } = [];
         public List<OrganizationNode> Sections { get; set; } = [];
+        public List<OrganizationNode> SpecialPositions { get; set; } = [];
+        public List<OrganizationPositionDefinition> Positions { get; set; } = [];
     }
 }

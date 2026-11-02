@@ -1,0 +1,199 @@
+@model HRPortal.Models.ContractManagementBasicInfoViewModel
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "اطلاعات پایه ماژول مدیریت قراردادها";
+    var editing = Model.EditingQuestion.Id > 0;
+    var total = Model.ActiveMaxScoreTotal;
+    var totalCss = total == 100m ? "score-total-complete" : "score-total-incomplete";
+    var activeTab = (string?)ViewBag.ActiveTab ?? "questions";
+}
+<div class="page-head">
+    <div>
+        <h1>اطلاعات پایه ماژول مدیریت قراردادها</h1>
+        <p>تعریف پرسش‌های ارزشیابی عملکرد کارکنان و تعیین سقف امتیاز هر پرسش</p>
+    </div>
+    <a class="btn btn-outline" href="/EmployeeContracts">بازگشت به مدیریت قراردادهای کارکنان</a>
+</div>
+
+@if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
+@if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
+
+<div class="contract-tabs" role="tablist" aria-label="اطلاعات پایه قراردادها">
+    <a class="contract-tab @(activeTab == "questions" ? "active" : "")" href="#questions" data-contract-tab="questions" role="tab" aria-selected="@(activeTab == "questions" ? "true" : "false")">پرسش‌های ارزشیابی عملکرد کارکنان</a>
+    <a class="contract-tab @(activeTab == "workflow-settings" ? "active" : "")" href="#workflow-settings" data-contract-tab="workflow-settings" role="tab" aria-selected="@(activeTab == "workflow-settings" ? "true" : "false")">تنظیم مراحل ثابت گردش تمدید قرارداد</a>
+</div>
+
+<section id="questions" class="contract-tab-panel @(activeTab == "questions" ? "active" : "")">
+<div class="card contract-score-summary">
+    <div>
+        <span class="muted">مجموع سقف امتیاز پرسش‌های فعال</span>
+        <div class="contract-score-value @totalCss">@total.ToString("0.##") <small>از ۱۰۰</small></div>
+        <div class="muted">تعداد پرسش فعال: @Model.ActiveQuestionCount</div>
+    </div>
+    <div class="contract-score-progress">
+        <div class="contract-score-track"><span style="width:@(Math.Min(100m, Math.Max(0m, total)).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))%"></span></div>
+        @if (total == 100m)
+        {
+            <div class="contract-score-message success-text">مجموع سقف امتیاز پرسش‌های فعال برابر ۱۰۰ است.</div>
+        }
+        else if (total < 100m)
+        {
+            <div class="contract-score-message">برای آماده‌شدن مجموعه پرسش‌ها، هنوز @((100m - total).ToString("0.##")) امتیاز باقی مانده است. هنگام راه‌اندازی ارزشیابی، شروع فرایند باید تا رسیدن مجموع به ۱۰۰ محدود شود.</div>
+        }
+        else
+        {
+            <div class="contract-score-message error-text">مجموع سقف امتیاز از ۱۰۰ بیشتر است؛ سقف پرسش‌ها را اصلاح کنید.</div>
+        }
+    </div>
+</div>
+
+@if (!ViewData.ModelState.IsValid)
+{
+    <div class="alert error">
+        @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+        {
+            <div>@error.ErrorMessage</div>
+        }
+    </div>
+}
+
+<div class="contract-management-grid">
+    <section class="card" id="question-editor">
+        <div class="section-head">
+            <div>
+                <h3>@(editing ? "ویرایش پرسش ارزشیابی" : "افزودن پرسش ارزشیابی")</h3>
+                <span class="muted">راهنمای امتیازدهی برای ارزیابان در فرم ارزشیابی نمایش داده خواهد شد.</span>
+            </div>
+        </div>
+        <form method="post" action="/EmployeeContracts/SaveQuestion" class="form-stack">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="Id" value="@Model.EditingQuestion.Id" />
+
+            <label>متن پرسش *
+                <textarea name="QuestionText" rows="3" maxlength="1000" required placeholder="برای نمونه: کیفیت انجام وظایف محوله">@Model.EditingQuestion.QuestionText</textarea>
+            </label>
+
+            <label>سقف امتیاز *
+                <input type="number" name="MaxScore" min="0.01" max="100" step="0.01" required value="@(Model.EditingQuestion.MaxScore > 0 ? Model.EditingQuestion.MaxScore.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) : "")" />
+                <small class="muted">مجموع سقف امتیاز پرسش‌های فعال نمی‌تواند از ۱۰۰ بیشتر شود.</small>
+            </label>
+
+            <label>راهنمای امتیازدهی *
+                <textarea name="ScoringGuidance" rows="5" maxlength="4000" required placeholder="معیارهای اختصاص امتیاز، تفاوت امتیاز حداقل و حداکثر و شواهد مورد انتظار را شرح دهید.">@Model.EditingQuestion.ScoringGuidance</textarea>
+            </label>
+
+            <label>ترتیب نمایش
+                <input type="number" name="SortOrder" min="0" value="@Model.EditingQuestion.SortOrder" />
+            </label>
+
+            <label class="contract-active-toggle">
+                @if (Model.EditingQuestion.IsActive)
+                {
+                    <input type="checkbox" name="IsActive" value="true" checked />
+                }
+                else
+                {
+                    <input type="checkbox" name="IsActive" value="true" />
+                }
+                <span><strong>پرسش فعال باشد</strong><small class="muted">پرسش فعال در مجموع سقف امتیاز و ارزیابی‌های آینده لحاظ خواهد شد.</small></span>
+            </label>
+
+            <div class="actions">
+                <button class="btn btn-main" type="submit">@(editing ? "ذخیره تغییرات" : "افزودن پرسش")</button>
+                @if (editing)
+                {
+                    <a class="btn btn-outline" href="/EmployeeContracts/BasicInformation">انصراف از ویرایش</a>
+                }
+            </div>
+        </form>
+    </section>
+
+    <section class="card">
+        <div class="section-head">
+            <div><h3>فهرست پرسش‌ها</h3><span class="muted">@Model.Questions.Count پرسش ثبت‌شده</span></div>
+        </div>
+        @if (Model.Questions.Count == 0)
+        {
+            <div class="empty">هنوز پرسشی ثبت نشده است. از فرم افزودن پرسش استفاده کنید.</div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr><th>ترتیب</th><th>پرسش و راهنمای امتیازدهی</th><th>سقف</th><th>وضعیت</th><th>عملیات</th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var question in Model.Questions)
+                    {
+                        <tr>
+                            <td>@question.SortOrder</td>
+                            <td class="contract-question-text">
+                                <strong>@question.QuestionText</strong>
+                                <details class="contract-guidance">
+                                    <summary>مشاهده راهنمای امتیازدهی</summary>
+                                    <p>@question.ScoringGuidance</p>
+                                </details>
+                            </td>
+                            <td>@question.MaxScore.ToString("0.##")</td>
+                            <td>
+                                @if (question.IsActive) { <span class="badge">فعال</span> }
+                                else { <span class="badge badge-neutral">غیرفعال</span> }
+                            </td>
+                            <td>
+                                <div class="contract-row-actions">
+                                    <a class="btn btn-outline btn-sm" href="/EmployeeContracts/BasicInformation?editId=@question.Id#question-editor">ویرایش</a>
+                                    <form method="post" action="/EmployeeContracts/ToggleQuestion">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@question.Id" />
+                                        <button class="btn btn-outline btn-sm" type="submit">@(question.IsActive ? "غیرفعال‌سازی" : "فعال‌سازی")</button>
+                                    </form>
+                                    <form method="post" action="/EmployeeContracts/DeleteQuestion" onsubmit="return confirm('آیا از حذف این پرسش اطمینان دارید؟ در صورت استفاده در ارزشیابی، حذف مجاز نیست.');">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@question.Id" />
+                                        <button class="btn btn-outline btn-sm danger" type="submit">حذف</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>
+</section>
+
+@await Html.PartialAsync("_WorkflowSettingsTab", Model.WorkflowSettings)
+
+@section Scripts {
+<script>
+(function () {
+    function activate(id, updateHash) {
+        const target = document.getElementById(id);
+        if (!target || !document.querySelector('[data-contract-tab="' + id + '"]')) return;
+        document.querySelectorAll("[data-contract-tab]").forEach(function (tab) {
+            const selected = tab.dataset.contractTab === id;
+            tab.classList.toggle("active", selected);
+            tab.setAttribute("aria-selected", selected ? "true" : "false");
+        });
+        document.querySelectorAll(".contract-tab-panel").forEach(function (panel) {
+            panel.classList.toggle("active", panel.id === id);
+        });
+        if (updateHash && history.replaceState) history.replaceState(null, "", "#" + id);
+    }
+
+    document.querySelectorAll("[data-contract-tab]").forEach(function (tab) {
+        tab.addEventListener("click", function (event) {
+            event.preventDefault();
+            activate(tab.dataset.contractTab, true);
+        });
+    });
+
+    const hash = window.location.hash.substring(1);
+    if (hash === "workflow-settings" || hash === "questions") activate(hash, false);
+    else activate("@activeTab", false);
+})();
+</script>
+}

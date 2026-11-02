@@ -48,7 +48,9 @@
                     </div>
                 </div>
             }
-            <div class="report-frame"><iframe src="@ViewBag.ReportEndpoint#toolbar=0&navpanes=0&scrollbar=1&view=FitH" title="گزارش حکم کارگزینی"></iframe></div>
+            <div class="report-frame">
+            <iframe src="@($"{ViewBag.ReportEndpoint}#toolbar=0&navpanes=0&scrollbar=1&view=FitH")" title="نمایش حکم کارگزینی" loading="lazy"></iframe>
+        </div>
         </div>
     }
 }
@@ -57,30 +59,12 @@
 {
     <script>
         (() => {
-            const blockProtectedActions = (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-            };
-
-            document.addEventListener("contextmenu", blockProtectedActions, true);
-
-            const isProtectedShortcut = (event) =>
-                event.code === "PrintScreen" ||
-                event.key === "PrintScreen" ||
-                event.keyCode === 44 ||
-                ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") ||
-                ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "p") ||
-                (event.metaKey && event.shiftKey && event.code === "KeyS");
-
-            document.addEventListener("keydown", (event) => {
-                if (isProtectedShortcut(event)) {
-                    blockProtectedActions(event);
-                }
-            }, true);
-
-            document.addEventListener("keyup", (event) => {
-                if (event.code === "PrintScreen" || event.key === "PrintScreen" || event.keyCode === 44) {
-                    blockProtectedActions(event);
+            // Best-effort protection for the native browser PDF frame.
+            // Browser-owned PDF viewer internals may not expose all events to the host page.
+            document.addEventListener("contextmenu", (event) => {
+                if (event.target instanceof Element && event.target.closest(".report-frame")) {
+                    event.preventDefault();
+                    event.stopPropagation();
                 }
             }, true);
         })();

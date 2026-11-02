@@ -13,6 +13,11 @@
 
 @{
     var activeAnnouncements = ViewBag.Announcements as List<HRPortal.Models.Announcement> ?? [];
+    var canViewWorkflowDashboard = (bool?)ViewBag.CanViewWorkflowDashboard ?? false;
+    var dashboardInbox = ViewBag.WorkflowInbox as List<HRPortal.Models.WorkflowInboxRow> ?? [];
+    var dashboardRequests = ViewBag.DashboardRequests as List<HRPortal.Models.WorkflowInboxRow> ?? [];
+    var dashboardRequestCount = (int?)ViewBag.DashboardRequestCount ?? 0;
+    var dashboardInboxCount = (int?)ViewBag.WorkflowInboxCount ?? 0;
 }
 @if (!isAdmin && !((bool?)ViewBag.HasPersonalPassword ?? true))
 {
@@ -37,6 +42,92 @@
     <div class="stat"><span>کارکنان فعال</span><strong>@ViewBag.ActiveEmployeeCount</strong></div>
     <div class="stat"><span>نسخه‌های نهایی ساختار</span><strong>@ViewBag.RevisionCount</strong></div>
 </div>
+
+@if (canViewWorkflowDashboard)
+{
+    <section class="workflow-dashboard">
+        <div class="workflow-dashboard-heading">
+            <div>
+                <span class="eyebrow">پیگیری گردش کار</span>
+                <h2>کارتابل و درخواست‌ها</h2>
+                <p>دسترسی سریع به کارهای منتظر اقدام و آخرین وضعیت درخواست‌ها</p>
+            </div>
+            <div class="workflow-dashboard-shortcuts">
+                <a class="btn btn-outline" href="/Workflow/Inbox">ورود به کارتابل</a>
+                <a class="btn btn-main" href="/Workflow/MyRequests">@(isAdmin ? "مدیریت درخواست‌ها" : "همه درخواست‌های من")</a>
+            </div>
+        </div>
+        <div class="workflow-dashboard-grid">
+            <section class="workflow-widget inbox-widget">
+                <div class="workflow-widget-head">
+                    <div class="workflow-widget-icon inbox-icon"><span>✓</span></div>
+                    <div><h3>کارتابل من</h3><p>موارد منتظر اقدام شما</p></div>
+                    <span class="workflow-widget-count">@dashboardInboxCount</span>
+                </div>
+                @if (dashboardInbox.Count == 0)
+                {
+                    <div class="workflow-empty"><span class="workflow-empty-mark">✓</span><strong>کارتابل شما به‌روز است</strong><p>در حال حاضر موردی برای اقدام نمایش داده نمی‌شود.</p></div>
+                }
+                else
+                {
+                    <div class="workflow-widget-list">
+                        @foreach (var item in dashboardInbox)
+                        {
+                            <article class="workflow-list-item">
+                                <div class="workflow-list-main">
+                                    <strong>@item.WorkflowTitle</strong>
+                                    <span>@item.StepTitle · @item.RequesterName</span>
+                                    <small>@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</small>
+                                </div>
+                                <a class="workflow-open-link" href="/Workflow/Task/@item.TaskId" aria-label="مشاهده و اقدام">بررسی <span>←</span></a>
+                            </article>
+                        }
+                    </div>
+                }
+                <a class="workflow-widget-footer" href="/Workflow/Inbox">مشاهده همه موارد کارتابل <span>←</span></a>
+            </section>
+            <section class="workflow-widget requests-widget">
+                <div class="workflow-widget-head">
+                    <div class="workflow-widget-icon requests-icon"><span>↗</span></div>
+                    <div><h3>@(isAdmin ? "درخواست‌های سامانه" : "درخواست‌های من")</h3><p>@(isAdmin ? "آخرین درخواست‌های ثبت‌شده در سامانه" : "پیگیری درخواست‌های ارسال‌شده توسط شما")</p></div>
+                    <span class="workflow-widget-count">@dashboardRequestCount</span>
+                </div>
+                @if (dashboardRequests.Count == 0)
+                {
+                    <div class="workflow-empty"><span class="workflow-empty-mark">↗</span><strong>درخواستی برای نمایش وجود ندارد</strong><p>درخواست‌های گردش کار پس از ثبت در این بخش قابل پیگیری هستند.</p></div>
+                }
+                else
+                {
+                    <div class="workflow-widget-list">
+                        @foreach (var item in dashboardRequests)
+                        {
+                            var statusTitle = item.Status switch
+                            {
+                                "Approved" => "تأیید نهایی",
+                                "Rejected" => "رد شده",
+                                "Returned" => "برگشت داده شده",
+                                _ => "در حال گردش"
+                            };
+                            var statusClass = item.Status switch { "Approved" => "done", "Rejected" => "rejected", "Returned" => "returned", _ => "pending" };
+                            <article class="workflow-list-item">
+                                <div class="workflow-list-main">
+                                    <strong>@item.WorkflowTitle</strong>
+                                    <span>@(isAdmin ? item.RequesterName : item.EntityType + " #" + item.EntityId) · @item.StepTitle</span>
+                                    <small>@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</small>
+                                </div>
+                                <div class="workflow-list-actions">
+                                    <span class="workflow-status @statusClass">@statusTitle</span>
+                                    <a class="workflow-open-link" href="/Workflow/Details/@item.WorkflowInstanceId" aria-label="مشاهده درخواست">جزئیات <span>←</span></a>
+                                </div>
+                            </article>
+                        }
+                    </div>
+                }
+                <a class="workflow-widget-footer" href="/Workflow/MyRequests">@(isAdmin ? "مدیریت همه درخواست‌ها" : "مشاهده همه درخواست‌های من") <span>←</span></a>
+            </section>
+        </div>
+    </section>
+}
 
 @if (activeAnnouncements.Count > 0)
 {

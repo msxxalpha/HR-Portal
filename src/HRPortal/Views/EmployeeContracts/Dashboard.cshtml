@@ -1,0 +1,126 @@
+@model HRPortal.Models.ContractRenewalDashboardViewModel
+@using HRPortal.Services
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "داشبورد و گزارش‌های تمدید قرارداد";
+    int maxStatus = Math.Max(1, Model.StatusBuckets.Select(x => x.Count).DefaultIfEmpty(0).Max());
+    int maxMonth = Math.Max(1, Model.MonthlyBuckets.Select(x => x.Count).DefaultIfEmpty(0).Max());
+    string faDate(DateTime d) => PersianDateService.Format(d);
+}
+<div class="page-head">
+    <div><h1>داشبورد و گزارش‌های تمدید قرارداد</h1><p>نمای کلی عملکرد درخواست‌ها و قراردادهایی که کمتر از ۳۱ روز تا پایان آن‌ها باقی مانده یا موعدشان گذشته است.</p></div>
+    <div class="actions"><a class="btn btn-outline" href="/EmployeeContracts/Requests">فهرست درخواست‌ها</a><a class="btn btn-outline" href="/EmployeeContracts/Renewal">فرم تمدید قرارداد</a></div>
+</div>
+@if (TempData["Error"] is string error) { <div class="alert error">@error</div> }
+@if (TempData["Success"] is string success) { <div class="alert success">@success</div> }
+
+<section class="card contract-expiry-card">
+    <div class="section-head">
+        <div><h3>کارکنان با کمتر از ۳۱ روز تا پایان قرارداد</h3><span class="muted">مبنای کنترل درخواست تکراری، تاریخ پایان قرارداد فعلی ثبت‌شده برای همان کارمند است.</span></div>
+        <span class="status-pill status-pending">@Model.ExpiringEmployeeCount نفر</span>
+    </div>
+    @if (Model.ExpiringEmployees.Count == 0)
+    {
+        <div class="empty">در حال حاضر کارمند فعالی با قرارداد نزدیک به پایان یا پایان‌یافته یافت نشد.</div>
+    }
+    else
+    {
+        <div class="table-wrap"><table class="contract-expiry-table">
+            <thead><tr><th>کارمند</th><th>شماره پرسنلی</th><th>واحد / بخش</th><th>سمت</th><th>پایان قرارداد</th><th>روز باقی‌مانده</th><th>آخرین وضعیت درخواست همان دوره</th><th>عملیات</th></tr></thead>
+            <tbody>
+            @foreach (var row in Model.ExpiringEmployees)
+            {
+                var target = row.CanStartRequest
+                    ? $"/EmployeeContracts/Renewal?employeeId={row.EmployeeId}"
+                    : row.LatestRequest is not null ? $"/EmployeeContracts/History?id={row.LatestRequest.Id}" : "/EmployeeContracts/Requests";
+                <tr class="contract-expiry-row" data-href="@target" tabindex="0" role="link" aria-label="مشاهده اطلاعات تمدید قرارداد @row.FullName">
+                    <td><strong>@row.FullName</strong></td>
+                    <td>@row.PersonnelNumber</td>
+                    <td>@row.OrganizationUnit</td>
+                    <td>@row.PositionTitle</td>
+                    <td>@faDate(row.ContractEndDate)</td>
+                    <td>
+                        @if (row.DaysRemaining < 0) { <span class="status-pill status-cancelled">@Math.Abs(row.DaysRemaining) روز از موعد گذشته</span> }
+                        else if (row.DaysRemaining <= 7) { <span class="status-pill status-cancelled">@row.DaysRemaining روز</span> }
+                        else { <span class="status-pill status-pending">@row.DaysRemaining روز</span> }
+                    </td>
+                    <td>@(row.LatestRequest?.Status ?? "درخواستی ثبت نشده")</td>
+                    <td>
+                        @if (row.CanStartRequest)
+                        {
+                            <a class="btn btn-sm btn-main" href="/EmployeeContracts/Renewal?employeeId=@row.EmployeeId">شروع فرم تمدید</a>
+                        }
+                        else if (row.LatestRequest is not null)
+                        {
+                            <a class="btn btn-sm btn-outline" href="/EmployeeContracts/History?id=@row.LatestRequest.Id">مشاهده سوابق</a>
+                        }
+                        else
+                        {
+                            <a class="btn btn-sm btn-outline" href="/EmployeeContracts/Requests">فهرست درخواست‌ها</a>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table></div>
+    }
+</section>
+
+<section class="contract-dashboard-kpis">
+    <div class="card contract-kpi"><span>کل درخواست‌های غیرحذف‌شده</span><strong>@Model.TotalRequests</strong><small>شامل درخواست‌های متوقف‌شده</small></div>
+    <div class="card contract-kpi"><span>در جریان</span><strong>@Model.InProgressRequests</strong><small>گردش‌های فعال سازمانی</small></div>
+    <div class="card contract-kpi"><span>نهایی‌شده</span><strong>@Model.CompletedRequests</strong><small>دارای نتیجه ثبت‌شده</small></div>
+    <div class="card contract-kpi"><span>متوقف‌شده</span><strong>@Model.StoppedRequests</strong><small>سوابق محفوظ مانده است</small></div>
+    <div class="card contract-kpi"><span>میانگین امتیاز نهایی</span><strong>@(Model.AverageCompletedScore.HasValue ? Model.AverageCompletedScore.Value.ToString("0.##") : "—")</strong><small>فقط درخواست‌های دارای امتیاز نهایی</small></div>
+</section>
+
+<section class="contract-dashboard-charts">
+    <div class="card">
+        <div class="section-head"><div><h3>توزیع وضعیت درخواست‌ها</h3><span class="muted">بر اساس آخرین وضعیت غیرحذف‌شده</span></div></div>
+        @foreach (var item in Model.StatusBuckets)
+        {
+            <div class="chart-bar-row">
+                <div class="chart-bar-label"><span>@item.Label</span><strong>@item.Count</strong></div>
+                <div class="chart-bar-track"><div class="chart-bar-fill" style="width:@(100.0 * item.Count / maxStatus)%"></div></div>
+            </div>
+        }
+    </div>
+    <div class="card">
+        <div class="section-head"><div><h3>روند ثبت درخواست‌ها</h3><span class="muted">شش ماه اخیر، تقویم شمسی</span></div></div>
+        <div class="contract-month-chart">
+            @foreach (var item in Model.MonthlyBuckets)
+            {
+                <div class="contract-month-column" title="@item.Label: @item.Count درخواست">
+                    <strong>@item.Count</strong>
+                    <div class="contract-month-bar-track"><div class="contract-month-bar" style="height:@(item.Count == 0 ? 2 : Math.Max(4, 100.0 * item.Count / maxMonth))%"></div></div>
+                    <span>@item.Label</span>
+                </div>
+            }
+        </div>
+    </div>
+</section>
+
+<div class="form-actions"><a class="btn btn-outline" href="/EmployeeContracts">صفحه اصلی ماژول قراردادها</a><a class="btn btn-outline" href="/EmployeeContracts/Requests">مشاهده جزئیات همه درخواست‌ها</a></div>
+
+@section Scripts {
+<script>
+(function () {
+    document.querySelectorAll('.contract-expiry-row').forEach(function (row) {
+        function openRow() {
+            const target = row.dataset.href;
+            if (target) window.location.href = target;
+        }
+        row.addEventListener('click', function (event) {
+            if (event.target.closest('a, button, form, input, select, textarea')) return;
+            openRow();
+        });
+        row.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openRow();
+            }
+        });
+    });
+})();
+</script>
+}

@@ -20,7 +20,9 @@ public class UsersController(HRPortalDbContext db, RoleService roles, AuditServi
         {
             Users = canUsers ? await roles.GetUserRowsAsync() : [],
             Permissions = canRoles ? await roles.GetPermissionsAsync() : [],
-            Roles = canRoles ? await BuildRoleModelsAsync() : []
+            Roles = canRoles ? await BuildRoleModelsAsync() : [],
+            OrganizationRankTypes = canRoles ? await roles.GetOrganizationRankTypesAsync() : [],
+            RoleRankTypes = canRoles ? await roles.GetRoleRankAssignmentsAsync() : []
         };
         ViewBag.CanUsers = canUsers;
         ViewBag.CanRoles = canRoles;
@@ -115,6 +117,21 @@ public class UsersController(HRPortalDbContext db, RoleService roles, AuditServi
             TempData["Error"] = "کد نقش تکراری است یا ذخیره نقش امکان‌پذیر نیست.";
         }
 
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost, Authorize(Policy = "Roles.Manage"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveRoleRanks(int roleId, string[]? rankTypes)
+    {
+        try
+        {
+            await roles.SaveRoleRankTypesAsync(roleId, rankTypes ?? []);
+            TempData["Success"] = "تخصیص رده‌های سازمانی به نقش ذخیره شد. کاربران باید یک‌بار خارج و دوباره وارد سامانه شوند تا دسترسی‌های جدید در نشست آن‌ها اعمال شود.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["Error"] = ex.Message;
+        }
         return RedirectToAction(nameof(Index));
     }
 

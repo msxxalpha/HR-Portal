@@ -22,6 +22,7 @@ public class SystemSettingsEditModel
     public string? LogoUrl { get; set; }
     public string? FaviconUrl { get; set; }
     public int ItemsPerPage { get; set; }
+    public int PayrollMinimumYear { get; set; } = 1400;
 
     // Security / OTP
     public int OtpLength { get; set; }

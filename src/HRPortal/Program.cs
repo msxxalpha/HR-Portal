@@ -3,6 +3,9 @@ using HRPortal.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using QuestPDF.Infrastructure;
+
+QuestPDF.Settings.License = LicenseType.Professional;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -71,6 +74,9 @@ builder.Services.AddScoped<AnnouncementService>();
 builder.Services.AddScoped<EmployeeExcelService>();
 builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<RoleService>();
+builder.Services.AddScoped<WorkflowService>();
+builder.Services.AddScoped<ContractRenewalWorkflowService>();
+builder.Services.AddScoped<ContractRenewalPdfService>();
 builder.Services.AddScoped<ISmsService, ConfigurableSmsService>();
 
 builder.Services
@@ -81,6 +87,40 @@ builder.Services
         o.AccessDeniedPath = "/Account/Denied";
         o.ExpireTimeSpan = TimeSpan.FromHours(8);
         o.SlidingExpiration = true;
+        o.Events.OnValidatePrincipal = async context =>
+        {
+            var principal = context.Principal;
+            var identity = principal?.Identity as System.Security.Claims.ClaimsIdentity;
+            var employeeIdValue = principal?.FindFirst("EmployeeId")?.Value;
+            if (identity is null || !int.TryParse(employeeIdValue, out var employeeId))
+                return; // Admin and non-employee cookies do not use employee role claims.
+
+            // Permission and organizational-rank changes must take effect on the next
+            // request, rather than waiting for the employee's authentication cookie to expire.
+            await using var scope = context.HttpContext.RequestServices.CreateAsyncScope();
+            var roleService = scope.ServiceProvider.GetRequiredService<RoleService>();
+            var permissions = await roleService.GetEmployeePermissionsAsync(employeeId);
+            var existing = identity.FindAll("Permission")
+                .Select(x => x.Value)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            if (existing.SetEquals(permissions))
+                return;
+
+            var refreshedClaims = identity.Claims
+                .Where(x => !string.Equals(x.Type, "Permission", StringComparison.Ordinal))
+                .ToList();
+            refreshedClaims.AddRange(permissions.Select(code =>
+                new System.Security.Claims.Claim("Permission", code)));
+
+            var refreshedIdentity = new System.Security.Claims.ClaimsIdentity(
+                refreshedClaims,
+                identity.AuthenticationType,
+                identity.NameClaimType,
+                identity.RoleClaimType);
+            context.ReplacePrincipal(new System.Security.Claims.ClaimsPrincipal(refreshedIdentity));
+            context.ShouldRenew = true;
+        };
     });
 
 builder.Services.AddAuthorization(options =>
@@ -165,6 +205,11 @@ app.MapControllerRoute(
     defaults: new { controller = "PersonnelOrder" });
 
 app.MapControllerRoute(
+    name: "workflow",
+    pattern: "Workflow/{action=Inbox}/{id?}",
+    defaults: new { controller = "Workflow" });
+
+app.MapControllerRoute(
     name: "announcements",
     pattern: "Announcements/{action=Index}/{id?}",
     defaults: new { controller = "Announcements" });
@@ -178,6 +223,11 @@ app.MapControllerRoute(
     name: "payroll",
     pattern: "Payroll/{action=Payslip}/{id?}",
     defaults: new { controller = "Payroll" });
+
+app.MapControllerRoute(
+    name: "support",
+    pattern: "Support/{action=Index}/{id?}",
+    defaults: new { controller = "Support" });
 
 app.MapControllerRoute(
     name: "settings",

@@ -767,14 +767,35 @@
         collapsedNodeIds.clear();
         buildTree();
     });
+    function getNodeDepth(node) {
+        let parentId = node.parentId == null || node.parentId === "" ? null : String(node.parentId);
+        let depth = 0;
+        const visited = new Set();
+        while (parentId && !visited.has(parentId)) {
+            visited.add(parentId);
+            depth++;
+            const parent = dataById.get(parentId);
+            parentId = parent && parent.parentId != null && parent.parentId !== ""
+                ? String(parent.parentId)
+                : null;
+        }
+        return depth;
+    }
+
     document.getElementById("collapseAllNodes")?.addEventListener("click", function () {
         if (searchInput) searchInput.value = "";
-        rootCollapsed = true;
+        // Keep the company root visible, but close every branch from deepest to shallowest.
+        // Expanding a parent later will not reveal previously open descendants.
+        rootCollapsed = false;
         collapsedNodeIds.clear();
-        nodes.forEach(function (node) {
-            if ((childrenByParent.get(String(node.data.id)) || []).length > 0)
+        nodes
+            .filter(function (node) {
+                return (childrenByParent.get(String(node.data.id)) || []).length > 0;
+            })
+            .sort(function (a, b) { return getNodeDepth(b.data) - getNodeDepth(a.data); })
+            .forEach(function (node) {
                 collapsedNodeIds.add(String(node.data.id));
-        });
+            });
         buildTree();
     });
 

@@ -1,64 +1,297 @@
 @model IEnumerable<HRPortal.Models.Employee>
 @{
     Layout = "~/Views/Shared/_Layout.cshtml";
-    ViewData["Title"]="مدیریت کارکنان";
+    ViewData["Title"] = "مدیریت کارکنان";
+
     var isAdmin = User.HasClaim("IsAdmin", "1");
     var canCreate = isAdmin || User.HasClaim("Permission", "Employees.Create");
     var canEdit = isAdmin || User.HasClaim("Permission", "Employees.Edit");
     var canDeactivate = isAdmin || User.HasClaim("Permission", "Employees.Deactivate");
     var canDelete = isAdmin || User.HasClaim("Permission", "Employees.Delete");
     var canImportExport = isAdmin || User.HasClaim("Permission", "Employees.ImportExport");
+
+    var currentSearch = (string?)ViewBag.Q;
+    var currentStatus = (string?)ViewBag.Status;
+    var currentEmploymentType = (string?)ViewBag.EmploymentType;
+    var currentSort = (string?)ViewBag.Sort ?? "PersonnelNumber";
+    var currentDir = (string?)ViewBag.Dir ?? "asc";
+    var currentPage = Convert.ToInt32(ViewBag.Page ?? 1);
+    var currentPageSize = Convert.ToInt32(ViewBag.PageSize ?? 25);
+    var totalCount = Convert.ToInt32(ViewBag.TotalCount ?? 0);
+    var totalPages = Convert.ToInt32(ViewBag.TotalPages ?? 0);
+    var firstItem = Convert.ToInt32(ViewBag.FirstItem ?? 0);
+    var lastItem = Convert.ToInt32(ViewBag.LastItem ?? 0);
+
+    string PageUrl(int pageNumber) =>
+        Url.Action("Index", "Employees", new {
+            q = currentSearch, status = currentStatus, employmentType = currentEmploymentType,
+            sort = currentSort, dir = currentDir, page = pageNumber, pageSize = currentPageSize
+        }) ?? "#";
+
+    string SortUrl(string column) =>
+        Url.Action("Index", "Employees", new {
+            q = currentSearch, status = currentStatus, employmentType = currentEmploymentType,
+            sort = column, dir = currentSort == column && currentDir == "asc" ? "desc" : "asc",
+            page = 1, pageSize = currentPageSize
+        }) ?? "#";
+
+    string SortMark(string column) =>
+        currentSort != column ? "↕" : currentDir == "asc" ? "↑" : "↓";
 }
-<div class="page-head"><div><h1>مدیریت کارکنان</h1><p>ثبت، ویرایش، غیرفعال‌سازی، فیلتر، مرتب‌سازی و تبادل اکسل</p></div><div class="actions">
-@if (canCreate) { <a class="btn btn-main" href="/Employees/Create">+ کارمند جدید</a> }
-@if (canImportExport) { <a class="btn btn-outline" href="/Employees/Import">ورود از اکسل</a><a class="btn btn-outline" href="/Employees/Export?q=@ViewBag.Q&status=@ViewBag.Status">خروجی اکسل</a> }
-</div></div>
-<form class="filterbar" method="get"><input name="q" value="@ViewBag.Q" placeholder="جستجو: پرسنلی، شناسه، کد ملی، نام، موبایل"><select name="status"><option value="">همه وضعیت‌ها</option><option selected="@(ViewBag.Status=="فعال")">فعال</option><option selected="@(ViewBag.Status=="غیرفعال")">غیرفعال</option></select><button class="btn btn-main">اعمال فیلتر</button></form>
-@if(TempData["Error"]!=null){<div class="alert error">@TempData["Error"]</div>}
-@if(TempData["Success"]!=null){<div class="alert success">@TempData["Success"]</div>}
-<form id="bulkForm" method="post" action="/Employees/BulkAction" onsubmit="return submitBulkAction();">
-@Html.AntiForgeryToken()
-<div class="bulkbar">
-    <strong><span id="selectedCount">0</span> نفر انتخاب شده</strong>
-    @if (canDeactivate) { <button type="button" class="btn btn-outline" onclick="setBulkAction('deactivate')">غیرفعال‌سازی</button> }
-    @if (canEdit) { <button type="button" class="btn btn-outline" onclick="openGenderBulk()">تغییر جنسیت</button> }
-    @if (canDelete) { <button type="button" class="btn btn-outline danger" onclick="setBulkAction('delete')">حذف</button> }
-    <span id="genderBulk" style="display:none">
-        <select id="bulkGender"><option value="">جنسیت جدید</option><option value="مرد">مرد</option><option value="زن">زن</option></select>
-        <button type="button" class="btn btn-main" onclick="setBulkAction('gender')">اعمال جنسیت</button>
-    </span>
+<div class="employee-directory">
+    <div class="page-head">
+        <div>
+            <h1>مدیریت کارکنان</h1>
+            <p>ثبت و مدیریت اطلاعات کارکنان، صفحه‌بندی، مرتب‌سازی، فیلتر و تبادل اکسل</p>
+        </div>
+        <div class="actions">
+            @if (canCreate) { <a class="btn btn-main" href="/Employees/Create">+ کارمند جدید</a> }
+            @if (canImportExport)
+            {
+                <a class="btn btn-outline" href="/Employees/Import">ورود از اکسل</a>
+                <a class="btn btn-outline" href="@Url.Action("Export", "Employees", new { q = currentSearch, status = currentStatus, employmentType = currentEmploymentType })">خروجی اکسل</a>
+            }
+        </div>
+    </div>
+
+    <form class="filterbar employee-filterbar" method="get" action="/Employees">
+        <label class="employee-search-field">جستجو
+            <input name="q" value="@currentSearch" placeholder="شماره پرسنلی، شناسه، کد ملی، نام، موبایل..." />
+        </label>
+        <label>وضعیت
+            <select name="status">
+                <option value="">همه وضعیت‌ها</option>
+                <option value="فعال" selected="@(currentStatus == "فعال")">فعال</option>
+                <option value="غیرفعال" selected="@(currentStatus == "غیرفعال")">غیرفعال</option>
+            </select>
+        </label>
+        <label>نوع استخدام
+            <select name="employmentType">
+                <option value="">همه انواع استخدام</option>
+                <option value="قراردادی" selected="@(currentEmploymentType == "قراردادی")">قراردادی</option>
+                <option value="غیرقراردادی" selected="@(currentEmploymentType == "غیرقراردادی")">غیرقراردادی</option>
+            </select>
+        </label>
+        <label>تعداد در صفحه
+            <select name="pageSize" onchange="this.form.submit()">
+                @foreach (var size in new[] { 10, 25, 50, 100 })
+                {
+                    <option value="@size" selected="@(currentPageSize == size)">@size</option>
+                }
+            </select>
+        </label>
+        <input type="hidden" name="sort" value="@currentSort" />
+        <input type="hidden" name="dir" value="@currentDir" />
+        <button class="btn btn-main" type="submit">اعمال فیلتر</button>
+        <a class="btn btn-outline" href="/Employees">پاک کردن</a>
+    </form>
+
+    @if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
+    @if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
+
+    @if (canEdit || canDeactivate || canDelete)
+    {
+        <form id="bulkForm" method="post" action="/Employees/BulkAction" onsubmit="return submitBulkAction();">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="action" id="bulkAction" />
+            <input type="hidden" name="gender" id="bulkGenderValue" />
+            <input type="hidden" name="employmentType" id="bulkEmploymentTypeValue" />
+        </form>
+        <div class="bulkbar employee-bulkbar">
+            <strong><span id="selectedCount">0</span> نفر انتخاب شده در این صفحه</strong>
+            <div class="actions">
+                @if (canDeactivate) { <button type="button" class="btn btn-outline" onclick="setBulkAction('deactivate')">غیرفعال‌سازی</button> }
+                @if (canEdit)
+                {
+                    <button type="button" class="btn btn-outline" onclick="openGenderBulk()">تغییر جنسیت</button>
+                    <button type="button" class="btn btn-outline" onclick="openEmploymentTypeBulk()">تغییر نوع استخدام</button>
+                }
+                @if (canDelete) { <button type="button" class="btn btn-outline danger" onclick="setBulkAction('delete')">حذف</button> }
+            </div>
+            <span id="genderBulk" class="employee-bulk-picker" hidden>
+                <label>جنسیت جدید
+                    <select id="bulkGender"><option value="">انتخاب</option><option value="مرد">مرد</option><option value="زن">زن</option></select>
+                </label>
+                <button type="button" class="btn btn-main" onclick="setBulkAction('gender')">اعمال جنسیت</button>
+            </span>
+            <span id="employmentTypeBulk" class="employee-bulk-picker" hidden>
+                <label>نوع استخدام جدید
+                    <select id="bulkEmploymentType"><option value="">انتخاب</option><option value="قراردادی">قراردادی</option><option value="غیرقراردادی">غیرقراردادی</option></select>
+                </label>
+                <button type="button" class="btn btn-main" onclick="setBulkAction('employmentType')">اعمال نوع استخدام</button>
+            </span>
+        </div>
+    }
+
+    <div class="employee-table-wrap">
+        <table class="employee-directory-table">
+            <colgroup>
+                <col style="width:4%" />
+                <col style="width:8%" />
+                <col style="width:12%" />
+                <col style="width:17%" />
+                <col style="width:8%" />
+                <col style="width:11%" />
+                <col style="width:20%" />
+                <col style="width:7%" />
+                <col style="width:13%" />
+            </colgroup>
+            <thead>
+                <tr>
+                    <th><input type="checkbox" id="selectAll" title="انتخاب همه کارکنان این صفحه" aria-label="انتخاب همه کارکنان این صفحه" /></th>
+                    <th><a href="@SortUrl("PersonnelNumber")">شماره پرسنلی @SortMark("PersonnelNumber")</a></th>
+                    <th><a href="@SortUrl("LastName")">نام و نام خانوادگی @SortMark("LastName")</a></th>
+                    <th>شناسه / کد ملی / موبایل</th>
+                    <th><a href="@SortUrl("Gender")">جنسیت @SortMark("Gender")</a><span class="employee-th-sub">وضعیت</span></th>
+                    <th>
+                        <a href="@SortUrl("EmploymentType")">نوع استخدام @SortMark("EmploymentType")</a>
+                        <span class="employee-th-sub"><a href="@SortUrl("ContractEndDate")">پایان قرارداد @SortMark("ContractEndDate")</a></span>
+                    </th>
+                    <th><a href="@SortUrl("OrganizationUnit")">ساختار سازمانی @SortMark("OrganizationUnit")</a></th>
+                    <th>جایگاه ویژه</th>
+                    <th>عملیات</th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (!Model.Any())
+            {
+                <tr><td colspan="9" class="empty">کارمندی مطابق فیلترهای انتخاب‌شده یافت نشد.</td></tr>
+            }
+            else
+            {
+                @foreach (var e in Model)
+                {
+                    var employmentLabel = e.EmploymentType == "غیرقراردادی" || e.EmploymentType == "غیر قراردادی"
+                        ? "غیرقراردادی" : "قراردادی";
+                    <tr>
+                        <td>
+                            @if (canEdit || canDeactivate || canDelete)
+                            {
+                                <input type="checkbox" class="employee-check" name="selectedIds" value="@e.Id" form="bulkForm" aria-label="انتخاب @e.FirstName @e.LastName" />
+                            }
+                        </td>
+                        <td class="employee-number">@e.PersonnelNumber</td>
+                        <td class="employee-name">@e.FirstName @e.LastName</td>
+                        <td class="employee-identity">
+                            <span><b>شناسه:</b> @e.Identifier</span>
+                            <span><b>کد ملی:</b> @e.NationalId</span>
+                            <span><b>موبایل:</b> @e.Mobile</span>
+                        </td>
+                        <td>
+                            <span>@e.Gender</span>
+                            <span class="badge employee-status">@e.Status</span>
+                        </td>
+                        <td>
+                            <span class="employee-employment">@employmentLabel</span>
+                            <span class="employee-meta-line">@(e.ContractEndDate.HasValue ? HRPortal.Services.PersianDateService.Format(e.ContractEndDate.Value) : "بدون تاریخ پایان")</span>
+                        </td>
+                        <td class="employee-org-path">
+                            <span><b>واحد:</b> @(e.OrganizationUnit?.Title ?? "—")</span>
+                            <span><b>اداره:</b> @(e.OrganizationDepartment?.Title ?? "—")</span>
+                            <span><b>بخش:</b> @(e.OrganizationSection?.Title ?? "—")</span>
+                        </td>
+                        <td>@(e.OrganizationPosition?.RankType == "مدیرعامل" ? e.OrganizationPosition.Title : "—")</td>
+                        <td>
+                            <div class="employee-row-actions">
+                                @if (canEdit) { <a class="employee-action-link" href="/Employees/Edit/@e.Id">ویرایش</a> }
+                                @if (canDeactivate && e.Status == "فعال")
+                                {
+                                    <form method="post" action="/Employees/Deactivate/@e.Id">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="employee-action-link danger" onclick="return confirm('این کارمند غیرفعال شود؟');">غیرفعال</button>
+                                    </form>
+                                }
+                                @if (canDelete)
+                                {
+                                    <form method="post" action="/Employees/Delete/@e.Id">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="employee-action-link danger" onclick="return confirm('حذف مستقیم این کارمند انجام شود؟');">حذف</button>
+                                    </form>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="employee-pagination">
+        <span>نمایش @firstItem تا @lastItem از @totalCount کارمند</span>
+        @if (totalPages > 1)
+        {
+            <nav aria-label="صفحه‌بندی کارکنان" class="employee-page-links">
+                <a class="btn btn-outline btn-sm @(currentPage <= 1 ? "disabled" : "")"
+                   href="@(currentPage > 1 ? PageUrl(currentPage - 1) : "#")" aria-disabled="@(currentPage <= 1)">قبلی</a>
+                @for (var p = Math.Max(1, currentPage - 2); p <= Math.Min(totalPages, currentPage + 2); p++)
+                {
+                    <a class="btn btn-sm @(p == currentPage ? "btn-main" : "btn-outline")"
+                       href="@PageUrl(p)" aria-current="@(p == currentPage ? "page" : null)">@p</a>
+                }
+                <a class="btn btn-outline btn-sm @(currentPage >= totalPages ? "disabled" : "")"
+                   href="@(currentPage < totalPages ? PageUrl(currentPage + 1) : "#")" aria-disabled="@(currentPage >= totalPages)">بعدی</a>
+            </nav>
+        }
+    </div>
 </div>
-<div class="table-wrap"><table><thead><tr><th><input type="checkbox" id="selectAll" title="انتخاب همه"></th><th><a href="/Employees?sort=PersonnelNumber&dir=@(ViewBag.Dir=="asc"?"desc":"asc")">شماره پرسنلی ↕</a></th><th>شناسه</th><th><a href="/Employees?sort=LastName&dir=@(ViewBag.Dir=="asc"?"desc":"asc")">نام و نام خانوادگی ↕</a></th><th>کد ملی</th><th>موبایل</th><th>جنسیت</th><th>نوع استخدام</th><th>پایان قرارداد</th><th>واحد</th><th>اداره</th><th>بخش</th><th>جایگاه ویژه</th><th><a href="/Employees?sort=Status&dir=@(ViewBag.Dir=="asc"?"desc":"asc")">وضعیت ↕</a></th><th>عملیات</th></tr></thead><tbody>@foreach(var e in Model){<tr><td><input type="checkbox" class="employee-check" value="@e.Id"></td><td>@e.PersonnelNumber</td><td>@e.Identifier</td><td>@e.FirstName @e.LastName</td><td>@e.NationalId</td><td>@e.Mobile</td><td>@e.Gender</td><td>@(e.EmploymentType ?? "قراردادی")</td><td>@(e.ContractEndDate.HasValue ? HRPortal.Services.PersianDateService.Format(e.ContractEndDate.Value) : "—")</td><td>@e.OrganizationUnit?.Title</td><td>@e.OrganizationDepartment?.Title</td><td>@e.OrganizationSection?.Title</td><td>@(e.OrganizationPosition?.RankType == "مدیرعامل" ? e.OrganizationPosition.Title : "—")</td><td><span class="badge">@e.Status</span></td><td>
-@if (canEdit) { <a href="/Employees/Edit/@e.Id">ویرایش</a> }
-@if (canDeactivate && e.Status=="فعال"){<button type="submit" class="link danger" formmethod="post" formaction="/Employees/Deactivate/@e.Id">غیرفعال</button>}
-@if (canDelete){<button type="submit" class="link danger" formmethod="post" formaction="/Employees/Delete/@e.Id" onclick="return confirm('حذف مستقیم این کارمند انجام شود؟');">حذف</button>}
-</td></tr>}</tbody></table></div>
-<input type="hidden" name="action" id="bulkAction"><input type="hidden" name="gender" id="bulkGenderValue">
-</form>
+
 <script>
-(function(){
- const checks=()=>Array.from(document.querySelectorAll('.employee-check'));
- const count=()=>document.getElementById('selectedCount').textContent=checks().filter(x=>x.checked).length;
- document.getElementById('selectAll')?.addEventListener('change',function(){checks().forEach(x=>x.checked=this.checked);count();});
- checks().forEach(x=>x.addEventListener('change',count));
- window.openGenderBulk=function(){document.getElementById('genderBulk').style.display='inline-flex';};
- window.setBulkAction=function(action){
-   if(!checks().some(x=>x.checked)){alert('حداقل یک کارمند را انتخاب کنید.');return;}
-   if(action==='delete' && !confirm('آیا از حذف کارکنان انتخاب‌شده اطمینان دارید؟ کارکنان دارای سوابق سامانه حذف نخواهند شد.'))return;
-   document.getElementById('bulkAction').value=action;
-   document.getElementById('bulkForm').requestSubmit();
- };
- window.submitBulkAction=function(){
-   const form=document.getElementById('bulkForm');
-   form.querySelectorAll('input[name="selectedIds"]').forEach(x=>x.remove());
-   checks().filter(x=>x.checked).forEach(x=>{const h=document.createElement('input');h.type='hidden';h.name='selectedIds';h.value=x.value;form.appendChild(h);});
-   if(!document.getElementById('bulkAction').value)return false;
-   if(document.getElementById('bulkAction').value==='gender'){
-     const g=document.getElementById('bulkGender').value;
-     if(!g){alert('جنسیت جدید را انتخاب کنید.');return false;}
-     document.getElementById('bulkGenderValue').value=g;
-   }
-   return true;
- };
+(function () {
+    const checks = () => Array.from(document.querySelectorAll(".employee-check"));
+    const count = () => {
+        const selected = checks().filter(x => x.checked).length;
+        const counter = document.getElementById("selectedCount");
+        if (counter) counter.textContent = String(selected);
+    };
+
+    document.getElementById("selectAll")?.addEventListener("change", function () {
+        checks().forEach(x => x.checked = this.checked);
+        count();
+    });
+    checks().forEach(x => x.addEventListener("change", count));
+
+    window.openGenderBulk = function () {
+        const panel = document.getElementById("genderBulk");
+        if (panel) panel.hidden = !panel.hidden;
+    };
+    window.openEmploymentTypeBulk = function () {
+        const panel = document.getElementById("employmentTypeBulk");
+        if (panel) panel.hidden = !panel.hidden;
+    };
+
+    window.setBulkAction = function (action) {
+        if (!checks().some(x => x.checked)) {
+            alert("حداقل یک کارمند از فهرست این صفحه را انتخاب کنید.");
+            return;
+        }
+        if (action === "delete" &&
+            !confirm("آیا از حذف کارکنان انتخاب‌شده اطمینان دارید؟ کارکنان دارای سوابق سامانه حذف نخواهند شد.")) return;
+
+        document.getElementById("bulkAction").value = action;
+        document.getElementById("bulkForm").requestSubmit();
+    };
+
+    window.submitBulkAction = function () {
+        if (!checks().some(x => x.checked)) {
+            alert("حداقل یک کارمند را انتخاب کنید.");
+            return false;
+        }
+
+        const action = document.getElementById("bulkAction").value;
+        if (!action) return false;
+
+        if (action === "gender") {
+            const gender = document.getElementById("bulkGender").value;
+            if (!gender) { alert("جنسیت جدید را انتخاب کنید."); return false; }
+            document.getElementById("bulkGenderValue").value = gender;
+        }
+        if (action === "employmentType") {
+            const type = document.getElementById("bulkEmploymentType").value;
+            if (!type) { alert("نوع استخدام جدید را انتخاب کنید."); return false; }
+            document.getElementById("bulkEmploymentTypeValue").value = type;
+        }
+        return true;
+    };
 })();
 </script>

@@ -10,45 +10,89 @@ namespace HRPortal.Controllers;
 [Authorize(Policy = "Employees.View")]
 public class EmployeesController(HRPortalDbContext db, EmployeeExcelService excel, AuditService audit, RoleService roles) : Controller
 {
-    public async Task<IActionResult> Index(string? q, string? status, string sort = "PersonnelNumber", string dir = "asc")
+    public async Task<IActionResult> Index(
+        string? q,
+        string? status,
+        string? employmentType,
+        string sort = "PersonnelNumber",
+        string dir = "asc",
+        int page = 1,
+        int pageSize = 25)
     {
-        var query = db.Employees
+        var query = db.Employees.AsNoTracking()
             .Include(x => x.OrganizationUnit)
             .Include(x => x.OrganizationDepartment)
             .Include(x => x.OrganizationSection)
             .Include(x => x.OrganizationPosition)
             .AsQueryable();
 
-        if (!string.IsNullOrWhiteSpace(q))
+        var search = q?.Trim();
+        if (!string.IsNullOrWhiteSpace(search))
             query = query.Where(x =>
-                x.PersonnelNumber.Contains(q) ||
-                x.Identifier.Contains(q) ||
-                x.NationalId.Contains(q) ||
-                x.FirstName.Contains(q) ||
-                x.LastName.Contains(q) ||
-                x.Mobile.Contains(q) ||
-                x.Gender.Contains(q) ||
-                x.Status.Contains(q) ||
-                (x.OrganizationUnit != null && x.OrganizationUnit.Title.Contains(q)) ||
-                (x.OrganizationDepartment != null && x.OrganizationDepartment.Title.Contains(q)) ||
-                (x.OrganizationSection != null && x.OrganizationSection.Title.Contains(q)) ||
-                (x.OrganizationPosition != null && x.OrganizationPosition.Title.Contains(q)));
+                x.PersonnelNumber.Contains(search) ||
+                x.Identifier.Contains(search) ||
+                x.NationalId.Contains(search) ||
+                x.FirstName.Contains(search) ||
+                x.LastName.Contains(search) ||
+                x.Mobile.Contains(search) ||
+                x.Gender.Contains(search) ||
+                x.Status.Contains(search) ||
+                (x.EmploymentType != null && x.EmploymentType.Contains(search)) ||
+                (x.OrganizationUnit != null && x.OrganizationUnit.Title.Contains(search)) ||
+                (x.OrganizationDepartment != null && x.OrganizationDepartment.Title.Contains(search)) ||
+                (x.OrganizationSection != null && x.OrganizationSection.Title.Contains(search)) ||
+                (x.OrganizationPosition != null && x.OrganizationPosition.Title.Contains(search)));
 
         if (!string.IsNullOrWhiteSpace(status))
             query = query.Where(x => x.Status == status);
 
-        query = sort switch
+        if (employmentType == "قراردادی")
+            query = query.Where(x => x.EmploymentType == null || x.EmploymentType == "" || x.EmploymentType == "قراردادی");
+        else if (employmentType == "غیرقراردادی")
+            query = query.Where(x => x.EmploymentType == "غیرقراردادی" || x.EmploymentType == "غیر قراردادی");
+
+        pageSize = pageSize is 10 or 25 or 50 or 100 ? pageSize : 25;
+        var totalCount = await query.CountAsync();
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+        page = Math.Clamp(page, 1, Math.Max(totalPages, 1));
+        var descending = string.Equals(dir, "desc", StringComparison.OrdinalIgnoreCase);
+
+        IOrderedQueryable<Employee> orderedQuery = sort switch
         {
-            "LastName" => dir == "desc" ? query.OrderByDescending(x => x.LastName) : query.OrderBy(x => x.LastName),
-            "Status" => dir == "desc" ? query.OrderByDescending(x => x.Status) : query.OrderBy(x => x.Status),
-            _ => dir == "desc" ? query.OrderByDescending(x => x.PersonnelNumber) : query.OrderBy(x => x.PersonnelNumber)
+            "LastName" => descending
+                ? query.OrderByDescending(x => x.LastName).ThenByDescending(x => x.FirstName)
+                : query.OrderBy(x => x.LastName).ThenBy(x => x.FirstName),
+            "Identifier" => descending ? query.OrderByDescending(x => x.Identifier) : query.OrderBy(x => x.Identifier),
+            "Gender" => descending ? query.OrderByDescending(x => x.Gender) : query.OrderBy(x => x.Gender),
+            "EmploymentType" => descending ? query.OrderByDescending(x => x.EmploymentType) : query.OrderBy(x => x.EmploymentType),
+            "ContractEndDate" => descending ? query.OrderByDescending(x => x.ContractEndDate) : query.OrderBy(x => x.ContractEndDate),
+            "OrganizationUnit" => descending
+                ? query.OrderByDescending(x => x.OrganizationUnit!.Title)
+                : query.OrderBy(x => x.OrganizationUnit!.Title),
+            "Status" => descending ? query.OrderByDescending(x => x.Status) : query.OrderBy(x => x.Status),
+            _ => descending
+                ? query.OrderByDescending(x => x.PersonnelNumber)
+                : query.OrderBy(x => x.PersonnelNumber)
         };
 
-        ViewBag.Q = q;
+        var employees = await orderedQuery
+            .ThenBy(x => x.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        ViewBag.Q = search;
         ViewBag.Status = status;
+        ViewBag.EmploymentType = employmentType;
         ViewBag.Sort = sort;
-        ViewBag.Dir = dir;
-        return View(await query.ToListAsync());
+        ViewBag.Dir = descending ? "desc" : "asc";
+        ViewBag.Page = page;
+        ViewBag.PageSize = pageSize;
+        ViewBag.TotalCount = totalCount;
+        ViewBag.TotalPages = totalPages;
+        ViewBag.FirstItem = totalCount == 0 ? 0 : (page - 1) * pageSize + 1;
+        ViewBag.LastItem = Math.Min(page * pageSize, totalCount);
+        return View(employees);
     }
 
     [Authorize(Policy = "Employees.Create")]
@@ -185,7 +229,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
     }
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> BulkAction(int[] selectedIds, string action, string? gender)
+    public async Task<IActionResult> BulkAction(int[] selectedIds, string action, string? gender, string? employmentType)
     {
         if (selectedIds is null || selectedIds.Length == 0)
         {
@@ -208,13 +252,13 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
             return RedirectToAction(nameof(Index));
         }
 
-        if (action == "gender" && !Allowed("Employees.Edit"))
+        if ((action is "gender" or "employmentType") && !Allowed("Employees.Edit"))
         {
             TempData["Error"] = "شما مجوز ویرایش کارکنان را ندارید.";
             return RedirectToAction(nameof(Index));
         }
 
-        if (action is not ("deactivate" or "delete" or "gender"))
+        if (action is not ("deactivate" or "delete" or "gender" or "employmentType"))
         {
             TempData["Error"] = "عملیات گروهی نامعتبر است.";
             return RedirectToAction(nameof(Index));
@@ -223,6 +267,12 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         if (action == "gender" && gender is not ("مرد" or "زن"))
         {
             TempData["Error"] = "جنسیت جدید را انتخاب کنید.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        if (action == "employmentType" && employmentType is not ("قراردادی" or "غیرقراردادی"))
+        {
+            TempData["Error"] = "نوع استخدام جدید را انتخاب کنید.";
             return RedirectToAction(nameof(Index));
         }
 
@@ -253,6 +303,23 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
                 success++;
                 await audit.WriteAsync("تغییر گروهی جنسیت کارمند", "Employee", employee.Id.ToString(), employee.PersonnelNumber);
             }
+            else if (action == "employmentType")
+            {
+                employee.EmploymentType = employmentType!;
+                if (employmentType == "غیرقراردادی")
+                {
+                    employee.ContractEndDate = null;
+                }
+                else
+                {
+                    employee.ContractEndDate ??= new System.Globalization.PersianCalendar()
+                        .ToDateTime(1405, 12, 29, 0, 0, 0, 0);
+                }
+                employee.UpdatedAt = DateTime.UtcNow;
+                success++;
+                await audit.WriteAsync("تغییر گروهی نوع استخدام کارمند", "Employee", employee.Id.ToString(),
+                    $"{employee.PersonnelNumber} | {employee.EmploymentType}");
+            }
             else
             {
                 var hasHistory = await db.OtpChallenges.AnyAsync(x => x.EmployeeId == employee.Id) ||
@@ -278,6 +345,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         {
             "deactivate" => $"عملیات غیرفعال‌سازی انجام شد. {success} نفر به‌روزرسانی شدند.",
             "gender" => $"جنسیت {success} نفر به «{gender}» تغییر کرد.",
+            "employmentType" => $"نوع استخدام {success} نفر به «{employmentType}» تغییر کرد.",
             _ => blockedDelete == 0
                 ? $"حذف {success} نفر انجام شد."
                 : $"حذف {success} نفر انجام شد؛ {blockedDelete} نفر به دلیل داشتن سوابق سامانه حذف نشدند و باید غیرفعال شوند."
@@ -287,7 +355,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
     }
 
     [HttpGet, Authorize(Policy = "Employees.ImportExport")]
-    public async Task<IActionResult> Export(string? q, string? status)
+    public async Task<IActionResult> Export(string? q, string? status, string? employmentType)
     {
         var query = db.Employees.AsQueryable();
 
@@ -307,6 +375,10 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
 
         if (!string.IsNullOrWhiteSpace(status))
             query = query.Where(x => x.Status == status);
+        if (employmentType == "قراردادی")
+            query = query.Where(x => x.EmploymentType == null || x.EmploymentType == "" || x.EmploymentType == "قراردادی");
+        else if (employmentType == "غیرقراردادی")
+            query = query.Where(x => x.EmploymentType == "غیرقراردادی" || x.EmploymentType == "غیر قراردادی");
 
         var bytes = await excel.ExportAsync(query);
         return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

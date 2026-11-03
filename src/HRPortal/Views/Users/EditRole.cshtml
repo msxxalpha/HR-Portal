@@ -23,7 +23,6 @@
 <form method="post" action="/Users/SaveRole" class="role-editor-form">
     @Html.AntiForgeryToken()
     <input type="hidden" name="Id" value="@Model.Id" />
-    <input type="hidden" name="IsActive" value="@Model.IsActive.ToString().ToLowerInvariant()" />
     <div class="card role-identity-card">
         <div class="section-head">
             <div>
@@ -39,6 +38,10 @@
                 <span class="role-state is-active">نقش جدید فعال</span>
             }
         </div>
+        @if (isBuiltIn)
+        {
+            <div class="role-system-note">این نقش سیستمی است؛ کد و حذف آن از صفحه فهرست نقش‌ها قابل تغییر نیست. وضعیت فعال یا غیرفعال نیز از همان فهرست کنترل می‌شود.</div>
+        }
         <div class="role-identity-grid">
             <label>
                 کد نقش *

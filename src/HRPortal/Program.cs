@@ -80,6 +80,7 @@ builder.Services.AddScoped<RoleService>();
 builder.Services.AddScoped<IClaimsTransformation, PermissionClaimsTransformation>();
 builder.Services.AddScoped<WorkflowService>();
 builder.Services.AddScoped<MonthlyPerformanceService>();
+builder.Services.AddScoped<MonthlyPerformanceImprovementService>();
 builder.Services.AddScoped<ContractRenewalWorkflowService>();
 builder.Services.AddScoped<ContractRenewalPdfService>();
 builder.Services.AddScoped<ISmsService, ConfigurableSmsService>();

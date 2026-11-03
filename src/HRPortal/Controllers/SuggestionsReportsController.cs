@@ -139,7 +139,7 @@ public class SuggestionsReportsController(HRPortalDbContext db) : Controller
             else if (status == "Rejected") query = query.Where(x => RejectedStatuses.Contains(x.Status));
         }
 
-        return await (
+        var rows = await (
             from suggestion in query
             join employee in db.Employees.AsNoTracking() on suggestion.ProposerEmployeeId equals employee.Id into employeeJoin
             from employee in employeeJoin.DefaultIfEmpty()
@@ -160,11 +160,35 @@ public class SuggestionsReportsController(HRPortalDbContext db) : Controller
                     employee.OrganizationUnit != null ? employee.OrganizationUnit.Title : "—",
                 CreatedAtUtc = suggestion.CreatedAtUtc,
                 SubmittedAtUtc = suggestion.SubmittedAtUtc,
-                MemberCount = suggestion.Members.Count(),
-                AttachmentCount = suggestion.Attachments.Count(),
                 BenefitsJson = suggestion.BenefitsJson,
                 ResourceTypesJson = suggestion.ResourceTypesJson
             }).ToListAsync();
+
+        // Aggregate relationship counts independently. This is explicit, predictable
+        // on SQL Server, and does not depend on lazy-loading or tracked navigation
+        // collections being populated by the current DbContext.
+        var suggestionIds = rows.Select(x => x.Id).ToArray();
+        if (suggestionIds.Length == 0) return rows;
+
+        var memberCounts = await db.SuggestionMembers.AsNoTracking()
+            .Where(x => suggestionIds.Contains(x.SuggestionId))
+            .GroupBy(x => x.SuggestionId)
+            .Select(g => new { SuggestionId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.SuggestionId, x => x.Count);
+
+        var attachmentCounts = await db.SuggestionAttachments.AsNoTracking()
+            .Where(x => suggestionIds.Contains(x.SuggestionId))
+            .GroupBy(x => x.SuggestionId)
+            .Select(g => new { SuggestionId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.SuggestionId, x => x.Count);
+
+        foreach (var row in rows)
+        {
+            row.MemberCount = memberCounts.TryGetValue(row.Id, out var members) ? members : 0;
+            row.AttachmentCount = attachmentCounts.TryGetValue(row.Id, out var attachments) ? attachments : 0;
+        }
+
+        return rows;
     }
 
     private static List<string> ParseList(string? json)

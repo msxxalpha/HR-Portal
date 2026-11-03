@@ -1503,5 +1503,19 @@ static async Task VerifyImprovementActionsAsync()
     Check(cancelled.Status == MonthlyPerformanceImprovementStatuses.Cancelled,
         "The employee must be able to move an improvement action to Cancelled.");
 
+    period.IsDeleted = true;
+    await db.SaveChangesAsync();
+    var archivedPeriodRejected = false;
+    try
+    {
+        await service.UpdateAsync(employee.Id, action.Id, action.Title, action.Description,
+            now.Date.AddDays(10), MonthlyPerformanceImprovementStatuses.Completed);
+    }
+    catch (InvalidOperationException)
+    {
+        archivedPeriodRejected = true;
+    }
+    Check(archivedPeriodRejected, "Improvement actions from archived evaluation periods must be read-only.");
+
     Console.WriteLine("PASS: improvement action ownership, partial-score eligibility, due dates, status transitions, personal listing and evaluator-scope filtering.");
 }

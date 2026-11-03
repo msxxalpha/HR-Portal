@@ -54,13 +54,15 @@ public class MonthlyPerformanceImprovementService(HRPortalDbContext db)
         DateTime dueDate, string? status)
     {
         var action = await db.MonthlyPerformanceImprovementActions
-            .Include(x => x.Score).ThenInclude(x => x.Evaluation)
+            .Include(x => x.Score).ThenInclude(x => x.Evaluation).ThenInclude(x => x.Period)
             .FirstOrDefaultAsync(x => x.Id == actionId)
             ?? throw new InvalidOperationException("اقدام بهبود موردنظر پیدا نشد.");
 
         if (action.OwnerEmployeeId != ownerEmployeeId ||
             action.Score.Evaluation.EmployeeId != ownerEmployeeId)
             throw new UnauthorizedAccessException("فقط مالک برنامه اقدام می‌تواند آن را ویرایش کند.");
+        if (action.Score.Evaluation.Period.IsDeleted)
+            throw new InvalidOperationException("دوره بایگانی‌شده است و برنامه اقدام آن دیگر قابل تغییر نیست.");
 
         var normalizedTitle = (title ?? string.Empty).Trim();
         var normalizedDescription = (description ?? string.Empty).Trim();
@@ -72,8 +74,11 @@ public class MonthlyPerformanceImprovementService(HRPortalDbContext db)
             throw new InvalidOperationException("شرح اقدام نمی‌تواند بیش از ۲۰۰۰ نویسه باشد.");
         if (!MonthlyPerformanceImprovementStatuses.IsValid(normalizedStatus))
             throw new InvalidOperationException("وضعیت انتخاب‌شده برای اقدام معتبر نیست.");
-        if (dueDate.Date < MonthlyPerformanceService.NowIran().Date)
-            throw new InvalidOperationException("برای تمدید یا تغییر موعد، تاریخ پایان باید امروز یا یکی از روزهای آینده باشد.");
+        // An overdue action may still be closed or cancelled. A new or
+        // continued InProgress action must always carry a non-past deadline.
+        if (normalizedStatus == MonthlyPerformanceImprovementStatuses.InProgress &&
+            dueDate.Date < MonthlyPerformanceService.NowIran().Date)
+            throw new InvalidOperationException("برای ادامه اقدام در وضعیت «در حال انجام»، تاریخ پایان باید امروز یا یکی از روزهای آینده باشد.");
 
         action.Title = normalizedTitle;
         action.Description = string.IsNullOrWhiteSpace(normalizedDescription) ? null : normalizedDescription;

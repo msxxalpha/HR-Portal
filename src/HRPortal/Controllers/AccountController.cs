@@ -134,7 +134,7 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
                             : x.PasswordLoginLockedUntilUtc.HasValue && x.PasswordLoginLockedUntilUtc > now
                                 ? x.PasswordLoginLockedUntilUtc
                                 : x.PasswordLoginFailedAttempts >= PasswordLoginLockoutPolicy.MaximumFailedAttempts - 1
-                                    ? now.Add(PasswordLoginLockoutPolicy.LockoutDuration)
+                                    ? now.AddMinutes(PasswordLoginLockoutPolicy.LockoutDuration.TotalMinutes)
                                     : null)
                     .SetProperty(x => x.PasswordLoginLastFailedAtUtc, now)
                     .SetProperty(x => x.UpdatedAt, now));

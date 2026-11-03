@@ -34,6 +34,7 @@ public class MonthlyPerformanceImprovementService(HRPortalDbContext db)
         var action = new MonthlyPerformanceImprovementAction
         {
             ScoreId = scoreId,
+            Score = score,
             OwnerEmployeeId = ownerEmployeeId,
             Title = normalizedTitle,
             Description = string.IsNullOrWhiteSpace(normalizedDescription) ? null : normalizedDescription,
@@ -101,7 +102,7 @@ public class MonthlyPerformanceImprovementService(HRPortalDbContext db)
 
         var actions = await db.MonthlyPerformanceImprovementActions.AsNoTracking()
             .Where(x => employeeIds.Contains(x.OwnerEmployeeId) &&
-                        x.Score.Evaluation.PeriodId == periodId)
+                        x.Score.Evaluation.PeriodId == periodId && !x.Score.Evaluation.Period.IsDeleted)
             .Include(x => x.Score).ThenInclude(x => x.Evaluation).ThenInclude(x => x.Period)
             .Include(x => x.OwnerEmployee)
             .OrderBy(x => x.DueDate).ThenBy(x => x.OwnerEmployee.LastName)

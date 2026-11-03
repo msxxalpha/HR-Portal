@@ -101,14 +101,11 @@ builder.Services.AddAuthorization(options =>
     foreach (var permission in RoleService.DefaultPermissions.Where(x => x.Code != "Workflow.Inbox"))
         options.AddPolicy(permission.Code, policy =>
             policy.RequireAssertion(context =>
-                context.User.HasClaim("IsAdmin", "1") ||
-                context.User.HasClaim("Permission", permission.Code) ||
-                (permission.Code.StartsWith("ContractRenewal.", StringComparison.Ordinal) && context.User.HasClaim("Permission", "ContractRenewal.Manage"))));
+                PermissionAuthorization.HasPermission(context.User, permission.Code)));
 
     options.AddPolicy("Workflow.Inbox", policy =>
         policy.RequireAssertion(context =>
-            context.User.HasClaim("IsAdmin", "1") ||
-            context.User.HasClaim("Permission", "Workflow.Inbox") ||
+            PermissionAuthorization.HasPermission(context.User, "Workflow.Inbox") ||
             context.User.HasClaim("Permission", "ContractRenewal.Manage")));
 
     options.AddPolicy("MonthlyPerformance.ReadEvaluation", policy =>

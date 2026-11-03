@@ -34,9 +34,14 @@ public class RoleService(HRPortalDbContext db)
         ("Suggestions.ViewAll", "مشاهده همه پیشنهادها", "نظام پیشنهادات"),
         ("Suggestions.Manage", "مدیریت پیشنهادها و تعیین پیشنهاددهنده", "نظام پیشنهادات"),
         ("Suggestions.Evaluate", "ارزیابی تخصصی پیشنهادها", "نظام پیشنهادات"),
+        ("Suggestions.Reports", "مشاهده داشبورد و گزارش‌های نظام پیشنهادات", "نظام پیشنهادات"),
+        ("Suggestions.Export", "دریافت خروجی گزارش‌های نظام پیشنهادات", "نظام پیشنهادات"),
         ("Workflow.Inbox", "کارتابل گردش کار", "گردش کار"),
         ("Workflow.Manage", "مدیریت گردش کار", "گردش کار"),
-        ("ContractRenewal.View", "مشاهده داشبورد، درخواست‌ها و سوابق", "تمدید قرارداد"),
+        ("ContractRenewal.View", "مشاهده جزئیات و سوابق درخواست تمدید", "تمدید قرارداد"),
+        ("ContractRenewal.List", "مشاهده فهرست و سوابق درخواست‌ها", "تمدید قرارداد"),
+        ("ContractRenewal.Reports", "مشاهده داشبورد و گزارش‌های تمدید قرارداد", "تمدید قرارداد"),
+        ("ContractRenewal.Evaluation.Manage", "مدیریت پرسش‌ها و ماژول ارزشیابی تمدید قرارداد", "تمدید قرارداد"),
         ("ContractRenewal.Create", "ایجاد و ثبت درخواست تمدید", "تمدید قرارداد"),
         ("ContractRenewal.Edit", "ویرایش درخواست پیش از ارزیابی", "تمدید قرارداد"),
         ("ContractRenewal.Delete", "حذف نرم درخواست پیش از ارزیابی", "تمدید قرارداد"),
@@ -143,8 +148,25 @@ public class RoleService(HRPortalDbContext db)
             ["Roles.Manage"]);
         await EnsureRoleAsync("WORKFLOW_MANAGER", "مدیریت گردش کار", "تعریف گردش کار و تخصیص مراحل به جایگاه‌های سازمانی",
             ["Workflow.Inbox", "Workflow.Manage"]);
-        await EnsureRoleAsync("SUGGESTION_MANAGER", "مدیریت نظام پیشنهادات", "مشاهده و مدیریت پیشنهادها و دسترسی به ارزیابی تخصصی در مراحل بعدی",
-            ["Suggestions.ViewAll", "Suggestions.Manage", "Suggestions.Evaluate"]);
+        await EnsureRoleAsync("SUGGESTION_MANAGER", "مدیریت نظام پیشنهادات", "مشاهده و مدیریت پیشنهادها و دسترسی به ارزیابی تخصصی و گزارش‌ها",
+            ["Suggestions.ViewAll", "Suggestions.Manage", "Suggestions.Evaluate", "Suggestions.Reports", "Suggestions.Export"]);
+
+        // Existing roles that already hold the legacy all-access renewal permission
+        // receive the new granular capabilities too; no existing assignment is revoked.
+        var renewalManagerRoleIds = await db.RolePermissions.AsNoTracking()
+            .Where(x => x.Permission.Code == "ContractRenewal.Manage")
+            .Select(x => x.RoleId).Distinct().ToListAsync();
+        var renewalPermissionIds = await db.Permissions.AsNoTracking()
+            .Where(x => x.Code.StartsWith("ContractRenewal."))
+            .Select(x => x.Id).ToListAsync();
+        var currentRenewalAssignments = await db.RolePermissions.AsNoTracking()
+            .Where(x => renewalManagerRoleIds.Contains(x.RoleId))
+            .Select(x => new { x.RoleId, x.PermissionId }).ToListAsync();
+        foreach (var roleId in renewalManagerRoleIds)
+        foreach (var permissionId in renewalPermissionIds)
+            if (!currentRenewalAssignments.Any(x => x.RoleId == roleId && x.PermissionId == permissionId))
+                db.RolePermissions.Add(new RolePermission { RoleId = roleId, PermissionId = permissionId });
+        if (renewalManagerRoleIds.Count > 0) await db.SaveChangesAsync();
 
         // The manager role is a first-class seeded role. Existing locally-created
         // roles with the established Persian title are repaired in place below,

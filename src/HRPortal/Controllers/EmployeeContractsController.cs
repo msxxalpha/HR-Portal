@@ -19,7 +19,7 @@ public class EmployeeContractsController(
     [Authorize(Policy = "ContractRenewal.View")]
     public IActionResult Index() => View();
 
-    [Authorize(Policy = "ContractRenewal.View")]
+    [Authorize(Policy = "ContractRenewal.Reports")]
     public async Task<IActionResult> Dashboard()
     {
         var today = DateTime.Today;
@@ -123,9 +123,14 @@ public class EmployeeContractsController(
         });
     }
 
-    [Authorize(Policy = "ContractRenewal.Settings")]
+    [Authorize]
     public async Task<IActionResult> BasicInformation(int? editId)
     {
+        SetBasicInformationPermissions();
+        if (!PermissionAuthorization.HasPermission(User, "ContractRenewal.Settings") &&
+            !PermissionAuthorization.HasPermission(User, "ContractRenewal.Evaluation.Manage"))
+            return Forbid();
+
         EmployeePerformanceEvaluationQuestion? editing = null;
         if (editId.HasValue)
             editing = await db.EmployeePerformanceEvaluationQuestions
@@ -135,7 +140,7 @@ public class EmployeeContractsController(
         return View(await BuildBasicInfoViewModelAsync(editing));
     }
 
-    [HttpPost, Authorize(Policy = "ContractRenewal.Settings"), ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "ContractRenewal.Evaluation.Manage"), ValidateAntiForgeryToken]
     public async Task<IActionResult> SaveQuestion(EmployeePerformanceEvaluationQuestion input)
     {
         input.QuestionText = input.QuestionText?.Trim() ?? "";
@@ -167,7 +172,10 @@ public class EmployeeContractsController(
                 $"جمع سقف امتیاز پرسش‌های فعال پس از این تغییر {activeTotalWithoutCurrent + input.MaxScore:0.##} می‌شود و نباید از ۱۰۰ بیشتر باشد.");
 
         if (!ModelState.IsValid)
+        {
+            SetBasicInformationPermissions();
             return View("BasicInformation", await BuildBasicInfoViewModelAsync(input));
+        }
 
         if (existing is null)
         {
@@ -197,7 +205,7 @@ public class EmployeeContractsController(
         return RedirectToAction(nameof(BasicInformation));
     }
 
-    [HttpPost, Authorize(Policy = "ContractRenewal.Settings"), ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "ContractRenewal.Evaluation.Manage"), ValidateAntiForgeryToken]
     public async Task<IActionResult> ToggleQuestion(int id)
     {
         var question = await db.EmployeePerformanceEvaluationQuestions.FirstOrDefaultAsync(x => x.Id == id);
@@ -229,7 +237,7 @@ public class EmployeeContractsController(
         return RedirectToAction(nameof(BasicInformation));
     }
 
-    [HttpPost, Authorize(Policy = "ContractRenewal.Settings"), ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "ContractRenewal.Evaluation.Manage"), ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteQuestion(int id)
     {
         var question = await db.EmployeePerformanceEvaluationQuestions.FirstOrDefaultAsync(x => x.Id == id);
@@ -246,6 +254,12 @@ public class EmployeeContractsController(
         await audit.WriteAsync("حذف پرسش ارزشیابی عملکرد", nameof(EmployeePerformanceEvaluationQuestion), id.ToString(), question.QuestionText);
         TempData["Success"] = "پرسش حذف شد.";
         return RedirectToAction(nameof(BasicInformation));
+    }
+
+    private void SetBasicInformationPermissions()
+    {
+        ViewBag.CanManageEvaluation = PermissionAuthorization.HasPermission(User, "ContractRenewal.Evaluation.Manage");
+        ViewBag.CanManageSettings = PermissionAuthorization.HasPermission(User, "ContractRenewal.Settings");
     }
 
     [Authorize(Policy = "ContractRenewal.Settings")]
@@ -302,6 +316,7 @@ public class EmployeeContractsController(
 
         if (!ModelState.IsValid)
         {
+            SetBasicInformationPermissions();
             var basicInfo = await BuildBasicInfoViewModelAsync();
             basicInfo.WorkflowSettings = await BuildWorkflowSettingsViewModelAsync();
             basicInfo.WorkflowSettings.Settings.RequestApprovalPositionId = requestApprovalPositionId;
@@ -331,6 +346,7 @@ public class EmployeeContractsController(
         catch (Exception)
         {
             db.ChangeTracker.Clear();
+            SetBasicInformationPermissions();
             var basicInfo = await BuildBasicInfoViewModelAsync();
             basicInfo.WorkflowSettings = await BuildWorkflowSettingsViewModelAsync(securityPositionId, humanResourcesPositionId, requestApprovalPositionId);
             basicInfo.WorkflowSettings.ErrorMessage = "ذخیره تنظیمات مراحل ثابت در پایگاه داده انجام نشد. ارتباط پایگاه داده و ساختار فعال را بررسی کنید؛ مقادیر انتخاب‌شده حفظ شده‌اند.";
@@ -495,7 +511,7 @@ public class EmployeeContractsController(
         }
     }
 
-    [Authorize(Policy = "ContractRenewal.View")]
+    [Authorize(Policy = "ContractRenewal.List")]
     public async Task<IActionResult> Requests(bool includeDeleted = false)
     {
         var requestQuery = db.ContractRenewalRequests.AsNoTracking()
@@ -550,7 +566,7 @@ public class EmployeeContractsController(
         return View(rows);
     }
 
-    [Authorize(Policy = "ContractRenewal.View")]
+    [Authorize(Policy = "ContractRenewal.List")]
     public async Task<IActionResult> History(int id)
     {
         var request = await db.ContractRenewalRequests.AsNoTracking()
@@ -634,7 +650,7 @@ public class EmployeeContractsController(
         return View(revisions);
     }
 
-    [HttpGet, Authorize(Policy = "ContractRenewal.View")]
+    [HttpGet, Authorize(Policy = "ContractRenewal.Reports")]
     public async Task<IActionResult> DownloadReport(int id)
     {
         var request = await db.ContractRenewalRequests.AsNoTracking()

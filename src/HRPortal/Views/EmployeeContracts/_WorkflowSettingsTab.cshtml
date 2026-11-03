@@ -1,5 +1,9 @@
 @model HRPortal.Models.ContractRenewalWorkflowSettingsViewModel
-<section id="workflow-settings" class="contract-tab-panel">
+@{
+    var canManageEvaluation = (bool?)ViewBag.CanManageEvaluation ?? false;
+    var activeTab = (string?)ViewBag.ActiveTab ?? "questions";
+}
+<section id="workflow-settings" class="contract-tab-panel @((!canManageEvaluation || activeTab == "workflow-settings") ? "active" : "")">
     <div class="card contract-settings-note">
         <strong>تنظیم مراحل ثابت گردش تمدید قرارداد</strong>
         <p>پس از ثبت درخواست، جایگاه تأییدکننده اطلاعات اولیه آن را بررسی می‌کند. سپس ارزشیابی پویا طبق زنجیره جایگاه‌های سازمانی انجام می‌شود و مراحل ثابت حراست و منابع انسانی اجرا خواهند شد؛ مدیرعامل از ساختار سازمانی شناسایی می‌شود. مسئول مرحله نهایی از جایگاه مدیرعامل شناسایی می‌شود.</p>

@@ -56,19 +56,19 @@
                     </div>
                 </details>
             }
-            @if (isAdmin || Can("ContractRenewal.Manage") || Can("MonthlyPerformance.View") ||
-                Can("MonthlyPerformance.Evaluate") || Can("MonthlyPerformance.Manage") || Can("MonthlyPerformance.Reports") || Can("Suggestions.Submit") || Can("Suggestions.ViewAll") || Can("Suggestions.Manage")) {
+            @if (isAdmin || Can("ContractRenewal.Manage") || Can("ContractRenewal.View") || Can("ContractRenewal.List") || Can("ContractRenewal.Reports") || Can("ContractRenewal.Create") || Can("ContractRenewal.Settings") || Can("ContractRenewal.Evaluation.Manage") || Can("ContractRenewal.Workflow") || Can("MonthlyPerformance.View") ||
+                Can("MonthlyPerformance.Evaluate") || Can("MonthlyPerformance.Manage") || Can("MonthlyPerformance.Reports") || Can("Suggestions.Submit") || Can("Suggestions.ViewAll") || Can("Suggestions.Manage") || Can("Suggestions.Reports")) {
                 <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/EmployeeContracts") || (Context.Request.Path.StartsWithSegments("/MonthlyPerformance") || Context.Request.Path.StartsWithSegments("/MonthlyPerformanceAdmin") || Context.Request.Path.StartsWithSegments("/MonthlyPerformanceReports") || Context.Request.Path.StartsWithSegments("/Suggestions")) ? "open" : null)">
                     <summary><span class="nav-icon">▦</span>ماژول‌ها</summary>
                     <div class="nav-submenu">
-                        @if (isAdmin || Can("ContractRenewal.Manage")) {
+                        @if (isAdmin || Can("ContractRenewal.Manage") || Can("ContractRenewal.View") || Can("ContractRenewal.List") || Can("ContractRenewal.Reports") || Can("ContractRenewal.Create") || Can("ContractRenewal.Settings") || Can("ContractRenewal.Evaluation.Manage") || Can("ContractRenewal.Workflow")) {
                         <details class="nav-subgroup" open="@(Context.Request.Path.StartsWithSegments("/EmployeeContracts") ? "open" : null)">
                             <summary>مدیریت قراردادهای کارکنان</summary>
                             <div class="nav-submenu nav-submenu-nested">
-                                @if (isAdmin) { <a href="/EmployeeContracts/BasicInformation">اطلاعات پایه ماژول مدیریت قراردادها</a> }
-                                @if (isAdmin || Can("ContractRenewal.Manage")) { <a href="/EmployeeContracts/Dashboard">داشبورد و گزارش‌های تمدید قرارداد</a> }
-                                @if (isAdmin || Can("ContractRenewal.Manage")) { <a href="/EmployeeContracts/Requests">فهرست درخواست‌های ارزشیابی و تمدید قرارداد</a> }
-                                @if (isAdmin || Can("ContractRenewal.Manage")) { <a href="/EmployeeContracts/Renewal">تمدید قرارداد</a> }
+                                @if (isAdmin || Can("ContractRenewal.Settings") || Can("ContractRenewal.Evaluation.Manage") || Can("ContractRenewal.Manage")) { <a href="/EmployeeContracts/BasicInformation">اطلاعات پایه و مدیریت ارزشیابی تمدید قرارداد</a> }
+                                @if (isAdmin || Can("ContractRenewal.Reports") || Can("ContractRenewal.Manage")) { <a href="/EmployeeContracts/Dashboard">داشبورد و گزارش‌های تمدید قرارداد</a> }
+                                @if (isAdmin || Can("ContractRenewal.List") || Can("ContractRenewal.Manage")) { <a href="/EmployeeContracts/Requests">فهرست درخواست‌های ارزشیابی و تمدید قرارداد</a> }
+                                @if (isAdmin || Can("ContractRenewal.Create") || Can("ContractRenewal.Manage")) { <a href="/EmployeeContracts/Renewal">تمدید قرارداد</a> }
                             </div>
                         </details>
                         }

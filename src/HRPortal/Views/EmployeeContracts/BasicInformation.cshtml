@@ -6,6 +6,8 @@
     var total = Model.ActiveMaxScoreTotal;
     var totalCss = total == 100m ? "score-total-complete" : "score-total-incomplete";
     var activeTab = (string?)ViewBag.ActiveTab ?? "questions";
+    var canManageEvaluation = (bool?)ViewBag.CanManageEvaluation ?? false;
+    var canManageSettings = (bool?)ViewBag.CanManageSettings ?? false;
 }
 <div class="page-head">
     <div>
@@ -18,12 +20,17 @@
 @if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
 @if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
 
+@if (canManageEvaluation && canManageSettings)
+{
 <div class="contract-tabs" role="tablist" aria-label="اطلاعات پایه قراردادها">
     <a class="contract-tab @(activeTab == "questions" ? "active" : "")" href="#questions" data-contract-tab="questions" role="tab" aria-selected="@(activeTab == "questions" ? "true" : "false")">پرسش‌های ارزشیابی عملکرد کارکنان</a>
     <a class="contract-tab @(activeTab == "workflow-settings" ? "active" : "")" href="#workflow-settings" data-contract-tab="workflow-settings" role="tab" aria-selected="@(activeTab == "workflow-settings" ? "true" : "false")">تنظیم مراحل ثابت گردش تمدید قرارداد</a>
 </div>
+}
 
-<section id="questions" class="contract-tab-panel @(activeTab == "questions" ? "active" : "")">
+@if (canManageEvaluation)
+{
+<section id="questions" class="contract-tab-panel @((!canManageSettings || activeTab == "questions") ? "active" : "")">
 <div class="card contract-score-summary">
     <div>
         <span class="muted">مجموع سقف امتیاز پرسش‌های فعال</span>
@@ -164,8 +171,12 @@
     </section>
 </div>
 </section>
+}
 
-@await Html.PartialAsync("_WorkflowSettingsTab", Model.WorkflowSettings)
+@if (canManageSettings)
+{
+    @await Html.PartialAsync("_WorkflowSettingsTab", Model.WorkflowSettings)
+}
 
 @section Scripts {
 <script>

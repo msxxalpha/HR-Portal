@@ -16,7 +16,7 @@ public class EmployeeContractsController(
     ContractRenewalWorkflowService renewalWorkflow,
     ContractRenewalPdfService renewalPdf) : Controller
 {
-    [Authorize(Policy = "ContractRenewal.Manage")]
+    [Authorize(Policy = "ContractRenewal.View")]
     public IActionResult Index() => View();
 
     [Authorize(Policy = "ContractRenewal.View")]
@@ -123,7 +123,7 @@ public class EmployeeContractsController(
         });
     }
 
-    [Authorize(Policy = "AdminOnly")]
+    [Authorize(Policy = "ContractRenewal.Settings")]
     public async Task<IActionResult> BasicInformation(int? editId)
     {
         EmployeePerformanceEvaluationQuestion? editing = null;
@@ -135,7 +135,7 @@ public class EmployeeContractsController(
         return View(await BuildBasicInfoViewModelAsync(editing));
     }
 
-    [HttpPost, Authorize(Policy = "AdminOnly"), ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "ContractRenewal.Settings"), ValidateAntiForgeryToken]
     public async Task<IActionResult> SaveQuestion(EmployeePerformanceEvaluationQuestion input)
     {
         input.QuestionText = input.QuestionText?.Trim() ?? "";
@@ -197,7 +197,7 @@ public class EmployeeContractsController(
         return RedirectToAction(nameof(BasicInformation));
     }
 
-    [HttpPost, Authorize(Policy = "AdminOnly"), ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "ContractRenewal.Settings"), ValidateAntiForgeryToken]
     public async Task<IActionResult> ToggleQuestion(int id)
     {
         var question = await db.EmployeePerformanceEvaluationQuestions.FirstOrDefaultAsync(x => x.Id == id);
@@ -229,7 +229,7 @@ public class EmployeeContractsController(
         return RedirectToAction(nameof(BasicInformation));
     }
 
-    [HttpPost, Authorize(Policy = "AdminOnly"), ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "ContractRenewal.Settings"), ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteQuestion(int id)
     {
         var question = await db.EmployeePerformanceEvaluationQuestions.FirstOrDefaultAsync(x => x.Id == id);
@@ -248,11 +248,11 @@ public class EmployeeContractsController(
         return RedirectToAction(nameof(BasicInformation));
     }
 
-    [Authorize(Policy = "AdminOnly")]
+    [Authorize(Policy = "ContractRenewal.Settings")]
     public IActionResult WorkflowSettings() =>
         Redirect("/EmployeeContracts/BasicInformation#workflow-settings");
 
-    [HttpPost, Authorize(Policy = "AdminOnly"), ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "ContractRenewal.Settings"), ValidateAntiForgeryToken]
     public async Task<IActionResult> SaveWorkflowSettings(int? requestApprovalPositionId, int? securityPositionId, int? humanResourcesPositionId)
     {
         var current = await CurrentRevisionAsync();
@@ -816,7 +816,7 @@ public class EmployeeContractsController(
         return RedirectToAction(nameof(Requests));
     }
 
-    [HttpPost, Authorize(Policy = "ContractRenewal.Manage"), ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "ContractRenewal.Workflow"), ValidateAntiForgeryToken]
     public async Task<IActionResult> StopRequest(int id, string? reason)
     {
         if (reason is { Length: > 2000 })

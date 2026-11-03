@@ -41,6 +41,7 @@ public class RoleService(HRPortalDbContext db)
         ("ContractRenewal.Edit", "ویرایش درخواست پیش از ارزیابی", "تمدید قرارداد"),
         ("ContractRenewal.Delete", "حذف نرم درخواست پیش از ارزیابی", "تمدید قرارداد"),
         ("ContractRenewal.Settings", "مدیریت اطلاعات پایه و تنظیمات گردش", "تمدید قرارداد"),
+        ("ContractRenewal.Workflow", "مدیریت و توقف گردش درخواست‌ها", "تمدید قرارداد"),
         ("ContractRenewal.Manage", "دسترسی کامل و سازگاری با نقش‌های قبلی", "تمدید قرارداد"),
         ("MonthlyPerformance.View", "مشاهده ارزیابی عملکرد شخصی", "ماژول ارزیابی عملکرد کارکنان"),
         ("MonthlyPerformance.Evaluate", "ارزیابی کارکنان زیرمجموعه", "ماژول ارزیابی عملکرد کارکنان"),

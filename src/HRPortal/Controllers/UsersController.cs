@@ -359,4 +359,5 @@ public class UsersController(
                 OrganizationRankCount = rankTypes.Count
             };
         }).ToList();
-    }}
+    }
+}

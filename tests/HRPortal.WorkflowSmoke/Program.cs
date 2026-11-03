@@ -1478,14 +1478,27 @@ static async Task VerifyImprovementActionsAsync()
     }
     Check(invalidStatusRejected, "Only InProgress, Completed and Cancelled statuses may be stored.");
 
+    var overdueInProgressRejected = false;
+    try
+    {
+        await service.UpdateAsync(employee.Id, action.Id, action.Title, action.Description,
+            now.Date.AddDays(-2), MonthlyPerformanceImprovementStatuses.InProgress);
+    }
+    catch (InvalidOperationException)
+    {
+        overdueInProgressRejected = true;
+    }
+    Check(overdueInProgressRejected,
+        "An improvement action cannot remain InProgress with a past deadline.");
+
     await service.UpdateAsync(employee.Id, action.Id, action.Title, action.Description,
-        now.Date.AddDays(12), MonthlyPerformanceImprovementStatuses.Completed);
+        now.Date.AddDays(-2), MonthlyPerformanceImprovementStatuses.Completed);
     var completed = (await service.ListMineAsync(employee.Id)).Single();
     Check(completed.Status == MonthlyPerformanceImprovementStatuses.Completed,
         "The employee must be able to move an improvement action to Completed.");
 
     await service.UpdateAsync(employee.Id, action.Id, action.Title, action.Description,
-        now.Date.AddDays(12), MonthlyPerformanceImprovementStatuses.Cancelled);
+        now.Date.AddDays(-2), MonthlyPerformanceImprovementStatuses.Cancelled);
     var cancelled = (await service.ListMineAsync(employee.Id)).Single();
     Check(cancelled.Status == MonthlyPerformanceImprovementStatuses.Cancelled,
         "The employee must be able to move an improvement action to Cancelled.");

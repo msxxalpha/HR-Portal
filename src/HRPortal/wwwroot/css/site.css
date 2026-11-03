@@ -784,3 +784,5 @@
     .role-list-card>.section-head{align-items:flex-start;flex-direction:column}
     .role-list-card>.section-head>a{width:100%;justify-content:center}
 }
+
+.role-system-note{margin:8px 0 12px;padding:9px 12px;border:1px solid #e5e8d9;border-radius:8px;background:#fafbf6;color:#65704f;font-size:11px;line-height:1.8}

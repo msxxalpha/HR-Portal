@@ -18,6 +18,7 @@ static void Check(bool condition, string message)
 VerifyGranularPermissionMatrix();
 VerifyPasswordLoginLockoutPolicy();
 await VerifyRoleAdministrationAsync();
+await VerifyImprovementActionsAsync();
 await VerifyEffectiveEmployeePermissionMatrixAsync();
 await VerifySuggestionsAnalyticsAsync();
 
@@ -1349,4 +1350,145 @@ static async Task VerifyRoleAdministrationAsync()
     }
 
     Console.WriteLine("PASS: role creation/update with empty optional fields, duplicate-code validation and legacy contract permission consolidation.");
+}
+
+
+static async Task VerifyImprovementActionsAsync()
+{
+    var options = new DbContextOptionsBuilder<HRPortalDbContext>()
+        .UseInMemoryDatabase("monthly-performance-improvement-actions")
+        .Options;
+
+    await using var db = new HRPortalDbContext(options);
+    var now = MonthlyPerformanceService.NowIran();
+    var employee = new Employee
+    {
+        PersonnelNumber = "IMP-001", NationalId = "IMP-NID-001",
+        FirstName = "کارمند", LastName = "آزمایشی", Mobile = "09120000001",
+        Gender = "مرد", Status = "فعال", IsSystemUser = true
+    };
+    var period = new MonthlyPerformancePeriod
+    {
+        Code = "MP-IMP-1405-08", Title = "آبان ۱۴۰۵", Year = 1405, Month = 8,
+        StartAt = now.AddDays(-10), EndAt = now.AddDays(20), IsEnabled = true
+    };
+    var domain = new MonthlyPerformanceDomain
+    {
+        Code = "IMP-DOMAIN", Title = "مهارت‌های تخصصی", IsActive = true
+    };
+    var partialQuestion = new MonthlyPerformanceQuestion
+    {
+        Code = "IMP-PARTIAL", Title = "تسلط بر ابزارهای کاری",
+        Domain = domain, IsActive = true, SortOrder = 1
+    };
+    var fullQuestion = new MonthlyPerformanceQuestion
+    {
+        Code = "IMP-FULL", Title = "رعایت نظم کاری",
+        Domain = domain, IsActive = true, SortOrder = 2
+    };
+    db.AddRange(employee, period, domain, partialQuestion, fullQuestion);
+    await db.SaveChangesAsync();
+
+    var evaluation = new MonthlyPerformanceEvaluation
+    {
+        PeriodId = period.Id, EmployeeId = employee.Id,
+        OriginalEvaluatorId = 900, LastEvaluatorId = 900,
+        RankTitleSnapshot = "کارشناس", MaxScore = 20, TotalScore = 17,
+        RowVersion = new byte[8]
+    };
+    db.MonthlyPerformanceEvaluations.Add(evaluation);
+    await db.SaveChangesAsync();
+
+    var partialScore = new MonthlyPerformanceScore
+    {
+        EvaluationId = evaluation.Id, QuestionId = partialQuestion.Id,
+        QuestionTitleSnapshot = partialQuestion.Title, DomainTitleSnapshot = domain.Title,
+        MaxScore = 10, Score = 7
+    };
+    var fullScore = new MonthlyPerformanceScore
+    {
+        EvaluationId = evaluation.Id, QuestionId = fullQuestion.Id,
+        QuestionTitleSnapshot = fullQuestion.Title, DomainTitleSnapshot = domain.Title,
+        MaxScore = 10, Score = 10
+    };
+    db.MonthlyPerformanceScores.AddRange(partialScore, fullScore);
+    await db.SaveChangesAsync();
+
+    var service = new MonthlyPerformanceImprovementService(db);
+    var action = await service.CreateAsync(
+        employee.Id, partialScore.Id, "شرکت در دوره آموزشی", "آموزش و تمرین ابزار تخصصی",
+        now.Date.AddDays(14));
+    Check(action.Status == MonthlyPerformanceImprovementStatuses.InProgress &&
+          action.OwnerEmployeeId == employee.Id && action.ScoreId == partialScore.Id,
+        "A new improvement action must belong to the employee and start in the InProgress state.");
+
+    var mine = await service.ListMineAsync(employee.Id);
+    Check(mine.Count == 1 && mine[0].QuestionTitle == partialQuestion.Title,
+        "The employee personal dashboard must list the employee's own improvement actions.");
+
+    var inScope = await service.ListForScopeAsync([employee.Id], period.Id);
+    Check(inScope.Count == 1 && inScope[0].EmployeeId == employee.Id,
+        "The evaluator dashboard query must return plans only for employee IDs in its organizational scope.");
+    Check((await service.ListForScopeAsync([employee.Id + 10000], period.Id)).Count == 0,
+        "The evaluator dashboard must not expose plans belonging to employees outside its organizational scope.");
+
+    var fullScoreRejected = false;
+    try
+    {
+        await service.CreateAsync(employee.Id, fullScore.Id, "اقدام غیرضروری", null, now.Date.AddDays(5));
+    }
+    catch (InvalidOperationException)
+    {
+        fullScoreRejected = true;
+    }
+    Check(fullScoreRejected, "An improvement action must not be created for a question that received its full score.");
+
+    var pastDueRejected = false;
+    try
+    {
+        await service.CreateAsync(employee.Id, partialScore.Id, "اقدام با موعد گذشته", null, now.Date.AddDays(-1));
+    }
+    catch (InvalidOperationException)
+    {
+        pastDueRejected = true;
+    }
+    Check(pastDueRejected, "A new improvement action must have a due date today or in the future.");
+
+    var wrongOwnerRejected = false;
+    try
+    {
+        await service.UpdateAsync(employee.Id + 1, action.Id, "تغییر غیرمجاز", null,
+            now.Date.AddDays(10), MonthlyPerformanceImprovementStatuses.Completed);
+    }
+    catch (UnauthorizedAccessException)
+    {
+        wrongOwnerRejected = true;
+    }
+    Check(wrongOwnerRejected, "Only the improvement plan owner may update its content, due date or status.");
+
+    var invalidStatusRejected = false;
+    try
+    {
+        await service.UpdateAsync(employee.Id, action.Id, action.Title, action.Description,
+            now.Date.AddDays(10), "UnknownStatus");
+    }
+    catch (InvalidOperationException)
+    {
+        invalidStatusRejected = true;
+    }
+    Check(invalidStatusRejected, "Only InProgress, Completed and Cancelled statuses may be stored.");
+
+    await service.UpdateAsync(employee.Id, action.Id, action.Title, action.Description,
+        now.Date.AddDays(12), MonthlyPerformanceImprovementStatuses.Completed);
+    var completed = (await service.ListMineAsync(employee.Id)).Single();
+    Check(completed.Status == MonthlyPerformanceImprovementStatuses.Completed,
+        "The employee must be able to move an improvement action to Completed.");
+
+    await service.UpdateAsync(employee.Id, action.Id, action.Title, action.Description,
+        now.Date.AddDays(12), MonthlyPerformanceImprovementStatuses.Cancelled);
+    var cancelled = (await service.ListMineAsync(employee.Id)).Single();
+    Check(cancelled.Status == MonthlyPerformanceImprovementStatuses.Cancelled,
+        "The employee must be able to move an improvement action to Cancelled.");
+
+    Console.WriteLine("PASS: improvement action ownership, partial-score eligibility, due dates, status transitions, personal listing and evaluator-scope filtering.");
 }

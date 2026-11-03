@@ -96,7 +96,7 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
 
         // Legacy employees with no personal password get a one-time national-ID initial
         // credential. Never change an existing personal password, and require a reset.
-        var limitKey = "password-login:" + personnelNumber + ":" + (HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown");
+        var limitKey = "password-login:" + personnelNumber;
         var failures = loginAttempts.Get<int>(limitKey);
         if (failures >= 5)
         {

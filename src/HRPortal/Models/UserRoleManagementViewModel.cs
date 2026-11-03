@@ -13,6 +13,8 @@ public class EmployeeRoleRow
 {
     public Employee Employee { get; set; } = null!;
     public List<int> RoleIds { get; set; } = [];
+    public List<int> PersonalPermissionIds { get; set; } = [];
+    public bool IsPasswordLocked { get; set; }
 }
 
 public class RoleEditModel

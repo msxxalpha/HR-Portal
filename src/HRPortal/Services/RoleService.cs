@@ -36,7 +36,12 @@ public class RoleService(HRPortalDbContext db)
         ("Suggestions.Evaluate", "ارزیابی تخصصی پیشنهادها", "نظام پیشنهادات"),
         ("Workflow.Inbox", "کارتابل گردش کار", "گردش کار"),
         ("Workflow.Manage", "مدیریت گردش کار", "گردش کار"),
-        ("ContractRenewal.Manage", "ثبت و پیگیری تمدید قرارداد", "ماژول مدیریت قراردادهای کارکنان"),
+        ("ContractRenewal.View", "مشاهده داشبورد، درخواست‌ها و سوابق", "تمدید قرارداد"),
+        ("ContractRenewal.Create", "ایجاد و ثبت درخواست تمدید", "تمدید قرارداد"),
+        ("ContractRenewal.Edit", "ویرایش درخواست پیش از ارزیابی", "تمدید قرارداد"),
+        ("ContractRenewal.Delete", "حذف نرم درخواست پیش از ارزیابی", "تمدید قرارداد"),
+        ("ContractRenewal.Settings", "مدیریت اطلاعات پایه و تنظیمات گردش", "تمدید قرارداد"),
+        ("ContractRenewal.Manage", "دسترسی کامل و سازگاری با نقش‌های قبلی", "تمدید قرارداد"),
         ("MonthlyPerformance.View", "مشاهده ارزیابی عملکرد شخصی", "ماژول ارزیابی عملکرد کارکنان"),
         ("MonthlyPerformance.Evaluate", "ارزیابی کارکنان زیرمجموعه", "ماژول ارزیابی عملکرد کارکنان"),
         ("MonthlyPerformance.Manage", "مدیریت اطلاعات پایه و دوره‌های ارزیابی", "ماژول ارزیابی عملکرد کارکنان"),
@@ -293,7 +298,10 @@ public class RoleService(HRPortalDbContext db)
             }
         }
 
-        return AggregatePermissionCodes(directCodes, inheritedCodes);
+        var personalCodes = await db.EmployeePermissions.AsNoTracking()
+            .Where(x => x.EmployeeId == employeeId)
+            .Select(x => x.Permission.Code).ToListAsync();
+        return AggregatePermissionCodes(directCodes, inheritedCodes, personalCodes);
     }
 
     public async Task<bool> IsPerformanceEvaluatorAsync(int employeeId) =>
@@ -354,6 +362,19 @@ public class RoleService(HRPortalDbContext db)
             db.RoleOrganizationRanks.Where(x => x.RoleId == roleId));
         foreach (var rankType in selected)
             db.RoleOrganizationRanks.Add(new RoleOrganizationRank { RoleId = roleId, RankType = rankType });
+        await db.SaveChangesAsync();
+    }
+
+    public async Task<List<int>> GetEmployeePersonalPermissionIdsAsync(int employeeId) =>
+        await db.EmployeePermissions.AsNoTracking().Where(x => x.EmployeeId == employeeId)
+            .Select(x => x.PermissionId).ToListAsync();
+
+    public async Task SaveEmployeePersonalPermissionsAsync(int employeeId, IEnumerable<int> permissionIds)
+    {
+        var valid = await db.Permissions.Where(x => permissionIds.Contains(x.Id)).Select(x => x.Id).ToListAsync();
+        db.EmployeePermissions.RemoveRange(db.EmployeePermissions.Where(x => x.EmployeeId == employeeId));
+        foreach (var permissionId in valid.Distinct())
+            db.EmployeePermissions.Add(new EmployeePermission { EmployeeId = employeeId, PermissionId = permissionId });
         await db.SaveChangesAsync();
     }
 

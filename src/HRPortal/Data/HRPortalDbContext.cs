@@ -35,6 +35,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
     public DbSet<EmployeeRole> EmployeeRoles => Set<EmployeeRole>();
+    public DbSet<EmployeePermission> EmployeePermissions => Set<EmployeePermission>();
     public DbSet<RoleOrganizationRank> RoleOrganizationRanks => Set<RoleOrganizationRank>();
     public DbSet<AnnouncementCategory> AnnouncementCategories => Set<AnnouncementCategory>();
     public DbSet<Announcement> Announcements => Set<Announcement>();

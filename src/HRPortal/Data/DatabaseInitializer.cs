@@ -23,6 +23,7 @@ AND COL_LENGTH(N'dbo.SystemSettings', N'EnableHrDisciplinaryScoreDeduction') IS 
         await EnsureAdminTableAsync(db);
         await EnsureAdminColumnsAsync(db);
         await EnsureRoleTablesAsync(db);
+        await EnsureEmployeePermissionsSchemaAsync(db);
         await EnsureReportAndAnnouncementSchemaAsync(db);
         await WorkflowSchemaInitializer.InitializeAsync(db);
         await ContractManagementSchemaInitializer.InitializeAsync(db);
@@ -193,6 +194,26 @@ BEGIN
     FOREIGN KEY ([CategoryId]) REFERENCES [dbo].[AnnouncementCategories]([Id]);
 END;
 ";
+        await db.Database.ExecuteSqlRawAsync(sql);
+    }
+
+
+    private static async Task EnsureEmployeePermissionsSchemaAsync(HRPortalDbContext db)
+    {
+        const string sql = @"
+IF OBJECT_ID(N'dbo.EmployeePermissions', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.EmployeePermissions(
+        Id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_EmployeePermissions PRIMARY KEY,
+        EmployeeId int NOT NULL,
+        PermissionId int NOT NULL,
+        CreatedAtUtc datetime2 NOT NULL CONSTRAINT DF_EmployeePermissions_CreatedAtUtc DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT FK_EmployeePermissions_Employees FOREIGN KEY(EmployeeId) REFERENCES dbo.Employees(Id) ON DELETE CASCADE,
+        CONSTRAINT FK_EmployeePermissions_Permissions FOREIGN KEY(PermissionId) REFERENCES dbo.Permissions(Id) ON DELETE CASCADE
+    );
+END;
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'UX_EmployeePermissions_Employee_Permission' AND object_id=OBJECT_ID(N'dbo.EmployeePermissions'))
+    CREATE UNIQUE INDEX UX_EmployeePermissions_Employee_Permission ON dbo.EmployeePermissions(EmployeeId,PermissionId);";
         await db.Database.ExecuteSqlRawAsync(sql);
     }
 

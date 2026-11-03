@@ -4,11 +4,12 @@ using HRPortal.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace HRPortal.Controllers;
 
 [Authorize(Policy = "UsersRoles.Manage")]
-public class UsersController(HRPortalDbContext db, RoleService roles, AuditService audit) : Controller
+public class UsersController(HRPortalDbContext db, RoleService roles, AuditService audit, IMemoryCache loginAttempts) : Controller
 {
     [HttpGet]
     public async Task<IActionResult> Index(int? roleId)
@@ -18,7 +19,7 @@ public class UsersController(HRPortalDbContext db, RoleService roles, AuditServi
 
         var model = new UserRoleManagementViewModel
         {
-            Users = canUsers ? await roles.GetUserRowsAsync() : [],
+            Users = canUsers ? await BuildUserRowsAsync() : [],
             Permissions = canRoles ? await roles.GetPermissionsAsync() : [],
             Roles = canRoles ? await BuildRoleModelsAsync() : [],
             OrganizationRankTypes = canRoles ? await roles.GetOrganizationRankTypesAsync() : [],
@@ -28,6 +29,40 @@ public class UsersController(HRPortalDbContext db, RoleService roles, AuditServi
         ViewBag.CanRoles = canRoles;
         ViewBag.SelectedRoleId = roleId;
         return View(model);
+    }
+
+
+    private async Task<List<EmployeeRoleRow>> BuildUserRowsAsync()
+    {
+        var rows = await roles.GetUserRowsAsync();
+        foreach (var row in rows)
+        {
+            row.PersonalPermissionIds = await roles.GetEmployeePersonalPermissionIdsAsync(row.Employee.Id);
+            row.IsPasswordLocked = loginAttempts.Get<int>("password-login:" + row.Employee.PersonnelNumber) >= 5;
+        }
+        return rows;
+    }
+
+    [HttpPost, Authorize(Policy = "Users.Manage"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> SavePersonalPermissions(int employeeId, int[]? permissionIds)
+    {
+        var employee = await db.Employees.FindAsync(employeeId);
+        if (employee is null) return NotFound();
+        await roles.SaveEmployeePersonalPermissionsAsync(employeeId, permissionIds ?? []);
+        await audit.WriteAsync("تغییر دسترسی‌های شخصی کاربر", "Employee", employeeId.ToString(), employee.PersonnelNumber, employeeId);
+        TempData["Success"] = "دسترسی‌های شخصی کاربر ذخیره شد؛ دسترسی مؤثر، اجتماع نقش‌ها و مجوزهای شخصی است.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost, Authorize(Policy = "Users.Manage"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> UnlockPassword(int employeeId)
+    {
+        var employee = await db.Employees.FindAsync(employeeId);
+        if (employee is null) return NotFound();
+        loginAttempts.Remove("password-login:" + employee.PersonnelNumber);
+        await audit.WriteAsync("رفع قفل ورود با رمز توسط مدیر", "Employee", employeeId.ToString(), employee.PersonnelNumber, employeeId);
+        TempData["Success"] = $"محدودیت ورود با رمز برای {employee.PersonnelNumber} برداشته شد.";
+        return RedirectToAction(nameof(Index));
     }
 
     [HttpPost, Authorize(Policy = "Users.Manage"), ValidateAntiForgeryToken]

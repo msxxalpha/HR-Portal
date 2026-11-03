@@ -51,7 +51,7 @@ public class UsersController(HRPortalDbContext db, RoleService roles, AuditServi
         await roles.SaveEmployeePersonalPermissionsAsync(employeeId, permissionIds ?? []);
         await audit.WriteAsync("تغییر دسترسی‌های شخصی کاربر", "Employee", employeeId.ToString(), employee.PersonnelNumber, employeeId);
         TempData["Success"] = "دسترسی‌های شخصی کاربر ذخیره شد؛ دسترسی مؤثر، اجتماع نقش‌ها و مجوزهای شخصی است.";
-        return Redirect("/Users#roles");
+        return RedirectToAction(nameof(Index));
     }
 
     [HttpPost, Authorize(Policy = "Users.Manage"), ValidateAntiForgeryToken]
@@ -66,7 +66,7 @@ public class UsersController(HRPortalDbContext db, RoleService roles, AuditServi
         await db.SaveChangesAsync();
         await audit.WriteAsync("رفع قفل ورود با رمز توسط مدیر", "Employee", employeeId.ToString(), employee.PersonnelNumber, employeeId);
         TempData["Success"] = $"محدودیت ورود با رمز برای {employee.PersonnelNumber} برداشته شد.";
-        return Redirect("/Users#roles");
+        return RedirectToAction(nameof(Index));
     }
 
     [HttpPost, Authorize(Policy = "Users.Manage"), ValidateAntiForgeryToken]
@@ -88,7 +88,7 @@ public class UsersController(HRPortalDbContext db, RoleService roles, AuditServi
 
         await audit.WriteAsync("تغییر کاربر و نقش", "Employee", employeeId.ToString(), employee.PersonnelNumber);
         TempData["Success"] = "تنظیمات کاربر ذخیره شد.";
-        return Redirect("/Users#roles");
+        return RedirectToAction(nameof(Index));
     }
 
     [HttpPost, Authorize(Policy = "Users.Manage"), ValidateAntiForgeryToken]
@@ -103,23 +103,23 @@ public class UsersController(HRPortalDbContext db, RoleService roles, AuditServi
         if (!PasswordHasher.IsValidPersonalPassword(password))
         {
             TempData["Error"] = "رمز جدید باید حداقل ۶ کاراکتر داشته باشد.";
-            return Redirect("/Users#roles");
+            return RedirectToAction(nameof(Index));
         }
         if (!string.Equals(password, confirmation, StringComparison.Ordinal))
         {
             TempData["Error"] = "تکرار رمز جدید با مقدار جدید یکسان نیست.";
-            return Redirect("/Users#roles");
+            return RedirectToAction(nameof(Index));
         }
         var employee = await db.Employees.FindAsync(employeeId);
         if (employee is null)
         {
             TempData["Error"] = "کارمند موردنظر یافت نشد.";
-            return Redirect("/Users#roles");
+            return RedirectToAction(nameof(Index));
         }
         if (!employee.IsSystemUser || employee.Status != "فعال")
         {
             TempData["Error"] = "فقط برای کاربران فعال سامانه می‌توان رمز شخصی تعیین یا تغییر داد.";
-            return Redirect("/Users#roles");
+            return RedirectToAction(nameof(Index));
         }
         var hadValue = !string.IsNullOrWhiteSpace(employee.PersonalPasswordHash);
         employee.PersonalPasswordHash = PasswordHasher.Hash(password);
@@ -137,7 +137,7 @@ public class UsersController(HRPortalDbContext db, RoleService roles, AuditServi
         TempData["Success"] = hadValue
             ? $"رمز شخصی کاربر {employee.PersonnelNumber} تغییر کرد."
             : $"رمز شخصی برای کاربر {employee.PersonnelNumber} تعیین شد.";
-        return Redirect("/Users#roles");
+        return RedirectToAction(nameof(Index));
     }
 
     [HttpGet, Authorize(Policy = "Roles.Manage")]

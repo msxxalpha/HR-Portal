@@ -407,12 +407,16 @@ public class RoleService(HRPortalDbContext db)
     }
 
     public async Task<List<int>> GetEmployeePersonalPermissionIdsAsync(int employeeId) =>
-        await db.EmployeePermissions.AsNoTracking().Where(x => x.EmployeeId == employeeId)
+        await db.EmployeePermissions.AsNoTracking()
+            .Where(x => x.EmployeeId == employeeId && x.Permission.Code != "ContractRenewal.Manage")
             .Select(x => x.PermissionId).ToListAsync();
 
     public async Task SaveEmployeePersonalPermissionsAsync(int employeeId, IEnumerable<int> permissionIds)
     {
-        var valid = await db.Permissions.Where(x => permissionIds.Contains(x.Id)).Select(x => x.Id).ToListAsync();
+        var selectedIds = (permissionIds ?? []).Distinct().ToArray();
+        var valid = await db.Permissions
+            .Where(x => selectedIds.Contains(x.Id) && x.Code != "ContractRenewal.Manage")
+            .Select(x => x.Id).ToListAsync();
         db.EmployeePermissions.RemoveRange(db.EmployeePermissions.Where(x => x.EmployeeId == employeeId));
         foreach (var permissionId in valid.Distinct())
             db.EmployeePermissions.Add(new EmployeePermission { EmployeeId = employeeId, PermissionId = permissionId });

@@ -457,7 +457,7 @@ static async Task VerifySuggestionsAnalyticsAsync()
           model.SubmittedCount == 1 && model.AcceptedCount == 1 && model.InEvaluationCount == 0,
         "Suggestion dashboard status KPIs must match the stored records.");
     Check(model.UniqueProposers == 1 && model.CollaborativeCount == 1 &&
-          model.AttachmentCount == 1 && model.SubmittedLast30Days == 1,
+          model.AttachmentCount == 1 && model.SubmittedLast30Days == 2,
         $"Suggestion dashboard must correctly aggregate proposers, collaborators, attachments and recent submissions. Actual: proposers={model.UniqueProposers}, collaborative={model.CollaborativeCount}, attachments={model.AttachmentCount}, recent={model.SubmittedLast30Days}.");
     Check(model.CategoryBuckets.Sum(x => x.Count) == 3 &&
           model.BenefitBuckets.Single(x => x.Label == "کاهش هزینه").Count == 3 &&

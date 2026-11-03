@@ -8,7 +8,11 @@ using Microsoft.EntityFrameworkCore;
 namespace HRPortal.Controllers;
 
 [Authorize(Policy = "UsersRoles.Manage")]
-public class UsersController(HRPortalDbContext db, RoleService roles, AuditService audit) : Controller
+public class UsersController(
+    HRPortalDbContext db,
+    RoleService roles,
+    AuditService audit,
+    ILogger<UsersController>? logger = null) : Controller
 {
     [HttpGet]
     public async Task<IActionResult> Index(int? roleId)
@@ -172,9 +176,15 @@ public class UsersController(HRPortalDbContext db, RoleService roles, AuditServi
         {
             TempData["Error"] = ex.Message;
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException ex)
         {
-            TempData["Error"] = "ذخیره نقش انجام نشد. کد نقش را بررسی کنید و دوباره تلاش کنید.";
+            logger?.LogError(ex, "Database error while saving role {RoleCode} (RoleId: {RoleId}).", model.Code, model.Id);
+            TempData["Error"] = "ذخیره نقش انجام نشد. کد نقش یا اطلاعات واردشده را بررسی کنید و دوباره تلاش کنید.";
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger?.LogError(ex, "Unexpected error while saving role {RoleCode} (RoleId: {RoleId}).", model.Code, model.Id);
+            TempData["Error"] = "خطای غیرمنتظره‌ای هنگام ذخیره نقش رخ داد. جزئیات خطا برای مدیر سامانه ثبت شد.";
         }
 
         return model.Id > 0

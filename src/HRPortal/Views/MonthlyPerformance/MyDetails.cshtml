@@ -3,7 +3,6 @@
  Layout = "~/Views/Shared/_Layout.cshtml";
  var evaluation = Model.Evaluation;
  ViewData["Title"] = "جزئیات عملکرد و برنامه اقدام بهبود من";
- var statuses = HRPortal.Models.MonthlyPerformanceImprovementStatuses;
 }
 <link rel="stylesheet" href="~/css/monthly-performance.css" asp-append-version="true" />
 <div class="mp">
@@ -97,9 +96,9 @@
           </label>
           <label>وضعیت
            <select name="status" required>
-            <option value="@statuses.InProgress" selected="@(action.Status == statuses.InProgress)">در حال انجام</option>
-            <option value="@statuses.Completed" selected="@(action.Status == statuses.Completed)">پایان‌یافته</option>
-            <option value="@statuses.Cancelled" selected="@(action.Status == statuses.Cancelled)">لغوشده</option>
+            <option value="@HRPortal.Models.MonthlyPerformanceImprovementStatuses.InProgress" selected="@(action.Status == HRPortal.Models.MonthlyPerformanceImprovementStatuses.InProgress)">در حال انجام</option>
+            <option value="@HRPortal.Models.MonthlyPerformanceImprovementStatuses.Completed" selected="@(action.Status == HRPortal.Models.MonthlyPerformanceImprovementStatuses.Completed)">پایان‌یافته</option>
+            <option value="@HRPortal.Models.MonthlyPerformanceImprovementStatuses.Cancelled" selected="@(action.Status == HRPortal.Models.MonthlyPerformanceImprovementStatuses.Cancelled)">لغوشده</option>
            </select>
           </label>
           <div class="mp-action-meta">موعد فعلی: @HRPortal.Services.PersianDateService.Format(action.DueDate) · آخرین به‌روزرسانی: @HRPortal.Services.PersianDateService.Format(HRPortal.Services.MonthlyPerformanceService.ToIranTime(action.UpdatedAtUtc))</div>

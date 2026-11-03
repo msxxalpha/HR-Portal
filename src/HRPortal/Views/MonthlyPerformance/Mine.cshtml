@@ -4,6 +4,10 @@
  ViewData["Title"] = "داشبورد عملکرد شخصی و روند سؤالات";
  var ordered = Model.OrderBy(x => x.Period.Year).ThenBy(x => x.Period.Month).ToList();
  var latest = Model.FirstOrDefault();
+ var improvementActions = ViewBag.ImprovementActions as List<HRPortal.Models.MonthlyPerformanceImprovementActionVm> ?? new List<HRPortal.Models.MonthlyPerformanceImprovementActionVm>();
+ var inProgressActions = improvementActions.Count(x => x.Status == HRPortal.Models.MonthlyPerformanceImprovementStatuses.InProgress);
+ var completedActions = improvementActions.Count(x => x.Status == HRPortal.Models.MonthlyPerformanceImprovementStatuses.Completed);
+ var cancelledActions = improvementActions.Count(x => x.Status == HRPortal.Models.MonthlyPerformanceImprovementStatuses.Cancelled);
  var average = Model.Count == 0 ? 0m : Math.Round(Model.Where(x => x.MaxScore > 0).DefaultIfEmpty().Average(x => x is null || x.MaxScore == 0 ? 0 : 100m * x.TotalScore / x.MaxScore),1);
 }
 <link rel="stylesheet" href="~/css/monthly-performance.css" asp-append-version="true" />
@@ -15,6 +19,42 @@
 <div class="mp-kpi" style="--mp-color:#16a34a"><div class="caption">آخرین امتیاز</div><strong>@(latest?.TotalScore.ToString("N2") ?? "—")</strong><small>از @(latest?.MaxScore.ToString("N2") ?? "—")</small></div>
 <div class="mp-kpi" style="--mp-color:#0d9488"><div class="caption">میانگین درصد عملکرد</div><strong>@average٪</strong></div>
 <div class="mp-kpi" style="--mp-color:#be123c"><div class="caption">کسر امتیاز آخرین دوره</div><strong>@((latest?.MaxScore - latest?.TotalScore)?.ToString("N2") ?? "—")</strong></div>
+</section>
+<section class="mp-card mp-improvement-overview" id="my-improvement-actions">
+<div class="mp-toolbar">
+ <div><h2>برنامه‌های اقدام بهبود شخصی من</h2><p class="mp-note">برای شاخص‌هایی که امتیاز کامل نگرفته‌اند، اقدام‌هایی مانند گذراندن آموزش، مطالعه، تمرین یا انجام یک کار مشخص تعریف کنید و تا پایان آن‌ها را پیگیری کنید.</p></div>
+ <span class="mp-tag open">@improvementActions.Count برنامه ثبت‌شده</span>
+</div>
+<div class="mp-action-stats">
+ <div><strong>@inProgressActions</strong><span>در حال انجام</span></div>
+ <div><strong>@completedActions</strong><span>پایان‌یافته</span></div>
+ <div><strong>@cancelledActions</strong><span>لغوشده</span></div>
+</div>
+@if (improvementActions.Count == 0)
+{
+ <div class="mp-empty">هنوز برنامه اقدام بهبودی ثبت نکرده‌اید. از بخش جزئیات هر دوره، برای شاخص‌های دارای کسر امتیاز برنامه خود را تعریف کنید.</div>
+}
+else
+{
+ <div class="mp-table-wrap">
+ <table class="mp-filter-table">
+ <thead><tr><th>دوره</th><th>حوزه و شاخص</th><th>اقدام برنامه‌ریزی‌شده</th><th>موعد پایان</th><th>وضعیت</th><th>مدیریت</th></tr></thead>
+ <tbody>
+ @foreach (var action in improvementActions.OrderBy(x => x.DueDate))
+ {
+ <tr>
+  <td>@action.PeriodTitle</td>
+  <td><strong>@action.QuestionTitle</strong><small class="mp-note">@action.DomainTitle</small></td>
+  <td>@action.Title</td>
+  <td><span class="@(action.IsOverdue ? "mp-action-overdue" : "")">@HRPortal.Services.PersianDateService.Format(action.DueDate)</span></td>
+  <td><span class="mp-action-status @action.Status">@action.StatusTitle</span></td>
+  <td><a class="btn btn-outline btn-sm" href="/MonthlyPerformance/MyDetails?periodId=@action.PeriodId#improvement-actions">مدیریت اقدام‌ها</a></td>
+ </tr>
+ }
+ </tbody>
+ </table>
+ </div>
+}
 </section>
 @if(Model.Count == 0){<div class="mp-empty">هنوز برای شما ارزیابی ماهانه‌ای ثبت نشده است. به محض ثبت نتایج، داشبورد اختصاصی شما فعال می‌شود.</div>}
 else

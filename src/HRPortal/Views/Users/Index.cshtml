@@ -148,7 +148,7 @@
                         <th>عنوان نقش و کد</th>
                         <th>ماژول‌های مرتبط</th>
                         <th>تعداد دسترسی</th>
-                        <th>کاربران دارای نقش</th>
+                        <th>کاربران فعال منتسب</th>
                         <th>رده‌های سازمانی</th>
                         <th>وضعیت</th>
                         <th>عملیات</th>
@@ -180,7 +180,10 @@
                             }
                         </td>
                         <td data-label="تعداد دسترسی"><span class="role-count">@role.PermissionCount</span></td>
-                        <td data-label="کاربران دارای نقش"><span class="role-count">@role.UserCount</span></td>
+                        <td data-label="کاربران فعال منتسب">
+                            <span class="role-count">@role.UserCount</span>
+                            <small class="role-rank-list">تخصیص مستقیم و سازمانی</small>
+                        </td>
                         <td data-label="رده‌های سازمانی">
                             <span class="role-count">@role.OrganizationRankCount</span>
                             @if (role.AssignedRankTypes.Count > 0)

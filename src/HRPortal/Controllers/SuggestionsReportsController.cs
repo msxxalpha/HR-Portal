@@ -33,18 +33,21 @@ public class SuggestionsReportsController(HRPortalDbContext db) : Controller
         var inEvaluation = rows.Count - drafts - submitted - accepted.Count - rejected.Count;
         var persian = new PersianCalendar();
         var localNow = DateTime.Now;
+        var currentJalaliMonthStart = persian.ToDateTime(
+            persian.GetYear(localNow), persian.GetMonth(localNow), 1, 0, 0, 0, 0);
         var monthly = new List<SuggestionDashboardBucket>();
         for (var i = 11; i >= 0; i--)
         {
-            var month = new DateTime(localNow.Year, localNow.Month, 1).AddMonths(-i);
-            var keyYear = persian.GetYear(month);
-            var keyMonth = persian.GetMonth(month);
+            var monthStart = persian.AddMonths(currentJalaliMonthStart, -i);
+            var nextMonthStart = persian.AddMonths(monthStart, 1);
+            var keyYear = persian.GetYear(monthStart);
+            var keyMonth = persian.GetMonth(monthStart);
             var label = $"{keyYear}/{keyMonth:00}";
             var count = rows.Count(x =>
             {
                 if (!x.SubmittedAtUtc.HasValue) return false;
                 var date = x.SubmittedAtUtc.Value.ToLocalTime();
-                return date.Year == month.Year && date.Month == month.Month;
+                return date >= monthStart && date < nextMonthStart;
             });
             monthly.Add(new SuggestionDashboardBucket { Label = label, Count = count });
         }

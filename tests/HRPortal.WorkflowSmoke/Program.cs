@@ -1272,6 +1272,12 @@ static async Task VerifyRoleAdministrationAsync()
             Title = "ثبت و پیگیری تمدید قرارداد",
             Module = "مدیریت قراردادهای کارکنان"
         };
+        var misplacedGranularPermission = new Permission
+        {
+            Code = "ContractRenewal.View",
+            Title = "عنوان قدیمی مشاهده تمدید",
+            Module = "مدیریت قراردادهای کارکنان"
+        };
         var legacyRole = new Role
         {
             Code = "OLD_RENEWAL_ROLE", Title = "نقش قدیمی تمدید", IsActive = true
@@ -1282,7 +1288,7 @@ static async Task VerifyRoleAdministrationAsync()
             FirstName = "کارمند", LastName = "آزمون", Mobile = "09120000000",
             Gender = "مرد", Status = "فعال", IsSystemUser = true
         };
-        db.AddRange(legacyPermission, legacyRole, employee);
+        db.AddRange(legacyPermission, misplacedGranularPermission, legacyRole, employee);
         await db.SaveChangesAsync();
         db.RolePermissions.Add(new RolePermission
         {
@@ -1315,6 +1321,10 @@ static async Task VerifyRoleAdministrationAsync()
             .CountAsync();
         Check(visibleRenewalPermissions == 9,
             "The old renewal permission group must be consolidated into the existing nine granular contract-renewal permissions.");
+        var repairedViewPermission = await db.Permissions.SingleAsync(x => x.Code == "ContractRenewal.View");
+        Check(repairedViewPermission.Module == "تمدید قرارداد" &&
+              repairedViewPermission.Title == "مشاهده جزئیات و سوابق درخواست تمدید",
+            "An existing granular renewal permission under the old module must be repaired in place, not deleted.");
     }
 
     Console.WriteLine("PASS: role creation/update with empty optional fields, duplicate-code validation and legacy contract permission consolidation.");

@@ -66,8 +66,8 @@
     <td>@(score.MaxScore==0?0:Math.Round(score.Score/score.MaxScore*100m,1))٪</td>
     <td>@(score.Note ?? "—")</td>
     <td>
-     <details class="mp-action-details" id="improvement-actions-@score.Id">
-      <summary><span>برنامه‌ها (@actions.Count)</span><small>@(partial ? "نیازمند توجه" : "امتیاز کامل")</small></summary>
+     <details class="mp-action-details" id="improvement-actions-@score.Id" open="@(partial ? "open" : null)">
+      <summary><span>@(partial && actions.Count == 0 ? "ثبت اقدام بهبود" : $"برنامه‌ها ({actions.Count})")</span><small>@(partial ? "نیازمند توجه" : "امتیاز کامل")</small></summary>
       <div class="mp-action-details-body">
        @if (actions.Count == 0)
        {

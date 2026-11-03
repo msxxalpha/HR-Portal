@@ -16,6 +16,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
     public DbSet<MonthlyPerformanceEvaluation> MonthlyPerformanceEvaluations => Set<MonthlyPerformanceEvaluation>();
     public DbSet<MonthlyPerformanceScore> MonthlyPerformanceScores => Set<MonthlyPerformanceScore>();
     public DbSet<MonthlyPerformanceRevision> MonthlyPerformanceRevisions => Set<MonthlyPerformanceRevision>();
+    public DbSet<MonthlyPerformanceImprovementAction> MonthlyPerformanceImprovementActions => Set<MonthlyPerformanceImprovementAction>();
     public DbSet<SystemSettings> SystemSettings => Set<SystemSettings>();
     public DbSet<OtpSettings> OtpSettings => Set<OtpSettings>();
     public DbSet<SmsSettings> SmsSettings => Set<SmsSettings>();
@@ -113,6 +114,21 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.ToTable("MonthlyPerformanceRevisions"); e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.EvaluationId, x.ChangedAt });
             e.Property(x => x.OldScore).HasPrecision(12, 2); e.Property(x => x.NewScore).HasPrecision(12, 2);
+        });
+        modelBuilder.Entity<MonthlyPerformanceImprovementAction>(e =>
+        {
+            e.ToTable("MonthlyPerformanceImprovementActions");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Title).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(2000);
+            e.Property(x => x.Status).HasMaxLength(20).IsRequired();
+            e.Property(x => x.DueDate).HasColumnType("date");
+            e.HasIndex(x => new { x.OwnerEmployeeId, x.CreatedAtUtc });
+            e.HasIndex(x => new { x.ScoreId, x.Status, x.DueDate });
+            e.HasOne(x => x.Score).WithMany()
+                .HasForeignKey(x => x.ScoreId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.OwnerEmployee).WithMany()
+                .HasForeignKey(x => x.OwnerEmployeeId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<Employee>(e =>
         {

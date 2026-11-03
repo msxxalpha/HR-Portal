@@ -234,6 +234,11 @@ document.querySelectorAll('.tab').forEach(function (button) {
         document.getElementById(button.dataset.tab).classList.add('active');
     });
 });
+const requestedTab = window.location.hash.slice(1);
+if (requestedTab) {
+    const requestedButton = document.querySelector('.tab[data-tab="' + requestedTab + '"]');
+    if (requestedButton) requestedButton.click();
+}
 const roleSearch = document.getElementById('rolesSearch');
 const roleStatus = document.getElementById('roleStatusFilter');
 const roleRows = Array.from(document.querySelectorAll('[data-role-row]'));

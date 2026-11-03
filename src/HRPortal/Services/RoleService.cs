@@ -587,7 +587,7 @@ public class RoleService(HRPortalDbContext db)
         List<RolePermission> currentAssignments = [];
         if (model.Id == 0)
         {
-            role = new Role { Code = code, Title = title, Description = description, IsActive = model.IsActive };
+            role = new Role { Code = code, Title = title, Description = description, IsActive = true };
             db.Roles.Add(role);
         }
         else
@@ -596,7 +596,7 @@ public class RoleService(HRPortalDbContext db)
             role.Code = code;
             role.Title = title;
             role.Description = description;
-            role.IsActive = model.IsActive;
+            // Activation is managed from the role list, not through a stale hidden editor field.
             currentAssignments = await db.RolePermissions
                 .Where(x => x.RoleId == role.Id).ToListAsync();
 

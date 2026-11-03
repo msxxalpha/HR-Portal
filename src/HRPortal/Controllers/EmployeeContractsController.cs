@@ -19,7 +19,7 @@ public class EmployeeContractsController(
     [Authorize(Policy = "ContractRenewal.Manage")]
     public IActionResult Index() => View();
 
-    [Authorize(Policy = "ContractRenewal.Manage")]
+    [Authorize(Policy = "ContractRenewal.View")]
     public async Task<IActionResult> Dashboard()
     {
         var today = DateTime.Today;
@@ -342,7 +342,7 @@ public class EmployeeContractsController(
         return Redirect("/EmployeeContracts/BasicInformation#workflow-settings");
     }
 
-    [Authorize(Policy = "ContractRenewal.Manage")]
+    [Authorize(Policy = "ContractRenewal.Create")]
     public async Task<IActionResult> Renewal(int? employeeId = null)
     {
         if (employeeId.HasValue)
@@ -359,7 +359,7 @@ public class EmployeeContractsController(
         return View(model);
     }
 
-    [HttpPost, Authorize(Policy = "ContractRenewal.Manage"), ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "ContractRenewal.Create"), ValidateAntiForgeryToken]
     public async Task<IActionResult> Preview(ContractRenewalIntakeViewModel input)
     {
         ContractRenewalRequest? editingRequest = null;
@@ -405,7 +405,7 @@ public class EmployeeContractsController(
         return View("Renewal", model);
     }
 
-    [HttpPost, Authorize(Policy = "ContractRenewal.Manage"), ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "ContractRenewal.Create"), ValidateAntiForgeryToken]
     public async Task<IActionResult> Submit(ContractRenewalIntakeViewModel input)
     {
         // This endpoint creates new requests only; a posted edit flag must never bypass prerequisites.
@@ -495,7 +495,7 @@ public class EmployeeContractsController(
         }
     }
 
-    [Authorize(Policy = "ContractRenewal.Manage")]
+    [Authorize(Policy = "ContractRenewal.View")]
     public async Task<IActionResult> Requests(bool includeDeleted = false)
     {
         var requestQuery = db.ContractRenewalRequests.AsNoTracking()
@@ -550,7 +550,7 @@ public class EmployeeContractsController(
         return View(rows);
     }
 
-    [Authorize(Policy = "ContractRenewal.Manage")]
+    [Authorize(Policy = "ContractRenewal.View")]
     public async Task<IActionResult> History(int id)
     {
         var request = await db.ContractRenewalRequests.AsNoTracking()
@@ -634,7 +634,7 @@ public class EmployeeContractsController(
         return View(revisions);
     }
 
-    [HttpGet, Authorize(Policy = "ContractRenewal.Manage")]
+    [HttpGet, Authorize(Policy = "ContractRenewal.View")]
     public async Task<IActionResult> DownloadReport(int id)
     {
         var request = await db.ContractRenewalRequests.AsNoTracking()
@@ -671,7 +671,7 @@ public class EmployeeContractsController(
         return File(bytes, "application/pdf", $"ContractRenewal-{request.RequestCode}.pdf");
     }
 
-    [HttpGet, Authorize(Policy = "ContractRenewal.Manage")]
+    [HttpGet, Authorize(Policy = "ContractRenewal.Edit")]
     public async Task<IActionResult> Edit(int id)
     {
         var request = await db.ContractRenewalRequests
@@ -719,7 +719,7 @@ public class EmployeeContractsController(
         return View("Renewal", model);
     }
 
-    [HttpPost, Authorize(Policy = "ContractRenewal.Manage"), ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "ContractRenewal.Edit"), ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateRequest(ContractRenewalIntakeViewModel input)
     {
         var request = await db.ContractRenewalRequests
@@ -769,7 +769,7 @@ public class EmployeeContractsController(
         return RedirectToAction(nameof(Requests));
     }
 
-    [HttpPost, Authorize(Policy = "ContractRenewal.Manage"), ValidateAntiForgeryToken]
+    [HttpPost, Authorize(Policy = "ContractRenewal.Delete"), ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteRequest(int id)
     {
         var request = await db.ContractRenewalRequests

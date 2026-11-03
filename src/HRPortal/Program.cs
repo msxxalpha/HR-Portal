@@ -102,7 +102,8 @@ builder.Services.AddAuthorization(options =>
         options.AddPolicy(permission.Code, policy =>
             policy.RequireAssertion(context =>
                 context.User.HasClaim("IsAdmin", "1") ||
-                context.User.HasClaim("Permission", permission.Code)));
+                context.User.HasClaim("Permission", permission.Code) ||
+                (permission.Code.StartsWith("ContractRenewal.", StringComparison.Ordinal) && context.User.HasClaim("Permission", "ContractRenewal.Manage"))));
 
     options.AddPolicy("Workflow.Inbox", policy =>
         policy.RequireAssertion(context =>

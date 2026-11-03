@@ -640,3 +640,24 @@
 .sidebar .nav .nav-submenu-nested{padding-right:10px}
 .sidebar .nav details > summary:focus-visible,.sidebar .nav a:focus-visible{outline:2px solid #d7bd82;outline-offset:2px}
 .sidebar .nav details[open] > summary{color:#fff}
+
+/* User and role administration */
+.users-roles-toolbar{display:flex;align-items:end;justify-content:space-between;gap:14px;margin:12px 0 18px;padding:14px 16px;border:1px solid #dce4e9;border-radius:12px;background:#fff}
+.users-roles-toolbar label{display:grid;gap:6px;min-width:min(100%,340px);font-weight:700;font-size:12px}
+.users-roles-toolbar input{min-height:38px;padding:8px 12px;border:1px solid #ccd7df;border-radius:8px;font:inherit}
+.users-roles-toolbar>span{color:#758591;font-size:11px}
+.permission-module{margin:12px 0;border:1px solid #e0e7ec;border-radius:10px;background:#fbfcfd;overflow:hidden}
+.permission-module>summary{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;background:#f1f5f7;color:#294b60;font-size:12px;font-weight:800;cursor:pointer;list-style:none}
+.permission-module>summary::-webkit-details-marker{display:none}
+.permission-module>summary span{font-size:10px;color:#71818b;font-weight:500}
+.permission-module .permission-grid{padding:12px}
+.personal-permissions>summary{color:#245b79;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap}
+.personal-permissions form{position:absolute;z-index:20;min-width:320px;max-width:min(520px,80vw);max-height:65vh;overflow:auto;padding:12px;border:1px solid #d7e1e7;border-radius:10px;background:#fff;box-shadow:0 12px 32px #18364b24}
+.personal-permissions fieldset{margin:8px 0;border:1px solid #e4eaee;border-radius:8px;padding:8px}
+.personal-permissions legend{padding:0 5px;font-size:10px;font-weight:800;color:#34576d}
+.personal-permission-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.personal-permission-grid label{display:flex;align-items:flex-start;gap:6px;font-size:10px}
+.unlock-user-form{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:7px}
+.locked-label{font-size:9px;color:#a3443f}
+.btn-warning{background:#fff3dc;color:#895e1b;border:1px solid #ead4a7}
+@media(max-width:760px){.users-roles-toolbar{align-items:stretch;flex-direction:column}.users-roles-toolbar label{min-width:0}.personal-permissions form{position:fixed;left:12px;right:12px;bottom:12px;max-width:none}.personal-permission-grid{grid-template-columns:1fr}}

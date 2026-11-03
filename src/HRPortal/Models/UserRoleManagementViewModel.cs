@@ -26,4 +26,10 @@ public class RoleEditModel
     public string Description { get; set; } = "";
     public bool IsActive { get; set; } = true;
     public List<int> PermissionIds { get; set; } = [];
+    public List<string> PermissionModules { get; set; } = [];
+    public List<string> AssignedRankTypes { get; set; } = [];
+    public int PermissionCount { get; set; }
+    public int UserCount { get; set; }
+    public int OrganizationRankCount { get; set; }
+    public bool IsBuiltIn { get; set; }
 }

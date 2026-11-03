@@ -86,7 +86,7 @@ public class MonthlyPerformanceImprovementService(HRPortalDbContext db)
     public async Task<List<MonthlyPerformanceImprovementActionVm>> ListMineAsync(int ownerEmployeeId)
     {
         var actions = await db.MonthlyPerformanceImprovementActions.AsNoTracking()
-            .Where(x => x.OwnerEmployeeId == ownerEmployeeId)
+            .Where(x => x.OwnerEmployeeId == ownerEmployeeId && !x.Score.Evaluation.Period.IsDeleted)
             .Include(x => x.Score).ThenInclude(x => x.Evaluation).ThenInclude(x => x.Period)
             .Include(x => x.OwnerEmployee)
             .OrderBy(x => x.DueDate).ThenByDescending(x => x.CreatedAtUtc)

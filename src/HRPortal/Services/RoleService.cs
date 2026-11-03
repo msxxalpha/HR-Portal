@@ -475,8 +475,9 @@ public class RoleService(HRPortalDbContext db)
         if (!trackId.HasValue) return;
 
         // Existing granular permissions may already exist under the old module
-        // label. Move those rows in place. The retired broad permission is renamed
-        // to ContractRenewal.Track below and its assignments remain functional.
+        // label. Move those rows in place. The retired one-permission entry is
+        // consolidated into ContractRenewal.Track and its existing assignments
+        // move to that canonical permission.
         var canonicalRenewalPermissions = DefaultPermissions
             .Where(x => x.Code.StartsWith("ContractRenewal.", StringComparison.Ordinal) &&
                         x.Code != "ContractRenewal.Manage")

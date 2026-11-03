@@ -6,7 +6,8 @@
     bool Can(string permission) =>
         isAdmin ||
         User.HasClaim("Permission", permission) ||
-        ((permission == "ContractRenewal.Create" || permission == "ContractRenewal.List") &&
+        ((permission == "ContractRenewal.View" || permission == "ContractRenewal.Create" ||
+          permission == "ContractRenewal.List") &&
             User.HasClaim("Permission", "ContractRenewal.Track"));
 }
 <!DOCTYPE html>

@@ -230,7 +230,8 @@ static void VerifyGranularPermissionMatrix()
         "Renewal list permission must remain independent from reports and create.");
 
     var tracking = User("ContractRenewal.Track");
-    Check(PermissionAuthorization.HasPermission(tracking, "ContractRenewal.Create") &&
+    Check(PermissionAuthorization.HasPermission(tracking, "ContractRenewal.View") &&
+          PermissionAuthorization.HasPermission(tracking, "ContractRenewal.Create") &&
           PermissionAuthorization.HasPermission(tracking, "ContractRenewal.List") &&
           !PermissionAuthorization.HasPermission(tracking, "ContractRenewal.Reports"),
         "The unified renewal tracking permission must grant request registration and listing, but not reports.");

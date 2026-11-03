@@ -6,13 +6,12 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using System.Security.Cryptography;
 using System.Text;
 
 namespace HRPortal.Controllers;
 
-public class AccountController(HRPortalDbContext db, OtpService otp, AuditService audit, AdminService admins, RoleService roleService, IMemoryCache loginAttempts) : Controller
+public class AccountController(HRPortalDbContext db, OtpService otp, AuditService audit, AdminService admins, RoleService roleService) : Controller
 {
     [HttpGet, AllowAnonymous]
     public IActionResult Login(string? returnUrl = null, string? mode = null)
@@ -94,15 +93,27 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
             return View("Login", model);
         }
 
-        // Legacy employees with no personal password get a one-time national-ID initial
-        // credential. Never change an existing personal password, and require a reset.
-        var limitKey = "password-login:" + personnelNumber;
-        var failures = loginAttempts.Get<int>(limitKey);
-        if (failures >= 5)
+        // Lockout state is persisted on Employees so it survives IIS recycles and
+        // is shared by every application instance connected to the same SQL database.
+        var now = DateTime.UtcNow;
+        if (PasswordLoginLockoutPolicy.IsLocked(employee.PasswordLoginLockedUntilUtc, now))
         {
-            ModelState.AddModelError("", "به دلیل تلاش‌های ناموفق، ورود با رمز این حساب برای ۱۵ دقیقه محدود شده است. می‌توانید از رمز یکبارمصرف استفاده کنید.");
+            var remaining = PasswordLoginLockoutPolicy.GetRemainingSeconds(employee.PasswordLoginLockedUntilUtc, now);
+            ModelState.AddModelError("", $"ورود با رمز این حساب به دلیل پنج تلاش ناموفق قفل شده است. حدود {Math.Max(1, (int)Math.Ceiling(remaining / 60d))} دقیقه دیگر می‌توانید دوباره تلاش کنید؛ ورود با رمز یکبارمصرف همچنان فعال است.");
             return View("Login", model);
         }
+
+        // The first attempt after an expired lockout starts a fresh 15-minute window.
+        if (employee.PasswordLoginLockedUntilUtc.HasValue &&
+            employee.PasswordLoginLockedUntilUtc.Value <= now)
+        {
+            employee.PasswordLoginFailedAttempts = 0;
+            employee.PasswordLoginLockedUntilUtc = null;
+            employee.PasswordLoginLastFailedAtUtc = null;
+        }
+
+        // Legacy employees with no personal password get a one-time national-ID initial
+        // credential. Never change an existing personal password, and require a reset.
         var hasSavedPassword = !string.IsNullOrWhiteSpace(employee.PersonalPasswordHash);
         var bootstrap = !hasSavedPassword;
         var valid = hasSavedPassword
@@ -110,17 +121,47 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
             : EqualFixedTime(model.Password, employee.NationalId);
         if (!valid)
         {
-            loginAttempts.Set(limitKey, failures + 1, TimeSpan.FromMinutes(15));
+            await db.Employees
+                .Where(x => x.Id == employee.Id)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(x => x.PasswordLoginFailedAttempts,
+                        x => x.PasswordLoginLockedUntilUtc.HasValue && x.PasswordLoginLockedUntilUtc <= now
+                            ? 1
+                            : x.PasswordLoginFailedAttempts + 1)
+                    .SetProperty(x => x.PasswordLoginLockedUntilUtc,
+                        x => x.PasswordLoginLockedUntilUtc.HasValue && x.PasswordLoginLockedUntilUtc > now
+                            ? x.PasswordLoginLockedUntilUtc
+                            : x.PasswordLoginFailedAttempts >= PasswordLoginLockoutPolicy.MaximumFailedAttempts - 1
+                                ? now.Add(PasswordLoginLockoutPolicy.LockoutDuration)
+                                : null)
+                    .SetProperty(x => x.PasswordLoginLastFailedAtUtc, now)
+                    .SetProperty(x => x.UpdatedAt, now));
+
             await audit.WriteAsync("ورود ناموفق کارکنان با رمز شخصی", "Account", employee.Id.ToString(), "نام کاربری یا رمز عبور نادرست است.", employee.Id);
-            ModelState.AddModelError("", "نام کاربری یا رمز عبور صحیح نیست.");
+            var updatedAttempts = await db.Employees.AsNoTracking()
+                .Where(x => x.Id == employee.Id)
+                .Select(x => new { x.PasswordLoginFailedAttempts, x.PasswordLoginLockedUntilUtc })
+                .SingleAsync();
+            if (PasswordLoginLockoutPolicy.IsLocked(updatedAttempts.PasswordLoginLockedUntilUtc, now))
+                ModelState.AddModelError("", "به دلیل پنج تلاش ناموفق، ورود با رمز این حساب برای ۱۵ دقیقه قفل شد. ورود با رمز یکبارمصرف همچنان فعال است.");
+            else
+                ModelState.AddModelError("", "نام کاربری یا رمز عبور صحیح نیست.");
             return View("Login", model);
         }
-        loginAttempts.Remove(limitKey);
+
+        await db.Employees.Where(x => x.Id == employee.Id).ExecuteUpdateAsync(setters => setters
+            .SetProperty(x => x.PasswordLoginFailedAttempts, 0)
+            .SetProperty(x => x.PasswordLoginLockedUntilUtc, (DateTime?)null)
+            .SetProperty(x => x.PasswordLoginLastFailedAtUtc, (DateTime?)null)
+            .SetProperty(x => x.UpdatedAt, now));
+        employee.PasswordLoginFailedAttempts = 0;
+        employee.PasswordLoginLockedUntilUtc = null;
+        employee.PasswordLoginLastFailedAtUtc = null;
         if (bootstrap)
         {
             employee.PersonalPasswordHash = PasswordHasher.Hash(model.Password);
             employee.MustChangeInitialPassword = true;
-            employee.UpdatedAt = DateTime.UtcNow;
+            employee.UpdatedAt = now;
             await db.SaveChangesAsync();
         }
 

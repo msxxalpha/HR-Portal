@@ -4,12 +4,11 @@ using HRPortal.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 
 namespace HRPortal.Controllers;
 
 [Authorize(Policy = "UsersRoles.Manage")]
-public class UsersController(HRPortalDbContext db, RoleService roles, AuditService audit, IMemoryCache loginAttempts) : Controller
+public class UsersController(HRPortalDbContext db, RoleService roles, AuditService audit) : Controller
 {
     [HttpGet]
     public async Task<IActionResult> Index(int? roleId)
@@ -38,7 +37,8 @@ public class UsersController(HRPortalDbContext db, RoleService roles, AuditServi
         foreach (var row in rows)
         {
             row.PersonalPermissionIds = await roles.GetEmployeePersonalPermissionIdsAsync(row.Employee.Id);
-            row.IsPasswordLocked = loginAttempts.Get<int>("password-login:" + row.Employee.PersonnelNumber) >= 5;
+            row.IsPasswordLocked = PasswordLoginLockoutPolicy.IsLocked(row.Employee.PasswordLoginLockedUntilUtc, DateTime.UtcNow);
+            row.PasswordLoginLockedUntilUtc = row.Employee.PasswordLoginLockedUntilUtc;
         }
         return rows;
     }
@@ -59,7 +59,11 @@ public class UsersController(HRPortalDbContext db, RoleService roles, AuditServi
     {
         var employee = await db.Employees.FindAsync(employeeId);
         if (employee is null) return NotFound();
-        loginAttempts.Remove("password-login:" + employee.PersonnelNumber);
+        employee.PasswordLoginFailedAttempts = 0;
+        employee.PasswordLoginLockedUntilUtc = null;
+        employee.PasswordLoginLastFailedAtUtc = null;
+        employee.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
         await audit.WriteAsync("رفع قفل ورود با رمز توسط مدیر", "Employee", employeeId.ToString(), employee.PersonnelNumber, employeeId);
         TempData["Success"] = $"محدودیت ورود با رمز برای {employee.PersonnelNumber} برداشته شد.";
         return RedirectToAction(nameof(Index));

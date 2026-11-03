@@ -15,6 +15,7 @@ public class EmployeeRoleRow
     public List<int> RoleIds { get; set; } = [];
     public List<int> PersonalPermissionIds { get; set; } = [];
     public bool IsPasswordLocked { get; set; }
+    public DateTime? PasswordLoginLockedUntilUtc { get; set; }
 }
 
 public class RoleEditModel

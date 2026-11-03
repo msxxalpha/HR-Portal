@@ -21,6 +21,9 @@ public class Employee
     public string? Email { get; set; }
     public string? FatherName { get; set; }
     public string Status { get; set; } = "فعال"; public bool IsSystemUser { get; set; } = true; [MaxLength(1000)] public string? PersonalPasswordHash { get; set; } public bool IsSystemAdministrator { get; set; } public bool IsPerformanceEvaluator { get; set; } public int? PerformanceRankId { get; set; } public bool MustChangeInitialPassword { get; set; }
+    public int PasswordLoginFailedAttempts { get; set; }
+    public DateTime? PasswordLoginLockedUntilUtc { get; set; }
+    public DateTime? PasswordLoginLastFailedAtUtc { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow; public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public OrganizationNode? OrganizationUnit { get; set; }
     public OrganizationNode? OrganizationDepartment { get; set; }

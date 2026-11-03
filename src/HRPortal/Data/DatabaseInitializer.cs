@@ -765,6 +765,12 @@ BEGIN
     );
 END;
 
+IF COL_LENGTH(N'dbo.Employees', N'PasswordLoginFailedAttempts') IS NULL
+    ALTER TABLE [dbo].[Employees] ADD [PasswordLoginFailedAttempts] int NOT NULL CONSTRAINT [DF_Employees_PasswordLoginFailedAttempts] DEFAULT 0;
+IF COL_LENGTH(N'dbo.Employees', N'PasswordLoginLockedUntilUtc') IS NULL
+    ALTER TABLE [dbo].[Employees] ADD [PasswordLoginLockedUntilUtc] datetime2 NULL;
+IF COL_LENGTH(N'dbo.Employees', N'PasswordLoginLastFailedAtUtc') IS NULL
+    ALTER TABLE [dbo].[Employees] ADD [PasswordLoginLastFailedAtUtc] datetime2 NULL;
 
 ";
         // DDL is intentionally separated from data migration. SQL Server compiles a full batch

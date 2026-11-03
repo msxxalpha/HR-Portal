@@ -229,6 +229,12 @@ static void VerifyGranularPermissionMatrix()
           !PermissionAuthorization.HasPermission(listOnly, "ContractRenewal.Create"),
         "Renewal list permission must remain independent from reports and create.");
 
+    var tracking = User("ContractRenewal.Track");
+    Check(PermissionAuthorization.HasPermission(tracking, "ContractRenewal.Create") &&
+          PermissionAuthorization.HasPermission(tracking, "ContractRenewal.List") &&
+          !PermissionAuthorization.HasPermission(tracking, "ContractRenewal.Reports"),
+        "The unified renewal tracking permission must grant request registration and listing, but not reports.");
+
     var evaluationManager = User("ContractRenewal.Evaluation.Manage");
     Check(PermissionAuthorization.HasPermission(evaluationManager, "ContractRenewal.Evaluation.Manage") &&
           !PermissionAuthorization.HasPermission(evaluationManager, "ContractRenewal.Settings") &&
@@ -262,8 +268,8 @@ static void VerifyGranularPermissionMatrix()
 
     var expectedCodes = new[]
     {
-        "ContractRenewal.List", "ContractRenewal.Reports", "ContractRenewal.Evaluation.Manage",
-        "Suggestions.Reports", "Suggestions.Export"
+        "ContractRenewal.Track", "ContractRenewal.List", "ContractRenewal.Reports",
+        "ContractRenewal.Evaluation.Manage", "Suggestions.Reports", "Suggestions.Export"
     };
     foreach (var code in expectedCodes)
         Check(RoleService.DefaultPermissions.Count(x => x.Code == code) == 1,
@@ -1312,25 +1318,25 @@ static async Task VerifyRoleAdministrationAsync()
 
         await new RoleService(db).SeedAsync();
 
-        var createId = await db.Permissions.Where(x => x.Code == "ContractRenewal.Create")
-            .Select(x => x.Id).SingleAsync();
-        var listId = await db.Permissions.Where(x => x.Code == "ContractRenewal.List")
+        var trackId = await db.Permissions.Where(x => x.Code == "ContractRenewal.Track")
             .Select(x => x.Id).SingleAsync();
         Check(!await db.Permissions.AnyAsync(x => x.Code == "EmployeeContracts.Renewal"),
             "The legacy employee-contract module permission must be removed after consolidation.");
-        Check(await db.RolePermissions.AnyAsync(x => x.RoleId == legacyRole.Id && x.PermissionId == createId) &&
-              await db.RolePermissions.AnyAsync(x => x.RoleId == legacyRole.Id && x.PermissionId == listId),
-            "Legacy role assignments must be transferred to both contract renewal creation and request-list permissions.");
-        Check(await db.EmployeePermissions.AnyAsync(x => x.EmployeeId == employee.Id && x.PermissionId == createId) &&
-              await db.EmployeePermissions.AnyAsync(x => x.EmployeeId == employee.Id && x.PermissionId == listId),
+        Check(await db.RolePermissions.AnyAsync(x => x.RoleId == legacyRole.Id && x.PermissionId == trackId),
+            "Legacy role assignments must be transferred to the unified contract renewal tracking permission.");
+        Check(await db.EmployeePermissions.AnyAsync(x => x.EmployeeId == employee.Id && x.PermissionId == trackId),
             "Legacy personal permissions must be transferred without losing contract renewal access.");
         Check(!(await new RoleService(db).GetPermissionsAsync()).Any(x => x.Code == "ContractRenewal.Manage"),
             "The technical compatibility permission must not be shown as a configurable user permission.");
         var visibleRenewalPermissions = await db.Permissions.AsNoTracking()
             .Where(x => x.Module == "تمدید قرارداد" && x.Code != "ContractRenewal.Manage")
             .CountAsync();
-        Check(visibleRenewalPermissions == 9,
-            "The old renewal permission group must be consolidated into the existing nine granular contract-renewal permissions.");
+        Check(visibleRenewalPermissions == 10,
+            "The legacy tracking permission must appear alongside the nine existing granular contract-renewal permissions in one module.");
+        var unifiedTrackingPermission = await db.Permissions.SingleAsync(x => x.Code == "ContractRenewal.Track");
+        Check(unifiedTrackingPermission.Module == "تمدید قرارداد" &&
+              unifiedTrackingPermission.Title == "ثبت و پیگیری تمدید قرارداد",
+            "The merged permission must remain a separately configurable permission with its requested title.");
         var repairedViewPermission = await db.Permissions.SingleAsync(x => x.Code == "ContractRenewal.View");
         Check(repairedViewPermission.Module == "تمدید قرارداد" &&
               repairedViewPermission.Title == "مشاهده جزئیات و سوابق درخواست تمدید",

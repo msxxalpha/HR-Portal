@@ -3,7 +3,11 @@
     var cfg = await SettingsService.GetAsync();
     var company = cfg.System;
     var isAdmin = User.HasClaim("IsAdmin", "1");
-    bool Can(string permission) => isAdmin || User.HasClaim("Permission", permission);
+    bool Can(string permission) =>
+        isAdmin ||
+        User.HasClaim("Permission", permission) ||
+        ((permission == "ContractRenewal.Create" || permission == "ContractRenewal.List") &&
+            User.HasClaim("Permission", "ContractRenewal.Track"));
 }
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">

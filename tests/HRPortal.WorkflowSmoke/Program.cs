@@ -16,6 +16,7 @@ static void Check(bool condition, string message)
 
 VerifyGranularPermissionMatrix();
 VerifyPasswordLoginLockoutPolicy();
+await VerifyEffectiveEmployeePermissionMatrixAsync();
 await VerifySuggestionsAnalyticsAsync();
 
 Check(ContractRenewalWorkflowService.MaximumAllowedContractMonths("ApproveOneMonth") == 1,
@@ -288,6 +289,83 @@ static void VerifyPasswordLoginLockoutPolicy()
           PasswordLoginLockoutPolicy.GetRemainingSeconds(null, now) == 0,
         "An account without a lockout timestamp must remain unlocked.");
     Console.WriteLine("PASS: persistent account-lockout thresholds, UTC expiry boundary and remaining-time calculation.");
+}
+
+static async Task VerifyEffectiveEmployeePermissionMatrixAsync()
+{
+    var options = new DbContextOptionsBuilder<HRPortalDbContext>()
+        .UseInMemoryDatabase("effective-employee-permission-matrix-smoke")
+        .Options;
+    await using var db = new HRPortalDbContext(options);
+    var activeEmployee = new Employee
+    {
+        Id = 901, PersonnelNumber = "M-901", NationalId = "9019019010",
+        FirstName = "کارمند", LastName = "فعال", Mobile = "09120000901",
+        Gender = "مرد", Status = "فعال", IsSystemUser = true,
+        OrganizationPositionId = 100, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+    };
+    var inactiveSystemEmployee = new Employee
+    {
+        Id = 902, PersonnelNumber = "M-902", NationalId = "9029029020",
+        FirstName = "کاربر", LastName = "غیرفعال", Mobile = "09120000902",
+        Gender = "مرد", Status = "غیرفعال", IsSystemUser = true,
+        CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+    };
+    var revision = new OrganizationStructureRevision
+    {
+        Id = 90, RevisionCode = "PERMISSION-SMOKE", Title = "ساختار آزمایشی",
+        EffectiveDate = DateTime.Today.AddDays(-10), IsFinalized = true,
+        FinalizedAt = DateTime.UtcNow.AddDays(-10)
+    };
+    var position = new OrganizationNode
+    {
+        Id = 100, OrganizationStructureRevisionId = revision.Id, Revision = revision,
+        Code = "POSITION-MANAGER", Title = "جایگاه مدیریت آزمایشی",
+        RankType = "مدیریت", IsActive = true,
+        PositionHolderEmployeeId = activeEmployee.Id
+    };
+    revision.Nodes.Add(position);
+
+    var activeDirectRole = new Role { Id = 11, Code = "DIRECT", Title = "نقش مستقیم", IsActive = true };
+    var inactiveRole = new Role { Id = 12, Code = "DISABLED", Title = "نقش غیرفعال", IsActive = false };
+    var rankRole = new Role { Id = 13, Code = "RANK", Title = "نقش رده سازمانی", IsActive = true };
+    var directPermission = new Permission { Id = 21, Code = "Smoke.Direct", Title = "مجوز مستقیم", Module = "Smoke" };
+    var rankPermission = new Permission { Id = 22, Code = "Smoke.Rank", Title = "مجوز رده", Module = "Smoke" };
+    var personalPermission = new Permission { Id = 23, Code = "Smoke.Personal", Title = "مجوز شخصی", Module = "Smoke" };
+    var disabledPermission = new Permission { Id = 24, Code = "Smoke.Disabled", Title = "مجوز نقش غیرفعال", Module = "Smoke" };
+
+    db.AddRange(activeEmployee, inactiveSystemEmployee, revision, position,
+        activeDirectRole, inactiveRole, rankRole,
+        directPermission, rankPermission, personalPermission, disabledPermission);
+    db.EmployeeRoles.AddRange(
+        new EmployeeRole { EmployeeId = activeEmployee.Id, RoleId = activeDirectRole.Id, Employee = activeEmployee, Role = activeDirectRole },
+        new EmployeeRole { EmployeeId = activeEmployee.Id, RoleId = inactiveRole.Id, Employee = activeEmployee, Role = inactiveRole });
+    db.RolePermissions.AddRange(
+        new RolePermission { RoleId = activeDirectRole.Id, PermissionId = directPermission.Id, Role = activeDirectRole, Permission = directPermission },
+        new RolePermission { RoleId = inactiveRole.Id, PermissionId = disabledPermission.Id, Role = inactiveRole, Permission = disabledPermission },
+        new RolePermission { RoleId = rankRole.Id, PermissionId = rankPermission.Id, Role = rankRole, Permission = rankPermission });
+    db.RoleOrganizationRanks.Add(new RoleOrganizationRank { RoleId = rankRole.Id, RankType = "مدیریت" });
+    db.EmployeePermissions.Add(new EmployeePermission
+    {
+        EmployeeId = activeEmployee.Id, PermissionId = personalPermission.Id,
+        Permission = personalPermission
+    });
+    await db.SaveChangesAsync();
+
+    var service = new RoleService(db);
+    var effective = await service.GetEmployeePermissionsAsync(activeEmployee.Id);
+    Check(effective.SetEquals(new[] { "Smoke.Direct", "Smoke.Rank", "Smoke.Personal" }),
+        "Effective permissions must be the union of active direct roles, current organizational-rank roles and personal grants; inactive roles must be ignored.");
+    var inactive = await service.GetEmployeePermissionsAsync(inactiveSystemEmployee.Id);
+    Check(inactive.Count == 0,
+        "An inactive employee must receive no effective permissions even when role records exist.");
+
+    var adminClaims = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim("IsAdmin", "1") }, "PermissionSmoke"));
+    Check(PermissionAuthorization.HasPermission(adminClaims, "Smoke.Direct") &&
+          PermissionAuthorization.HasPermission(adminClaims, "ContractRenewal.Reports"),
+        "Administrator access must bypass granular module checks.");
+
+    Console.WriteLine("PASS: effective permission matrix combines active direct roles, current organizational-rank roles and personal grants; ignores inactive roles/employees.");
 }
 
 static async Task VerifySuggestionsAnalyticsAsync()

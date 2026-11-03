@@ -15,7 +15,6 @@
 @if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
 @if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
 
-<div class="users-roles-toolbar"><label>جستجوی نقش<input id="rolesSearch" type="search" placeholder="نام یا کد نقش را وارد کنید..." autocomplete="off" /></label><span>دسترسی‌ها در هر نقش به تفکیک ماژول دسته‌بندی شده‌اند.</span></div>
 <div class="tabs settings-tabs">
     @if (canUsers) { <button type="button" class="tab @(canUsers ? "active" : "")" data-tab="users">کاربران</button> }
     @if (canRoles) { <button type="button" class="tab @(!canUsers ? "active" : "")" data-tab="roles">نقش‌ها و سطح دسترسی</button> }
@@ -116,67 +115,112 @@
 @if (canRoles)
 {
 <section id="roles" class="tab-panel @(canUsers ? "" : "active")">
-    <div class="card">
+    <div class="card role-list-card">
         <div class="section-head">
-            <div><h3>ایجاد نقش جدید</h3><span class="muted">یک نقش بسازید و عملکردهای مجاز آن را انتخاب کنید.</span></div>
-        </div>
-        <form method="post" action="/Users/SaveRole">
-            @Html.AntiForgeryToken()
-            <div class="grid-3">
-                <label>کد نقش *<input name="Code" required placeholder="ROLE_CODE" /></label>
-                <label>عنوان نقش *<input name="Title" required placeholder="عنوان نقش" /></label>
-                <label>شرح<input name="Description" placeholder="توضیحات" /></label>
+            <div>
+                <h3>فهرست نقش‌های سامانه</h3>
+                <span class="muted">برای تغییر دسترسی‌ها، نقش را ویرایش کنید. نقش‌های سیستمی قابل حذف نیستند و می‌توان آن‌ها را غیرفعال کرد.</span>
             </div>
-            @foreach(var group in Model.Permissions.GroupBy(x=>x.Module).OrderBy(x=>x.Key)){<details class="permission-module" open><summary>@group.Key <span>@group.Count() دسترسی</span></summary><div class="permission-grid">@foreach(var permission in group.OrderBy(x=>x.Title)){<label class="permission-item"><input type="checkbox" name="PermissionIds" value="@permission.Id" /><span><strong>@permission.Title</strong><small>@permission.Code</small></span></label>}</div></details>}
-            <label class="inline-check"><input type="checkbox" name="IsActive" value="true" checked /> نقش فعال باشد</label>
-            <div class="form-actions"><button class="btn btn-main" type="submit">ایجاد نقش</button></div>
-        </form>
+            <a class="btn btn-main" href="/Users/EditRole"><span aria-hidden="true">＋</span> تعریف نقش جدید</a>
+        </div>
+        <div class="role-list-summary">
+            <div><strong>@Model.Roles.Count</strong><span>کل نقش‌ها</span></div>
+            <div><strong>@Model.Roles.Count(x => x.IsActive)</strong><span>نقش فعال</span></div>
+            <div><strong>@Model.Roles.Count(x => !x.IsActive)</strong><span>نقش غیرفعال</span></div>
+        </div>
+        <div class="role-list-tools">
+            <label>جستجو
+                <input id="rolesSearch" type="search" placeholder="عنوان، کد یا ماژول مرتبط..." autocomplete="off" />
+            </label>
+            <label>وضعیت
+                <select id="roleStatusFilter">
+                    <option value="all">همه نقش‌ها</option>
+                    <option value="active">فعال</option>
+                    <option value="inactive">غیرفعال</option>
+                </select>
+            </label>
+            <span id="rolesResultCount" class="muted" aria-live="polite"></span>
+        </div>
+        <div class="table-wrap roles-table-wrap">
+            <table class="roles-management-table">
+                <thead>
+                    <tr>
+                        <th>عنوان نقش و کد</th>
+                        <th>ماژول‌های مرتبط</th>
+                        <th>تعداد دسترسی</th>
+                        <th>کاربران دارای نقش</th>
+                        <th>رده‌های سازمانی</th>
+                        <th>وضعیت</th>
+                        <th>عملیات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var role in Model.Roles)
+                {
+                    <tr data-role-row data-active="@(role.IsActive ? "active" : "inactive")">
+                        <td data-label="عنوان نقش و کد">
+                            <strong class="role-title-cell">@role.Title</strong>
+                            <code class="role-code-cell">@role.Code</code>
+                            @if (role.IsBuiltIn) { <span class="badge role-system-badge">سیستمی</span> }
+                            @if (!string.IsNullOrWhiteSpace(role.Description)) { <small class="role-description-cell">@role.Description</small> }
+                        </td>
+                        <td data-label="ماژول‌های مرتبط">
+                            @if (role.PermissionModules.Count == 0)
+                            {
+                                <span class="muted">بدون دسترسی مشخص</span>
+                            }
+                            else
+                            {
+                                <div class="role-module-chips">
+                                @foreach (var module in role.PermissionModules)
+                                {
+                                    <span class="role-module-chip">@module</span>
+                                }
+                                </div>
+                            }
+                        </td>
+                        <td data-label="تعداد دسترسی"><span class="role-count">@role.PermissionCount</span></td>
+                        <td data-label="کاربران دارای نقش"><span class="role-count">@role.UserCount</span></td>
+                        <td data-label="رده‌های سازمانی">
+                            <span class="role-count">@role.OrganizationRankCount</span>
+                            @if (role.AssignedRankTypes.Count > 0)
+                            {
+                                <small class="role-rank-list">@string.Join("، ", role.AssignedRankTypes)</small>
+                            }
+                        </td>
+                        <td data-label="وضعیت">
+                            <span class="role-state @(role.IsActive ? "is-active" : "is-inactive")">@(role.IsActive ? "فعال" : "غیرفعال")</span>
+                        </td>
+                        <td data-label="عملیات">
+                            <div class="role-row-actions">
+                                <a class="btn btn-outline btn-sm" href="/Users/EditRole/@role.Id">ویرایش دسترسی‌ها</a>
+                                <form method="post" action="/Users/ToggleRoleStatus">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="roleId" value="@role.Id" />
+                                    <button class="btn btn-sm @(role.IsActive ? "btn-warning" : "btn-main")" type="submit">
+                                        @(role.IsActive ? "غیرفعال‌سازی" : "فعال‌سازی")
+                                    </button>
+                                </form>
+                                <form method="post" action="/Users/DeleteRole" onsubmit="return confirm('نقش «@role.Title» حذف شود؟ این عملیات قابل بازگشت نیست.');">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="roleId" value="@role.Id" />
+                                    <button class="btn btn-outline btn-sm btn-role-delete" type="submit"
+                                            @(role.IsBuiltIn || role.UserCount > 0 || role.OrganizationRankCount > 0 ? "disabled" : "")
+                                            title="@(role.IsBuiltIn ? "نقش سیستمی قابل حذف نیست" : role.UserCount > 0 || role.OrganizationRankCount > 0 ? "ابتدا تخصیص‌های کاربران و رده‌های سازمانی را بردارید" : "حذف نقش")">حذف</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                @if (!Model.Roles.Any())
+                {
+                    <tr><td colspan="7" class="empty">هنوز نقشی تعریف نشده است.</td></tr>
+                }
+                <tr id="rolesNoMatch" style="display:none;"><td colspan="7" class="empty">نقشی با این فیلتر پیدا نشد.</td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
-
-    @foreach (var role in Model.Roles)
-    {
-        <div class="card">
-            <form method="post" action="/Users/SaveRole">
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="Id" value="@role.Id" />
-                <div class="section-head">
-                    <div><h3>@role.Title</h3><span class="muted">@role.Code</span></div>
-                    <label class="inline-check"><input type="checkbox" name="IsActive" value="true" @(role.IsActive ? "checked" : "") /> فعال</label>
-                </div>
-                <div class="grid-2">
-                    <label>کد نقش<input name="Code" value="@role.Code" required /></label>
-                    <label>عنوان نقش<input name="Title" value="@role.Title" required /></label>
-                    <label class="wide">شرح<textarea name="Description">@role.Description</textarea></label>
-                </div>
-                @foreach(var group in Model.Permissions.GroupBy(x=>x.Module).OrderBy(x=>x.Key)){<details class="permission-module" open><summary>@group.Key <span>@group.Count() دسترسی</span></summary><div class="permission-grid">@foreach(var permission in group.OrderBy(x=>x.Title)){<label class="permission-item"><input type="checkbox" name="PermissionIds" value="@permission.Id" @(role.PermissionIds.Contains(permission.Id)?"checked":"") /><span><strong>@permission.Title</strong><small>@permission.Code</small></span></label>}</div></details>}
-                <div class="form-actions"><button class="btn btn-outline" type="submit">ذخیره نقش</button></div>
-            </form>
-            <div class="section-head" style="margin-top:18px;">
-                <div><h4>تخصیص نقش به رده‌های سازمانی</h4><span class="muted">تمام کارکنان منتسب به رده‌های انتخاب‌شده در آخرین ساختار نهایی‌شده، دسترسی‌های این نقش را به ارث می‌برند.</span></div>
-            </div>
-            <form method="post" action="/Users/SaveRoleRanks">
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="roleId" value="@role.Id" />
-                @if (Model.OrganizationRankTypes.Count == 0)
-                {
-                    <div class="empty">رده سازمانی برای تخصیص وجود ندارد. ابتدا رده‌ها را در اطلاعات پایه تعریف کنید.</div>
-                }
-                else
-                {
-                    <div class="permission-grid">
-                        @foreach (var rankType in Model.OrganizationRankTypes)
-                        {
-                            <label class="permission-item">
-                                <input type="checkbox" name="rankTypes" value="@rankType" @(Model.RoleRankTypes.TryGetValue(role.Id, out var assignedRanks) && assignedRanks.Contains(rankType, StringComparer.OrdinalIgnoreCase) ? "checked" : "") />
-                                <span><strong>@rankType</strong><small>اعمال دسترسی‌های نقش «@role.Title» به کارکنان این رده</small></span>
-                            </label>
-                        }
-                    </div>
-                }
-                <div class="form-actions"><button class="btn btn-main" type="submit">ذخیره رده‌های این نقش</button></div>
-            </form>
-        </div>
-    }
 </section>
 }
 
@@ -190,8 +234,31 @@ document.querySelectorAll('.tab').forEach(function (button) {
         document.getElementById(button.dataset.tab).classList.add('active');
     });
 });
-const roleSearch=document.getElementById('rolesSearch');
-if(roleSearch){roleSearch.addEventListener('input',()=>{const q=roleSearch.value.trim().toLocaleLowerCase('fa');document.querySelectorAll('#roles > .card').forEach(card=>{const isCreate=card.querySelector('form[action="/Users/SaveRole"] input[name="Id"]')===null;card.style.display=isCreate||card.innerText.toLocaleLowerCase('fa').includes(q)?'':'none';});});}
+const roleSearch = document.getElementById('rolesSearch');
+const roleStatus = document.getElementById('roleStatusFilter');
+const roleRows = Array.from(document.querySelectorAll('[data-role-row]'));
+const roleCount = document.getElementById('rolesResultCount');
+const roleNoMatch = document.getElementById('rolesNoMatch');
+function filterRoleRows() {
+    if (!roleSearch || !roleStatus) return;
+    const q = roleSearch.value.trim().toLocaleLowerCase('fa');
+    const state = roleStatus.value;
+    let visible = 0;
+    roleRows.forEach(row => {
+        const matchText = !q || row.innerText.toLocaleLowerCase('fa').includes(q);
+        const matchState = state === 'all' || row.dataset.active === state;
+        const show = matchText && matchState;
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
+    });
+    if (roleCount) roleCount.textContent = 'نمایش ' + visible + ' از ' + roleRows.length + ' نقش';
+    if (roleNoMatch) roleNoMatch.style.display = visible === 0 && roleRows.length > 0 ? '' : 'none';
+}
+if (roleSearch && roleStatus) {
+    roleSearch.addEventListener('input', filterRoleRows);
+    roleStatus.addEventListener('change', filterRoleRows);
+    filterRoleRows();
+}
 const usersTable = document.querySelector('.users-management-table');
 if (usersTable) {
     const body = usersTable.tBodies[0];

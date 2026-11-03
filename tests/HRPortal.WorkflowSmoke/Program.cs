@@ -17,6 +17,7 @@ static void Check(bool condition, string message)
 
 VerifyGranularPermissionMatrix();
 VerifyPasswordLoginLockoutPolicy();
+await VerifyRoleAdministrationAsync();
 await VerifyEffectiveEmployeePermissionMatrixAsync();
 await VerifySuggestionsAnalyticsAsync();
 
@@ -1189,4 +1190,127 @@ static async Task VerifyContractRenewalRuntimeFlowAsync()
         "The completed renewal case must generate a valid PDF report.");
 
     Console.WriteLine("PASS: contract renewal runtime flow from hierarchical evaluation through security, HR, CEO and PDF output.");
+}
+
+
+static async Task VerifyRoleAdministrationAsync()
+{
+    var options = new DbContextOptionsBuilder<HRPortalDbContext>()
+        .UseInMemoryDatabase("role-administration-null-safe")
+        .Options;
+    await using (var db = new HRPortalDbContext(options))
+    {
+        var permission = new Permission
+        {
+            Code = "RoleTest.View", Title = "مشاهده اطلاعات آزمون", Module = "آزمون"
+        };
+        db.Permissions.Add(permission);
+        await db.SaveChangesAsync();
+
+        var service = new RoleService(db);
+        var roleId = await service.SaveRoleAsync(new RoleEditModel
+        {
+            Code = "test_role",
+            Title = "نقش آزمون",
+            Description = null!,
+            PermissionIds = null!
+        });
+
+        var created = await db.Roles.SingleAsync(x => x.Id == roleId);
+        Check(created.Code == "TEST_ROLE" && created.Description == string.Empty && created.IsActive,
+            "Creating a role with an empty description or no selected permissions must succeed and normalize the code.");
+        Check(!await db.RolePermissions.AnyAsync(x => x.RoleId == roleId),
+            "A role with no selected permissions must be saved without creating invalid permission links.");
+
+        await service.SaveRoleAsync(new RoleEditModel
+        {
+            Id = roleId,
+            Code = "TEST_ROLE",
+            Title = "نقش آزمون ویرایش‌شده",
+            Description = "شرح",
+            PermissionIds = [permission.Id]
+        });
+        Check(await db.RolePermissions.AnyAsync(x => x.RoleId == roleId && x.PermissionId == permission.Id),
+            "Editing a role must save its selected permissions.");
+
+        await service.SaveRoleAsync(new RoleEditModel
+        {
+            Id = roleId,
+            Code = "TEST_ROLE",
+            Title = "نقش آزمون ویرایش‌شده",
+            Description = string.Empty,
+            PermissionIds = null!
+        });
+        Check(!await db.RolePermissions.AnyAsync(x => x.RoleId == roleId),
+            "Clearing all role permissions must be supported.");
+
+        db.Roles.Add(new Role { Code = "DUPLICATE_ROLE", Title = "نقش تکراری", IsActive = true });
+        await db.SaveChangesAsync();
+        var duplicateRejected = false;
+        try
+        {
+            await service.SaveRoleAsync(new RoleEditModel
+            {
+                Code = "duplicate_role", Title = "نقش دیگر", PermissionIds = []
+            });
+        }
+        catch (InvalidOperationException)
+        {
+            duplicateRejected = true;
+        }
+        Check(duplicateRejected, "Duplicate role codes must be rejected with a controlled validation error.");
+    }
+
+    var migrationOptions = new DbContextOptionsBuilder<HRPortalDbContext>()
+        .UseInMemoryDatabase("role-administration-contract-permission-merge")
+        .Options;
+    await using (var db = new HRPortalDbContext(migrationOptions))
+    {
+        var legacyPermission = new Permission
+        {
+            Code = "EmployeeContracts.Renewal",
+            Title = "ثبت و پیگیری تمدید قرارداد",
+            Module = "مدیریت قراردادهای کارکنان"
+        };
+        var legacyRole = new Role
+        {
+            Code = "OLD_RENEWAL_ROLE", Title = "نقش قدیمی تمدید", IsActive = true
+        };
+        var employee = new Employee
+        {
+            PersonnelNumber = "ROLE-MIG-01", NationalId = "ROLE-MIG-NID-01",
+            FirstName = "کارمند", LastName = "آزمون", Mobile = "09120000000",
+            Gender = "مرد", Status = "فعال", IsSystemUser = true
+        };
+        db.AddRange(legacyPermission, legacyRole, employee);
+        await db.SaveChangesAsync();
+        db.RolePermissions.Add(new RolePermission
+        {
+            RoleId = legacyRole.Id, PermissionId = legacyPermission.Id
+        });
+        db.EmployeePermissions.Add(new EmployeePermission
+        {
+            EmployeeId = employee.Id, PermissionId = legacyPermission.Id
+        });
+        await db.SaveChangesAsync();
+
+        await new RoleService(db).SeedAsync();
+
+        var createId = await db.Permissions.Where(x => x.Code == "ContractRenewal.Create")
+            .Select(x => x.Id).SingleAsync();
+        var listId = await db.Permissions.Where(x => x.Code == "ContractRenewal.List")
+            .Select(x => x.Id).SingleAsync();
+        Check(!await db.Permissions.AnyAsync(x => x.Code == "EmployeeContracts.Renewal"),
+            "The legacy employee-contract module permission must be removed after consolidation.");
+        Check(await db.RolePermissions.AnyAsync(x => x.RoleId == legacyRole.Id && x.PermissionId == createId) &&
+              await db.RolePermissions.AnyAsync(x => x.RoleId == legacyRole.Id && x.PermissionId == listId),
+            "Legacy role assignments must be transferred to both contract renewal creation and request-list permissions.");
+        Check(await db.EmployeePermissions.AnyAsync(x => x.EmployeeId == employee.Id && x.PermissionId == createId) &&
+              await db.EmployeePermissions.AnyAsync(x => x.EmployeeId == employee.Id && x.PermissionId == listId),
+            "Legacy personal permissions must be transferred without losing contract renewal access.");
+        Check(!(await new RoleService(db).GetPermissionsAsync()).Any(x => x.Code == "ContractRenewal.Manage"),
+            "The technical compatibility permission must not be shown as a configurable user permission.");
+    }
+
+    Console.WriteLine("PASS: role creation/update with empty optional fields, duplicate-code validation and legacy contract permission consolidation.");
 }

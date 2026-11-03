@@ -16,6 +16,17 @@ public class HomeController(HRPortalDbContext db, AnnouncementService announceme
         ViewBag.RevisionCount = await db.OrganizationStructureRevisions.CountAsync(x => x.IsFinalized);
         ViewBag.Announcements = (await announcements.GetActiveAsync()).Take(8).ToList();
 
+        var canViewSuggestionReports = PermissionAuthorization.HasPermission(User, "Suggestions.Reports");
+        ViewBag.CanViewSuggestionReports = canViewSuggestionReports;
+        if (canViewSuggestionReports)
+        {
+            var suggestions = db.Suggestions.AsNoTracking();
+            ViewBag.SuggestionTotalCount = await suggestions.CountAsync();
+            ViewBag.SuggestionDraftCount = await suggestions.CountAsync(x => x.Status == "Draft");
+            ViewBag.SuggestionSubmittedCount = await suggestions.CountAsync(x => x.Status == "Submitted");
+            ViewBag.SuggestionInEvaluationCount = await suggestions.CountAsync(x => x.Status != "Draft" && x.Status != "Submitted");
+        }
+
         var isAdmin = User.HasClaim("IsAdmin", "1");
         var canViewWorkflow = isAdmin || User.HasClaim("Permission", "Workflow.Inbox");
         ViewBag.CanViewWorkflowDashboard = canViewWorkflow;

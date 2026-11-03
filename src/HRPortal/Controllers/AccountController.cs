@@ -129,11 +129,13 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
                             ? 1
                             : x.PasswordLoginFailedAttempts + 1)
                     .SetProperty(x => x.PasswordLoginLockedUntilUtc,
-                        x => x.PasswordLoginLockedUntilUtc.HasValue && x.PasswordLoginLockedUntilUtc > now
-                            ? x.PasswordLoginLockedUntilUtc
-                            : x.PasswordLoginFailedAttempts >= PasswordLoginLockoutPolicy.MaximumFailedAttempts - 1
-                                ? now.Add(PasswordLoginLockoutPolicy.LockoutDuration)
-                                : null)
+                        x => x.PasswordLoginLockedUntilUtc.HasValue && x.PasswordLoginLockedUntilUtc <= now
+                            ? (DateTime?)null
+                            : x.PasswordLoginLockedUntilUtc.HasValue && x.PasswordLoginLockedUntilUtc > now
+                                ? x.PasswordLoginLockedUntilUtc
+                                : x.PasswordLoginFailedAttempts >= PasswordLoginLockoutPolicy.MaximumFailedAttempts - 1
+                                    ? now.Add(PasswordLoginLockoutPolicy.LockoutDuration)
+                                    : null)
                     .SetProperty(x => x.PasswordLoginLastFailedAtUtc, now)
                     .SetProperty(x => x.UpdatedAt, now));
 
@@ -447,6 +449,9 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
         var hadInitialPassword = employee.MustChangeInitialPassword;
         employee.PersonalPasswordHash = PasswordHasher.Hash(suppliedNewPassword);
         employee.MustChangeInitialPassword = false;
+        employee.PasswordLoginFailedAttempts = 0;
+        employee.PasswordLoginLockedUntilUtc = null;
+        employee.PasswordLoginLastFailedAtUtc = null;
         employee.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
 

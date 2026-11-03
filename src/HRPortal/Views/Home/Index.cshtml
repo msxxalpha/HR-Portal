@@ -162,11 +162,28 @@
     @await Html.PartialAsync("_AnnouncementsDashboard", activeAnnouncements)
 }
 
+@if ((bool?)ViewBag.CanViewSuggestionReports == true)
+{
+    <section class="home-suggestion-summary">
+        <div class="home-suggestion-heading">
+            <div><span class="eyebrow">نظام پیشنهادات کارکنان</span><h2>نمای کلی پیشنهادها</h2><p>وضعیت ثبت و پیگیری ایده‌های بهبود در سامانه</p></div>
+            <a class="btn btn-outline" href="/SuggestionsReports">مشاهده داشبورد و گزارش‌ها</a>
+        </div>
+        <div class="home-suggestion-kpis">
+            <div><span>کل پیشنهادها</span><strong>@ViewBag.SuggestionTotalCount</strong></div>
+            <div><span>پیش‌نویس</span><strong>@ViewBag.SuggestionDraftCount</strong></div>
+            <div><span>ثبت و ارسال‌شده</span><strong>@ViewBag.SuggestionSubmittedCount</strong></div>
+            <div><span>وضعیت‌های پس از ثبت</span><strong>@ViewBag.SuggestionInEvaluationCount</strong></div>
+        </div>
+    </section>
+}
+
 <div class="module-grid">
     @if (canViewEmployees) { <a class="module" href="/Employees"><b>01</b><h3>مدیریت کارکنان</h3><p>ثبت، ویرایش، غیرفعال‌سازی، جستجو، فیلتر و تبادل Excel.</p></a> }
     @if (canViewOrg) { <a class="module" href="/Organization"><b>02</b><h3>ساختار سازمانی</h3><p>ساختار درختی، بازنگری، نسخه‌بندی و تاریخچه تغییرات.</p></a> }
     @if (canViewPayroll) { <a class="module" href="/Payroll/Payslip"><b>03</b><h3>فیش حقوقی</h3><p>نمایش فیش حقوقی بر اساس ماه و شماره پرسنلی حساب کاربر.</p></a> }
     @if (canViewSettings) { <a class="module" href="/SystemSettings"><b>04</b><h3>تنظیمات محیط سامانه</h3><p>تنظیمات عمومی، ظاهر، OTP، پیامک و SSRS.</p></a> }
+    @if (isAdmin || User.HasClaim("Permission", "Suggestions.Submit") || User.HasClaim("Permission", "Suggestions.ViewAll") || User.HasClaim("Permission", "Suggestions.Manage")) { <a class="module" href="/Suggestions"><b>05</b><h3>نظام پیشنهادات</h3><p>ثبت، پیگیری، مدیریت و گزارش ایده‌های بهبود سازمانی.</p></a> }
 </div>
 <style>
 .employee-home-tiles{display:grid;grid-template-columns:minmax(0,2fr) minmax(270px,1fr);align-items:stretch;gap:18px;margin:20px 0}

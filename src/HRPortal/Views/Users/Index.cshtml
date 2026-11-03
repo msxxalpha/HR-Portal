@@ -58,16 +58,16 @@
                 {
                     var formId = "user-form-" + row.Employee.Id;
                     <tr>
-                        <td>
+                        <td data-label="شماره پرسنلی">
                             <form id="@formId" method="post" action="/Users/SaveUser">
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="employeeId" value="@row.Employee.Id" />
                             </form>
                             @row.Employee.PersonnelNumber
                         </td>
-                        <td>@row.Employee.FirstName @row.Employee.LastName</td>
-                        <td>@(row.Employee.OrganizationUnit?.Title ?? "—")</td>
-                        <td>
+                        <td data-label="کارمند">@row.Employee.FirstName @row.Employee.LastName</td>
+                        <td data-label="واحد">@(row.Employee.OrganizationSection?.Title ?? row.Employee.OrganizationDepartment?.Title ?? row.Employee.OrganizationUnit?.Title ?? "—")</td>
+                        <td data-label="نقش‌ها">
                             <div class="permission-chips">
                                 @foreach (var role in Model.Roles)
                                 {
@@ -78,20 +78,20 @@
                                 }
                             </div>
                         </td>
-                        <td><span class="badge">@(string.IsNullOrWhiteSpace(row.Employee.PersonalPasswordHash) ? "تعیین نشده" : "تعیین شده")</span></td>
-                        <td><details class="personal-permissions"><summary>تنظیم دسترسی اختصاصی <small>(@row.PersonalPermissionIds.Count)</small></summary>
+                        <td data-label="رمز شخصی"><span class="badge">@(string.IsNullOrWhiteSpace(row.Employee.PersonalPasswordHash) ? "تعیین نشده" : "تعیین شده")</span></td>
+                        <td data-label="دسترسی شخصی"><details class="personal-permissions"><summary>تنظیم دسترسی اختصاصی <small>(@row.PersonalPermissionIds.Count)</small></summary>
                         <form method="post" action="/Users/SavePersonalPermissions">@Html.AntiForgeryToken()<input type="hidden" name="employeeId" value="@row.Employee.Id" />
                         @foreach(var group in Model.Permissions.GroupBy(x=>x.Module).OrderBy(x=>x.Key)){<fieldset><legend>@group.Key</legend><div class="personal-permission-grid">@foreach(var permission in group.OrderBy(x=>x.Title)){<label><input type="checkbox" name="permissionIds" value="@permission.Id" @(row.PersonalPermissionIds.Contains(permission.Id)?"checked":"") /><span>@permission.Title</span></label>}</div></fieldset>}
                         <button class="btn btn-main btn-sm" type="submit">ذخیره دسترسی شخصی</button></form></details></td>
-                        <td>
+                        <td data-label="فعال">
                             <label class="switch-control">
                                 <input type="checkbox" name="isSystemUser" value="true" form="@formId" @(row.Employee.IsSystemUser ? "checked" : "") />
                                 <span class="switch-slider"></span>
                             </label>
                         </td>
-                        <td>
-                            <button class="btn btn-outline btn-sm" type="submit" form="@formId">ذخیره نقش و وضعیت</button>
-                            @if(row.IsPasswordLocked){<form method="post" action="/Users/UnlockPassword" class="unlock-user-form">@Html.AntiForgeryToken()<input type="hidden" name="employeeId" value="@row.Employee.Id" /><span class="locked-label">ورود با رمز قفل است</span><button class="btn btn-warning btn-sm" type="submit">بازکردن قفل</button></form>}
+                        <td data-label="عملیات">
+                            <button class="btn btn-outline btn-sm user-save-button" type="submit" form="@formId">ذخیره نقش و وضعیت</button>
+                            @if(row.IsPasswordLocked){<form method="post" action="/Users/UnlockPassword" class="unlock-user-form">@Html.AntiForgeryToken()<input type="hidden" name="employeeId" value="@row.Employee.Id" /><span class="locked-label">قفل تا @row.PasswordLoginLockedUntilUtc?.ToLocalTime().ToString("HH:mm")</span><button class="btn btn-warning btn-sm" type="submit">بازکردن قفل</button></form>}
                             <form method="post" action="/Users/SetPersonalCredential" style="margin-top:8px;">
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="employeeId" value="@row.Employee.Id" />

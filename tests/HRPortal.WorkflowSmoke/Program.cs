@@ -13,6 +13,9 @@ static void Check(bool condition, string message)
     if (!condition) throw new InvalidOperationException(message);
 }
 
+VerifyGranularPermissionMatrix();
+VerifyPasswordLoginLockoutPolicy();
+
 Check(ContractRenewalWorkflowService.MaximumAllowedContractMonths("ApproveOneMonth") == 1,
     "A one-month security approval must cap the allowed contract duration at one month.");
 Check(ContractRenewalWorkflowService.MaximumAllowedContractMonths("ApproveFull") == 12 &&
@@ -200,6 +203,90 @@ await VerifyWorkflowServiceAuthorizationAsync();
 await VerifyExplicitPositionTaskCreationAsync();
 await VerifyWorkflowTransitionLifecycleAsync();
 await VerifyContractRenewalRuntimeFlowAsync();
+
+static void VerifyGranularPermissionMatrix()
+{
+    static ClaimsPrincipal User(params string[] permissions) =>
+        new(new ClaimsIdentity(
+            permissions.Select(code => new Claim("Permission", code))
+                .Append(new Claim("IsAdmin", "0")), "PermissionSmoke"));
+    var reportsOnly = User("ContractRenewal.Reports");
+    Check(PermissionAuthorization.HasPermission(reportsOnly, "ContractRenewal.Reports"),
+        "A report-only renewal role must be allowed to open the dashboard.");
+    Check(!PermissionAuthorization.HasPermission(reportsOnly, "ContractRenewal.List") &&
+          !PermissionAuthorization.HasPermission(reportsOnly, "ContractRenewal.Evaluation.Manage") &&
+          !PermissionAuthorization.HasPermission(reportsOnly, "ContractRenewal.Settings"),
+        "Renewal report access must not grant list or management access.");
+
+    var listOnly = User("ContractRenewal.List");
+    Check(PermissionAuthorization.HasPermission(listOnly, "ContractRenewal.List") &&
+          !PermissionAuthorization.HasPermission(listOnly, "ContractRenewal.Reports") &&
+          !PermissionAuthorization.HasPermission(listOnly, "ContractRenewal.Create"),
+        "Renewal list permission must remain independent from reports and create.");
+
+    var evaluationManager = User("ContractRenewal.Evaluation.Manage");
+    Check(PermissionAuthorization.HasPermission(evaluationManager, "ContractRenewal.Evaluation.Manage") &&
+          !PermissionAuthorization.HasPermission(evaluationManager, "ContractRenewal.Settings") &&
+          !PermissionAuthorization.HasPermission(evaluationManager, "ContractRenewal.Workflow"),
+        "Evaluation management must not implicitly grant workflow settings or stop rights.");
+
+    var legacyRenewalManager = User("ContractRenewal.Manage");
+    foreach (var code in new[]
+    {
+        "ContractRenewal.View", "ContractRenewal.List", "ContractRenewal.Reports",
+        "ContractRenewal.Create", "ContractRenewal.Edit", "ContractRenewal.Delete",
+        "ContractRenewal.Settings", "ContractRenewal.Evaluation.Manage", "ContractRenewal.Workflow"
+    })
+        Check(PermissionAuthorization.HasPermission(legacyRenewalManager, code),
+            $"Legacy ContractRenewal.Manage must retain compatibility with '{code}'.");
+
+    var suggestionReports = User("Suggestions.Reports");
+    Check(PermissionAuthorization.HasPermission(suggestionReports, "Suggestions.Reports") &&
+          !PermissionAuthorization.HasPermission(suggestionReports, "Suggestions.Manage") &&
+          !PermissionAuthorization.HasPermission(suggestionReports, "Suggestions.Submit"),
+        "Suggestion reporting must not grant suggestion administration or submission.");
+    var suggestionManager = User("Suggestions.Manage");
+    Check(PermissionAuthorization.HasPermission(suggestionManager, "Suggestions.Reports") &&
+          PermissionAuthorization.HasPermission(suggestionManager, "Suggestions.Export"),
+        "Suggestion manager must retain report and export capability.");
+    var adminIdentity = new ClaimsIdentity(new[] { new Claim("IsAdmin", "1") }, "PermissionSmoke");
+    var admin = new ClaimsPrincipal(adminIdentity);
+    Check(PermissionAuthorization.HasPermission(admin, "ContractRenewal.Evaluation.Manage") &&
+          PermissionAuthorization.HasPermission(admin, "Suggestions.Reports"),
+        "System administrator must retain access to all module actions.");
+
+    var expectedCodes = new[]
+    {
+        "ContractRenewal.List", "ContractRenewal.Reports", "ContractRenewal.Evaluation.Manage",
+        "Suggestions.Reports", "Suggestions.Export"
+    };
+    foreach (var code in expectedCodes)
+        Check(RoleService.DefaultPermissions.Count(x => x.Code == code) == 1,
+            $"Permission catalogue must seed exactly one '{code}' permission.");
+
+    Console.WriteLine("PASS: granular contract-renewal list/report/evaluation permissions, legacy Manage compatibility, suggestion report/export separation, and administrator access.");
+}
+
+static void VerifyPasswordLoginLockoutPolicy()
+{
+    var now = new DateTime(2026, 11, 3, 8, 0, 0, DateTimeKind.Utc);
+    var until = now.Add(PasswordLoginLockoutPolicy.LockoutDuration);
+    Check(PasswordLoginLockoutPolicy.MaximumFailedAttempts == 5,
+        "Employee password lockout must start after five failed attempts.");
+    Check(PasswordLoginLockoutPolicy.LockoutDuration == TimeSpan.FromMinutes(15),
+        "Employee password lockout duration must be exactly 15 minutes.");
+    Check(PasswordLoginLockoutPolicy.IsLocked(until, now),
+        "A future lockout expiration must be considered locked.");
+    Check(PasswordLoginLockoutPolicy.GetRemainingSeconds(until, now) == 900,
+        "A new 15-minute lockout must expose 900 seconds remaining.");
+    Check(!PasswordLoginLockoutPolicy.IsLocked(until, until) &&
+          PasswordLoginLockoutPolicy.GetRemainingSeconds(until, until) == 0,
+        "The lockout must end exactly at its UTC expiration timestamp.");
+    Check(!PasswordLoginLockoutPolicy.IsLocked(null, now) &&
+          PasswordLoginLockoutPolicy.GetRemainingSeconds(null, now) == 0,
+        "An account without a lockout timestamp must remain unlocked.");
+    Console.WriteLine("PASS: persistent account-lockout thresholds, UTC expiry boundary and remaining-time calculation.");
+}
 
 static async Task VerifyMaintenanceModeBypassAsync()
 {

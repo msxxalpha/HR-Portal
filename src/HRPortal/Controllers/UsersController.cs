@@ -123,6 +123,9 @@ public class UsersController(HRPortalDbContext db, RoleService roles, AuditServi
         }
         var hadValue = !string.IsNullOrWhiteSpace(employee.PersonalPasswordHash);
         employee.PersonalPasswordHash = PasswordHasher.Hash(password);
+        employee.PasswordLoginFailedAttempts = 0;
+        employee.PasswordLoginLockedUntilUtc = null;
+        employee.PasswordLoginLastFailedAtUtc = null;
         employee.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
         await audit.WriteAsync(

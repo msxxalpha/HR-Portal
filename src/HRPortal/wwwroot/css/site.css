@@ -422,27 +422,58 @@
 .revision-day-group{border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:10px}
 .revision-day-heading{font-weight:800;color:var(--navy);padding:4px 6px 8px}
 
-/* User administration: compact table without horizontal scrolling and with a frozen header. */
-.users-table-tools{display:grid;grid-template-columns:minmax(220px,2fr) minmax(130px,1fr) minmax(150px,1fr) 120px;gap:12px;align-items:end;margin:0 0 14px}
+/* User administration: fixed eight-column desktop grid; compact responsive cards on narrow screens. */
+.users-table-tools{display:grid;grid-template-columns:minmax(200px,2fr) minmax(120px,1fr) minmax(140px,1fr) 110px;gap:10px;align-items:end;margin:0 0 14px}
 .users-table-tools label{min-width:0}
-.users-table-tools #usersResultCount{align-self:center}
-.users-table-wrap{max-width:100%;max-height:70vh;overflow-y:auto;overflow-x:hidden}
-.users-management-table{width:100%;table-layout:fixed}
-.users-management-table th{position:sticky;top:0;z-index:2;background:#f1f5f7;white-space:normal;box-shadow:0 1px 0 var(--line)}
-.users-management-table td{white-space:normal;overflow-wrap:anywhere;word-break:break-word}
-.users-management-table th:nth-child(1){width:10%}
-.users-management-table th:nth-child(2){width:13%}
-.users-management-table th:nth-child(3){width:11%}
-.users-management-table th:nth-child(4){width:21%}
-.users-management-table th:nth-child(5){width:10%}
-.users-management-table th:nth-child(6){width:7%}
-.users-management-table th:nth-child(7){width:28%}
-.users-management-table .permission-chips{display:flex;flex-wrap:wrap;gap:5px}
-.users-management-table input[type=password]{min-width:0;max-width:100%!important}
+.users-table-tools #usersResultCount{align-self:center;white-space:normal}
+.users-table-wrap{width:100%;max-width:100%;max-height:70vh;overflow-y:auto;overflow-x:hidden}
+.users-management-table{width:100%;min-width:0;max-width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0}
+.users-management-table th{position:sticky;top:0;z-index:2;background:#f1f5f7;white-space:normal;box-shadow:0 1px 0 var(--line);font-size:10px;padding:9px 6px;line-height:1.65}
+.users-management-table td{white-space:normal;overflow-wrap:anywhere;word-break:normal;padding:9px 6px;vertical-align:top;line-height:1.75}
+.users-management-table th:nth-child(1),.users-management-table td:nth-child(1){width:9%}
+.users-management-table th:nth-child(2),.users-management-table td:nth-child(2){width:12%}
+.users-management-table th:nth-child(3),.users-management-table td:nth-child(3){width:10%}
+.users-management-table th:nth-child(4),.users-management-table td:nth-child(4){width:15%}
+.users-management-table th:nth-child(5),.users-management-table td:nth-child(5){width:8%}
+.users-management-table th:nth-child(6),.users-management-table td:nth-child(6){width:10%}
+.users-management-table th:nth-child(7),.users-management-table td:nth-child(7){width:5%}
+.users-management-table th:nth-child(8),.users-management-table td:nth-child(8){width:31%}
+.users-management-table .permission-chips{display:flex;flex-wrap:wrap;gap:4px;max-width:100%}
+.users-management-table .check-chip{max-width:100%;min-width:0;padding:4px 6px;font-size:9px;line-height:1.5}
+.users-management-table .check-chip span{overflow-wrap:anywhere}
+.users-management-table input[type=password]{width:100%;min-width:0;max-width:100%!important;padding:7px}
+.users-management-table td:nth-child(8) form{min-width:0;max-width:100%}
+.users-management-table td:nth-child(8) .btn{max-width:100%;white-space:normal;line-height:1.6}
+.users-management-table .user-save-button{width:100%}
+.users-management-table .unlock-user-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:center;margin:7px 0}
+.users-management-table .locked-label{font-size:9px;white-space:normal;color:#9a5b09}
+.users-management-table .personal-permissions{min-width:0}
+.users-management-table .personal-permissions summary{white-space:normal;cursor:pointer;line-height:1.7}
+.users-management-table .personal-permissions fieldset{min-width:0;max-width:100%;margin:8px 0;padding:8px}
+.users-management-table .personal-permission-grid{display:grid;grid-template-columns:1fr;gap:5px}
+.users-management-table .personal-permission-grid label{display:flex;flex-direction:row;align-items:flex-start;min-width:0;gap:6px}
+.users-management-table .personal-permission-grid input{width:auto;flex:0 0 auto}
 .users-pagination{display:flex;justify-content:center;align-items:center;gap:12px;padding:14px}
 .users-pagination button:disabled{opacity:.45;cursor:not-allowed}
-@media(max-width:900px){.users-table-tools{grid-template-columns:repeat(2,minmax(0,1fr))}.users-management-table{font-size:10px}.users-management-table th,.users-management-table td{padding:7px 5px}}
-@media(max-width:560px){.users-table-tools{grid-template-columns:1fr}}
+@media(max-width:1100px){
+ .users-table-tools{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .users-table-wrap{max-height:none;overflow:visible;border:0;background:transparent}
+ .users-management-table,.users-management-table tbody,.users-management-table tr,.users-management-table td{display:block;width:100%;max-width:100%}
+ .users-management-table thead{display:none}
+ .users-management-table tbody{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:12px}
+ .users-management-table tr{border:1px solid var(--line);border-radius:12px;background:#fff;padding:9px;min-width:0}
+ .users-management-table td,.users-management-table th{width:100%!important;border-bottom:1px solid #edf1f3;padding:8px 6px}
+ .users-management-table td[data-label]{display:grid;grid-template-columns:minmax(95px,30%) minmax(0,1fr);gap:9px;align-items:start}
+ .users-management-table td[data-label]::before{content:attr(data-label);font-weight:700;color:#566671;font-size:10px}
+ .users-management-table td[data-label="عملیات"]{display:block}
+ .users-management-table td[data-label="عملیات"]::before{display:block;margin-bottom:8px}
+ .users-management-table .permission-chips{max-width:100%}
+}
+@media(max-width:560px){
+ .users-table-tools{grid-template-columns:1fr}
+ .users-management-table tbody{grid-template-columns:1fr}
+ .users-management-table td[data-label]{grid-template-columns:90px minmax(0,1fr);gap:7px}
+}
 
 /* Workflow dashboard */
 .workflow-dashboard{margin:24px 0 28px}

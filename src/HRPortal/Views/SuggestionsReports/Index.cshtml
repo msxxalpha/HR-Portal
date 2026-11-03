@@ -1,0 +1,115 @@
+@model HRPortal.Models.SuggestionsDashboardViewModel
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "داشبورد و گزارش‌های نظام پیشنهادات";
+    int maxStatus = Math.Max(1, Model.StatusBuckets.Select(x => x.Count).DefaultIfEmpty(0).Max());
+    int maxCategory = Math.Max(1, Model.CategoryBuckets.Select(x => x.Count).DefaultIfEmpty(0).Max());
+    int maxBenefit = Math.Max(1, Model.BenefitBuckets.Select(x => x.Count).DefaultIfEmpty(0).Max());
+    int maxResource = Math.Max(1, Model.ResourceBuckets.Select(x => x.Count).DefaultIfEmpty(0).Max());
+    int maxMonth = Math.Max(1, Model.MonthlyBuckets.Select(x => x.Count).DefaultIfEmpty(0).Max());
+    string statusLabel(string status) => status switch {
+        "Draft" => "پیش‌نویس", "Submitted" => "ثبت‌شده و در انتظار بررسی",
+        "Accepted" or "Approved" or "تأیید شده" or "تأیید نهایی" or "پذیرفته شده" or "مصوب" => "پذیرفته‌شده",
+        "Rejected" or "رد شده" or "عدم پذیرش" => "ردشده", "InEvaluation" or "Evaluating" => "در حال ارزیابی",
+        _ => status
+    };
+    string statusClass(string status) => status == "Draft" ? "draft" :
+        status == "Submitted" ? "submitted" :
+        (status == "Rejected" || status == "رد شده") ? "rejected" :
+        (status == "Accepted" || status == "Approved" || status == "تأیید شده") ? "accepted" : "evaluating";
+    string dateValue(DateTime? d) => d.HasValue ? d.Value.ToString("yyyy-MM-dd") : "";
+    var canExport = User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Suggestions.Export") || User.HasClaim("Permission", "Suggestions.Manage");
+}
+<div class="page-head suggestions-report-head">
+    <div><h1>داشبورد و گزارش‌های نظام پیشنهادات</h1><p>تحلیل وضعیت ثبت و پیگیری، مشارکت کارکنان، دسته‌بندی ایده‌ها، منافع مورد انتظار و منابع موردنیاز بر اساس اطلاعات ثبت‌شده.</p></div>
+    <div class="actions"><a class="btn btn-outline" href="/Suggestions">فهرست پیشنهادها</a>@if(canExport){<a class="btn btn-main" href="/SuggestionsReports/Export?from=@dateValue(Model.From)&to=@dateValue(Model.To)&category=@Uri.EscapeDataString(Model.Category)&status=@Uri.EscapeDataString(Model.Status)">خروجی CSV</a>}</div>
+</div>
+@if (TempData["Error"] is string reportError) { <div class="alert error">@reportError</div> }
+@if (!ViewData.ModelState.IsValid) { <div class="alert error">@string.Join(" ", ViewData.ModelState.Values.SelectMany(x => x.Errors).Select(x => x.ErrorMessage))</div> }
+<form method="get" action="/SuggestionsReports" class="suggestions-report-filters">
+    <label>از تاریخ <input type="date" name="from" value="@dateValue(Model.From)" /></label>
+    <label>تا تاریخ <input type="date" name="to" value="@dateValue(Model.To)" /></label>
+    <label>دسته‌بندی
+        <select name="category"><option value="all">همه دسته‌بندی‌ها</option>
+            @foreach(var value in new[]{"بهبود فرایند و روش انجام کار","کاهش هزینه و صرفه‌جویی","افزایش بهره‌وری و کاهش زمان","ارتقای کیفیت محصول یا خدمت","ایمنی، بهداشت و محیط زیست","نگهداری و تعمیرات","فناوری اطلاعات و تحول دیجیتال","منابع انسانی و امور اداری","انرژی و منابع","سایر"}) { <option value="@value" selected="@(Model.Category == value)">@value</option> }
+        </select>
+    </label>
+    <label>وضعیت
+        <select name="status">
+            <option value="all" selected="@(Model.Status == "all")">همه وضعیت‌ها</option>
+            <option value="Draft" selected="@(Model.Status == "Draft")">پیش‌نویس</option>
+            <option value="Submitted" selected="@(Model.Status == "Submitted")">ثبت‌شده</option>
+            <option value="InEvaluation" selected="@(Model.Status == "InEvaluation")">در حال ارزیابی</option>
+            <option value="Accepted" selected="@(Model.Status == "Accepted")">پذیرفته‌شده</option>
+            <option value="Rejected" selected="@(Model.Status == "Rejected")">ردشده</option>
+        </select>
+    </label>
+    <div class="actions"><button class="btn btn-main" type="submit">اعمال فیلتر</button><a class="btn btn-outline" href="/SuggestionsReports">حذف فیلترها</a></div>
+</form>
+<section class="suggestions-report-kpis">
+    <article><span>کل پیشنهادها</span><strong>@Model.TotalCount</strong><small>بر اساس فیلترهای انتخاب‌شده</small></article>
+    <article><span>پیش‌نویس</span><strong>@Model.DraftCount</strong><small>هنوز ارسال نشده</small></article>
+    <article><span>ثبت‌شده</span><strong>@Model.SubmittedCount</strong><small>در انتظار بررسی</small></article>
+    <article><span>در حال ارزیابی</span><strong>@Model.InEvaluationCount</strong><small>وضعیت‌های پس از ثبت اولیه</small></article>
+    <article><span>پذیرفته‌شده</span><strong>@Model.AcceptedCount</strong><small>نتیجه ثبت‌شده</small></article>
+    <article><span>ردشده</span><strong>@Model.RejectedCount</strong><small>نتیجه ثبت‌شده</small></article>
+    <article><span>پیشنهاددهندگان یکتا</span><strong>@Model.UniqueProposers</strong><small>کارکنان مشارکت‌کننده</small></article>
+    <article><span>پیشنهادهای گروهی</span><strong>@Model.CollaborativeCount</strong><small>دارای همکار مشارکت‌کننده</small></article>
+    <article><span>پیوست‌ها</span><strong>@Model.AttachmentCount</strong><small>فایل‌های مرتبط با پیشنهادها</small></article>
+    <article><span>ارسال در ۳۰ روز اخیر</span><strong>@Model.SubmittedLast30Days</strong><small>با تاریخ ارسال ثبت‌شده</small></article>
+</section>
+<section class="suggestions-report-grid">
+    <article class="card">
+        <div class="section-head"><div><h3>توزیع وضعیت پیشنهادها</h3><span class="muted">وضعیت فعلی رکوردها</span></div></div>
+        @if(Model.StatusBuckets.Count==0){<div class="empty">داده‌ای برای نمایش وجود ندارد.</div>}
+        @foreach(var item in Model.StatusBuckets){<div class="suggestion-report-bar-row"><div><span>@item.Label</span><strong>@item.Count</strong></div><div class="suggestion-report-track"><i style="width:@(100.0*item.Count/maxStatus)%"></i></div></div>}
+    </article>
+    <article class="card">
+        <div class="section-head"><div><h3>روند ارسال پیشنهادها</h3><span class="muted">۱۲ ماه اخیر، تقویم شمسی</span></div></div>
+        <div class="suggestion-report-months">
+            @foreach(var item in Model.MonthlyBuckets){<div title="@item.Label: @item.Count"><strong>@item.Count</strong><div><i style="height:@(item.Count==0?2:Math.Max(4,100.0*item.Count/maxMonth))%"></i></div><span>@item.Label</span></div>}
+        </div>
+    </article>
+    <article class="card">
+        <div class="section-head"><div><h3>پیشنهادها بر اساس دسته‌بندی</h3><span class="muted">موضوع و حوزه بهبود</span></div></div>
+        @foreach(var item in Model.CategoryBuckets){<div class="suggestion-report-bar-row"><div><span>@item.Label</span><strong>@item.Count</strong></div><div class="suggestion-report-track"><i style="width:@(100.0*item.Count/maxCategory)%"></i></div></div>}
+    </article>
+    <article class="card">
+        <div class="section-head"><div><h3>منافع مورد انتظار</h3><span class="muted">جمع دفعات انتخاب منافع در پیشنهادها</span></div></div>
+        @if(Model.BenefitBuckets.Count==0){<div class="empty">اطلاعات منفعت ثبت نشده است.</div>}
+        @foreach(var item in Model.BenefitBuckets){<div class="suggestion-report-bar-row"><div><span>@item.Label</span><strong>@item.Count</strong></div><div class="suggestion-report-track"><i style="width:@(100.0*item.Count/maxBenefit)%"></i></div></div>}
+    </article>
+    <article class="card">
+        <div class="section-head"><div><h3>منابع و امکانات موردنیاز</h3><span class="muted">بر اساس منابع اعلام‌شده در فرم پیشنهاد</span></div></div>
+        @if(Model.ResourceBuckets.Count==0){<div class="empty">اطلاعات منابع ثبت نشده است.</div>}
+        @foreach(var item in Model.ResourceBuckets){<div class="suggestion-report-bar-row"><div><span>@item.Label</span><strong>@item.Count</strong></div><div class="suggestion-report-track"><i style="width:@(100.0*item.Count/maxResource)%"></i></div></div>}
+    </article>
+</section>
+<section class="card suggestions-report-detail">
+    <div class="section-head"><div><h3>جزئیات پیشنهادهای فیلترشده</h3><span class="muted">@Model.Rows.Count رکورد</span></div><label class="suggestions-report-search">جستجوی سریع<input id="suggestionsReportSearch" type="search" placeholder="شماره، عنوان، پیشنهاددهنده یا واحد..." /></label></div>
+    @if(Model.Rows.Count==0){<div class="empty">با فیلترهای فعلی پیشنهادی یافت نشد.</div>}
+    else{
+    <div class="table-wrap"><table class="suggestions-report-table" id="suggestionsReportTable">
+        <thead><tr><th>شماره پیگیری</th><th>عنوان پیشنهاد</th><th>دسته‌بندی</th><th>پیشنهاددهنده</th><th>واحد</th><th>وضعیت</th><th>تاریخ ثبت</th><th>تاریخ ارسال</th><th>همکاران</th><th>پیوست</th><th>جزئیات</th></tr></thead>
+        <tbody>
+        @foreach(var row in Model.Rows){
+        <tr><td dir="ltr">@row.SuggestionNumber</td><td>@row.Title</td><td>@row.Category</td><td>@row.ProposerName <small>@row.PersonnelNumber</small></td><td>@row.Organization</td><td><span class="suggestion-status @statusClass(row.Status)">@statusLabel(row.Status)</span></td><td>@row.CreatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd")</td><td>@(row.SubmittedAtUtc?.ToLocalTime().ToString("yyyy/MM/dd")??"—")</td><td>@row.MemberCount</td><td>@row.AttachmentCount</td><td><a class="suggestion-row-link" href="/Suggestions/Details/@row.Id">مشاهده</a></td></tr>
+        }
+        </tbody>
+    </table></div>}
+</section>
+<div class="form-actions"><a class="btn btn-outline" href="/Suggestions">بازگشت به فهرست پیشنهادها</a></div>
+@section Scripts{
+<script>
+(() => {
+ const input=document.getElementById('suggestionsReportSearch');
+ const table=document.getElementById('suggestionsReportTable');
+ if(!input||!table)return;
+ const rows=[...table.tBodies[0].rows];
+ input.addEventListener('input',()=>{
+  const q=input.value.trim().toLocaleLowerCase('fa');
+  rows.forEach(row=>row.hidden=!!q&&!row.innerText.toLocaleLowerCase('fa').includes(q));
+ });
+})();
+</script>
+}

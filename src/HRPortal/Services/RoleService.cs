@@ -596,5 +596,5 @@ public class RoleService(HRPortalDbContext db)
         // selections are valid and intentionally create a role with no access.
         await db.SaveChangesAsync();
         return role.Id;
-     }
+    }
 }

@@ -92,7 +92,7 @@
            <textarea name="description" maxlength="2000" rows="2" placeholder="جزئیات انجام اقدام">@action.Description</textarea>
           </label>
           <label>موعد پایان
-           <input type="date" name="dueDate" required value="@action.DueDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" />
+           <div class="jalali-date-input"><input type="text" name="dueDate" data-jalali-date autocomplete="off" inputmode="numeric" required placeholder="۱۴۰۵/۰۸/۲۹" value="@HRPortal.Services.PersianDateService.Format(action.DueDate)" /><button type="button" class="btn btn-outline jalali-date-open" data-jalali-trigger aria-label="انتخاب موعد پایان">تقویم</button></div>
           </label>
           <label>وضعیت
            <select name="status" required>
@@ -120,7 +120,8 @@
           <textarea name="description" maxlength="2000" rows="2" placeholder="چه کاری انجام می‌دهم و انتظار دارم چه چیزی بهتر شود؟"></textarea>
          </label>
          <label>موعد پایان *
-          <input type="date" name="dueDate" min="@HRPortal.Services.MonthlyPerformanceService.NowIran().ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" required />
+          <div class="jalali-date-input"><input type="text" name="dueDate" data-jalali-date autocomplete="off" inputmode="numeric" required placeholder="۱۴۰۵/۰۸/۲۹" /><button type="button" class="btn btn-outline jalali-date-open" data-jalali-trigger aria-label="انتخاب موعد پایان">تقویم</button></div>
+          <small class="mp-note">تاریخ پایان نمی‌تواند در گذشته باشد.</small>
          </label>
          <div class="mp-action-submit">
           <button class="btn btn-main btn-sm" type="submit">ثبت برنامه اقدام بهبود</button>

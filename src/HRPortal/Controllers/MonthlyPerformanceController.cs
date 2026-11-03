@@ -233,12 +233,14 @@ public class MonthlyPerformanceController(
 
     [HttpPost, Authorize(Policy = "MonthlyPerformance.View"), ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateImprovementAction(
-        int periodId, int scoreId, string? title, string? description, DateTime dueDate)
+        int periodId, int scoreId, string? title, string? description, string? dueDate)
     {
         if (!TryEmployee(out var actor)) return Forbid();
         try
         {
-            var created = await improvement.CreateAsync(actor, scoreId, title, description, dueDate);
+            if (!PersianDateService.TryParse(dueDate, out var parsedDueDate))
+                throw new InvalidOperationException("تاریخ پایان اقدام را به‌صورت شمسی و معتبر وارد کنید.");
+            var created = await improvement.CreateAsync(actor, scoreId, title, description, parsedDueDate);
             periodId = created.Score.Evaluation.PeriodId;
             TempData["ImprovementActionThanks"] = "از توجه و تعهد شما به بهبود مستمر و توسعه فردی سپاسگزاریم. سازمان، تلاش آگاهانه شما برای یادگیری، رشد و ارتقای کیفیت کار را ارزشمند می‌داند.";
         }
@@ -250,12 +252,14 @@ public class MonthlyPerformanceController(
     [HttpPost, Authorize(Policy = "MonthlyPerformance.View"), ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateImprovementAction(
         int periodId, int actionId, string? title, string? description,
-        DateTime dueDate, string? status)
+        string? dueDate, string? status)
     {
         if (!TryEmployee(out var actor)) return Forbid();
         try
         {
-            var updated = await improvement.UpdateAsync(actor, actionId, title, description, dueDate, status);
+            if (!PersianDateService.TryParse(dueDate, out var parsedDueDate))
+                throw new InvalidOperationException("تاریخ پایان اقدام را به‌صورت شمسی و معتبر وارد کنید.");
+            var updated = await improvement.UpdateAsync(actor, actionId, title, description, parsedDueDate, status);
             periodId = updated.Score.Evaluation.PeriodId;
             TempData["Success"] = "برنامه اقدام بهبود شما با موفقیت به‌روزرسانی شد.";
         }

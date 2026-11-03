@@ -1278,6 +1278,12 @@ static async Task VerifyRoleAdministrationAsync()
             Title = "عنوان قدیمی مشاهده تمدید",
             Module = "مدیریت قراردادهای کارکنان"
         };
+        var misplacedCompatibilityAlias = new Permission
+        {
+            Code = "ContractRenewal.Manage",
+            Title = "ثبت و پیگیری تمدید قرارداد",
+            Module = "مدیریت قراردادهای کارکنان"
+        };
         var legacyRole = new Role
         {
             Code = "OLD_RENEWAL_ROLE", Title = "نقش قدیمی تمدید", IsActive = true
@@ -1288,11 +1294,15 @@ static async Task VerifyRoleAdministrationAsync()
             FirstName = "کارمند", LastName = "آزمون", Mobile = "09120000000",
             Gender = "مرد", Status = "فعال", IsSystemUser = true
         };
-        db.AddRange(legacyPermission, misplacedGranularPermission, legacyRole, employee);
+        db.AddRange(legacyPermission, misplacedGranularPermission, misplacedCompatibilityAlias, legacyRole, employee);
         await db.SaveChangesAsync();
         db.RolePermissions.Add(new RolePermission
         {
             RoleId = legacyRole.Id, PermissionId = legacyPermission.Id
+        });
+        db.RolePermissions.Add(new RolePermission
+        {
+            RoleId = legacyRole.Id, PermissionId = misplacedCompatibilityAlias.Id
         });
         db.EmployeePermissions.Add(new EmployeePermission
         {
@@ -1325,6 +1335,10 @@ static async Task VerifyRoleAdministrationAsync()
         Check(repairedViewPermission.Module == "تمدید قرارداد" &&
               repairedViewPermission.Title == "مشاهده جزئیات و سوابق درخواست تمدید",
             "An existing granular renewal permission under the old module must be repaired in place, not deleted.");
+        var repairedCompatibilityAlias = await db.Permissions.SingleAsync(x => x.Code == "ContractRenewal.Manage");
+        Check(repairedCompatibilityAlias.Module == "تمدید قرارداد" &&
+              await db.RolePermissions.AnyAsync(x => x.RoleId == legacyRole.Id && x.PermissionId == repairedCompatibilityAlias.Id),
+            "The hidden renewal compatibility alias must remain assigned for older role checks while belonging to the unified module.");
     }
 
     Console.WriteLine("PASS: role creation/update with empty optional fields, duplicate-code validation and legacy contract permission consolidation.");

@@ -271,6 +271,71 @@ public class UsersController(
             .Select(x => new { x.RoleId, x.RankType })
             .ToListAsync();
 
+        // Count unique active system users with either a direct role assignment
+        // or an inherited assignment through the currently effective final org
+        // structure. This makes the count meaningful for both assignment modes.
+        var activeSystemUsers = await db.Employees.AsNoTracking()
+            .Where(x => x.IsSystemUser && x.Status == "فعال")
+            .Select(x => new { x.Id, x.OrganizationPositionId })
+            .ToListAsync();
+        var activeUserIds = activeSystemUsers.Select(x => x.Id).ToHashSet();
+        var userCounts = roleIds.ToDictionary(x => x, _ => new HashSet<int>());
+        foreach (var assignment in userAssignments)
+            if (activeUserIds.Contains(assignment.EmployeeId))
+                userCounts[assignment.RoleId].Add(assignment.EmployeeId);
+
+        var rankTypesByRole = rankAssignments
+            .GroupBy(x => x.RoleId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(x => x.RankType)
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Select(x => x.Trim())
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase));
+
+        if (rankTypesByRole.Count > 0 && activeSystemUsers.Count > 0)
+        {
+            var revisionId = await db.OrganizationStructureRevisions.AsNoTracking()
+                .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
+                .OrderByDescending(x => x.EffectiveDate)
+                .ThenByDescending(x => x.FinalizedAt)
+                .ThenByDescending(x => x.Id)
+                .Select(x => (int?)x.Id).FirstOrDefaultAsync();
+
+            if (revisionId.HasValue)
+            {
+                var nodes = await db.OrganizationNodes.AsNoTracking()
+                    .Where(x => x.OrganizationStructureRevisionId == revisionId.Value && x.IsActive)
+                    .Select(x => new RoleService.OrganizationRankNode(
+                        x.Id, x.Code, x.RankType, x.PositionHolderEmployeeId, x.AssignedEmployeeIdsCsv))
+                    .ToListAsync();
+
+                var positionIds = activeSystemUsers
+                    .Where(x => x.OrganizationPositionId.HasValue)
+                    .Select(x => x.OrganizationPositionId!.Value).Distinct().ToArray();
+                var positionCodes = positionIds.Length == 0
+                    ? new Dictionary<int, string>()
+                    : await db.OrganizationNodes.AsNoTracking()
+                        .Where(x => positionIds.Contains(x.Id))
+                        .ToDictionaryAsync(x => x.Id, x => x.Code);
+
+                foreach (var employee in activeSystemUsers)
+                {
+                    var positionCode = employee.OrganizationPositionId.HasValue &&
+                                       positionCodes.TryGetValue(employee.OrganizationPositionId.Value, out var code)
+                        ? code
+                        : null;
+                    var employeeRanks = RoleService.ResolveRankTypesForEmployee(
+                        employee.Id, employee.OrganizationPositionId, positionCode, nodes);
+
+                    if (employeeRanks.Count == 0) continue;
+                    foreach (var roleRank in rankTypesByRole)
+                        if (employeeRanks.Overlaps(roleRank.Value))
+                            userCounts[roleRank.Key].Add(employee.Id);
+                }
+            }
+        }
+
         return all.Select(role =>
         {
             var rolePermissions = assignments.Where(x => x.RoleId == role.Id).ToList();
@@ -289,11 +354,9 @@ public class UsersController(
                 PermissionCount = rolePermissions.Select(x => x.PermissionId).Distinct().Count(),
                 PermissionModules = rolePermissions.Select(x => x.Module).Distinct(StringComparer.OrdinalIgnoreCase)
                     .OrderBy(x => x).ToList(),
-                UserCount = userAssignments.Where(x => x.RoleId == role.Id)
-                    .Select(x => x.EmployeeId).Distinct().Count(),
+                UserCount = userCounts[role.Id].Count,
                 AssignedRankTypes = rankTypes,
                 OrganizationRankCount = rankTypes.Count
             };
         }).ToList();
-    }
-}
+    }}

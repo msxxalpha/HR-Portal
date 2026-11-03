@@ -460,6 +460,14 @@ public class RoleService(HRPortalDbContext db)
             .Replace(" ", string.Empty, StringComparison.Ordinal)
             .Trim();
 
+        var compatibilityAlias = await db.Permissions
+            .FirstOrDefaultAsync(x => x.Code == "ContractRenewal.Manage");
+        if (compatibilityAlias is not null)
+        {
+            compatibilityAlias.Module = "تمدید قرارداد";
+            compatibilityAlias.Title = "دسترسی کامل و سازگاری با نقش‌های قبلی";
+        }
+
         var targets = await db.Permissions.AsNoTracking()
             .Where(x => x.Code == "ContractRenewal.Create" || x.Code == "ContractRenewal.List")
             .ToDictionaryAsync(x => x.Code, x => x.Id);

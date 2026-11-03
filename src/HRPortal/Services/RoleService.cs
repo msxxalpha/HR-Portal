@@ -50,6 +50,7 @@ public class RoleService(HRPortalDbContext db)
         ("Workflow.Inbox", "کارتابل گردش کار", "گردش کار"),
         ("Workflow.Manage", "مدیریت گردش کار", "گردش کار"),
         ("ContractRenewal.View", "مشاهده جزئیات و سوابق درخواست تمدید", "تمدید قرارداد"),
+        ("ContractRenewal.Track", "ثبت و پیگیری تمدید قرارداد", "تمدید قرارداد"),
         ("ContractRenewal.List", "مشاهده فهرست و سوابق درخواست‌ها", "تمدید قرارداد"),
         ("ContractRenewal.Reports", "مشاهده داشبورد و گزارش‌های تمدید قرارداد", "تمدید قرارداد"),
         ("ContractRenewal.Evaluation.Manage", "مدیریت پرسش‌ها و ماژول ارزشیابی تمدید قرارداد", "تمدید قرارداد"),
@@ -468,16 +469,14 @@ public class RoleService(HRPortalDbContext db)
             compatibilityAlias.Title = "دسترسی کامل و سازگاری با نقش‌های قبلی";
         }
 
-        var targets = await db.Permissions.AsNoTracking()
-            .Where(x => x.Code == "ContractRenewal.Create" || x.Code == "ContractRenewal.List")
-            .ToDictionaryAsync(x => x.Code, x => x.Id);
-        if (!targets.TryGetValue("ContractRenewal.Create", out var createId) ||
-            !targets.TryGetValue("ContractRenewal.List", out var listId))
-            return;
+        var trackId = await db.Permissions.AsNoTracking()
+            .Where(x => x.Code == "ContractRenewal.Track")
+            .Select(x => (int?)x.Id).FirstOrDefaultAsync();
+        if (!trackId.HasValue) return;
 
         // Existing granular permissions may already exist under the old module
-        // label. Move those rows in place so their IDs and all existing links
-        // remain intact; only the retired one-permission model is expanded below.
+        // label. Move those rows in place. The retired broad permission is renamed
+        // to ContractRenewal.Track below and its assignments remain functional.
         var canonicalRenewalPermissions = DefaultPermissions
             .Where(x => x.Code.StartsWith("ContractRenewal.", StringComparison.Ordinal) &&
                         x.Code != "ContractRenewal.Manage")
@@ -509,28 +508,20 @@ public class RoleService(HRPortalDbContext db)
             var legacyEmployeeRows = await db.EmployeePermissions
                 .Where(x => legacyIds.Contains(x.PermissionId)).ToListAsync();
 
-            var existingRolePairs = (await db.RolePermissions.AsNoTracking()
-                .Where(x => x.PermissionId == createId || x.PermissionId == listId)
-                .Select(x => new { x.RoleId, x.PermissionId }).ToListAsync())
-                .Select(x => (x.RoleId, x.PermissionId)).ToHashSet();
-            var existingEmployeePairs = (await db.EmployeePermissions.AsNoTracking()
-                .Where(x => x.PermissionId == createId || x.PermissionId == listId)
-                .Select(x => new { x.EmployeeId, x.PermissionId }).ToListAsync())
-                .Select(x => (x.EmployeeId, x.PermissionId)).ToHashSet();
+            var existingRoleIds = (await db.RolePermissions.AsNoTracking()
+                .Where(x => x.PermissionId == trackId.Value)
+                .Select(x => x.RoleId).ToListAsync()).ToHashSet();
+            var existingEmployeeIds = (await db.EmployeePermissions.AsNoTracking()
+                .Where(x => x.PermissionId == trackId.Value)
+                .Select(x => x.EmployeeId).ToListAsync()).ToHashSet();
 
             foreach (var row in legacyRoleRows)
-            {
-                foreach (var targetId in new[] { createId, listId })
-                    if (existingRolePairs.Add((row.RoleId, targetId)))
-                        db.RolePermissions.Add(new RolePermission { RoleId = row.RoleId, PermissionId = targetId });
-            }
+                if (existingRoleIds.Add(row.RoleId))
+                    db.RolePermissions.Add(new RolePermission { RoleId = row.RoleId, PermissionId = trackId.Value });
 
             foreach (var row in legacyEmployeeRows)
-            {
-                foreach (var targetId in new[] { createId, listId })
-                    if (existingEmployeePairs.Add((row.EmployeeId, targetId)))
-                        db.EmployeePermissions.Add(new EmployeePermission { EmployeeId = row.EmployeeId, PermissionId = targetId });
-            }
+                if (existingEmployeeIds.Add(row.EmployeeId))
+                    db.EmployeePermissions.Add(new EmployeePermission { EmployeeId = row.EmployeeId, PermissionId = trackId.Value });
 
             db.RolePermissions.RemoveRange(legacyRoleRows);
             db.EmployeePermissions.RemoveRange(legacyEmployeeRows);

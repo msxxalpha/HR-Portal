@@ -559,7 +559,13 @@ public class RoleService(HRPortalDbContext db)
         if (await db.Roles.AnyAsync(x => x.Code == code && x.Id != model.Id))
             throw new InvalidOperationException("این کد نقش قبلاً ثبت شده است؛ کد دیگری انتخاب کنید.");
 
+        var validPermissionIds = await db.Permissions
+            .Where(x => permissionIds.Contains(x.Id) && x.Code != "ContractRenewal.Manage")
+            .Select(x => x.Id).ToListAsync();
+        var validPermissionSet = validPermissionIds.ToHashSet();
+
         Role role;
+        List<RolePermission> currentAssignments = [];
         if (model.Id == 0)
         {
             role = new Role { Code = code, Title = title, Description = description, IsActive = model.IsActive };
@@ -572,19 +578,21 @@ public class RoleService(HRPortalDbContext db)
             role.Title = title;
             role.Description = description;
             role.IsActive = model.IsActive;
-            var existing = await db.RolePermissions.Where(x => x.RoleId == role.Id).ToListAsync();
-            db.RolePermissions.RemoveRange(existing);
+            currentAssignments = await db.RolePermissions
+                .Where(x => x.RoleId == role.Id).ToListAsync();
+
+            // Apply a set difference instead of delete/reinsert-all. This avoids
+            // unique-index collisions and preserves unchanged assignment rows.
+            db.RolePermissions.RemoveRange(
+                currentAssignments.Where(x => !validPermissionSet.Contains(x.PermissionId)));
         }
 
-        var validPermissionIds = await db.Permissions
-            .Where(x => permissionIds.Contains(x.Id) && x.Code != "ContractRenewal.Manage")
-            .Select(x => x.Id).ToListAsync();
-        foreach (var permissionId in validPermissionIds)
+        var currentPermissionIds = currentAssignments.Select(x => x.PermissionId).ToHashSet();
+        foreach (var permissionId in validPermissionIds.Where(x => !currentPermissionIds.Contains(x)))
             db.RolePermissions.Add(new RolePermission { Role = role, PermissionId = permissionId });
 
         // One SaveChanges keeps the role and its permission set atomic. Empty
         // selections are valid and intentionally create a role with no access.
         await db.SaveChangesAsync();
         return role.Id;
-    }
-}
+    }}

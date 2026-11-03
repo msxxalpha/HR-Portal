@@ -1310,6 +1310,11 @@ static async Task VerifyRoleAdministrationAsync()
             "Legacy personal permissions must be transferred without losing contract renewal access.");
         Check(!(await new RoleService(db).GetPermissionsAsync()).Any(x => x.Code == "ContractRenewal.Manage"),
             "The technical compatibility permission must not be shown as a configurable user permission.");
+        var visibleRenewalPermissions = await db.Permissions.AsNoTracking()
+            .Where(x => x.Module == "تمدید قرارداد" && x.Code != "ContractRenewal.Manage")
+            .CountAsync();
+        Check(visibleRenewalPermissions == 9,
+            "The old renewal permission group must be consolidated into the existing nine granular contract-renewal permissions.");
     }
 
     Console.WriteLine("PASS: role creation/update with empty optional fields, duplicate-code validation and legacy contract permission consolidation.");

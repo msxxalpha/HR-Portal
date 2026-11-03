@@ -467,17 +467,35 @@ public class RoleService(HRPortalDbContext db)
             !targets.TryGetValue("ContractRenewal.List", out var listId))
             return;
 
-        // Older databases may still contain one broad permission under a
-        // separate "مدیریت قراردادهای کارکنان" module. Fold its assignments
-        // into the new Create + List capabilities before removing the old row.
+        // Existing granular permissions may already exist under the old module
+        // label. Move those rows in place so their IDs and all existing links
+        // remain intact; only the retired one-permission model is expanded below.
+        var canonicalRenewalPermissions = DefaultPermissions
+            .Where(x => x.Code.StartsWith("ContractRenewal.", StringComparison.Ordinal) &&
+                        x.Code != "ContractRenewal.Manage")
+            .ToDictionary(x => x.Code, x => x);
+
         var legacyPermissions = (await db.Permissions.ToListAsync())
             .Where(x => x.Code != "ContractRenewal.Manage" &&
                         (Normalize(x.Module) == Normalize("مدیریت قراردادهای کارکنان") ||
                          Normalize(x.Title).Contains(Normalize("ثبت و پیگیری تمدید قرارداد"), StringComparison.Ordinal)))
             .ToList();
-        if (legacyPermissions.Count > 0)
+
+        foreach (var permission in legacyPermissions)
         {
-            var legacyIds = legacyPermissions.Select(x => x.Id).ToArray();
+            if (!canonicalRenewalPermissions.TryGetValue(permission.Code, out var canonical))
+                continue;
+
+            permission.Module = "تمدید قرارداد";
+            permission.Title = canonical.Title;
+        }
+
+        var obsoleteLegacyPermissions = legacyPermissions
+            .Where(x => !canonicalRenewalPermissions.ContainsKey(x.Code))
+            .ToList();
+        if (obsoleteLegacyPermissions.Count > 0)
+        {
+            var legacyIds = obsoleteLegacyPermissions.Select(x => x.Id).ToArray();
             var legacyRoleRows = await db.RolePermissions
                 .Where(x => legacyIds.Contains(x.PermissionId)).ToListAsync();
             var legacyEmployeeRows = await db.EmployeePermissions
@@ -508,7 +526,7 @@ public class RoleService(HRPortalDbContext db)
 
             db.RolePermissions.RemoveRange(legacyRoleRows);
             db.EmployeePermissions.RemoveRange(legacyEmployeeRows);
-            db.Permissions.RemoveRange(legacyPermissions);
+            db.Permissions.RemoveRange(obsoleteLegacyPermissions);
         }
 
         // A personal assignment of the old all-access compatibility permission

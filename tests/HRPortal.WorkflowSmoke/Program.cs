@@ -6,6 +6,7 @@ using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using QuestPDF.Infrastructure;
 
 static void Check(bool condition, string message)
@@ -15,6 +16,7 @@ static void Check(bool condition, string message)
 
 VerifyGranularPermissionMatrix();
 VerifyPasswordLoginLockoutPolicy();
+await VerifySuggestionsAnalyticsAsync();
 
 Check(ContractRenewalWorkflowService.MaximumAllowedContractMonths("ApproveOneMonth") == 1,
     "A one-month security approval must cap the allowed contract duration at one month.");
@@ -286,6 +288,102 @@ static void VerifyPasswordLoginLockoutPolicy()
           PasswordLoginLockoutPolicy.GetRemainingSeconds(null, now) == 0,
         "An account without a lockout timestamp must remain unlocked.");
     Console.WriteLine("PASS: persistent account-lockout thresholds, UTC expiry boundary and remaining-time calculation.");
+}
+
+static async Task VerifySuggestionsAnalyticsAsync()
+{
+    var options = new DbContextOptionsBuilder<HRPortalDbContext>()
+        .UseInMemoryDatabase("suggestions-analytics-smoke")
+        .Options;
+    await using var db = new HRPortalDbContext(options);
+    var now = DateTime.UtcNow;
+    var employee = new Employee
+    {
+        Id = 77, PersonnelNumber = "S-077", NationalId = "0770770770",
+        FirstName = "پیشنهاددهنده", LastName = "آزمایشی", Mobile = "09120000077",
+        Gender = "مرد", Status = "فعال", IsSystemUser = true,
+        CreatedAt = now, UpdatedAt = now
+    };
+    db.Employees.Add(employee);
+    await db.SaveChangesAsync();
+
+    var draft = new Suggestion
+    {
+        SuggestionNumber = "PISH-SMOKE-001", Title = "پیش‌نویس آزمایشی",
+        Category = "کاهش هزینه و صرفه‌جویی", ShortDescription = "پیش‌نویس",
+        ProblemDescription = "شرح مسئله", ProposedSolution = "راه‌حل",
+        BenefitsJson = "[\"کاهش هزینه\"]", ResourceTypesJson = "[\"بودجه مالی\"]",
+        Status = "Draft", ProposerEmployeeId = employee.Id,
+        CreatedAtUtc = now.AddDays(-2), UpdatedAtUtc = now.AddDays(-2)
+    };
+    var submitted = new Suggestion
+    {
+        SuggestionNumber = "PISH-SMOKE-002", Title = "پیشنهاد ارسالی",
+        Category = "افزایش بهره‌وری و کاهش زمان", ShortDescription = "ارسال‌شده",
+        ProblemDescription = "شرح مسئله", ProposedSolution = "راه‌حل",
+        BenefitsJson = "[\"کاهش هزینه\",\"افزایش بهره‌وری\"]",
+        ResourceTypesJson = "[\"بودجه مالی\"]", Status = "Submitted",
+        ProposerEmployeeId = employee.Id, CreatedAtUtc = now.AddDays(-1),
+        UpdatedAtUtc = now, SubmittedAtUtc = now
+    };
+    submitted.Members.Add(new SuggestionMember
+    {
+        EmployeeId = employee.Id, EmployeeNameSnapshot = "همکار مشارکت‌کننده",
+        PersonnelNumberSnapshot = employee.PersonnelNumber
+    });
+    submitted.Attachments.Add(new SuggestionAttachment
+    {
+        OriginalFileName = "idea.pdf", StoredFileName = "smoke.pdf",
+        ContentType = "application/pdf", FileSize = 1024
+    });
+    var accepted = new Suggestion
+    {
+        SuggestionNumber = "PISH-SMOKE-003", Title = "پیشنهاد پذیرفته‌شده",
+        Category = "کاهش هزینه و صرفه‌جویی", ShortDescription = "پذیرفته‌شده",
+        ProblemDescription = "شرح مسئله", ProposedSolution = "راه‌حل",
+        BenefitsJson = "[\"کاهش هزینه\"]", ResourceTypesJson = "[]",
+        Status = "Accepted", ProposerEmployeeId = employee.Id,
+        CreatedAtUtc = now.AddDays(-10), UpdatedAtUtc = now.AddDays(-3),
+        SubmittedAtUtc = now.AddDays(-3)
+    };
+    db.Suggestions.AddRange(draft, submitted, accepted);
+    await db.SaveChangesAsync();
+
+    var controller = new SuggestionsReportsController(db);
+    var http = new DefaultHttpContext();
+    http.User = new ClaimsPrincipal(new ClaimsIdentity(
+        new[] { new Claim("Permission", "Suggestions.Reports"), new Claim("Permission", "Suggestions.Export") },
+        "SuggestionsReportSmoke"));
+    controller.ControllerContext = new ControllerContext { HttpContext = http };
+
+    var response = await controller.Index(null, null, "all", "all");
+    var model = (response as ViewResult)?.Model as SuggestionsDashboardViewModel;
+    Check(model is not null, "Suggestion reporting endpoint must return its dashboard view model.");
+    Check(model!.TotalCount == 3 && model.DraftCount == 1 &&
+          model.SubmittedCount == 1 && model.AcceptedCount == 1 && model.InEvaluationCount == 0,
+        "Suggestion dashboard status KPIs must match the stored records.");
+    Check(model.UniqueProposers == 1 && model.CollaborativeCount == 1 &&
+          model.AttachmentCount == 1 && model.SubmittedLast30Days == 1,
+        "Suggestion dashboard must correctly aggregate proposers, collaborators, attachments and recent submissions.");
+    Check(model.CategoryBuckets.Sum(x => x.Count) == 3 &&
+          model.BenefitBuckets.Single(x => x.Label == "کاهش هزینه").Count == 3 &&
+          model.ResourceBuckets.Single(x => x.Label == "بودجه مالی").Count == 2 &&
+          model.MonthlyBuckets.Sum(x => x.Count) == 2,
+        "Suggestion dashboard category, benefit, resource and Jalali monthly aggregates must match source data.");
+
+    var filteredResponse = await controller.Index(now.AddDays(-1).Date, now.Date, "all", "Submitted");
+    var filteredModel = (filteredResponse as ViewResult)?.Model as SuggestionsDashboardViewModel;
+    Check(filteredModel?.TotalCount == 1 && filteredModel.SubmittedCount == 1,
+        "Suggestion report date and status filters must return only matching records.");
+
+    var csvResponse = await controller.Export(null, null, "all", "all");
+    var csv = csvResponse as FileContentResult;
+    Check(csv is not null && csv.ContentType.StartsWith("text/csv", StringComparison.OrdinalIgnoreCase) &&
+          csv.FileContents.Length > 3 && csv.FileContents[0] == 0xEF &&
+          csv.FileContents[1] == 0xBB && csv.FileContents[2] == 0xBF,
+        "Suggestion CSV export must return UTF-8 BOM content for correct Persian Excel display.");
+
+    Console.WriteLine("PASS: suggestions dashboard KPIs, category/benefit/resource/Jalali aggregates, filters and UTF-8 CSV export.");
 }
 
 static async Task VerifyMaintenanceModeBypassAsync()

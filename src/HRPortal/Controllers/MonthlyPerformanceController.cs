@@ -238,7 +238,8 @@ public class MonthlyPerformanceController(
         if (!TryEmployee(out var actor)) return Forbid();
         try
         {
-            await improvement.CreateAsync(actor, scoreId, title, description, dueDate);
+            var created = await improvement.CreateAsync(actor, scoreId, title, description, dueDate);
+            periodId = created.Score.Evaluation.PeriodId;
             TempData["ImprovementActionThanks"] = "از توجه و تعهد شما به بهبود مستمر و توسعه فردی سپاسگزاریم. سازمان، تلاش آگاهانه شما برای یادگیری، رشد و ارتقای کیفیت کار را ارزشمند می‌داند.";
         }
         catch (UnauthorizedAccessException) { return Forbid(); }
@@ -254,7 +255,8 @@ public class MonthlyPerformanceController(
         if (!TryEmployee(out var actor)) return Forbid();
         try
         {
-            await improvement.UpdateAsync(actor, actionId, title, description, dueDate, status);
+            var updated = await improvement.UpdateAsync(actor, actionId, title, description, dueDate, status);
+            periodId = updated.Score.Evaluation.PeriodId;
             TempData["Success"] = "برنامه اقدام بهبود شما با موفقیت به‌روزرسانی شد.";
         }
         catch (UnauthorizedAccessException) { return Forbid(); }

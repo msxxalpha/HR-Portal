@@ -1,0 +1,211 @@
+@model HRPortal.Models.RoleEditModel
+@using HRPortal.Models
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = Model.Id == 0 ? "تعریف نقش جدید" : "ویرایش نقش و دسترسی‌ها";
+    var permissions = ViewBag.Permissions as List<Permission> ?? new List<Permission>();
+    var rankTypes = ViewBag.OrganizationRankTypes as List<string> ?? new List<string>();
+    var assignedRanks = ViewBag.AssignedRankTypes as List<string> ?? new List<string>();
+    var isBuiltIn = (bool?)ViewBag.IsBuiltInRole ?? false;
+    var groups = permissions.GroupBy(x => x.Module).OrderBy(x => x.Key).ToList();
+}
+<div class="page-head role-editor-head">
+    <div>
+        <a class="role-back-link" href="/Users#roles">بازگشت به فهرست نقش‌ها</a>
+        <h1>@(Model.Id == 0 ? "تعریف نقش جدید" : "ویرایش نقش و تنظیم دسترسی‌ها")</h1>
+        <p>دسترسی‌های هر نقش را بر اساس ماژول انتخاب کنید. دسترسی مؤثر کاربر اجتماع مجوزهای نقش‌های مستقیم و نقش‌های سازمانی او است.</p>
+    </div>
+</div>
+
+@if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
+@if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
+
+<form method="post" action="/Users/SaveRole" class="role-editor-form">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="Id" value="@Model.Id" />
+    <input type="hidden" name="IsActive" value="@Model.IsActive.ToString().ToLowerInvariant()" />
+    <div class="card role-identity-card">
+        <div class="section-head">
+            <div>
+                <h3>اطلاعات نقش</h3>
+                <span class="muted">عنوان برای نمایش در سامانه و کد برای شناسایی داخلی نقش استفاده می‌شود.</span>
+            </div>
+            @if (Model.Id > 0)
+            {
+                <span class="role-state @(Model.IsActive ? "is-active" : "is-inactive")">@(Model.IsActive ? "فعال" : "غیرفعال")</span>
+            }
+            else
+            {
+                <span class="role-state is-active">نقش جدید فعال</span>
+            }
+        </div>
+        <div class="role-identity-grid">
+            <label>
+                کد نقش *
+                <input id="roleCode" name="Code" value="@Model.Code" required maxlength="100"
+                       pattern="[A-Za-z0-9][A-Za-z0-9._-]{1,99}"
+                       placeholder="برای نمونه: CONTRACT_REVIEWER"
+                       autocomplete="off" @(Model.Id > 0 ? "readonly" : "") />
+                <small>۲ تا ۱۰۰ نویسه؛ فقط حروف انگلیسی، عدد، نقطه، خط تیره و زیرخط. کد نقش پس از ایجاد ثابت می‌ماند.</small>
+            </label>
+            <label>
+                عنوان نقش *
+                <input name="Title" value="@Model.Title" required maxlength="200" placeholder="عنوان قابل نمایش نقش" />
+            </label>
+            <label class="role-description-input">
+                شرح نقش
+                <textarea name="Description" rows="3" maxlength="1000" placeholder="هدف و مسئولیت این نقش را شرح دهید...">@Model.Description</textarea>
+            </label>
+        </div>
+    </div>
+
+    <div class="card role-permission-card">
+        <div class="section-head">
+            <div>
+                <h3>تعیین دسترسی‌ها بر اساس ماژول</h3>
+                <span class="muted">هر ماژول را باز کنید و فقط عملیات موردنیاز نقش را انتخاب کنید.</span>
+            </div>
+            <div class="role-permission-total"><strong id="selectedPermissionCount">@(Model.PermissionIds.Count)</strong><span>دسترسی انتخاب‌شده</span></div>
+        </div>
+        <div class="role-permission-tools">
+            <label>جستجو در دسترسی‌ها
+                <input id="permissionSearch" type="search" placeholder="نام دسترسی یا کد آن..." autocomplete="off" />
+            </label>
+            <button type="button" class="btn btn-outline btn-sm" id="selectAllPermissions">انتخاب همه دسترسی‌ها</button>
+            <button type="button" class="btn btn-outline btn-sm" id="clearAllPermissions">پاک‌کردن انتخاب‌ها</button>
+        </div>
+
+        @for (var i = 0; i < groups.Count; i++)
+        {
+            var group = groups[i];
+            var moduleId = "permission-module-" + i;
+            <details class="permission-module role-permission-module" open="@(i < 2 ? "open" : null)" data-permission-module>
+                <summary>
+                    <span class="permission-module-title">@group.Key</span>
+                    <span class="permission-module-meta"><b data-module-selected>@group.Count(x => Model.PermissionIds.Contains(x.Id))</b> از @group.Count() انتخاب شده</span>
+                </summary>
+                <div class="permission-module-actions">
+                    <button type="button" class="btn btn-outline btn-xs" data-module-select="@moduleId">انتخاب همه این ماژول</button>
+                    <button type="button" class="btn btn-outline btn-xs" data-module-clear="@moduleId">پاک‌کردن انتخاب این ماژول</button>
+                </div>
+                <div class="permission-grid" id="@moduleId">
+                    @foreach (var permission in group.OrderBy(x => x.Title))
+                    {
+                        <label class="permission-item" data-permission-item>
+                            <input type="checkbox" name="PermissionIds" value="@permission.Id"
+                                   data-permission-checkbox
+                                   @(Model.PermissionIds.Contains(permission.Id) ? "checked" : "") />
+                            <span><strong>@permission.Title</strong><small>@permission.Code</small></span>
+                        </label>
+                    }
+                </div>
+            </details>
+        }
+
+        @if (permissions.Count == 0)
+        {
+            <div class="empty">در حال حاضر دسترسی قابل تخصیصی تعریف نشده است.</div>
+        }
+        <div class="form-actions role-editor-actions">
+            <button class="btn btn-main" type="submit">ذخیره نقش و دسترسی‌ها</button>
+            <a class="btn btn-outline" href="/Users">انصراف و بازگشت</a>
+        </div>
+    </div>
+</form>
+
+@if (Model.Id > 0)
+{
+    <div class="card role-rank-card">
+        <div class="section-head">
+            <div>
+                <h3>تخصیص نقش به رده‌های سازمانی</h3>
+                <span class="muted">کارکنان منتسب به این رده‌ها، مجوزهای همین نقش را به ارث می‌برند. این تخصیص مستقل از نقش‌های مستقیم کاربران است.</span>
+            </div>
+            <span class="role-count">@assignedRanks.Count رده انتخاب‌شده</span>
+        </div>
+        <form method="post" action="/Users/SaveRoleRanks">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="roleId" value="@Model.Id" />
+            @if (rankTypes.Count == 0)
+            {
+                <div class="empty">رده سازمانی فعالی برای تخصیص وجود ندارد. ابتدا رده‌ها را در اطلاعات پایه تعریف کنید.</div>
+            }
+            else
+            {
+                <div class="role-rank-grid">
+                    @foreach (var rankType in rankTypes)
+                    {
+                        <label class="role-rank-option">
+                            <input type="checkbox" name="rankTypes" value="@rankType"
+                                   @(assignedRanks.Contains(rankType, StringComparer.OrdinalIgnoreCase) ? "checked" : "") />
+                            <span>@rankType</span>
+                        </label>
+                    }
+                </div>
+            }
+            <div class="form-actions">
+                <button class="btn btn-main" type="submit">ذخیره تخصیص رده‌های سازمانی</button>
+            </div>
+        </form>
+    </div>
+}
+
+@section Scripts {
+<script>
+(function () {
+    const form = document.querySelector('.role-editor-form');
+    if (!form) return;
+    const checkboxes = Array.from(form.querySelectorAll('[data-permission-checkbox]'));
+    const total = document.getElementById('selectedPermissionCount');
+    function refreshCounts() {
+        const selected = checkboxes.filter(x => x.checked).length;
+        if (total) total.textContent = String(selected);
+        document.querySelectorAll('[data-permission-module]').forEach(module => {
+            const items = Array.from(module.querySelectorAll('[data-permission-checkbox]'));
+            const count = module.querySelector('[data-module-selected]');
+            if (count) count.textContent = String(items.filter(x => x.checked).length);
+        });
+    }
+    checkboxes.forEach(x => x.addEventListener('change', refreshCounts));
+
+    document.querySelectorAll('[data-module-select]').forEach(button => {
+        button.addEventListener('click', () => {
+            const module = document.getElementById(button.dataset.moduleSelect);
+            if (module) module.querySelectorAll('[data-permission-checkbox]').forEach(x => x.checked = true);
+            refreshCounts();
+        });
+    });
+    document.querySelectorAll('[data-module-clear]').forEach(button => {
+        button.addEventListener('click', () => {
+            const module = document.getElementById(button.dataset.moduleClear);
+            if (module) module.querySelectorAll('[data-permission-checkbox]').forEach(x => x.checked = false);
+            refreshCounts();
+        });
+    });
+    document.getElementById('selectAllPermissions')?.addEventListener('click', () => {
+        checkboxes.forEach(x => x.checked = true);
+        refreshCounts();
+    });
+    document.getElementById('clearAllPermissions')?.addEventListener('click', () => {
+        checkboxes.forEach(x => x.checked = false);
+        refreshCounts();
+    });
+
+    const search = document.getElementById('permissionSearch');
+    search?.addEventListener('input', () => {
+        const query = search.value.trim().toLocaleLowerCase('fa');
+        document.querySelectorAll('[data-permission-module]').forEach(module => {
+            let visible = 0;
+            module.querySelectorAll('[data-permission-item]').forEach(item => {
+                const show = !query || item.innerText.toLocaleLowerCase('fa').includes(query);
+                item.style.display = show ? '' : 'none';
+                if (show) visible++;
+            });
+            module.style.display = visible ? '' : 'none';
+            if (query && visible) module.open = true;
+        });
+    });
+    refreshCounts();
+})();
+</script>
+}

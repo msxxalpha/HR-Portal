@@ -1,24 +1,145 @@
-@model HRPortal.Models.MonthlyPerformanceEvaluation
+@model HRPortal.Models.MonthlyPerformanceMyDetailsVm
 @{
  Layout = "~/Views/Shared/_Layout.cshtml";
- ViewData["Title"] = "جزئیات عملکرد من";
+ var evaluation = Model.Evaluation;
+ ViewData["Title"] = "جزئیات عملکرد و برنامه اقدام بهبود من";
+ var statuses = HRPortal.Models.MonthlyPerformanceImprovementStatuses;
 }
 <link rel="stylesheet" href="~/css/monthly-performance.css" asp-append-version="true" />
 <div class="mp">
-<section class="mp-hero"><div><h1>ریز امتیازهای عملکرد شخصی</h1><p>دوره @Model.Period.Title · رده @Model.RankTitleSnapshot · فقط مشاهده</p></div><div class="mp-head-actions"><a class="btn btn-outline" href="/MonthlyPerformance/ExportEvaluation?employeeId=@Model.EmployeeId&periodId=@Model.PeriodId">خروجی اکسل</a><a class="btn btn-outline" href="/MonthlyPerformance/Mine">بازگشت به داشبورد</a></div></section>
-<section class="mp-kpis">
-<div class="mp-kpi" style="--mp-color:#2563eb"><div class="caption">امتیاز نهایی</div><strong>@Model.TotalScore.ToString("N2")</strong></div>
-<div class="mp-kpi" style="--mp-color:#16a34a"><div class="caption">سقف امتیاز</div><strong>@Model.MaxScore.ToString("N2")</strong></div>
-<div class="mp-kpi" style="--mp-color:#dc2626"><div class="caption">امتیاز کسرشده</div><strong>@((Model.MaxScore-Model.TotalScore).ToString("N2"))</strong></div>
-<div class="mp-kpi" style="--mp-color:#0d9488"><div class="caption">درصد</div><strong>@(Model.MaxScore==0?0:Math.Round(Model.TotalScore*100m/Model.MaxScore,1))٪</strong></div>
+<section class="mp-hero">
+ <div><h1>ریز امتیازها و برنامه‌های اقدام بهبود من</h1><p>دوره @evaluation.Period.Title · رده @evaluation.RankTitleSnapshot · مشاهده امتیازها و مدیریت برنامه توسعه فردی</p></div>
+ <div class="mp-head-actions">
+  <a class="btn btn-outline" href="/MonthlyPerformance/ExportEvaluation?employeeId=@evaluation.EmployeeId&amp;periodId=@evaluation.PeriodId">خروجی اکسل</a>
+  <a class="btn btn-outline" href="/MonthlyPerformance/Mine">بازگشت به داشبورد</a>
+ </div>
 </section>
+
+@if (TempData["ImprovementActionThanks"] != null)
+{
+ <section class="mp-thank-you" role="status" aria-live="polite">
+  <div class="mp-thank-icon" aria-hidden="true">✓</div>
+  <div>
+   <span class="mp-thank-eyebrow">پیام قدردانی سازمان</span>
+   <h2>سپاس از نگاه رو به رشد شما</h2>
+   <p>@TempData["ImprovementActionThanks"]</p>
+  </div>
+  <div class="mp-thank-mark" aria-hidden="true">✦</div>
+ </section>
+}
+@if (TempData["Success"] != null) { <div class="mp-success">@TempData["Success"]</div> }
+@if (TempData["Error"] != null) { <div class="mp-error">@TempData["Error"]</div> }
+
+<section class="mp-kpis">
+ <div class="mp-kpi" style="--mp-color:#2563eb"><div class="caption">امتیاز نهایی</div><strong>@evaluation.TotalScore.ToString("N2")</strong></div>
+ <div class="mp-kpi" style="--mp-color:#16a34a"><div class="caption">سقف امتیاز</div><strong>@evaluation.MaxScore.ToString("N2")</strong></div>
+ <div class="mp-kpi" style="--mp-color:#dc2626"><div class="caption">امتیاز کسرشده</div><strong>@((evaluation.MaxScore-evaluation.TotalScore).ToString("N2"))</strong></div>
+ <div class="mp-kpi" style="--mp-color:#0d9488"><div class="caption">درصد</div><strong>@(evaluation.MaxScore==0?0:Math.Round(evaluation.TotalScore*100m/evaluation.MaxScore,1))٪</strong></div>
+</section>
+
+<section class="mp-card" id="improvement-actions">
+ <div class="mp-toolbar">
+  <div><h2>اقدامات بهبود و توسعه فردی</h2><p class="mp-note">برای هر شاخصی که امتیاز کامل نگرفته‌اید، می‌توانید یک یا چند اقدام مشخص مانند شرکت در آموزش، مطالعه، تمرین یا اجرای یک کار تعریف کنید.</p></div>
+  <span class="mp-tag open">@Model.ImprovementActions.Count برنامه ثبت‌شده</span>
+ </div>
+ <div class="mp-action-guidance">
+  <strong>چرخه بهبود مستمر</strong>
+  <span>اقدام را روشن و قابل انجام بنویسید، موعد پایان تعیین کنید و وضعیت پیشرفت را به‌روز نگه دارید. ارزیابان مجاز شما نیز برنامه‌ها را در داشبورد ارزیابی خود مشاهده می‌کنند.</span>
+ </div>
+</section>
+
 <section class="mp-card">
-<div class="mp-toolbar"><h2>پاسخ و امتیاز هر سؤال</h2><input type="search" class="mp-search" placeholder="جستجو در شاخص‌ها..." /></div>
-<div class="mp-table-wrap"><table class="mp-filter-table"><thead><tr><th>حوزه</th><th>سؤال</th><th>حداکثر</th><th>امتیاز نهایی</th><th>کسر امتیاز</th><th>درصد</th><th>توضیح</th></tr></thead>
-<tbody>@foreach(var x in Model.Scores.OrderBy(x=>x.DomainTitleSnapshot).ThenBy(x=>x.QuestionId)){
-<tr><td>@x.DomainTitleSnapshot</td><td>@x.QuestionTitleSnapshot</td><td>@x.MaxScore.ToString("N2")</td><td>@x.Score.ToString("N2")</td>
-<td>@((x.MaxScore-x.Score).ToString("N2"))</td><td>@(x.MaxScore==0?0:Math.Round(x.Score/x.MaxScore*100m,1))٪</td><td>@(x.Note ?? "—")</td></tr>
-}</tbody></table></div>
+ <div class="mp-toolbar"><h2>امتیاز و برنامه اقدام به تفکیک شاخص</h2><input type="search" class="mp-search" placeholder="جستجو در شاخص‌ها..." /></div>
+ <div class="mp-table-wrap">
+ <table class="mp-filter-table mp-my-details-table">
+  <thead><tr><th>حوزه</th><th>شاخص</th><th>حداکثر</th><th>امتیاز نهایی</th><th>کسر امتیاز</th><th>درصد</th><th>توضیح ارزیاب</th><th>اقدام بهبود من</th></tr></thead>
+  <tbody>
+  @foreach (var score in evaluation.Scores.OrderBy(x=>x.DomainTitleSnapshot).ThenBy(x=>x.QuestionId))
+  {
+   var actions = Model.ImprovementActions.Where(x => x.ScoreId == score.Id).OrderBy(x => x.DueDate).ToList();
+   var partial = score.MaxScore > 0 && score.Score < score.MaxScore;
+   <tr>
+    <td>@score.DomainTitleSnapshot</td>
+    <td><strong>@score.QuestionTitleSnapshot</strong></td>
+    <td>@score.MaxScore.ToString("N2")</td>
+    <td>@score.Score.ToString("N2")</td>
+    <td>@((score.MaxScore-score.Score).ToString("N2"))</td>
+    <td>@(score.MaxScore==0?0:Math.Round(score.Score/score.MaxScore*100m,1))٪</td>
+    <td>@(score.Note ?? "—")</td>
+    <td>
+     <details class="mp-action-details" id="improvement-actions-@score.Id">
+      <summary><span>برنامه‌ها (@actions.Count)</span><small>@(partial ? "نیازمند توجه" : "امتیاز کامل")</small></summary>
+      <div class="mp-action-details-body">
+       @if (actions.Count == 0)
+       {
+        <p class="mp-muted">برای این شاخص هنوز برنامه‌ای ثبت نشده است.</p>
+       }
+       @foreach (var action in actions)
+       {
+        <article class="mp-action-edit-card">
+         <div class="mp-action-edit-head">
+          <strong>@action.Title</strong>
+          <span class="mp-action-status @action.Status">@action.StatusTitle</span>
+          @if (action.IsOverdue) { <span class="mp-action-overdue">از موعد گذشته</span> }
+         </div>
+         <form method="post" action="/MonthlyPerformance/UpdateImprovementAction" class="mp-action-form">
+          @Html.AntiForgeryToken()
+          <input type="hidden" name="periodId" value="@evaluation.PeriodId" />
+          <input type="hidden" name="actionId" value="@action.Id" />
+          <label>عنوان اقدام
+           <input name="title" maxlength="200" required value="@action.Title" />
+          </label>
+          <label class="mp-action-wide">شرح و خروجی مورد انتظار
+           <textarea name="description" maxlength="2000" rows="2" placeholder="جزئیات انجام اقدام">@action.Description</textarea>
+          </label>
+          <label>موعد پایان
+           <input type="date" name="dueDate" required value="@action.DueDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" />
+          </label>
+          <label>وضعیت
+           <select name="status" required>
+            <option value="@statuses.InProgress" selected="@(action.Status == statuses.InProgress)">در حال انجام</option>
+            <option value="@statuses.Completed" selected="@(action.Status == statuses.Completed)">پایان‌یافته</option>
+            <option value="@statuses.Cancelled" selected="@(action.Status == statuses.Cancelled)">لغوشده</option>
+           </select>
+          </label>
+          <div class="mp-action-meta">موعد فعلی: @HRPortal.Services.PersianDateService.Format(action.DueDate) · آخرین به‌روزرسانی: @HRPortal.Services.PersianDateService.Format(HRPortal.Services.MonthlyPerformanceService.ToIranTime(action.UpdatedAtUtc))</div>
+          <button class="btn btn-outline btn-sm" type="submit">ذخیره تغییرات اقدام</button>
+         </form>
+        </article>
+       }
+       @if (partial)
+       {
+        <form method="post" action="/MonthlyPerformance/CreateImprovementAction" class="mp-action-form mp-action-create-form">
+         @Html.AntiForgeryToken()
+         <input type="hidden" name="periodId" value="@evaluation.PeriodId" />
+         <input type="hidden" name="scoreId" value="@score.Id" />
+         <div class="mp-action-create-heading"><strong>＋ تعریف اقدام جدید برای این شاخص</strong><small>یک اقدام مشخص و قابل پیگیری انتخاب کنید.</small></div>
+         <label>عنوان اقدام *
+          <input name="title" maxlength="200" required placeholder="مثلاً شرکت در دوره آموزشی Excel پیشرفته" />
+         </label>
+         <label class="mp-action-wide">شرح و نتیجه مورد انتظار
+          <textarea name="description" maxlength="2000" rows="2" placeholder="چه کاری انجام می‌دهم و انتظار دارم چه چیزی بهتر شود؟"></textarea>
+         </label>
+         <label>موعد پایان *
+          <input type="date" name="dueDate" min="@HRPortal.Services.MonthlyPerformanceService.NowIran().ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" required />
+         </label>
+         <div class="mp-action-submit">
+          <button class="btn btn-main btn-sm" type="submit">ثبت برنامه اقدام بهبود</button>
+         </div>
+        </form>
+       }
+       else
+       {
+        <p class="mp-action-full-score">این شاخص امتیاز کامل گرفته است؛ امکان ثبت اقدام جدید برای آن وجود ندارد.</p>
+       }
+      </div>
+     </details>
+    </td>
+   </tr>
+  }
+  </tbody>
+ </table>
+ </div>
 </section>
 </div>
 <script src="~/js/monthly-performance-table.js" asp-append-version="true"></script>

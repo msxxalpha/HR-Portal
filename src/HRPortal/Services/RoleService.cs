@@ -1,11 +1,22 @@
 using HRPortal.Data;
 using HRPortal.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Text.RegularExpressions;
 
 namespace HRPortal.Services;
 
 public class RoleService(HRPortalDbContext db)
 {
+    private static readonly HashSet<string> BuiltInRoleCodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "HR_MANAGER", "ORG_MANAGER", "SETTINGS_MANAGER", "PAYROLL_USER", "EMPLOYEE",
+        "USER_MANAGER", "ROLE_MANAGER", "WORKFLOW_MANAGER", "SUGGESTION_MANAGER",
+        "PERFORMANCE_MANAGER", "PERFORMANCE_EVALUATOR"
+    };
+
+    public static bool IsBuiltInRoleCode(string? code) =>
+        !string.IsNullOrWhiteSpace(code) && BuiltInRoleCodes.Contains(code.Trim());
+
     public static readonly IReadOnlyList<(string Code, string Title, string Module)> DefaultPermissions =
     [
         ("Employees.View", "مشاهده کارکنان", "کارکنان"),
@@ -116,6 +127,7 @@ public class RoleService(HRPortalDbContext db)
                 db.Permissions.Add(new Permission { Code = item.Code, Title = item.Title, Module = item.Module });
         }
         await db.SaveChangesAsync();
+        await ConsolidateLegacyContractRenewalPermissionsAsync();
 
         await EnsureRoleAsync("HR_MANAGER", "مدیریت کارکنان", "دسترسی عملیاتی به اطلاعات کارکنان و کارتابل تمدید قرارداد",
             ["Employees.View", "Employees.Create", "Employees.Edit", "Employees.Deactivate", "Employees.Delete", "Employees.ImportExport", "ContractRenewal.Manage", "Workflow.Inbox"]);
@@ -243,8 +255,14 @@ public class RoleService(HRPortalDbContext db)
             .OrderBy(r => r.Title)
             .ToListAsync();
 
+    // ContractRenewal.Manage remains in the database only as a compatibility
+    // claim for old cookies/integrations. Administrators configure the nine
+    // granular renewal permissions instead of assigning this technical alias.
     public async Task<List<Permission>> GetPermissionsAsync() =>
-        await db.Permissions.OrderBy(x => x.Module).ThenBy(x => x.Title).ToListAsync();
+        await db.Permissions
+            .Where(x => x.Code != "ContractRenewal.Manage")
+            .OrderBy(x => x.Module).ThenBy(x => x.Title)
+            .ToListAsync();
 
     public async Task<List<EmployeeRoleRow>> GetUserRowsAsync()
     {
@@ -424,33 +442,145 @@ public class RoleService(HRPortalDbContext db)
             IsActive = role?.IsActive ?? true,
             PermissionIds = role is null
                 ? []
-                : await db.RolePermissions.Where(x => x.RoleId == role.Id).Select(x => x.PermissionId).ToListAsync()
+                : await db.RolePermissions.Where(x => x.RoleId == role.Id && x.Permission.Code != "ContractRenewal.Manage")
+                    .Select(x => x.PermissionId).ToListAsync()
         };
     }
 
-    public async Task SaveRoleAsync(RoleEditModel model)
+    private async Task ConsolidateLegacyContractRenewalPermissionsAsync()
     {
+        static string Normalize(string? value) => (value ?? string.Empty)
+            .Replace("ي", "ی", StringComparison.Ordinal)
+            .Replace("ك", "ک", StringComparison.Ordinal)
+            .Replace("‌", string.Empty, StringComparison.Ordinal)
+            .Replace(" ", string.Empty, StringComparison.Ordinal)
+            .Trim();
+
+        var targets = await db.Permissions.AsNoTracking()
+            .Where(x => x.Code == "ContractRenewal.Create" || x.Code == "ContractRenewal.List")
+            .ToDictionaryAsync(x => x.Code, x => x.Id);
+        if (!targets.TryGetValue("ContractRenewal.Create", out var createId) ||
+            !targets.TryGetValue("ContractRenewal.List", out var listId))
+            return;
+
+        // Older databases may still contain one broad permission under a
+        // separate "مدیریت قراردادهای کارکنان" module. Fold its assignments
+        // into the new Create + List capabilities before removing the old row.
+        var legacyPermissions = (await db.Permissions.ToListAsync())
+            .Where(x => Normalize(x.Module) == Normalize("مدیریت قراردادهای کارکنان") ||
+                        Normalize(x.Title).Contains(Normalize("ثبت و پیگیری تمدید قرارداد"), StringComparison.Ordinal))
+            .ToList();
+        if (legacyPermissions.Count > 0)
+        {
+            var legacyIds = legacyPermissions.Select(x => x.Id).ToArray();
+            var legacyRoleRows = await db.RolePermissions
+                .Where(x => legacyIds.Contains(x.PermissionId)).ToListAsync();
+            var legacyEmployeeRows = await db.EmployeePermissions
+                .Where(x => legacyIds.Contains(x.PermissionId)).ToListAsync();
+
+            var existingRolePairs = (await db.RolePermissions.AsNoTracking()
+                .Where(x => x.PermissionId == createId || x.PermissionId == listId)
+                .Select(x => new { x.RoleId, x.PermissionId }).ToListAsync())
+                .Select(x => (x.RoleId, x.PermissionId)).ToHashSet();
+            var existingEmployeePairs = (await db.EmployeePermissions.AsNoTracking()
+                .Where(x => x.PermissionId == createId || x.PermissionId == listId)
+                .Select(x => new { x.EmployeeId, x.PermissionId }).ToListAsync())
+                .Select(x => (x.EmployeeId, x.PermissionId)).ToHashSet();
+
+            foreach (var row in legacyRoleRows)
+            {
+                foreach (var targetId in new[] { createId, listId })
+                    if (existingRolePairs.Add((row.RoleId, targetId)))
+                        db.RolePermissions.Add(new RolePermission { RoleId = row.RoleId, PermissionId = targetId });
+            }
+
+            foreach (var row in legacyEmployeeRows)
+            {
+                foreach (var targetId in new[] { createId, listId })
+                    if (existingEmployeePairs.Add((row.EmployeeId, targetId)))
+                        db.EmployeePermissions.Add(new EmployeePermission { EmployeeId = row.EmployeeId, PermissionId = targetId });
+            }
+
+            db.RolePermissions.RemoveRange(legacyRoleRows);
+            db.EmployeePermissions.RemoveRange(legacyEmployeeRows);
+            db.Permissions.RemoveRange(legacyPermissions);
+        }
+
+        // A personal assignment of the old all-access compatibility permission
+        // is also expanded, so hiding the technical alias never strips access.
+        var manageId = await db.Permissions.AsNoTracking()
+            .Where(x => x.Code == "ContractRenewal.Manage")
+            .Select(x => (int?)x.Id).FirstOrDefaultAsync();
+        if (manageId.HasValue)
+        {
+            var granularIds = await db.Permissions.AsNoTracking()
+                .Where(x => x.Code.StartsWith("ContractRenewal.") && x.Code != "ContractRenewal.Manage")
+                .Select(x => x.Id).ToListAsync();
+            var personalManageRows = await db.EmployeePermissions.AsNoTracking()
+                .Where(x => x.PermissionId == manageId.Value)
+                .Select(x => x.EmployeeId).Distinct().ToListAsync();
+            var existing = (await db.EmployeePermissions.AsNoTracking()
+                .Where(x => personalManageRows.Contains(x.EmployeeId) && granularIds.Contains(x.PermissionId))
+                .Select(x => new { x.EmployeeId, x.PermissionId }).ToListAsync())
+                .Select(x => (x.EmployeeId, x.PermissionId)).ToHashSet();
+
+            foreach (var employeeId in personalManageRows)
+                foreach (var permissionId in granularIds)
+                    if (existing.Add((employeeId, permissionId)))
+                        db.EmployeePermissions.Add(new EmployeePermission { EmployeeId = employeeId, PermissionId = permissionId });
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    public async Task<int> SaveRoleAsync(RoleEditModel model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+
+        var code = (model.Code ?? string.Empty).Trim().ToUpperInvariant();
+        var title = (model.Title ?? string.Empty).Trim();
+        var description = (model.Description ?? string.Empty).Trim();
+        var permissionIds = (model.PermissionIds ?? [])
+            .Where(x => x > 0).Distinct().ToArray();
+
+        if (!Regex.IsMatch(code, @"^[A-Z0-9][A-Z0-9._-]{1,99}$", RegexOptions.CultureInvariant))
+            throw new InvalidOperationException("کد نقش باید حداقل ۲ و حداکثر ۱۰۰ نویسه و فقط شامل حروف انگلیسی، عدد، نقطه، خط تیره یا زیرخط باشد.");
+        if (string.IsNullOrWhiteSpace(title))
+            throw new InvalidOperationException("عنوان نقش الزامی است.");
+        if (title.Length > 200)
+            throw new InvalidOperationException("عنوان نقش نمی‌تواند بیش از ۲۰۰ نویسه باشد.");
+        if (description.Length > 1000)
+            throw new InvalidOperationException("شرح نقش نمی‌تواند بیش از ۱۰۰۰ نویسه باشد.");
+
+        if (await db.Roles.AnyAsync(x => x.Code == code && x.Id != model.Id))
+            throw new InvalidOperationException("این کد نقش قبلاً ثبت شده است؛ کد دیگری انتخاب کنید.");
+
         Role role;
         if (model.Id == 0)
         {
-            role = new Role { Code = model.Code.Trim(), Title = model.Title.Trim(), Description = model.Description.Trim(), IsActive = model.IsActive };
+            role = new Role { Code = code, Title = title, Description = description, IsActive = model.IsActive };
             db.Roles.Add(role);
-            await db.SaveChangesAsync();
         }
         else
         {
             role = await db.Roles.FindAsync(model.Id) ?? throw new InvalidOperationException("نقش یافت نشد.");
-            role.Code = model.Code.Trim();
-            role.Title = model.Title.Trim();
-            role.Description = model.Description.Trim();
+            role.Code = code;
+            role.Title = title;
+            role.Description = description;
             role.IsActive = model.IsActive;
-            await db.SaveChangesAsync();
-            db.RolePermissions.RemoveRange(db.RolePermissions.Where(x => x.RoleId == role.Id));
+            var existing = await db.RolePermissions.Where(x => x.RoleId == role.Id).ToListAsync();
+            db.RolePermissions.RemoveRange(existing);
         }
 
-        foreach (var permissionId in await db.Permissions.Where(x => model.PermissionIds.Contains(x.Id)).Select(x => x.Id).ToListAsync())
-            db.RolePermissions.Add(new RolePermission { RoleId = role.Id, PermissionId = permissionId });
+        var validPermissionIds = await db.Permissions
+            .Where(x => permissionIds.Contains(x.Id) && x.Code != "ContractRenewal.Manage")
+            .Select(x => x.Id).ToListAsync();
+        foreach (var permissionId in validPermissionIds)
+            db.RolePermissions.Add(new RolePermission { Role = role, PermissionId = permissionId });
 
+        // One SaveChanges keeps the role and its permission set atomic. Empty
+        // selections are valid and intentionally create a role with no access.
         await db.SaveChangesAsync();
+        return role.Id;
     }
 }

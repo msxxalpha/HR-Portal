@@ -142,7 +142,26 @@ IF EXISTS (SELECT 1 FROM sys.key_constraints
  CONSTRAINT FK_MPRevisions_Eval FOREIGN KEY(EvaluationId) REFERENCES dbo.MonthlyPerformanceEvaluations(Id));",
             // Step 22
             @"IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name = N'IX_MPRevisions_EvaluationDate' AND object_id = OBJECT_ID(N'dbo.MonthlyPerformanceRevisions'))
- CREATE INDEX IX_MPRevisions_EvaluationDate ON dbo.MonthlyPerformanceRevisions(EvaluationId,ChangedAt);"
+ CREATE INDEX IX_MPRevisions_EvaluationDate ON dbo.MonthlyPerformanceRevisions(EvaluationId,ChangedAt);",
+            // Step 23
+            @"IF OBJECT_ID(N'dbo.MonthlyPerformanceImprovementActions',N'U') IS NULL
+ CREATE TABLE dbo.MonthlyPerformanceImprovementActions(
+ Id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_MonthlyPerformanceImprovementActions PRIMARY KEY,
+ ScoreId int NOT NULL, OwnerEmployeeId int NOT NULL,
+ Title nvarchar(200) NOT NULL, Description nvarchar(2000) NULL,
+ DueDate date NOT NULL,
+ Status nvarchar(20) NOT NULL CONSTRAINT DF_MPImprovementActions_Status DEFAULT(N'InProgress'),
+ CreatedAtUtc datetime2 NOT NULL CONSTRAINT DF_MPImprovementActions_CreatedAtUtc DEFAULT(SYSUTCDATETIME()),
+ UpdatedAtUtc datetime2 NOT NULL CONSTRAINT DF_MPImprovementActions_UpdatedAtUtc DEFAULT(SYSUTCDATETIME()),
+ CONSTRAINT FK_MPImprovementActions_Score FOREIGN KEY(ScoreId) REFERENCES dbo.MonthlyPerformanceScores(Id) ON DELETE NO ACTION,
+ CONSTRAINT FK_MPImprovementActions_Employee FOREIGN KEY(OwnerEmployeeId) REFERENCES dbo.Employees(Id) ON DELETE NO ACTION,
+ CONSTRAINT CK_MPImprovementActions_Status CHECK(Status IN (N'InProgress',N'Completed',N'Cancelled'))
+ );",
+            // Step 24
+            @"IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_MPImprovementActions_Owner_Created' AND object_id=OBJECT_ID(N'dbo.MonthlyPerformanceImprovementActions'))
+ CREATE INDEX IX_MPImprovementActions_Owner_Created ON dbo.MonthlyPerformanceImprovementActions(OwnerEmployeeId,CreatedAtUtc);
+ IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_MPImprovementActions_Score_Status_Due' AND object_id=OBJECT_ID(N'dbo.MonthlyPerformanceImprovementActions'))
+ CREATE INDEX IX_MPImprovementActions_Score_Status_Due ON dbo.MonthlyPerformanceImprovementActions(ScoreId,Status,DueDate);"
         };
 
         for (var step = 0; step < schemaSteps.Length; step++)
@@ -238,7 +257,16 @@ FROM (VALUES
     (N'MonthlyPerformanceRevisions', N'OldNote'),
     (N'MonthlyPerformanceRevisions', N'NewNote'),
     (N'MonthlyPerformanceRevisions', N'Reason'),
-    (N'MonthlyPerformanceRevisions', N'ChangedAt')
+    (N'MonthlyPerformanceRevisions', N'ChangedAt'),
+    (N'MonthlyPerformanceImprovementActions', N'Id'),
+    (N'MonthlyPerformanceImprovementActions', N'ScoreId'),
+    (N'MonthlyPerformanceImprovementActions', N'OwnerEmployeeId'),
+    (N'MonthlyPerformanceImprovementActions', N'Title'),
+    (N'MonthlyPerformanceImprovementActions', N'Description'),
+    (N'MonthlyPerformanceImprovementActions', N'DueDate'),
+    (N'MonthlyPerformanceImprovementActions', N'Status'),
+    (N'MonthlyPerformanceImprovementActions', N'CreatedAtUtc'),
+    (N'MonthlyPerformanceImprovementActions', N'UpdatedAtUtc')
 ) AS expected(TableName, ColumnName)
 WHERE COL_LENGTH(N'dbo.' + expected.TableName, expected.ColumnName) IS NULL;
 IF LEN(@missing) > 0

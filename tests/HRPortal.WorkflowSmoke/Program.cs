@@ -383,7 +383,14 @@ static async Task VerifySuggestionsAnalyticsAsync()
         Gender = "مرد", Status = "فعال", IsSystemUser = true,
         CreatedAt = now, UpdatedAt = now
     };
-    db.Employees.Add(employee);
+    var collaborator = new Employee
+    {
+        Id = 78, PersonnelNumber = "S-078", NationalId = "0780780780",
+        FirstName = "همکار", LastName = "آزمایشی", Mobile = "09120000078",
+        Gender = "مرد", Status = "فعال", IsSystemUser = true,
+        CreatedAt = now, UpdatedAt = now
+    };
+    db.Employees.AddRange(employee, collaborator);
     await db.SaveChangesAsync();
 
     var draft = new Suggestion
@@ -405,16 +412,6 @@ static async Task VerifySuggestionsAnalyticsAsync()
         ProposerEmployeeId = employee.Id, CreatedAtUtc = now.AddDays(-1),
         UpdatedAtUtc = now, SubmittedAtUtc = now
     };
-    submitted.Members.Add(new SuggestionMember
-    {
-        EmployeeId = employee.Id, EmployeeNameSnapshot = "همکار مشارکت‌کننده",
-        PersonnelNumberSnapshot = employee.PersonnelNumber
-    });
-    submitted.Attachments.Add(new SuggestionAttachment
-    {
-        OriginalFileName = "idea.pdf", StoredFileName = "smoke.pdf",
-        ContentType = "application/pdf", FileSize = 1024
-    });
     var accepted = new Suggestion
     {
         SuggestionNumber = "PISH-SMOKE-003", Title = "پیشنهاد پذیرفته‌شده",
@@ -427,6 +424,24 @@ static async Task VerifySuggestionsAnalyticsAsync()
     };
     db.Suggestions.AddRange(draft, submitted, accepted);
     await db.SaveChangesAsync();
+
+    // Persist child records explicitly after the parent IDs exist, mirroring the
+    // production workflow's separate upload/member persistence steps.
+    db.SuggestionMembers.Add(new SuggestionMember
+    {
+        SuggestionId = submitted.Id, EmployeeId = collaborator.Id,
+        EmployeeNameSnapshot = collaborator.FirstName + " " + collaborator.LastName,
+        PersonnelNumberSnapshot = collaborator.PersonnelNumber
+    });
+    db.SuggestionAttachments.Add(new SuggestionAttachment
+    {
+        SuggestionId = submitted.Id, OriginalFileName = "idea.pdf",
+        StoredFileName = "smoke.pdf", ContentType = "application/pdf", FileSize = 1024
+    });
+    await db.SaveChangesAsync();
+    Check(await db.SuggestionMembers.CountAsync(x => x.SuggestionId == submitted.Id) == 1 &&
+          await db.SuggestionAttachments.CountAsync(x => x.SuggestionId == submitted.Id) == 1,
+        "Suggestion analytics fixture must persist one collaborative member and one attachment.");
 
     var controller = new SuggestionsReportsController(db);
     var http = new DefaultHttpContext();
@@ -443,7 +458,7 @@ static async Task VerifySuggestionsAnalyticsAsync()
         "Suggestion dashboard status KPIs must match the stored records.");
     Check(model.UniqueProposers == 1 && model.CollaborativeCount == 1 &&
           model.AttachmentCount == 1 && model.SubmittedLast30Days == 1,
-        "Suggestion dashboard must correctly aggregate proposers, collaborators, attachments and recent submissions.");
+        $"Suggestion dashboard must correctly aggregate proposers, collaborators, attachments and recent submissions. Actual: proposers={model.UniqueProposers}, collaborative={model.CollaborativeCount}, attachments={model.AttachmentCount}, recent={model.SubmittedLast30Days}.");
     Check(model.CategoryBuckets.Sum(x => x.Count) == 3 &&
           model.BenefitBuckets.Single(x => x.Label == "کاهش هزینه").Count == 3 &&
           model.ResourceBuckets.Single(x => x.Label == "بودجه مالی").Count == 2 &&

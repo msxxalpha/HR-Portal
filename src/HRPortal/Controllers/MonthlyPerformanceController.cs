@@ -9,7 +9,10 @@ using Microsoft.EntityFrameworkCore;
 namespace HRPortal.Controllers;
 
 [Authorize]
-public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerformanceService performance) : Controller
+public class MonthlyPerformanceController(
+    HRPortalDbContext db,
+    MonthlyPerformanceService performance,
+    MonthlyPerformanceImprovementService improvement) : Controller
 {
     private bool TryEmployee(out int id) => int.TryParse(User.FindFirst("EmployeeId")?.Value, out id);
     private bool IsAdmin => User.HasClaim("IsAdmin", "1");
@@ -39,6 +42,8 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
         };
         if (period is null) return View(model);
         var scopedSet = scopedIds.ToHashSet();
+        var improvementActions = await improvement.ListForScopeAsync(scopedIds, period.Id);
+        model.ImprovementActions = improvementActions;
         // During an open period, every metric and row must be limited to the
         // *current* subordinate roster. Historical participation is considered
         // only for closed-period audit views.
@@ -74,7 +79,8 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
                 UpdatedAt = ev?.UpdatedAt,
                 EvaluatorName = ev is null ? "ثبت نشده" : names.GetValueOrDefault(ev.LastEvaluatorId, "—"),
                 CanEdit = model.CanEdit && scopedSet.Contains(employee.Id) &&
-                    (ev is null || ev.LastEvaluatorId == actor || upperIds.Contains(ev.LastEvaluatorId))
+                    (ev is null || ev.LastEvaluatorId == actor || upperIds.Contains(ev.LastEvaluatorId)),
+                ImprovementActions = improvementActions.Where(x => x.EmployeeId == employee.Id).ToList()
             };
         }).ToList();
         model.TotalCapacity = evals.Sum(x => x.MaxScore);
@@ -203,6 +209,7 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
             .Where(x => x.EmployeeId == actor && !x.Period.IsDeleted)
             .Include(x => x.Period).Include(x => x.Scores)
             .OrderByDescending(x => x.Period.Year).ThenByDescending(x => x.Period.Month).ToListAsync();
+        ViewBag.ImprovementActions = await improvement.ListMineAsync(actor);
         return View(rows);
     }
 
@@ -213,7 +220,46 @@ public class MonthlyPerformanceController(HRPortalDbContext db, MonthlyPerforman
         var eval = await db.MonthlyPerformanceEvaluations.AsNoTracking()
             .Include(x => x.Period).Include(x => x.Scores)
             .FirstOrDefaultAsync(x => x.EmployeeId == actor && x.PeriodId == periodId && !x.Period.IsDeleted);
-        return eval is null ? NotFound() : View(eval);
+        if (eval is null) return NotFound();
+
+        var actions = (await improvement.ListMineAsync(actor))
+            .Where(x => x.PeriodId == periodId).ToList();
+        return View(new MonthlyPerformanceMyDetailsVm
+        {
+            Evaluation = eval,
+            ImprovementActions = actions
+        });
+    }
+
+    [HttpPost, Authorize(Policy = "MonthlyPerformance.View"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateImprovementAction(
+        int periodId, int scoreId, string? title, string? description, DateTime dueDate)
+    {
+        if (!TryEmployee(out var actor)) return Forbid();
+        try
+        {
+            await improvement.CreateAsync(actor, scoreId, title, description, dueDate);
+            TempData["ImprovementActionThanks"] = "از توجه و تعهد شما به بهبود مستمر و توسعه فردی سپاسگزاریم. سازمان، تلاش آگاهانه شما برای یادگیری، رشد و ارتقای کیفیت کار را ارزشمند می‌داند.";
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (InvalidOperationException ex) { TempData["Error"] = ex.Message; }
+        return RedirectToAction(nameof(MyDetails), new { periodId });
+    }
+
+    [HttpPost, Authorize(Policy = "MonthlyPerformance.View"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateImprovementAction(
+        int periodId, int actionId, string? title, string? description,
+        DateTime dueDate, string? status)
+    {
+        if (!TryEmployee(out var actor)) return Forbid();
+        try
+        {
+            await improvement.UpdateAsync(actor, actionId, title, description, dueDate, status);
+            TempData["Success"] = "برنامه اقدام بهبود شما با موفقیت به‌روزرسانی شد.";
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (InvalidOperationException ex) { TempData["Error"] = ex.Message; }
+        return RedirectToAction(nameof(MyDetails), new { periodId });
     }
 
     [HttpGet, Authorize(Policy = "MonthlyPerformance.View")]

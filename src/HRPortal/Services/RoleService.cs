@@ -471,8 +471,9 @@ public class RoleService(HRPortalDbContext db)
         // separate "مدیریت قراردادهای کارکنان" module. Fold its assignments
         // into the new Create + List capabilities before removing the old row.
         var legacyPermissions = (await db.Permissions.ToListAsync())
-            .Where(x => Normalize(x.Module) == Normalize("مدیریت قراردادهای کارکنان") ||
-                        Normalize(x.Title).Contains(Normalize("ثبت و پیگیری تمدید قرارداد"), StringComparison.Ordinal))
+            .Where(x => x.Code != "ContractRenewal.Manage" &&
+                        (Normalize(x.Module) == Normalize("مدیریت قراردادهای کارکنان") ||
+                         Normalize(x.Title).Contains(Normalize("ثبت و پیگیری تمدید قرارداد"), StringComparison.Ordinal)))
             .ToList();
         if (legacyPermissions.Count > 0)
         {
@@ -595,4 +596,5 @@ public class RoleService(HRPortalDbContext db)
         // selections are valid and intentionally create a role with no access.
         await db.SaveChangesAsync();
         return role.Id;
-    }}
+     }
+}

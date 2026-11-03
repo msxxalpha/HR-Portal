@@ -16,6 +16,13 @@ public static class PermissionAuthorization
             user.HasClaim("Permission", "ContractRenewal.Manage"))
             return true;
 
+        // The consolidated "ثبت و پیگیری تمدید قرارداد" grant covers both
+        // request intake and the request list, while remaining one selectable
+        // permission in the unified contract-renewal module.
+        if ((permissionCode == "ContractRenewal.Create" || permissionCode == "ContractRenewal.List") &&
+            user.HasClaim("Permission", "ContractRenewal.Track"))
+            return true;
+
         if (permissionCode.StartsWith("Suggestions.", StringComparison.Ordinal) &&
             user.HasClaim("Permission", "Suggestions.Manage"))
             return true;

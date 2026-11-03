@@ -1,4 +1,5 @@
 using HRPortal.Services;
+using HRPortal.Controllers;
 using HRPortal.Data;
 using HRPortal.Models;
 using HRPortal.Middleware;

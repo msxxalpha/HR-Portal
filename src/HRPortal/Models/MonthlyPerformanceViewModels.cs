@@ -10,6 +10,9 @@ public class MonthlyPerformanceDashboardVm
     public MonthlyPerformancePeriod? SelectedPeriod { get; set; }
     public List<MonthlyPerformancePersonRow> People { get; set; } = [];
     public List<MonthlyPerformanceQuestionAverage> QuestionAverages { get; set; } = [];
+    public List<MonthlyPerformanceImprovementActionVm> ImprovementActions { get; set; } = [];
+    public int ImprovementActionCount => ImprovementActions.Count;
+    public int ActiveImprovementActionCount => ImprovementActions.Count(x => x.Status == MonthlyPerformanceImprovementStatuses.InProgress);
     public decimal TotalCapacity { get; set; }
     public decimal UsedScore { get; set; }
     public decimal DeductedScore => TotalCapacity - UsedScore;
@@ -31,6 +34,7 @@ public class MonthlyPerformancePersonRow
     public string EvaluatorName { get; set; } = "";
     public DateTime? UpdatedAt { get; set; }
     public bool CanEdit { get; set; }
+    public List<MonthlyPerformanceImprovementActionVm> ImprovementActions { get; set; } = [];
 }
 public class MonthlyPerformanceQuestionAverage
 {
@@ -93,4 +97,39 @@ public class MonthlyPerformanceEmployeeVm
     public string Number { get; set; } = "";
     public string Name { get; set; } = "";
     public bool IsEvaluator { get; set; }
+}
+
+
+public class MonthlyPerformanceMineVm
+{
+    public List<MonthlyPerformanceEvaluation> Evaluations { get; set; } = [];
+    public List<MonthlyPerformanceImprovementActionVm> ImprovementActions { get; set; } = [];
+}
+
+public class MonthlyPerformanceMyDetailsVm
+{
+    public MonthlyPerformanceEvaluation Evaluation { get; set; } = null!;
+    public List<MonthlyPerformanceImprovementActionVm> ImprovementActions { get; set; } = [];
+}
+
+public class MonthlyPerformanceImprovementActionVm
+{
+    public int Id { get; set; }
+    public int ScoreId { get; set; }
+    public int PeriodId { get; set; }
+    public string PeriodTitle { get; set; } = "";
+    public int EmployeeId { get; set; }
+    public string EmployeeName { get; set; } = "";
+    public string QuestionTitle { get; set; } = "";
+    public string DomainTitle { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string? Description { get; set; }
+    public DateTime DueDate { get; set; }
+    public string Status { get; set; } = MonthlyPerformanceImprovementStatuses.InProgress;
+    public string StatusTitle => MonthlyPerformanceImprovementStatuses.ToPersian(Status);
+    public DateTime CreatedAtUtc { get; set; }
+    public DateTime UpdatedAtUtc { get; set; }
+    public bool IsOverdue => Status == MonthlyPerformanceImprovementStatuses.InProgress &&
+        DueDate.Date < HRPortal.Services.MonthlyPerformanceService.NowIran().Date;
+    public bool CanCreateAction { get; set; }
 }

@@ -58,7 +58,7 @@ else
 </section>
 <section class="mp-card">
 <div class="mp-toolbar">
- <div><h2>نفرات قابل ارزیابی و نتایج دوره</h2><div class="mp-note">فقط کارکنان واقع در زیرشاخه‌های سازمانی شما و اعضای مستقیم زیر نظر متصدی جایگاه نمایش داده می‌شوند؛ گره‌های هم‌سطح و همکاران هم‌جایگاه در فهرست نیستند.</div><div class="mp-note">ارزیابی گروهی فقط برای افراد فاقد ارزیابی انجام می‌شود و هیچ امتیاز قبلی را بازنویسی نمی‌کند.</div></div>
+ <div><h2>نفرات قابل ارزیابی و نتایج دوره</h2><div class="mp-note">فقط کارکنان واقع در زیرشاخه‌های سازمانی شما و اعضای مستقیم زیر نظر متصدی جایگاه نمایش داده می‌شوند؛ گره‌های هم‌سطح و همکاران هم‌جایگاه در فهرست نیستند.</div><div class="mp-note">ارزیابی گروهی فقط برای افراد فاقد ارزیابی انجام می‌شود و هیچ امتیاز قبلی را بازنویسی نمی‌کند.</div><div class="mp-note mp-improvement-summary">برنامه‌های اقدام بهبود قابل مشاهده در این دوره: <strong>@Model.ImprovementActionCount</strong> مورد · براساس نفرات تحت پوشش ساختار سازمانی شما</div></div>
  <div class="mp-controls">
  @if(Model.CanEdit) {
  <form method="post" action="/MonthlyPerformance/QuickAll" onsubmit="return confirm('فقط برای نفرات فاقد امتیاز، ارزیابی با سقف کامل سؤال‌ها ثبت شود؟');">
@@ -72,7 +72,7 @@ else
 </div>
 <div class="mp-table-wrap">
 <table class="mp-filter-table">
-<thead><tr><th>کارمند</th><th>کد پرسنلی</th><th>رده سازمانی</th><th>سمت</th><th>امتیاز</th><th>سقف</th><th>کسر امتیاز</th><th>درصد</th><th>آخرین ارزیاب</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+<thead><tr><th>کارمند</th><th>کد پرسنلی</th><th>رده سازمانی</th><th>سمت</th><th>امتیاز</th><th>سقف</th><th>کسر امتیاز</th><th>درصد</th><th>آخرین ارزیاب</th><th>وضعیت</th><th>عملیات</th><th>اقدامات بهبود</th></tr></thead>
 <tbody>
 @foreach (var p in Model.People) {
 <tr><td><strong>@p.FullName</strong></td><td>@p.PersonnelNumber</td><td>@p.Rank</td><td>@p.Unit</td>
@@ -80,7 +80,33 @@ else
 <td><span class="mp-tag @(p.EvaluationId.HasValue ? "good" : "warn")">@(p.EvaluationId.HasValue ? "ثبت‌شده" : "ثبت‌نشده")</span></td>
 <td>@if (p.CanEdit || p.EvaluationId.HasValue) {
 <a href="/MonthlyPerformance/Evaluate?employeeId=@p.EmployeeId&periodId=@Model.PeriodId" class="btn btn-outline btn-sm">@(p.CanEdit ? "مشاهده/ویرایش" : "مشاهده جزئیات")</a>
-} else {<span class="mp-muted">بدون دسترسی</span>}</td></tr>
+} else {<span class="mp-muted">بدون دسترسی</span>}</td>
+<td data-label="اقدامات بهبود">
+@if (p.ImprovementActions.Count == 0)
+{
+ <span class="mp-muted">برنامه‌ای ثبت نشده</span>
+}
+else
+{
+ <details class="mp-evaluator-actions">
+  <summary>مشاهده @p.ImprovementActions.Count اقدام</summary>
+  <div class="mp-evaluator-action-list">
+  @foreach (var action in p.ImprovementActions)
+  {
+   <article>
+    <div class="mp-evaluator-action-head">
+     <strong>@action.Title</strong>
+     <span class="mp-action-status @action.Status">@action.StatusTitle</span>
+    </div>
+    <div class="mp-note"><b>@action.DomainTitle / @action.QuestionTitle</b></div>
+    @if (!string.IsNullOrWhiteSpace(action.Description)) { <p>@action.Description</p> }
+    <small class="@(action.IsOverdue ? "mp-action-overdue" : "")">موعد پایان: @HRPortal.Services.PersianDateService.Format(action.DueDate) @(action.IsOverdue ? " · از موعد گذشته" : "")</small>
+   </article>
+  }
+  </div>
+ </details>
+}
+</td></tr>
 }
 </tbody>
 </table>

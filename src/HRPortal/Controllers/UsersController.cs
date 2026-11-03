@@ -140,25 +140,90 @@ public class UsersController(HRPortalDbContext db, RoleService roles, AuditServi
         return RedirectToAction(nameof(Index));
     }
 
+    [HttpGet, Authorize(Policy = "Roles.Manage")]
+    public async Task<IActionResult> EditRole(int? id)
+    {
+        var model = await roles.GetRoleEditAsync(id);
+        if (model is null) return NotFound();
+
+        ViewBag.Permissions = await roles.GetPermissionsAsync();
+        ViewBag.OrganizationRankTypes = await roles.GetOrganizationRankTypesAsync();
+        var assignments = await roles.GetRoleRankAssignmentsAsync();
+        ViewBag.AssignedRankTypes = id.HasValue && assignments.TryGetValue(id.Value, out var assigned)
+            ? assigned
+            : new List<string>();
+        ViewBag.IsBuiltInRole = model.Id > 0 && RoleService.IsBuiltInRoleCode(model.Code);
+        return View("EditRole", model);
+    }
+
     [HttpPost, Authorize(Policy = "Roles.Manage"), ValidateAntiForgeryToken]
     public async Task<IActionResult> SaveRole(RoleEditModel model)
     {
-        if (string.IsNullOrWhiteSpace(model.Code) || string.IsNullOrWhiteSpace(model.Title))
-        {
-            TempData["Error"] = "کد و عنوان نقش الزامی است.";
-            return RedirectToAction(nameof(Index));
-        }
-
         try
         {
-            await roles.SaveRoleAsync(model);
-            TempData["Success"] = "نقش و سطح دسترسی آن ذخیره شد.";
+            var roleId = await roles.SaveRoleAsync(model);
+            await audit.WriteAsync(
+                model.Id == 0 ? "ایجاد نقش جدید" : "ویرایش نقش",
+                "Role", roleId.ToString(), model.Code);
+            TempData["Success"] = "نقش و دسترسی‌های آن با موفقیت ذخیره شد.";
+            return RedirectToAction(nameof(EditRole), new { id = roleId });
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["Error"] = ex.Message;
         }
         catch (DbUpdateException)
         {
-            TempData["Error"] = "کد نقش تکراری است یا ذخیره نقش امکان‌پذیر نیست.";
+            TempData["Error"] = "ذخیره نقش انجام نشد. کد نقش را بررسی کنید و دوباره تلاش کنید.";
         }
 
+        return model.Id > 0
+            ? RedirectToAction(nameof(EditRole), new { id = model.Id })
+            : RedirectToAction(nameof(EditRole));
+    }
+
+    [HttpPost, Authorize(Policy = "Roles.Manage"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> ToggleRoleStatus(int roleId)
+    {
+        var role = await db.Roles.FindAsync(roleId);
+        if (role is null) return NotFound();
+
+        role.IsActive = !role.IsActive;
+        await db.SaveChangesAsync();
+        await audit.WriteAsync(
+            role.IsActive ? "فعال‌سازی نقش" : "غیرفعال‌سازی نقش",
+            "Role", role.Id.ToString(), role.Code);
+        TempData["Success"] = role.IsActive
+            ? $"نقش «{role.Title}» فعال شد."
+            : $"نقش «{role.Title}» غیرفعال شد؛ دسترسی‌های وابسته به آن دیگر اعمال نمی‌شود.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost, Authorize(Policy = "Roles.Manage"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteRole(int roleId)
+    {
+        var role = await db.Roles.FindAsync(roleId);
+        if (role is null) return NotFound();
+
+        if (RoleService.IsBuiltInRoleCode(role.Code))
+        {
+            TempData["Error"] = "نقش‌های سیستمی قابل حذف نیستند؛ در صورت نیاز آن‌ها را غیرفعال کنید.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var assignedUsers = await db.EmployeeRoles.CountAsync(x => x.RoleId == roleId);
+        var assignedRanks = await db.RoleOrganizationRanks.CountAsync(x => x.RoleId == roleId);
+        if (assignedUsers > 0 || assignedRanks > 0)
+        {
+            TempData["Error"] = $"حذف نقش «{role.Title}» ممکن نیست؛ ابتدا تخصیص مستقیم آن به {assignedUsers} کاربر و تخصیص سازمانی آن به {assignedRanks} رده را از سامانه بردارید.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        db.RolePermissions.RemoveRange(db.RolePermissions.Where(x => x.RoleId == roleId));
+        db.Roles.Remove(role);
+        await db.SaveChangesAsync();
+        await audit.WriteAsync("حذف نقش", "Role", role.Id.ToString(), role.Code);
+        TempData["Success"] = $"نقش «{role.Title}» حذف شد.";
         return RedirectToAction(nameof(Index));
     }
 
@@ -174,22 +239,51 @@ public class UsersController(HRPortalDbContext db, RoleService roles, AuditServi
         {
             TempData["Error"] = ex.Message;
         }
-        return RedirectToAction(nameof(Index));
+        return RedirectToAction(nameof(EditRole), new { id = roleId });
     }
 
     private async Task<List<RoleEditModel>> BuildRoleModelsAsync()
     {
-        var all = await db.Roles.OrderBy(x => x.Title).ToListAsync();
-        var assignments = await db.RolePermissions.AsNoTracking().ToListAsync();
+        var all = await db.Roles.AsNoTracking().OrderBy(x => x.Title).ToListAsync();
+        var roleIds = all.Select(x => x.Id).ToArray();
+        if (roleIds.Length == 0) return [];
 
-        return all.Select(r => new RoleEditModel
+        var assignments = await db.RolePermissions.AsNoTracking()
+            .Where(x => roleIds.Contains(x.RoleId) && x.Permission.Code != "ContractRenewal.Manage")
+            .Select(x => new { x.RoleId, x.PermissionId, x.Permission.Module })
+            .ToListAsync();
+        var userAssignments = await db.EmployeeRoles.AsNoTracking()
+            .Where(x => roleIds.Contains(x.RoleId))
+            .Select(x => new { x.RoleId, x.EmployeeId })
+            .ToListAsync();
+        var rankAssignments = await db.RoleOrganizationRanks.AsNoTracking()
+            .Where(x => roleIds.Contains(x.RoleId))
+            .Select(x => new { x.RoleId, x.RankType })
+            .ToListAsync();
+
+        return all.Select(role =>
         {
-            Id = r.Id,
-            Code = r.Code,
-            Title = r.Title,
-            Description = r.Description ?? "",
-            IsActive = r.IsActive,
-            PermissionIds = assignments.Where(x => x.RoleId == r.Id).Select(x => x.PermissionId).ToList()
+            var rolePermissions = assignments.Where(x => x.RoleId == role.Id).ToList();
+            var rankTypes = rankAssignments.Where(x => x.RoleId == role.Id)
+                .Select(x => x.RankType).Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x).ToList();
+            return new RoleEditModel
+            {
+                Id = role.Id,
+                Code = role.Code,
+                Title = role.Title,
+                Description = role.Description ?? string.Empty,
+                IsActive = role.IsActive,
+                IsBuiltIn = RoleService.IsBuiltInRoleCode(role.Code),
+                PermissionIds = rolePermissions.Select(x => x.PermissionId).Distinct().ToList(),
+                PermissionCount = rolePermissions.Select(x => x.PermissionId).Distinct().Count(),
+                PermissionModules = rolePermissions.Select(x => x.Module).Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(x => x).ToList(),
+                UserCount = userAssignments.Where(x => x.RoleId == role.Id)
+                    .Select(x => x.EmployeeId).Distinct().Count(),
+                AssignedRankTypes = rankTypes,
+                OrganizationRankCount = rankTypes.Count
+            };
         }).ToList();
     }
 }

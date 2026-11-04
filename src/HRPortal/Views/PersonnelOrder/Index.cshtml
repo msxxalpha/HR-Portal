@@ -67,6 +67,15 @@
                     event.stopPropagation();
                 }
             }, true);
+            document.addEventListener("keydown", (event) => {
+                const key = (event.key || "").toLowerCase();
+                if (event.key === "PrintScreen" || event.code === "PrintScreen" ||
+                    ((event.ctrlKey || event.metaKey) && ["s", "p", "c"].includes(key)) ||
+                    (event.metaKey && event.shiftKey && key === "s")) {
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                }
+            }, true);
         })();
     </script>
 }

@@ -124,7 +124,7 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
 
             var mediaType = response.Content.Headers.ContentType?.MediaType;
             if (string.IsNullOrWhiteSpace(mediaType))
-                mediaType = GuessContentType(settings.ReportFormat);
+                mediaType = GuessContentType(string.IsNullOrWhiteSpace(reportFormatOverride) ? settings.ReportFormat : reportFormatOverride);
 
             if (IsLoginPage(response.RequestMessage?.RequestUri, settings.ReportLoginUrl) ||
                 LooksLikeLoginPage(bytes, mediaType))
@@ -260,6 +260,11 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
                 "$1",
                 RegexOptions.IgnoreCase);
         }
+
+        // A saved URL may already contain an old format. Remove it so the
+        // per-request IMAGE override cannot be shadowed by a duplicate rs:Format.
+        target = Regex.Replace(target, @"([?&])rs:Command=[^&]*", "$1", RegexOptions.IgnoreCase);
+        target = Regex.Replace(target, @"([?&])rs:Format=[^&]*", "$1", RegexOptions.IgnoreCase);
 
         target = Regex.Replace(target, @"\?&", "?", RegexOptions.None);
         target = Regex.Replace(target, @"&&+", "&", RegexOptions.None);

@@ -46,7 +46,7 @@ public class PersonnelOrderReportService(
         return (true, queryResult.Value.Trim(), "");
     }
 
-    public async Task<ReportFetchResult> FetchForOrderIdAsync(string orderId)
+    public async Task<ReportFetchResult> FetchForOrderIdAsync(string orderId, string? renderFormat = null)
     {
         var settings = await db.PersonnelOrderReportSettings.AsNoTracking().FirstOrDefaultAsync();
         if (settings is null || !settings.Enabled)
@@ -66,7 +66,7 @@ public class PersonnelOrderReportService(
             ReportPath = settings.ReportPath,
             YearParameter = parameterName,
             PersonnelParameter = parameterName,
-            ReportFormat = settings.ReportFormat,
+            ReportFormat = string.IsNullOrWhiteSpace(renderFormat) ? settings.ReportFormat : renderFormat,
             ReportAuthentication = settings.ReportAuthentication,
             ReportUsername = settings.ReportUsername,
             ReportDomain = settings.ReportDomain,

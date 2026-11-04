@@ -67,6 +67,8 @@ builder.Services.AddScoped<ReportCredentialProtector>();
 builder.Services.AddScoped<ReportService>();
 builder.Services.AddScoped<InputQueryService>();
 builder.Services.AddScoped<PersonnelOrderReportService>();
+builder.Services.AddSingleton<TemporaryReportImageStore>();
+builder.Services.AddHostedService<TemporaryReportImageCleanupService>();
 builder.Services.AddScoped<AnnouncementService>();
 builder.Services.AddScoped<EmployeeExcelService>();
 builder.Services.AddScoped<AdminService>();

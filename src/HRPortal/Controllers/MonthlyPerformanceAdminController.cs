@@ -173,9 +173,9 @@ public class MonthlyPerformanceAdminController(HRPortalDbContext db, RoleService
             var entity = id == 0 ? new MonthlyPerformancePeriod() :
                 await db.MonthlyPerformancePeriods.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted) ??
                 throw new InvalidOperationException("دوره فعال یافت نشد.");
-            if (id != 0 && await db.MonthlyPerformanceEvaluations.AnyAsync(x => x.PeriodId == id) &&
-                (entity.StartAt != dates.start || entity.EndAt != dates.endExclusive))
-                throw new InvalidOperationException("تغییر بازه دوره دارای نتایج ثبت‌شده مجاز نیست.");
+            // Administrators may correct the period window even after evaluations exist.
+            // Existing evaluations, score snapshots and revision history are intentionally
+            // left untouched; the new dates only affect the period's future availability.
             var newCode = Code(code, "PER", await db.MonthlyPerformancePeriods.Select(x => x.Code).ToListAsync());
             if (await db.MonthlyPerformancePeriods.AnyAsync(x => x.Id != id && x.Code == newCode))
                 throw new InvalidOperationException("کد دوره تکراری است.");

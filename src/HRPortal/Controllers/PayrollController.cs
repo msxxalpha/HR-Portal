@@ -216,7 +216,7 @@ public class PayrollController(HRPortalDbContext db, ReportService reports, Temp
         try
         {
             var ownerKey = ReportTempOwner.GetKey(User);
-            var watermark = $"{User.Identity?.Name} | {employee.PersonnelNumber}";
+            var watermark = $"{employee.FirstName} {employee.LastName} | {employee.PersonnelNumber}";
             var imageSet = await imageStore.CreateFromTiffAsync(result.Content, ownerKey, watermark, HttpContext.RequestAborted);
             var tokens = antiforgery.GetAndStoreTokens(HttpContext);
             SetPrivateReportHeaders();

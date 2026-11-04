@@ -9,7 +9,9 @@ namespace HRPortal.Controllers;
 [Authorize(Policy = "PersonnelOrder.View")]
 public class PersonnelOrderController(
     HRPortalDbContext db,
-    PersonnelOrderReportService reports) : Controller
+    PersonnelOrderReportService reports,
+    TemporaryReportImageStore imageStore,
+    Microsoft.AspNetCore.Antiforgery.IAntiforgery antiforgery) : Controller
 {
     [HttpGet]
     public async Task<IActionResult> Index()
@@ -120,18 +122,65 @@ public class PersonnelOrderController(
         if (employee is null)
             return StyledError("کارمند فعال و احراز‌شده یافت نشد.", StatusCodes.Status403Forbidden);
 
-        // Resolve the order for the currently authenticated employee every time
-        // the report is requested. This prevents stale/session-cross-user values.
+        // Resolve the order for the currently authenticated employee on every request.
         var resolved = await reports.ResolveOrderIdAsync(employee.PersonnelNumber);
         if (!resolved.Success || string.IsNullOrWhiteSpace(resolved.OrderId))
             return StyledError(resolved.ErrorMessage, StatusCodes.Status422UnprocessableEntity);
 
-        var result = await reports.FetchForOrderIdAsync(resolved.OrderId);
+        // Render SSRS IMAGE without changing the configured PDF format used by
+        // the existing Print and Download actions.
+        var result = await reports.FetchForOrderIdAsync(resolved.OrderId, "IMAGE");
         if (!result.Success || result.Content is null)
             return StyledError(result.ErrorMessage, StatusCodes.Status502BadGateway);
 
-        Response.Headers.ContentDisposition = "inline";
-        return File(result.Content, result.ContentType);
+        try
+        {
+            var ownerKey = ReportTempOwner.GetKey(User);
+            var watermark = $"{User.Identity?.Name} | {employee.PersonnelNumber}";
+            var imageSet = await imageStore.CreateFromTiffAsync(result.Content, ownerKey, watermark, HttpContext.RequestAborted);
+            var tokens = antiforgery.GetAndStoreTokens(HttpContext);
+            SetPrivateReportHeaders();
+            return View("~/Views/Shared/SecureReportViewer.cshtml", new HRPortal.Models.SecureReportViewerVm
+            {
+                Token = imageSet.Token,
+                PageCount = imageSet.PageCount,
+                PageUrl = Url.Action(nameof(ReportPage), "PersonnelOrder")!,
+                CloseUrl = Url.Action(nameof(CloseReport), "PersonnelOrder")!,
+                AntiForgeryToken = tokens.RequestToken ?? "",
+                Title = "حکم کارگزینی"
+            });
+        }
+        catch (Exception ex)
+        {
+            return StyledError("آماده‌سازی تصویر موقت حکم کارگزینی ناموفق بود: " + ex.Message, StatusCodes.Status502BadGateway);
+        }
+    }
+
+    [HttpGet]
+    public IActionResult ReportPage(string token, int page)
+    {
+        var path = imageStore.GetPagePath(ReportTempOwner.GetKey(User), token, page);
+        if (!System.IO.File.Exists(path)) return NotFound();
+        SetPrivateReportHeaders();
+        return PhysicalFile(path, "image/png");
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public IActionResult CloseReport(string token)
+    {
+        imageStore.DeleteReport(ReportTempOwner.GetKey(User), token);
+        return NoContent();
+    }
+
+    private void SetPrivateReportHeaders()
+    {
+        Response.Headers["Cache-Control"] = "private, no-store, no-cache, must-revalidate, max-age=0";
+        Response.Headers["Pragma"] = "no-cache";
+        Response.Headers["Expires"] = "0";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        Response.Headers["Referrer-Policy"] = "no-referrer";
+        Response.Headers["X-Frame-Options"] = "SAMEORIGIN";
+        Response.Headers["Content-Security-Policy"] = "default-src 'self'; img-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'self';";
     }
 
     private ContentResult StyledError(string message, int statusCode)

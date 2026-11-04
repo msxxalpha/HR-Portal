@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HRPortal.Controllers;
 
-public class AccountController(HRPortalDbContext db, OtpService otp, AuditService audit, AdminService admins, RoleService roleService) : Controller
+public class AccountController(HRPortalDbContext db, OtpService otp, AuditService audit, AdminService admins, RoleService roleService, TemporaryReportImageStore reportImageStore) : Controller
 {
     [HttpGet, AllowAnonymous]
     public IActionResult Login(string? returnUrl = null, string? mode = null)
@@ -418,6 +418,11 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Logout()
     {
+        if (User.Identity?.IsAuthenticated == true)
+        {
+            try { reportImageStore.DeleteOwner(ReportTempOwner.GetKey(User)); }
+            catch (InvalidOperationException) { }
+        }
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         HttpContext.Session.Clear();
         return RedirectToAction(nameof(Login));

@@ -46,7 +46,7 @@ public class PersonnelOrderReportService(
         return (true, queryResult.Value.Trim(), "");
     }
 
-    public async Task<ReportFetchResult> FetchForOrderIdAsync(string orderId)
+    public async Task<ReportFetchResult> FetchForOrderIdAsync(string orderId, string? renderFormatOverride = null)
     {
         var settings = await db.PersonnelOrderReportSettings.AsNoTracking().FirstOrDefaultAsync();
         if (settings is null || !settings.Enabled)
@@ -82,6 +82,6 @@ public class PersonnelOrderReportService(
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 [parameterName] = orderId
-            });
+            }, renderFormatOverride);
     }
 }

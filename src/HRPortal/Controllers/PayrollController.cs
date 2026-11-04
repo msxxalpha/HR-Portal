@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace HRPortal.Controllers;
 
 [Authorize(Policy = "Payroll.View")]
-public class PayrollController(HRPortalDbContext db, ReportService reports) : Controller
+public class PayrollController(HRPortalDbContext db, ReportService reports, TemporaryReportImageStore imageStore, Microsoft.AspNetCore.Antiforgery.IAntiforgery antiforgery) : Controller
 {
     [HttpGet]
     public async Task<IActionResult> Payslip(string? yearMonth = null)
@@ -198,10 +198,8 @@ public class PayrollController(HRPortalDbContext db, ReportService reports) : Co
         var employee = GetAuthenticatedEmployee();
         if (employee is null)
             return StyledReportError("کارمند فعال و احراز‌شده یافت نشد.", StatusCodes.Status403Forbidden);
-
         if (string.IsNullOrWhiteSpace(employee.Identifier))
             return StyledReportError("شناسه گزارش این کارمند در اطلاعات کارکنان ثبت نشده است.", StatusCodes.Status422UnprocessableEntity);
-
         if (!ReportService.TryNormalizeYearMonth(yearMonth, out var normalizedYearMonth))
             return StyledReportError("پارامتر سال و ماه باید دقیقاً با فرمت ۱۴۰۵۰۶ (شش رقم، بدون اسلش) باشد.", StatusCodes.Status400BadRequest);
 
@@ -209,14 +207,60 @@ public class PayrollController(HRPortalDbContext db, ReportService reports) : Co
         if (int.Parse(normalizedYearMonth[..4], System.Globalization.CultureInfo.InvariantCulture) < minimumYear)
             return StyledReportError($"فقط فیش‌های سال {minimumYear} و پس از آن قابل مشاهده هستند.", StatusCodes.Status403Forbidden);
 
-        // The report receives the employee's internal report identifier,
-        // not the login personnel number.
-        var result = await reports.FetchAsync(normalizedYearMonth, employee.Identifier);
+        // SSRS native IMAGE rendering; the configured PDF format remains untouched
+        // for the existing, settings-controlled Print and Download actions.
+        var result = await reports.FetchImageAsync(normalizedYearMonth, employee.Identifier);
         if (!result.Success || result.Content is null)
             return StyledReportError(result.ErrorMessage, StatusCodes.Status502BadGateway);
 
-        Response.Headers.ContentDisposition = "inline";
-        return File(result.Content, result.ContentType);
+        try
+        {
+            var ownerKey = ReportTempOwner.GetKey(User);
+            var watermark = $"{User.Identity?.Name} | {employee.PersonnelNumber}";
+            var imageSet = await imageStore.CreateFromTiffAsync(result.Content, ownerKey, watermark, HttpContext.RequestAborted);
+            var tokens = antiforgery.GetAndStoreTokens(HttpContext);
+            SetPrivateReportHeaders();
+            return View("~/Views/Shared/SecureReportViewer.cshtml", new HRPortal.Models.SecureReportViewerVm
+            {
+                Token = imageSet.Token,
+                PageCount = imageSet.PageCount,
+                PageUrl = Url.Action(nameof(ReportPage), "Payroll")!,
+                CloseUrl = Url.Action(nameof(CloseReport), "Payroll")!,
+                AntiForgeryToken = tokens.RequestToken ?? "",
+                Title = "فیش حقوقی"
+            });
+        }
+        catch (Exception ex)
+        {
+            return StyledReportError("آماده‌سازی تصویر موقت فیش حقوقی ناموفق بود: " + ex.Message, StatusCodes.Status502BadGateway);
+        }
+    }
+
+    [HttpGet]
+    public IActionResult ReportPage(string token, int page)
+    {
+        var path = imageStore.GetPagePath(ReportTempOwner.GetKey(User), token, page);
+        if (!System.IO.File.Exists(path)) return NotFound();
+        SetPrivateReportHeaders();
+        return PhysicalFile(path, "image/png");
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public IActionResult CloseReport(string token)
+    {
+        imageStore.DeleteReport(ReportTempOwner.GetKey(User), token);
+        return NoContent();
+    }
+
+    private void SetPrivateReportHeaders()
+    {
+        Response.Headers["Cache-Control"] = "private, no-store, no-cache, must-revalidate, max-age=0";
+        Response.Headers["Pragma"] = "no-cache";
+        Response.Headers["Expires"] = "0";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        Response.Headers["Referrer-Policy"] = "no-referrer";
+        Response.Headers["X-Frame-Options"] = "SAMEORIGIN";
+        Response.Headers["Content-Security-Policy"] = "default-src 'self'; img-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'self';";
     }
 
     private ContentResult StyledReportError(string message, int statusCode)

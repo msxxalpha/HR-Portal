@@ -15,7 +15,7 @@
 @if (TempData["Error"] != null) { <div class="mp-error">@TempData["Error"]</div> }
 <section class="mp-card">
 <h2>@(editing is null ? "تعریف دوره جدید" : "ویرایش دوره «"+editing.Title+"»")</h2>
-<div class="mp-note">سال و ماه شمسی به‌صورت خودکار از تاریخ شروع استخراج می‌شوند. بازه ارزیابی از ابتدای روز شروع تا پایان روز آخر اعتبار دارد.</div>
+<div class="mp-note">سال و ماه شمسی به‌صورت خودکار از تاریخ شروع استخراج می‌شوند. بازه ارزیابی از ابتدای روز شروع تا پایان روز آخر اعتبار دارد. مدیر سامانه می‌تواند حتی پس از ثبت ارزیابی‌ها، تاریخ‌های دوره را اصلاح کند؛ این تغییر، امتیازها و سوابق ثبت‌شده را حذف یا بازنویسی نمی‌کند و فقط بازه مجاز ثبت ارزیابی را تغییر می‌دهد.</div>
 <form method="post" action="/MonthlyPerformanceAdmin/SavePeriod">
 @Html.AntiForgeryToken()
 <input type="hidden" name="id" value="@(editing?.Id ?? 0)" />

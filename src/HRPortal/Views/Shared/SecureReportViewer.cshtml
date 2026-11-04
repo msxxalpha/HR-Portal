@@ -1,0 +1,55 @@
+@model HRPortal.Models.SecureReportViewerVm
+@{
+    Layout = null;
+    ViewData["Title"] = Model.Title;
+}
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex,nofollow,noarchive" />
+<meta name="csrf-token" content="@Model.AntiForgeryToken" />
+<title>@Model.Title</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#e9edf2;color:#263746;font-family:Tahoma,Arial,sans-serif}
+.viewer-head{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid #d9e0e7;padding:10px 16px;display:flex;justify-content:space-between;align-items:center}
+.viewer-head small{color:#687888}.pages{max-width:1100px;margin:16px auto;padding:0 12px}
+.page{display:block;width:100%;height:auto;margin:0 auto 16px;background:#fff;box-shadow:0 2px 12px #172b3a22;user-select:none;-webkit-user-drag:none;-webkit-touch-callout:none}
+.notice{padding:8px 16px;text-align:center;color:#596b7b;font-size:12px}
+@media print{body{display:none!important}}
+</style>
+</head>
+<body>
+<header class="viewer-head"><strong>@Model.Title</strong><small>تعداد صفحات: @Model.PageCount</small></header>
+<main class="pages" oncontextmenu="return false">
+@for (var page = 0; page < Model.PageCount; page++)
+{
+<img class="page" draggable="false" alt="صفحه @(page + 1)" src="@($"{Model.PageUrl}?token={Model.Token}&page={page}")" />
+}
+</main>
+<div class="notice">این گزارش محرمانه است. تصاویر دارای نشان هویت کاربر هستند.</div>
+<script>
+(() => {
+ const closeUrl=@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.CloseUrl));
+ const token=@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Token));
+ const csrf=document.querySelector('meta[name="csrf-token"]').content;
+ let closed=false;
+ const closeReport=()=>{
+  if(closed)return; closed=true;
+  const body=new URLSearchParams({token,__RequestVerificationToken:csrf});
+  if(navigator.sendBeacon) navigator.sendBeacon(closeUrl,new Blob([body.toString()],{type:'application/x-www-form-urlencoded;charset=UTF-8'}));
+  else fetch(closeUrl,{method:'POST',body,credentials:'same-origin',keepalive:true,headers:{'Content-Type':'application/x-www-form-urlencoded'}});
+ };
+ document.addEventListener('contextmenu',e=>{e.preventDefault();e.stopPropagation()},true);
+ document.addEventListener('dragstart',e=>e.preventDefault(),true);
+ document.addEventListener('keydown',e=>{
+  const k=(e.key||'').toLowerCase();
+  if(e.key==='PrintScreen'||e.code==='PrintScreen'||((e.ctrlKey||e.metaKey)&&['s','p','c'].includes(k))||(e.metaKey&&e.shiftKey&&k==='s')){e.preventDefault();e.stopImmediatePropagation()}
+ },true);
+ window.addEventListener('pagehide',closeReport,{once:true});
+ window.addEventListener('beforeunload',closeReport,{once:true});
+})();
+</script>
+</body>
+</html>

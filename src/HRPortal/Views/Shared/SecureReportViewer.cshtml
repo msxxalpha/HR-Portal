@@ -38,8 +38,9 @@
  const closeReport=()=>{
   if(closed)return; closed=true;
   const body=new URLSearchParams({token,__RequestVerificationToken:csrf});
-  if(navigator.sendBeacon) navigator.sendBeacon(closeUrl,new Blob([body.toString()],{type:'application/x-www-form-urlencoded;charset=UTF-8'}));
-  else fetch(closeUrl,{method:'POST',body,credentials:'same-origin',keepalive:true,headers:{'Content-Type':'application/x-www-form-urlencoded'}});
+  const payload=new Blob([body.toString()],{type:'application/x-www-form-urlencoded;charset=UTF-8'});
+  const queued=navigator.sendBeacon ? navigator.sendBeacon(closeUrl,payload) : false;
+  if(!queued) fetch(closeUrl,{method:'POST',body,credentials:'same-origin',keepalive:true,headers:{'Content-Type':'application/x-www-form-urlencoded'}}).catch(()=>{});
  };
  document.addEventListener('contextmenu',e=>{e.preventDefault();e.stopPropagation()},true);
  document.addEventListener('dragstart',e=>e.preventDefault(),true);

@@ -35,6 +35,28 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
         });
     }
 
+    public async Task<ReportFetchResult> FetchImageAsync(string yearMonth, string personnelNo)
+    {
+        var settings = await db.PayrollReportSettings.AsNoTracking().FirstOrDefaultAsync();
+        if (settings is null || !settings.Enabled) return Fail("نمایش فیش حقوقی در تنظیمات سامانه غیرفعال است.");
+        if (!TryNormalizeYearMonth(yearMonth, out var normalizedYearMonth)) return Fail("سال و ماه گزارش نامعتبر است.");
+        if (string.IsNullOrWhiteSpace(personnelNo)) return Fail("شناسه گزارش کاربر احراز‌شده یافت نشد.");
+        var imageSettings = new PayrollReportSettings
+        {
+            Enabled = settings.Enabled, ReportUrl = settings.ReportUrl, ReportServerUrl = settings.ReportServerUrl,
+            ReportPath = settings.ReportPath, YearParameter = settings.YearParameter, PersonnelParameter = settings.PersonnelParameter,
+            ReportFormat = "IMAGE", ReportAuthentication = settings.ReportAuthentication, ReportUsername = settings.ReportUsername,
+            ReportDomain = settings.ReportDomain, ReportLoginUrl = settings.ReportLoginUrl,
+            ReportUsernameField = settings.ReportUsernameField, ReportPasswordField = settings.ReportPasswordField,
+            ReportPasswordProtected = settings.ReportPasswordProtected, UseIntegratedSecurity = settings.UseIntegratedSecurity
+        };
+        return await FetchConfiguredAsync(imageSettings, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [string.IsNullOrWhiteSpace(settings.YearParameter) ? "YearMonth" : settings.YearParameter.Trim()] = normalizedYearMonth,
+            [string.IsNullOrWhiteSpace(settings.PersonnelParameter) ? "PersonnelNo" : settings.PersonnelParameter.Trim()] = personnelNo
+        });
+    }
+
     public async Task<ReportFetchResult> FetchConfiguredAsync(
         PayrollReportSettings settings,
         IReadOnlyDictionary<string, string> parameters)

@@ -24,7 +24,7 @@ public sealed class TemporaryReportImageStore(IWebHostEnvironment environment)
 {
     // Outside wwwroot: temporary report images are never served as static files.
     private readonly string _root = Path.Combine(environment.ContentRootPath, "App_Data", "ReportTemp");
-    private static readonly TimeSpan MaximumAge = TimeSpan.FromMinutes(20);
+    private static readonly TimeSpan MaximumAge = TimeSpan.FromHours(4);
     private const int MaximumPages = 100;
     private const int MaximumTiffBytes = 30 * 1024 * 1024;
 

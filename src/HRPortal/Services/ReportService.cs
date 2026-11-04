@@ -611,6 +611,7 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
         (format ?? "").Trim().ToUpperInvariant() switch
         {
             "PDF" => "application/pdf",
+            "IMAGE" or "TIFF" => "image/tiff",
             "CSV" => "text/csv",
             "XML" => "application/xml",
             "EXCELOPENXML" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

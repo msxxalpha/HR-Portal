@@ -69,14 +69,25 @@ public sealed class TemporaryReportImageStore(IWebHostEnvironment environment)
                 {
                     graphics.Clear(Color.White);
                     graphics.DrawImage(source, 0, 0, source.Width, source.Height);
-                    using var font = new Font("Tahoma", Math.Max(12f, source.Width / 95f), FontStyle.Bold, GraphicsUnit.Pixel);
-                    using var brush = new SolidBrush(Color.FromArgb(105, 65, 75, 85));
-                    using var background = new SolidBrush(Color.FromArgb(35, 255, 255, 255));
                     var label = watermark + " | " + DateTime.Now.ToString("yyyy/MM/dd HH:mm");
-                    var size = graphics.MeasureString(label, font);
-                    var y = Math.Max(0, bitmap.Height - size.Height - 18);
-                    graphics.FillRectangle(background, 8, y, bitmap.Width - 16, size.Height + 10);
-                    graphics.DrawString(label, font, brush, 14, y + 5);
+                    using (var watermarkFont = new Font("Tahoma", Math.Max(18f, source.Width / 48f), FontStyle.Bold, GraphicsUnit.Pixel))
+                    using (var watermarkBrush = new SolidBrush(Color.FromArgb(48, 65, 75, 85)))
+                    {
+                        var measured = graphics.MeasureString(label, watermarkFont);
+                        graphics.TranslateTransform(bitmap.Width / 2f, bitmap.Height / 2f);
+                        graphics.RotateTransform(-24f);
+                        for (var y = -bitmap.Height; y < bitmap.Height; y += Math.Max(180, (int)(measured.Height * 4)))
+                            graphics.DrawString(label, watermarkFont, watermarkBrush, -measured.Width / 2f, y);
+                        graphics.ResetTransform();
+                    }
+
+                    using var footerFont = new Font("Tahoma", Math.Max(12f, source.Width / 95f), FontStyle.Bold, GraphicsUnit.Pixel);
+                    using var footerBrush = new SolidBrush(Color.FromArgb(105, 65, 75, 85));
+                    using var background = new SolidBrush(Color.FromArgb(35, 255, 255, 255));
+                    var footerSize = graphics.MeasureString(label, footerFont);
+                    var footerY = Math.Max(0, bitmap.Height - footerSize.Height - 18);
+                    graphics.FillRectangle(background, 8, footerY, bitmap.Width - 16, footerSize.Height + 10);
+                    graphics.DrawString(label, footerFont, footerBrush, 14, footerY + 5);
                 }
 
                 bitmap.Save(GetPagePath(ownerKey, token, page), ImageFormat.Png);

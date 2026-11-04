@@ -35,14 +35,33 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
         });
     }
 
+    public async Task<ReportFetchResult> FetchImageAsync(string yearMonth, string personnelNo)
+    {
+        var settings = await db.PayrollReportSettings.AsNoTracking().FirstOrDefaultAsync();
+        if (settings is null || !settings.Enabled)
+            return Fail("نمایش فیش حقوقی در تنظیمات سامانه غیرفعال است.");
+        if (!TryNormalizeYearMonth(yearMonth, out var normalizedYearMonth))
+            return Fail("سال و ماه گزارش نامعتبر است.");
+        if (string.IsNullOrWhiteSpace(personnelNo))
+            return Fail("شناسه گزارش کاربر احراز‌شده یافت نشد.");
+
+        var parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [string.IsNullOrWhiteSpace(settings.YearParameter) ? "YearMonth" : settings.YearParameter.Trim()] = normalizedYearMonth,
+            [string.IsNullOrWhiteSpace(settings.PersonnelParameter) ? "PersonnelNo" : settings.PersonnelParameter.Trim()] = personnelNo
+        };
+        return await FetchConfiguredAsync(settings, parameters, "IMAGE");
+    }
+
     public async Task<ReportFetchResult> FetchConfiguredAsync(
         PayrollReportSettings settings,
-        IReadOnlyDictionary<string, string> parameters)
+        IReadOnlyDictionary<string, string> parameters,
+        string? reportFormatOverride = null)
     {
         if (settings is null || !settings.Enabled)
             return Fail("نمایش گزارش در تنظیمات سامانه غیرفعال است.");
 
-        var target = BuildReportUrl(settings, parameters);
+        var target = BuildReportUrl(settings, parameters, reportFormatOverride);
         if (target is null)
             return Fail("آدرس مستقیم گزارش SSRS در تنظیمات سامانه ثبت نشده است.");
 
@@ -196,7 +215,8 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
 
     private static string? BuildReportUrl(
         PayrollReportSettings settings,
-        IReadOnlyDictionary<string, string> parameters)
+        IReadOnlyDictionary<string, string> parameters,
+        string? reportFormatOverride = null)
     {
         // When Report Server + Report Path are configured, always build the
         // native direct report URL. This avoids stale ReportViewer.aspx/catalog URLs.
@@ -256,7 +276,7 @@ public class ReportService(HRPortalDbContext db, ReportCredentialProtector crede
             target += separator;
 
         target += "rs:Command=Render&rs:Format=" +
-                  Uri.EscapeDataString(string.IsNullOrWhiteSpace(settings.ReportFormat) ? "PDF" : settings.ReportFormat.Trim());
+                  Uri.EscapeDataString(string.IsNullOrWhiteSpace(reportFormatOverride) ? (string.IsNullOrWhiteSpace(settings.ReportFormat) ? "PDF" : settings.ReportFormat.Trim()) : reportFormatOverride.Trim());
 
         return target;
     }

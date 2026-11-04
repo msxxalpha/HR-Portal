@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace HRPortal.Controllers;
 
 [Authorize(Policy = "Payroll.View")]
-public class PayrollController(HRPortalDbContext db, ReportService reports) : Controller
+public class PayrollController(HRPortalDbContext db, ReportService reports, TemporaryReportImageStore imageStore, Microsoft.AspNetCore.Antiforgery.IAntiforgery antiforgery) : Controller
 {
     [HttpGet]
     public IActionResult Payslip(string? yearMonth = null)
@@ -165,25 +165,58 @@ public class PayrollController(HRPortalDbContext db, ReportService reports) : Co
     {
         if (User.HasClaim("IsAdmin", "1"))
             return StyledReportError("این کاربر فیش حقوقی ندارد.", StatusCodes.Status403Forbidden);
-
         var employee = GetAuthenticatedEmployee();
-        if (employee is null)
+        if (employee is null || string.IsNullOrWhiteSpace(employee.Identifier))
             return StyledReportError("کارمند فعال و احراز‌شده یافت نشد.", StatusCodes.Status403Forbidden);
-
-        if (string.IsNullOrWhiteSpace(employee.Identifier))
-            return StyledReportError("شناسه گزارش این کارمند در اطلاعات کارکنان ثبت نشده است.", StatusCodes.Status422UnprocessableEntity);
-
         if (!ReportService.TryNormalizeYearMonth(yearMonth, out var normalizedYearMonth))
-            return StyledReportError("پارامتر سال و ماه باید دقیقاً با فرمت ۱۴۰۵۰۶ (شش رقم، بدون اسلش) باشد.", StatusCodes.Status400BadRequest);
+            return StyledReportError("پارامتر سال و ماه نامعتبر است.", StatusCodes.Status400BadRequest);
 
-        // The report receives the employee's internal report identifier,
-        // not the login personnel number.
-        var result = await reports.FetchAsync(normalizedYearMonth, employee.Identifier);
+        var result = await reports.FetchImageAsync(normalizedYearMonth, employee.Identifier);
         if (!result.Success || result.Content is null)
             return StyledReportError(result.ErrorMessage, StatusCodes.Status502BadGateway);
 
-        Response.Headers.ContentDisposition = "inline";
-        return File(result.Content, result.ContentType);
+        try
+        {
+            var ownerKey = ReportTempOwner.GetKey(User);
+            var watermark = $"{User.Identity?.Name} | {employee.PersonnelNumber}";
+            var imageSet = await imageStore.CreateFromTiffAsync(result.Content, ownerKey, watermark, HttpContext.RequestAborted);
+            var tokens = antiforgery.GetAndStoreTokens(HttpContext);
+            Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0";
+            Response.Headers["Pragma"] = "no-cache";
+            Response.Headers["Expires"] = "0";
+            Response.Headers["X-Content-Type-Options"] = "nosniff";
+            Response.Headers["Content-Security-Policy"] = "frame-ancestors 'self';";
+            return View("~/Views/Shared/SecureReportViewer.cshtml", new HRPortal.Models.SecureReportViewerVm
+            {
+                Token = imageSet.Token, PageCount = imageSet.PageCount,
+                PageUrl = Url.Action(nameof(ReportPage), "Payroll")!,
+                CloseUrl = Url.Action(nameof(CloseReport), "Payroll")!,
+                AntiForgeryToken = tokens.RequestToken ?? "",
+                Title = "فیش حقوقی"
+            });
+        }
+        catch (Exception ex)
+        {
+            return StyledReportError("تبدیل تصویر گزارش SSRS ناموفق بود: " + ex.Message, StatusCodes.Status502BadGateway);
+        }
+    }
+
+    [HttpGet]
+    public IActionResult ReportPage(string token, int page)
+    {
+        var path = imageStore.GetPagePath(ReportTempOwner.GetKey(User), token, page);
+        if (!System.IO.File.Exists(path)) return NotFound();
+        Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0";
+        Response.Headers["Pragma"] = "no-cache";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return PhysicalFile(path, "image/png");
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public IActionResult CloseReport(string token)
+    {
+        imageStore.DeleteReport(ReportTempOwner.GetKey(User), token);
+        return NoContent();
     }
 
     private ContentResult StyledReportError(string message, int statusCode)

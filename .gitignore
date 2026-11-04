@@ -4,3 +4,4 @@ obj/
 App_Data/Keys/
 *.user
 *.suo
+App_Data/ReportTemp/

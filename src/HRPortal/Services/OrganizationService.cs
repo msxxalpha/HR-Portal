@@ -120,6 +120,76 @@ public class OrganizationService(HRPortalDbContext db, AuditService audit)
         !await db.WorkflowHistory.AnyAsync(x => x.ActorPositionId == id) &&
         !await db.OrganizationNodes.AnyAsync(x => x.ParentId == id);
 
+    public async Task SyncEmployeeOrganizationAssignmentsAsync(int revisionId)
+    {
+        var nodes = await db.OrganizationNodes
+            .Where(x => x.OrganizationStructureRevisionId == revisionId && x.IsActive)
+            .ToListAsync();
+        var nodeById = nodes.ToDictionary(x => x.Id);
+        var nodeIds = nodeById.Keys.ToHashSet();
+
+        var employees = await db.Employees
+            .Where(e =>
+                (e.OrganizationUnitId.HasValue && nodeIds.Contains(e.OrganizationUnitId.Value)) ||
+                (e.OrganizationDepartmentId.HasValue && nodeIds.Contains(e.OrganizationDepartmentId.Value)) ||
+                (e.OrganizationSectionId.HasValue && nodeIds.Contains(e.OrganizationSectionId.Value)) ||
+                (e.OrganizationPositionId.HasValue && nodeIds.Contains(e.OrganizationPositionId.Value)))
+            .ToListAsync();
+
+        var assignedIds = nodes
+            .SelectMany(n => WorkflowPositionAssignmentResolver.GetAssignedEmployeeIds(n.AssignedEmployeeIdsCsv, n.PositionHolderEmployeeId))
+            .Distinct().ToHashSet();
+        var assignedEmployees = await db.Employees
+            .Where(e => assignedIds.Contains(e.Id) && e.Status == "فعال")
+            .ToListAsync();
+        var employeeById = assignedEmployees.ToDictionary(e => e.Id);
+
+        foreach (var employee in employees)
+        {
+            employee.OrganizationUnitId = null;
+            employee.OrganizationDepartmentId = null;
+            employee.OrganizationSectionId = null;
+            employee.OrganizationPositionId = null;
+            employee.UpdatedAt = DateTime.UtcNow;
+        }
+
+        foreach (var node in nodes)
+        {
+            var holders = WorkflowPositionAssignmentResolver.GetAssignedEmployeeIds(
+                node.AssignedEmployeeIdsCsv, node.PositionHolderEmployeeId);
+            if (holders.Count == 0) continue;
+
+            int? unitId = null;
+            int? departmentId = null;
+            int? sectionId = null;
+            var current = node;
+            var visited = new HashSet<int>();
+            while (current is not null && visited.Add(current.Id))
+            {
+                switch (current.RankType)
+                {
+                    case "مدیریت": unitId ??= current.Id; break;
+                    case "ریاست": departmentId ??= current.Id; break;
+                    case "سرپرستی": sectionId ??= current.Id; break;
+                }
+                current = current.ParentId.HasValue && nodeById.TryGetValue(current.ParentId.Value, out var parent)
+                    ? parent : null;
+            }
+
+            foreach (var holderId in holders)
+            {
+                if (!employeeById.TryGetValue(holderId, out var employee)) continue;
+                employee.OrganizationUnitId = unitId;
+                employee.OrganizationDepartmentId = departmentId;
+                employee.OrganizationSectionId = sectionId;
+                employee.OrganizationPositionId = node.Id;
+                employee.UpdatedAt = DateTime.UtcNow;
+            }
+        }
+
+        await db.SaveChangesAsync();
+    }
+
     public async Task FinalizeAsync(int id)
     {
         var revision = await db.OrganizationStructureRevisions
@@ -133,18 +203,8 @@ public class OrganizationService(HRPortalDbContext db, AuditService audit)
         revision.IsFinalized = true;
         revision.FinalizedAt = DateTime.UtcNow;
 
-        // If the CEO position exists in the new finalized revision, carry forward the single
-        // active holder's assignment from an older cloned version to the new CEO node.
-        var newCeoNode = revision.Nodes.FirstOrDefault(x => x.RankType == "مدیرعامل" && x.IsActive);
-        if (newCeoNode is not null)
-        {
-            var oldCeoAssignments = await db.Employees
-                .Where(e => e.OrganizationPositionId.HasValue &&
-                    db.OrganizationNodes.Any(n => n.Id == e.OrganizationPositionId.Value && n.RankType == "مدیرعامل"))
-                .ToListAsync();
-            foreach (var employee in oldCeoAssignments)
-                employee.OrganizationPositionId = newCeoNode.Id;
-        }
+        // Synchronize every employee assigned to an active position in the finalized hierarchy.
+        await SyncEmployeeOrganizationAssignmentsAsync(id);
 
         await db.SaveChangesAsync();
 

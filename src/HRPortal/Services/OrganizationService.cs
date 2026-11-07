@@ -126,14 +126,16 @@ public class OrganizationService(HRPortalDbContext db, AuditService audit)
             .Where(x => x.OrganizationStructureRevisionId == revisionId && x.IsActive)
             .ToListAsync();
         var nodeById = nodes.ToDictionary(x => x.Id);
-        var nodeIds = nodeById.Keys.ToHashSet();
+        var nodeIds = await db.OrganizationNodes.AsNoTracking()
+            .Select(x => x.Id).ToListAsync();
+        var allOrganizationNodeIds = nodeIds.ToHashSet();
 
         var employees = await db.Employees
             .Where(e =>
-                (e.OrganizationUnitId.HasValue && nodeIds.Contains(e.OrganizationUnitId.Value)) ||
-                (e.OrganizationDepartmentId.HasValue && nodeIds.Contains(e.OrganizationDepartmentId.Value)) ||
-                (e.OrganizationSectionId.HasValue && nodeIds.Contains(e.OrganizationSectionId.Value)) ||
-                (e.OrganizationPositionId.HasValue && nodeIds.Contains(e.OrganizationPositionId.Value)))
+                (e.OrganizationUnitId.HasValue && allOrganizationNodeIds.Contains(e.OrganizationUnitId.Value)) ||
+                (e.OrganizationDepartmentId.HasValue && allOrganizationNodeIds.Contains(e.OrganizationDepartmentId.Value)) ||
+                (e.OrganizationSectionId.HasValue && allOrganizationNodeIds.Contains(e.OrganizationSectionId.Value)) ||
+                (e.OrganizationPositionId.HasValue && allOrganizationNodeIds.Contains(e.OrganizationPositionId.Value)))
             .ToListAsync();
 
         var assignedIds = nodes

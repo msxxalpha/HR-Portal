@@ -1,5 +1,6 @@
 using HRPortal.Data;
 using HRPortal.Models;
+using HRPortal.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;

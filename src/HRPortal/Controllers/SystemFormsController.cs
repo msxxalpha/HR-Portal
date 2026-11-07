@@ -7,13 +7,15 @@ using Microsoft.EntityFrameworkCore;
 namespace HRPortal.Controllers;
 
 [Authorize(Policy = "Settings.Edit")]
-public class SystemFormsController(HRPortalDbContext db) : Controller
+public class SystemFormsController(HRPortalDbContext db, IEnumerable<IWorkflowFormDefinitionProvider> providers) : Controller
 {
     [HttpGet]
     public async Task<IActionResult> Index()
     {
         var forms = await db.SystemFormDefinitions.AsNoTracking()
             .OrderBy(x => x.Title).ToListAsync();
+        ViewBag.CodeManagedFormCodes = providers.Select(x => x.Code)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         return View(forms);
     }
 
@@ -27,8 +29,9 @@ public class SystemFormsController(HRPortalDbContext db) : Controller
             if (form is null)
                 throw new InvalidOperationException("فرم موردنظر پیدا نشد.");
 
-            if (form.ImplementationType == "Custom")
-                throw new InvalidOperationException("فرم‌های اختصاصی ثبت‌شده از کد سامانه قابل حذف نیستند.");
+            if (form.ImplementationType == "Custom" ||
+                providers.Any(x => string.Equals(x.Code, form.Code, StringComparison.OrdinalIgnoreCase)))
+                throw new InvalidOperationException("فرم‌های اختصاصی یا ثبت‌شده در کد سامانه قابل حذف نیستند.");
 
             if (await db.WorkflowDefinitions.AnyAsync(x => x.FormCode == form.Code))
                 throw new InvalidOperationException("این فرم به یک یا چند تعریف گردش کار متصل است؛ ابتدا وابستگی‌های گردش کار را تعیین تکلیف کنید.");

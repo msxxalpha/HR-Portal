@@ -4,6 +4,7 @@
     ViewData["Title"] = "جزئیات گردش کار";
     var history = ViewBag.History as List<HRPortal.Models.WorkflowHistory> ?? [];
     var renewal = ViewBag.ContractRenewalRequest as HRPortal.Models.ContractRenewalRequest;
+    var suggestion = ViewBag.WorkflowSuggestion as HRPortal.Models.Suggestion;
     var renewalSteps = ViewBag.ContractRenewalSteps as List<HRPortal.Models.WorkflowStep> ?? [];
     var renewalTasks = ViewBag.ContractRenewalTasks as List<HRPortal.Models.WorkflowTask> ?? [];
     var renewalScores = ViewBag.ContractRenewalScores as List<HRPortal.Models.EmployeePerformanceEvaluationScore> ?? [];
@@ -52,6 +53,27 @@
     </div>
 </section>
 
+@if (suggestion != null)
+{
+    <section class="card" style="margin-top:1rem">
+        <div class="section-head"><div><h3>اطلاعات پیشنهاد</h3><span class="muted">@suggestion.SuggestionNumber · @suggestion.Category</span></div></div>
+        <h4>@suggestion.Title</h4>
+        <dl class="detail-list">
+            <dt>حوزه مرتبط</dt><dd>@(suggestion.RelatedArea ?? "—")</dd>
+            <dt>شرح کوتاه</dt><dd>@suggestion.ShortDescription</dd>
+            <dt>شرح مسئله</dt><dd>@suggestion.ProblemDescription</dd>
+            <dt>راه‌حل پیشنهادی</dt><dd>@suggestion.ProposedSolution</dd>
+            <dt>منافع مورد انتظار</dt><dd>@suggestion.BenefitsJson</dd>
+            <dt>جزئیات منافع</dt><dd>@(suggestion.BenefitDetails ?? "—")</dd>
+            <dt>دامنه اجرا</dt><dd>@(suggestion.ImplementationScope ?? "—")</dd>
+            <dt>روش اجرا</dt><dd>@(suggestion.ImplementationMethod ?? "—")</dd>
+            <dt>منابع موردنیاز</dt><dd>@suggestion.ResourceTypesJson</dd>
+            <dt>توضیحات منابع</dt><dd>@(suggestion.ResourceDetails ?? "—")</dd>
+            <dt>اعضای گروه</dt><dd>@(suggestion.Members.Count == 0 ? "فقط پیشنهاددهنده" : string.Join("، ", suggestion.Members.Select(x => x.EmployeeNameSnapshot)))</dd>
+            <dt>پیوست‌ها</dt><dd>@(suggestion.Attachments.Count == 0 ? "بدون پیوست" : string.Join("، ", suggestion.Attachments.Select(x => x.OriginalFileName)))</dd>
+        </dl>
+    </section>
+}
 
 @if (renewal != null)
 {

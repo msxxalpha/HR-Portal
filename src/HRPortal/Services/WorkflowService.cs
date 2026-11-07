@@ -911,7 +911,9 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             // when older rows also contain the former holder in AssignedEmployeeId.
             // Employee-routed tasks have no AssignedPositionId and remain person-specific.
             .Where(x => x.Status == "Pending" &&
-                        (x.AssignedPositionId.HasValue || x.AssignedEmployeeId == employeeId))
+                        (x.AssignedPositionId.HasValue ||
+                         x.WorkflowStep.OrganizationNodeId.HasValue ||
+                         x.AssignedEmployeeId == employeeId))
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync();
 
@@ -1205,7 +1207,9 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .Include(x => x.WorkflowStep).ThenInclude(x => x.OrganizationNode)
             .Include(x => x.AssignedPosition)
             .FirstOrDefaultAsync(x => x.Id == id && x.Status == "Pending" &&
-                (x.AssignedPositionId.HasValue || x.AssignedEmployeeId == employeeId));
+                (x.AssignedPositionId.HasValue ||
+                 x.WorkflowStep.OrganizationNodeId.HasValue ||
+                 x.AssignedEmployeeId == employeeId));
         if (task is not null && task.AssignedPositionId.HasValue &&
             !await IsCurrentPositionAssigneeAsync(employeeId, task))
             return null;

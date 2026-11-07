@@ -118,6 +118,12 @@ builder.Services.AddAuthorization(options =>
 
     options.AddPolicy("Workflow.Inbox", policy =>
         policy.RequireAssertion(context =>
+            // Every authenticated employee may open the inbox and their own request
+            // list. Actual task visibility and actions remain scoped by current
+            // organizational-node ownership inside WorkflowService.
+            context.User.HasClaim("IsAdmin", "1") ||
+            (context.User.HasClaim("UserType", "Employee") &&
+             context.User.HasClaim(c => c.Type == "EmployeeId" && !string.IsNullOrWhiteSpace(c.Value))) ||
             PermissionAuthorization.HasPermission(context.User, "Workflow.Inbox") ||
             context.User.HasClaim("Permission", "ContractRenewal.Manage")));
 

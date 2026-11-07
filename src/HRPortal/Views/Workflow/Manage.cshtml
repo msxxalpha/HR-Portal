@@ -83,7 +83,7 @@ else
                     <form method="post" action="/Workflow/SaveTransition" class="transition-form">
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="stepId" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" />
-                        <input type="hidden" name="action" value="Approve" />
+                        <label>هنگام عملیات <select name="action"><option value="Approve">تأیید</option><option value="Reject">رد</option><option value="Return">برگشت</option></select></label>
                         <label>اگر فیلد <select name="conditionFieldCode" required><option value="">انتخاب فیلد</option>@foreach (var f in step.Fields.OrderBy(x=>x.SortOrder)){<option value="@f.Code">@f.Title (@f.Code)</option>}</select></label>
                         <label>شرط <select name="conditionOperator"><option value="Equals">برابر باشد با</option><option value="NotEquals">برابر نباشد با</option><option value="Contains">شامل عبارت باشد</option><option value="IsEmpty">خالی باشد</option><option value="NotEmpty">خالی نباشد</option></select></label>
                         <label>مقدار <input name="conditionValue" maxlength="4000" placeholder="مثلاً واحد فنی" /></label>

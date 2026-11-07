@@ -1298,6 +1298,9 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         }
         await SaveTaskFieldValuesAsync(task, actorEmployeeId, values, action == "Approve", CancellationToken.None);
         await SavePreviousTaskFieldValuesAsync(task, actorEmployeeId, previousValues, CancellationToken.None);
+        // Persist submitted stage values inside the transaction before evaluating
+        // conditional transitions or resolving a field-selected position assignment.
+        await db.SaveChangesAsync();
         var previousStatus = instance.Status;
         task.Status = "Completed";
         task.Action = action;

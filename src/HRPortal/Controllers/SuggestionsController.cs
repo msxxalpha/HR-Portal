@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace HRPortal.Controllers;
 
 [Authorize]
-public class SuggestionsController(HRPortalDbContext db, IWebHostEnvironment env) : Controller
+public class SuggestionsController(HRPortalDbContext db, IWebHostEnvironment env, WorkflowService workflow) : Controller
 {
     private static readonly string[] Categories = ["بهبود فرایند و روش انجام کار","کاهش هزینه و صرفه‌جویی","افزایش بهره‌وری و کاهش زمان","ارتقای کیفیت محصول یا خدمت","ایمنی، بهداشت و محیط زیست","نگهداری و تعمیرات","فناوری اطلاعات و تحول دیجیتال","منابع انسانی و امور اداری","انرژی و منابع","سایر"];
     private static readonly string[] Benefits = ["کاهش هزینه","افزایش بهره‌وری","کاهش زمان","ارتقای کیفیت","کاهش ضایعات","افزایش ایمنی","رضایت کارکنان","رضایت مشتری","شفافیت و نظم اطلاعات","حفاظت از محیط زیست","سایر"];
@@ -243,6 +243,40 @@ public class SuggestionsController(HRPortalDbContext db, IWebHostEnvironment env
         }
         if(submit && !editingSubmitted){item.Status="Submitted";item.SubmittedAtUtc=DateTime.UtcNow;}
         await db.SaveChangesAsync();
+
+        // A final submission starts the currently active workflow registered for this
+        // code-first form. Drafts never enter the workflow. The existence check also
+        // makes resubmission/admin correction safe when a previous start was interrupted.
+        if (submit && item.Status == "Submitted")
+        {
+            var alreadyStarted = await db.WorkflowInstances.AnyAsync(x =>
+                x.EntityType == "Suggestion" && x.EntityId == item.Id.ToString());
+            if (!alreadyStarted)
+            {
+                var workflowCode = await db.WorkflowDefinitions.AsNoTracking()
+                    .Where(x => x.FormCode == "Suggestions" && x.IsActive && !x.IsRuntimeInstance)
+                    .OrderByDescending(x => x.Version)
+                    .Select(x => x.Code)
+                    .FirstOrDefaultAsync();
+                if (!string.IsNullOrWhiteSpace(workflowCode))
+                {
+                    try
+                    {
+                        await workflow.StartAsync(workflowCode, "Suggestion", item.Id.ToString(), proposerId);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Keep the submitted form intact and make the setup problem visible.
+                        TempData["Warning"] = "پیشنهاد ثبت شد، اما شروع گردش کار انجام نشد: " + ex.Message;
+                    }
+                }
+                else
+                {
+                    TempData["Warning"] = "پیشنهاد ثبت شد و در انتظار تعریف و فعال‌سازی گردش کار دبیرخانه است.";
+                }
+            }
+        }
+
         if(editingSubmitted)
         {
             TempData["Success"]="اصلاحات پیشنهاد با موفقیت ذخیره شد.";

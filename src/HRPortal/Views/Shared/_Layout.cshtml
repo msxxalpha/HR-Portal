@@ -39,7 +39,8 @@
 
         <nav class="nav">
             <a class="nav-dashboard" href="/"><span class="nav-icon">⌂</span>داشبورد</a>
-            @if (Can("Workflow.Inbox") || Can("ContractRenewal.Manage")) {
+            @if (Can("Workflow.Inbox") || Can("ContractRenewal.Manage") ||
+                 User.HasClaim("UserType", "Employee")) {
                 <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Workflow") ? "open" : null)">
                     <summary><span class="nav-icon">▤</span>درخواست‌ها</summary><div class="nav-submenu">
                         <a href="/Workflow/MyRequests">درخواست‌های من</a><a href="/Workflow/Inbox">کارتابل</a>

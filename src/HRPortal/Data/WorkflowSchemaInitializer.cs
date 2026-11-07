@@ -170,6 +170,7 @@ AND NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'UX_OrganizationNodes_Revis
 
 IF COL_LENGTH(N'dbo.WorkflowDefinitions', N'FormCode') IS NULL ALTER TABLE [dbo].[WorkflowDefinitions] ADD [FormCode] nvarchar(100) NULL;
 IF COL_LENGTH(N'dbo.WorkflowSteps', N'AllowEditPreviousData') IS NULL ALTER TABLE [dbo].[WorkflowSteps] ADD [AllowEditPreviousData] bit NOT NULL CONSTRAINT [DF_WorkflowSteps_AllowEditPreviousData] DEFAULT 0;
+IF COL_LENGTH(N'dbo.WorkflowSteps', N'AssignmentFieldCode') IS NULL ALTER TABLE [dbo].[WorkflowSteps] ADD [AssignmentFieldCode] nvarchar(100) NULL;
 IF COL_LENGTH(N'dbo.WorkflowSteps', N'RequireNotes') IS NULL ALTER TABLE [dbo].[WorkflowSteps] ADD [RequireNotes] bit NOT NULL CONSTRAINT [DF_WorkflowSteps_RequireNotes] DEFAULT 0;
 IF COL_LENGTH(N'dbo.WorkflowTransitions', N'ConditionFieldCode') IS NULL ALTER TABLE [dbo].[WorkflowTransitions] ADD [ConditionFieldCode] nvarchar(100) NULL;
 IF COL_LENGTH(N'dbo.WorkflowTransitions', N'ConditionOperator') IS NULL ALTER TABLE [dbo].[WorkflowTransitions] ADD [ConditionOperator] nvarchar(20) NOT NULL CONSTRAINT [DF_WorkflowTransitions_ConditionOperator] DEFAULT N'Equals';

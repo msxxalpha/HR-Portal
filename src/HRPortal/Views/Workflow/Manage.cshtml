@@ -68,6 +68,20 @@ else
                 <div class="actions"><label class="check-chip"><input type="checkbox" name="allowEditPreviousData" value="true" checked="@step.AllowEditPreviousData" /> اجازه ویرایش اطلاعات مراحل قبلی در این مرحله</label><label class="check-chip"><input type="checkbox" name="requireNotes" value="true" checked="@step.RequireNotes" /> ثبت ملاحظات در این مرحله اجباری باشد</label><button class="btn btn-outline btn-sm" type="submit">ذخیره تنظیمات مرحله</button></div>
             </form>
             <div class="workflow-step-actions">
+                <details class="workflow-conditional-routes">
+                    <summary>افزودن مسیر شرطی (بر اساس اطلاعات همین مرحله)</summary>
+                    <form method="post" action="/Workflow/SaveTransition" class="transition-form">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="stepId" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" />
+                        <input type="hidden" name="action" value="Approve" />
+                        <label>اگر فیلد <select name="conditionFieldCode" required><option value="">انتخاب فیلد</option>@foreach (var f in step.Fields.OrderBy(x=>x.SortOrder)){<option value="@f.Code">@f.Title (@f.Code)</option>}</select></label>
+                        <label>شرط <select name="conditionOperator"><option value="Equals">برابر باشد با</option><option value="NotEquals">برابر نباشد با</option><option value="Contains">شامل عبارت باشد</option><option value="IsEmpty">خالی باشد</option><option value="NotEmpty">خالی نباشد</option></select></label>
+                        <label>مقدار <input name="conditionValue" maxlength="4000" placeholder="مثلاً واحد فنی" /></label>
+                        <label>به مرحله <select name="toStepId" required><option value="">انتخاب مرحله مقصد</option>@foreach (var s in selected.Steps.Where(x=>x.Id!=step.Id).OrderBy(x=>x.SortOrder)){<option value="@s.Id">@(s.SortOrder + " - " + s.Title)</option>}</select></label>
+                        <button class="btn btn-outline btn-sm" type="submit">افزودن مسیر شرطی</button>
+                    </form>
+                    <p class="muted">مسیرهای شرطی به ترتیب ثبت بررسی می‌شوند. در صورت برقرار نبودن هیچ شرطی، مسیر تأیید عادی این مرحله اجرا می‌شود.</p>
+                </details>
                 <form method="post" action="/Workflow/SaveTransition" class="transition-form">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="stepId" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" />

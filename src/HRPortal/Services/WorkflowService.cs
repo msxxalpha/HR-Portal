@@ -172,7 +172,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         if (string.IsNullOrWhiteSpace(model.Code) || string.IsNullOrWhiteSpace(model.Title))
             throw new InvalidOperationException("کد و عنوان مرحله الزامی است.");
 
-        var assignmentType = model.AssignmentType is "Hierarchy" or "Employee" ? model.AssignmentType : "Position";
+        var assignmentType = model.AssignmentType is "Hierarchy" or "Employee" or "Requester" ? model.AssignmentType : "Position";
         if (assignmentType == "Position" && !model.OrganizationNodeId.HasValue)
             throw new InvalidOperationException("برای مرحله جایگاه ثابت، انتخاب جایگاه سازمانی الزامی است.");
         if (assignmentType == "Hierarchy" &&
@@ -1331,6 +1331,20 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
     private async Task CreateTasksAsync(WorkflowInstance instance, WorkflowStep step, CancellationToken cancellationToken)
     {
+        if (step.AssignmentType == "Requester")
+        {
+            if (!await db.Employees.AnyAsync(x => x.Id == instance.RequesterEmployeeId && x.Status == "فعال", cancellationToken))
+                throw new InvalidOperationException("کارمند درخواست‌کننده برای تخصیص مرحله بازگشت فعال نیست.");
+            db.WorkflowTasks.Add(new WorkflowTask
+            {
+                WorkflowInstanceId = instance.Id,
+                WorkflowStepId = step.Id,
+                AssignedEmployeeId = instance.RequesterEmployeeId
+            });
+            await db.SaveChangesAsync(cancellationToken);
+            return;
+        }
+
         if (step.AssignmentType == "Employee")
         {
             if (!step.AssignedEmployeeId.HasValue ||

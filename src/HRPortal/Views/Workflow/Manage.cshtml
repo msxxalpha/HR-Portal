@@ -132,6 +132,7 @@ else
                                 <option value="Number" selected="@(field.FieldType == "Number")">عدد</option>
                                 <option value="Date" selected="@(field.FieldType == "Date")">تاریخ</option>
                                 <option value="Select" selected="@(field.FieldType == "Select")">انتخاب از فهرست</option>
+                                <option value="PositionPicker" selected="@(field.FieldType == "PositionPicker")">انتخاب جایگاه سازمانی فعال</option>
                                 <option value="Checkbox" selected="@(field.FieldType == "Checkbox")">بله/خیر</option>
                             </select></label>
                             <label>ترتیب نمایش<input name="SortOrder" type="number" value="@field.SortOrder" /></label>
@@ -158,7 +159,7 @@ else
                         <div class="grid-2">
                             <label>کد فیلد<input name="Code" required maxlength="100" placeholder="technicalComment" /></label>
                             <label>عنوان نمایشی<input name="Title" required maxlength="200" placeholder="نظر کارشناسی" /></label>
-                            <label>نوع فیلد<select name="FieldType"><option value="Text">متن کوتاه</option><option value="TextArea">متن چندخطی</option><option value="Number">عدد</option><option value="Date">تاریخ</option><option value="Select">انتخاب از فهرست</option><option value="Checkbox">بله/خیر</option></select></label>
+                            <label>نوع فیلد<select name="FieldType"><option value="Text">متن کوتاه</option><option value="TextArea">متن چندخطی</option><option value="Number">عدد</option><option value="Date">تاریخ</option><option value="Select">انتخاب از فهرست</option><option value="PositionPicker">انتخاب جایگاه سازمانی فعال</option><option value="Checkbox">بله/خیر</option></select></label>
                             <label>ترتیب نمایش<input name="SortOrder" type="number" value="10" /></label>
                             <label>حداکثر طول<input name="MaxLength" type="number" min="1" max="4000" /></label>
                             <label class="check-chip"><input type="checkbox" name="IsRequired" value="true" /> تکمیل این فیلد اجباری است</label>
@@ -176,7 +177,7 @@ else
     <form method="post" action="/Workflow/SaveStep" class="form-stack">
         @Html.AntiForgeryToken()
         <input type="hidden" name="WorkflowDefinitionId" value="@selected.Id" />
-        <div class="grid-2"><label>کد مرحله<input name="Code" required placeholder="Supervisor" /></label><label>عنوان مرحله<input name="Title" required placeholder="بررسی سرپرست" /></label><label>ترتیب<input name="SortOrder" type="number" value="10" /></label><label>نوع تخصیص مرحله<select name="AssignmentType" id="assignmentType"><option value="Position">جایگاه سازمانی ثابت</option><option value="Hierarchy">زنجیره جایگاه‌های بالاتر از کارمند</option><option value="Requester">درخواست‌کننده (برای بازگشت جهت اصلاح)</option></select></label><label id="fixedPositionField">جایگاه سازمانی<select name="OrganizationNodeId"><option value="">انتخاب جایگاه</option>@foreach (var p in Model.Positions){<option value="@p.Id">@p.Title — @p.RankType</option>}</select></label><label id="hierarchyStopField">توقف مسیر پویا در رده<select name="HierarchyStopRankType">@foreach (var rank in Model.RankTitles){<option value="@rank" selected="@(rank == defaultHierarchyStopRank)">@(rank == defaultHierarchyStopRank && rank == "معاونت" ? "معاونت (پیش‌فرض)" : rank)</option>}</select></label><label>نحوه تخصیص<select name="AssignmentMode"><option value="Any">هر یک از متصدیان جایگاه</option><option value="All">همه متصدیان جایگاه</option></select></label><label class="toggle-card compact-toggle"><span class="toggle-text"><strong>مرحله نهایی</strong></span><span class="switch-control"><input type="checkbox" name="IsFinalStep" value="true" /><span class="switch-slider"></span></span></label></div>
+        <div class="grid-2"><label>کد مرحله<input name="Code" required placeholder="Supervisor" /></label><label>عنوان مرحله<input name="Title" required placeholder="بررسی سرپرست" /></label><label>ترتیب<input name="SortOrder" type="number" value="10" /></label><label>نوع تخصیص مرحله<select name="AssignmentType" id="assignmentType"><option value="Position">جایگاه سازمانی ثابت</option><option value="Hierarchy">زنجیره جایگاه‌های بالاتر از کارمند</option><option value="Requester">درخواست‌کننده (برای بازگشت جهت اصلاح)</option><option value="FieldPosition">جایگاه انتخاب‌شده در فرم همین مرحله</option></select></label><label id="fixedPositionField">جایگاه سازمانی<select name="OrganizationNodeId"><option value="">انتخاب جایگاه</option>@foreach (var p in Model.Positions){<option value="@p.Id">@p.Title — @p.RankType</option>}</select></label><label id="assignmentFieldCode" style="display:none">کد فیلد انتخاب جایگاه<input name="AssignmentFieldCode" maxlength="100" placeholder="SelectedPosition" /></label><label id="hierarchyStopField">توقف مسیر پویا در رده<select name="HierarchyStopRankType">@foreach (var rank in Model.RankTitles){<option value="@rank" selected="@(rank == defaultHierarchyStopRank)">@(rank == defaultHierarchyStopRank && rank == "معاونت" ? "معاونت (پیش‌فرض)" : rank)</option>}</select></label><label>نحوه تخصیص<select name="AssignmentMode"><option value="Any">هر یک از متصدیان جایگاه</option><option value="All">همه متصدیان جایگاه</option></select></label><label class="toggle-card compact-toggle"><span class="toggle-text"><strong>مرحله نهایی</strong></span><span class="switch-control"><input type="checkbox" name="IsFinalStep" value="true" /><span class="switch-slider"></span></span></label></div>
         <div class="actions"><label class="check-chip"><input type="checkbox" name="AllowApprove" value="true" checked /> تأیید</label><label class="check-chip"><input type="checkbox" name="AllowReject" value="true" checked /> رد</label><label class="check-chip"><input type="checkbox" name="AllowReturn" value="true" checked /> برگشت</label><label class="check-chip"><input type="checkbox" name="RequireCommentOnReject" value="true" checked /> توضیح رد اجباری</label><label class="check-chip"><input type="checkbox" name="RequireCommentOnReturn" value="true" /> توضیح برگشت اجباری</label></div>
         <button class="btn btn-main" type="submit">افزودن مرحله</button>
     </form>
@@ -191,7 +192,8 @@ else
  if(!type)return;
  const fixed=document.getElementById('fixedPositionField');
  const stop=document.getElementById('hierarchyStopField');
- function sync(){const dynamic=type.value==='Hierarchy';const requester=type.value==='Requester';fixed.style.display=(dynamic||requester)?'none':'';stop.style.display=dynamic?'':'none';}
+ const fieldCode=document.getElementById('assignmentFieldCode');
+ function sync(){const dynamic=type.value==='Hierarchy';const requester=type.value==='Requester';const fieldPosition=type.value==='FieldPosition';fixed.style.display=(dynamic||requester||fieldPosition)?'none':'';stop.style.display=dynamic?'':'none';fieldCode.style.display=fieldPosition?'':'none';}
  type.addEventListener('change',sync);sync();
 })();
 </script>

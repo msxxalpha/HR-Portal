@@ -8,6 +8,9 @@ public class ContractRenewalWorkflowService(HRPortalDbContext db, WorkflowServic
 {
     public const string WorkflowEntityType = "ContractRenewalRequest";
 
+    public Task ValidateEvaluationPathAsync(int employeeId, CancellationToken cancellationToken = default) =>
+        workflow.ValidateHierarchyRouteAsync(employeeId, "مدیرعامل", cancellationToken);
+
     public async Task<WorkflowInstance> StartAsync(
         ContractRenewalRequest request,
         int requesterEmployeeId,

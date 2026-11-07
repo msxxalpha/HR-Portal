@@ -36,7 +36,7 @@ public sealed class WorkflowFormSubmissionService(
 
         var existing = await db.WorkflowInstances
             .Where(x => x.EntityType == entityType && x.EntityId == entityId &&
-                x.Status == "InProgress" && x.WorkflowDefinition.FormCode == formCode)
+                x.WorkflowDefinition.FormCode == formCode)
             .OrderByDescending(x => x.StartedAt)
             .FirstOrDefaultAsync(cancellationToken);
         if (existing is not null)

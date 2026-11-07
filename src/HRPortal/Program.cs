@@ -82,7 +82,14 @@ builder.Services.AddScoped<RoleService>();
 builder.Services.AddScoped<IClaimsTransformation, PermissionClaimsTransformation>();
 builder.Services.AddScoped<WorkflowService>();
 builder.Services.AddScoped<WorkflowFormSubmissionService>();
-builder.Services.AddScoped<IWorkflowFormDefinitionProvider, SuggestionsWorkflowFormProvider>();
+// Discover code-first workflow form providers automatically. A future custom form
+// only needs to implement IWorkflowFormDefinitionProvider; no per-form DI wiring.
+foreach (var providerType in typeof(IWorkflowFormDefinitionProvider).Assembly.GetTypes()
+    .Where(type => !type.IsAbstract && !type.IsInterface &&
+        typeof(IWorkflowFormDefinitionProvider).IsAssignableFrom(type)))
+{
+    builder.Services.AddSingleton(typeof(IWorkflowFormDefinitionProvider), providerType);
+}
 builder.Services.AddScoped<SystemFormRegistrationService>();
 builder.Services.AddScoped<MonthlyPerformanceService>();
 builder.Services.AddScoped<MonthlyPerformanceImprovementService>();

@@ -889,7 +889,7 @@ public class EmployeeContractsController(
                         if (stepIds.Count > 0)
                         {
                             db.WorkflowTransitions.RemoveRange(db.WorkflowTransitions.Where(x =>
-                                stepIds.Contains(x.WorkflowStepId) || stepIds.Contains(x.ToStepId)));
+                                stepIds.Contains(x.WorkflowStepId) || (x.ToStepId.HasValue && stepIds.Contains(x.ToStepId.Value))));
                             db.WorkflowStepFields.RemoveRange(db.WorkflowStepFields.Where(x => stepIds.Contains(x.WorkflowStepId)));
                             await db.SaveChangesAsync();
                             db.WorkflowSteps.RemoveRange(db.WorkflowSteps.Where(x => stepIds.Contains(x.Id)));

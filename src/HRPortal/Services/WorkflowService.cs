@@ -292,6 +292,20 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         await db.SaveChangesAsync();
     }
 
+    public async Task DeleteTransitionAsync(int id)
+    {
+        var transition = await db.WorkflowTransitions.Include(x => x.WorkflowStep)
+            .ThenInclude(x => x.WorkflowDefinition)
+            .FirstOrDefaultAsync(x => x.Id == id);
+        if (transition is null) return;
+        if (transition.WorkflowStep.WorkflowDefinition.IsRuntimeInstance ||
+            await db.WorkflowInstances.AnyAsync(x => x.WorkflowDefinitionId == transition.WorkflowStep.WorkflowDefinitionId ||
+                x.WorkflowDefinition.SourceDefinitionId == transition.WorkflowStep.WorkflowDefinitionId))
+            throw new InvalidOperationException("این گردش کار قبلاً استفاده شده است؛ برای حفظ سوابق، مسیرهای نسخه استفاده‌شده قابل حذف نیستند.");
+        db.WorkflowTransitions.Remove(transition);
+        await db.SaveChangesAsync();
+    }
+
     public async Task DeleteStepAsync(int id)
     {
         var step = await db.WorkflowSteps.FindAsync(id);

@@ -1162,11 +1162,17 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             // Tasks created before a position received its occupants have no
             // per-employee task rows. Resolve those rows dynamically for all current
             // occupants, while preserving person-specific rows when an employee is set.
-            if (task.AssignedEmployeeId.HasValue && task.AssignedEmployeeId.Value != employeeId)
-                return false;
-
             if (assignedIds.Count > 0)
+            {
+                // Keep per-person task rows exclusive while their designated holder
+                // remains assigned; if that holder changed after task creation, route
+                // the still-pending task to the current occupant instead.
+                if (task.AssignedEmployeeId.HasValue &&
+                    assignedIds.Contains(task.AssignedEmployeeId.Value))
+                    return task.AssignedEmployeeId.Value == employeeId;
+
                 return assignedIds.Contains(employeeId);
+            }
 
             return await db.Employees.AnyAsync(x => x.Id == employeeId && x.Status == "فعال" &&
                 (x.OrganizationUnitId == currentPosition.Id ||

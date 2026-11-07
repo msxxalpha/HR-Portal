@@ -81,7 +81,7 @@
                         <td>@(item.Action switch { "Approve" => "تأیید", "Reject" => "رد", "Return" => "برگشت", "SaveDraft" => "ذخیره پیش‌نویس", _ => item.Action })</td>
                         <td>@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
                         <td>@(string.IsNullOrWhiteSpace(item.Comment) ? "—" : item.Comment)</td>
-                        <td>@if (item.EntityType == HRPortal.Services.ContractRenewalWorkflowService.WorkflowEntityType && item.TaskId > 0) { <a class="btn btn-outline btn-sm" href="/ContractRenewalTask/Details?id=@item.TaskId">مشاهده فرم و سوابق</a> } else { <span class="muted">—</span> }</td>
+                        <td>@if (item.EntityType == HRPortal.Services.ContractRenewalWorkflowService.WorkflowEntityType && item.TaskId > 0) { <a class="btn btn-outline btn-sm" href="/ContractRenewalTask/Details?id=@item.TaskId">مشاهده فرم و سوابق</a> } else if (item.EntityType == "Suggestion" && item.TaskId > 0) { <a class="btn btn-outline btn-sm" href="/Workflow/Details/@item.WorkflowInstanceId">مشاهده فرم و سوابق</a> } else { <span class="muted">—</span> }</td>
                     </tr>
                 }
                 </tbody>

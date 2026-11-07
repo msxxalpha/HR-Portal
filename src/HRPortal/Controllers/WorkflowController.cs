@@ -329,6 +329,7 @@ public class WorkflowController(
 
         ViewBag.History = await workflow.GetHistoryAsync(task.WorkflowInstanceId);
         ViewBag.FieldGroups = await workflow.GetTaskFieldGroupsAsync(id, employeeId);
+        ViewBag.WorkflowPositions = await GetCurrentPositionsAsync();
         if (task.WorkflowInstance.EntityType == "Suggestion" && int.TryParse(task.WorkflowInstance.EntityId, out var suggestionId))
         {
             ViewBag.WorkflowSuggestion = await db.Suggestions.AsNoTracking()

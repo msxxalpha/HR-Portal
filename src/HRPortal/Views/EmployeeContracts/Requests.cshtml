@@ -66,10 +66,26 @@
                                 @if (row.CanEditOrDelete)
                                 {
                                     <a class="btn btn-outline btn-sm" href="/EmployeeContracts/Edit?id=@r.Id">ویرایش</a>
-                                    <form method="post" action="/EmployeeContracts/DeleteRequest" onsubmit="return confirm('درخواست از فهرست فعال حذف نرم شود؟ سوابق و تاریخچه در سامانه باقی می‌ماند.');">
+                                    @if (!User.HasClaim("IsAdmin", "1"))
+                                    {
+                                        <form method="post" action="/EmployeeContracts/DeleteRequest" onsubmit="return confirm('درخواست از فهرست فعال حذف نرم شود؟ سوابق و تاریخچه در سامانه باقی می‌ماند.');">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@r.Id" />
+                                            <input type="hidden" name="deleteMode" value="PreserveHistory" />
+                                            <button class="btn btn-outline btn-sm danger" type="submit">حذف</button>
+                                        </form>
+                                    }
+                                }
+                                @if (User.HasClaim("IsAdmin", "1"))
+                                {
+                                    <form method="post" action="/EmployeeContracts/DeleteRequest" class="contract-admin-delete-form" onsubmit="return confirmAdminContractDelete(this);">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="id" value="@r.Id" />
-                                        <button class="btn btn-outline btn-sm danger" type="submit">حذف</button>
+                                        <select name="deleteMode" aria-label="نحوه حذف درخواست" required>
+                                            <option value="PreserveHistory">حذف با حفظ سوابق</option>
+                                            <option value="DeleteAll">حذف کامل اطلاعات</option>
+                                        </select>
+                                        <button class="btn btn-outline btn-sm danger" type="submit">حذف درخواست</button>
                                     </form>
                                 }
                                 @if (row.CanStop)
@@ -101,6 +117,13 @@
 
 @section Scripts {
 <script>
+function confirmAdminContractDelete(form) {
+    const mode = form.querySelector('select[name="deleteMode"]')?.value;
+    if (mode === "DeleteAll") {
+        return window.confirm("هشدار: تمام اطلاعات درخواست، امتیازهای ارزیابی، سوابق، تاریخچه و گردش کار وابسته به‌صورت دائمی حذف می‌شود. این عملیات قابل بازگشت نیست. ادامه می‌دهید؟");
+    }
+    return window.confirm("درخواست از فهرست فعال حذف می‌شود، اما تمام امتیازها، سوابق و تاریخچه برای مراجعه بعدی حفظ خواهند شد. ادامه می‌دهید؟");
+}
 function stopContractRenewalRequest(form) {
     const reason = window.prompt("دلیل توقف گردش را وارد کنید (اختیاری):", "");
     if (reason === null) return false;

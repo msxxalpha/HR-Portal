@@ -81,6 +81,7 @@ builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<RoleService>();
 builder.Services.AddScoped<IClaimsTransformation, PermissionClaimsTransformation>();
 builder.Services.AddScoped<WorkflowService>();
+builder.Services.AddScoped<WorkflowFormSubmissionService>();
 builder.Services.AddScoped<IWorkflowFormDefinitionProvider, SuggestionsWorkflowFormProvider>();
 builder.Services.AddScoped<SystemFormRegistrationService>();
 builder.Services.AddScoped<MonthlyPerformanceService>();

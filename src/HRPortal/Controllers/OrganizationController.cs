@@ -457,6 +457,10 @@ public class OrganizationController(
             }
         }
 
+        if (node.Revision.IsFinalized &&
+            (await service.CurrentAsync())?.Id == node.OrganizationStructureRevisionId)
+            await service.SyncEmployeeOrganizationAssignmentsAsync(node.OrganizationStructureRevisionId);
+
         db.OrganizationChanges.Add(new OrganizationChange
         {
             OrganizationStructureRevisionId = node.OrganizationStructureRevisionId,

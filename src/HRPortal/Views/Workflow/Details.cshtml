@@ -63,11 +63,11 @@
             <dt>شرح کوتاه</dt><dd>@suggestion.ShortDescription</dd>
             <dt>شرح مسئله</dt><dd>@suggestion.ProblemDescription</dd>
             <dt>راه‌حل پیشنهادی</dt><dd>@suggestion.ProposedSolution</dd>
-            <dt>منافع مورد انتظار</dt><dd>@suggestion.BenefitsJson</dd>
+            <dt>منافع مورد انتظار</dt><dd>@string.Join("، ", System.Text.Json.JsonSerializer.Deserialize<List<string>>(suggestion.BenefitsJson) ?? new List<string>())</dd>
             <dt>جزئیات منافع</dt><dd>@(suggestion.BenefitDetails ?? "—")</dd>
             <dt>دامنه اجرا</dt><dd>@(suggestion.ImplementationScope ?? "—")</dd>
             <dt>روش اجرا</dt><dd>@(suggestion.ImplementationMethod ?? "—")</dd>
-            <dt>منابع موردنیاز</dt><dd>@suggestion.ResourceTypesJson</dd>
+            <dt>منابع موردنیاز</dt><dd>@string.Join("، ", System.Text.Json.JsonSerializer.Deserialize<List<string>>(suggestion.ResourceTypesJson) ?? new List<string>())</dd>
             <dt>توضیحات منابع</dt><dd>@(suggestion.ResourceDetails ?? "—")</dd>
             <dt>اعضای گروه</dt><dd>@(suggestion.Members.Count == 0 ? "فقط پیشنهاددهنده" : string.Join("، ", suggestion.Members.Select(x => x.EmployeeNameSnapshot)))</dd>
             <dt>پیوست‌ها</dt><dd>@(suggestion.Attachments.Count == 0 ? "بدون پیوست" : string.Join("، ", suggestion.Attachments.Select(x => x.OriginalFileName)))</dd>

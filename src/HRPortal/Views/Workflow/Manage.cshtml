@@ -68,6 +68,16 @@ else
                 <div class="actions"><label class="check-chip"><input type="checkbox" name="allowEditPreviousData" value="true" checked="@step.AllowEditPreviousData" /> اجازه ویرایش اطلاعات مراحل قبلی در این مرحله</label><label class="check-chip"><input type="checkbox" name="requireNotes" value="true" checked="@step.RequireNotes" /> ثبت ملاحظات در این مرحله اجباری باشد</label><button class="btn btn-outline btn-sm" type="submit">ذخیره تنظیمات مرحله</button></div>
             </form>
             <div class="workflow-step-actions">
+                @foreach (var route in step.OutgoingTransitions.Where(x => !string.IsNullOrWhiteSpace(x.ConditionFieldCode)).OrderBy(x => x.Id))
+                {
+                    <div class="transition-form conditional-route-item">
+                        <span>اگر «@route.ConditionFieldCode» @route.ConditionOperator «@route.ConditionValue» ← @(route.ToStep?.Title ?? "پایان")</span>
+                        <form method="post" action="/Workflow/DeleteTransition" class="inline" onsubmit="return confirm('این مسیر شرطی حذف شود؟');">
+                            @Html.AntiForgeryToken()<input type="hidden" name="id" value="@route.Id" /><input type="hidden" name="definitionId" value="@selected.Id" />
+                            <button class="btn btn-outline btn-sm danger" type="submit">حذف مسیر</button>
+                        </form>
+                    </div>
+                }
                 <details class="workflow-conditional-routes">
                     <summary>افزودن مسیر شرطی (بر اساس اطلاعات همین مرحله)</summary>
                     <form method="post" action="/Workflow/SaveTransition" class="transition-form">

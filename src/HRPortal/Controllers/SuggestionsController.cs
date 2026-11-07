@@ -59,8 +59,11 @@ public class SuggestionsController(HRPortalDbContext db, IWebHostEnvironment env
             }
             var item = await query.FirstOrDefaultAsync(x => x.Id == id.Value);
             if (item is null) return NotFound();
-            if (item.Status != "Draft" && !(IsAdmin && item.Status == "Submitted")) return RedirectToAction(nameof(Details), new { id });
+            var canEditReturned = item.Status == "Submitted" && await CanEditSubmittedSuggestionAsync(item);
+            if (item.Status != "Draft" && !(IsAdmin && item.Status == "Submitted") && !canEditReturned)
+                return RedirectToAction(nameof(Details), new { id });
             ViewBag.IsAdminEditingSubmitted = IsAdmin && item.Status == "Submitted";
+            ViewBag.IsWorkflowReturnEdit = canEditReturned;
             model = new SuggestionFormVm {
                 Id=item.Id, ProposerEmployeeId=item.ProposerEmployeeId, Title=item.Title, Category=item.Category,
                 RelatedArea=item.RelatedArea, ShortDescription=item.ShortDescription, ProblemDescription=item.ProblemDescription,
@@ -177,7 +180,8 @@ public class SuggestionsController(HRPortalDbContext db, IWebHostEnvironment env
             if(!elevated) existingQuery=existingQuery.Where(x=>x.ProposerEmployeeId==proposerId);
             item=await existingQuery.FirstOrDefaultAsync(x=>x.Id==model.Id.Value);
             if(item is null) return NotFound();
-            if(item.Status!="Draft" && !(IsAdmin && item.Status=="Submitted")) return Forbid();
+            var canEditReturned = item.Status == "Submitted" && await CanEditSubmittedSuggestionAsync(item);
+            if(item.Status!="Draft" && !(IsAdmin && item.Status=="Submitted") && !canEditReturned) return Forbid();
             proposerId=item.ProposerEmployeeId;
         }
         else
@@ -305,6 +309,18 @@ public class SuggestionsController(HRPortalDbContext db, IWebHostEnvironment env
         if(attachment is null) return NotFound();
         var path=Path.Combine(env.WebRootPath??Path.Combine(env.ContentRootPath,"wwwroot"),"uploads","suggestions",attachment.SuggestionId.ToString(),attachment.StoredFileName);
         return System.IO.File.Exists(path)?PhysicalFile(path,attachment.ContentType,attachment.OriginalFileName):NotFound();
+    }
+
+    private async Task<bool> CanEditSubmittedSuggestionAsync(Suggestion item)
+    {
+        return await db.WorkflowTasks.AsNoTracking().AnyAsync(task =>
+            task.WorkflowInstance.EntityType == "Suggestion" &&
+            task.WorkflowInstance.EntityId == item.Id.ToString() &&
+            task.WorkflowInstance.Status == "InProgress" &&
+            task.WorkflowInstance.RequesterEmployeeId == item.ProposerEmployeeId &&
+            task.WorkflowStep.AssignmentType == "Requester" &&
+            task.Status == "Pending" &&
+            task.AssignedEmployeeId == item.ProposerEmployeeId);
     }
 
     private async Task<List<SuggestionEmployeeOption>> Options(IEnumerable<int> ids,int proposerId)

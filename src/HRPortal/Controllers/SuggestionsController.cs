@@ -285,6 +285,17 @@ public class SuggestionsController(HRPortalDbContext db, IWebHostEnvironment env
         if(editingSubmitted)
         {
             TempData["Success"]="اصلاحات پیشنهاد با موفقیت ذخیره شد.";
+            var returnedTaskId = await db.WorkflowTasks.AsNoTracking()
+                .Where(task => task.WorkflowInstance.EntityType == "Suggestion" &&
+                    task.WorkflowInstance.EntityId == item.Id.ToString() &&
+                    task.WorkflowInstance.Status == "InProgress" &&
+                    task.WorkflowStep.AssignmentType == "Requester" &&
+                    task.Status == "Pending" &&
+                    task.AssignedEmployeeId == item.ProposerEmployeeId)
+                .Select(task => (int?)task.Id)
+                .FirstOrDefaultAsync();
+            if (returnedTaskId.HasValue)
+                return RedirectToAction("Task", "Workflow", new { id = returnedTaskId.Value });
             return RedirectToAction(nameof(Details),new{id=item.Id});
         }
         if(submit)

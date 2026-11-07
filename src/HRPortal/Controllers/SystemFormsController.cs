@@ -19,6 +19,34 @@ public class SystemFormsController(HRPortalDbContext db) : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Delete(int id)
+    {
+        try
+        {
+            var form = await db.SystemFormDefinitions.FirstOrDefaultAsync(x => x.Id == id);
+            if (form is null)
+                throw new InvalidOperationException("فرم موردنظر پیدا نشد.");
+
+            if (form.ImplementationType == "Custom")
+                throw new InvalidOperationException("فرم‌های اختصاصی ثبت‌شده از کد سامانه قابل حذف نیستند.");
+
+            if (await db.WorkflowDefinitions.AnyAsync(x => x.FormCode == form.Code))
+                throw new InvalidOperationException("این فرم به یک یا چند تعریف گردش کار متصل است؛ ابتدا وابستگی‌های گردش کار را تعیین تکلیف کنید.");
+
+            db.SystemFormDefinitions.Remove(form);
+            await db.SaveChangesAsync();
+            TempData["Success"] = "فرم دستی با موفقیت حذف شد.";
+        }
+        catch (Exception ex)
+        {
+            TempData["Error"] = ex.Message;
+        }
+
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Save(int id, string code, string title, string? implementationType, bool? supportsWorkflow, bool supportsWorkflowSpecified, bool isActive, string? description)
     {
         try

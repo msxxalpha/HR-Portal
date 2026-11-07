@@ -1547,7 +1547,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             }
 
             var actual = await db.WorkflowFieldValues.AsNoTracking()
-                .Where(x => x.WorkflowInstanceId == instanceId && x.FieldCode == transition.ConditionFieldCode)
+                .Where(x => x.WorkflowInstanceId == instanceId && x.WorkflowStepId == stepId &&
+                    x.FieldCode == transition.ConditionFieldCode)
                 .OrderByDescending(x => x.UpdatedAt).ThenByDescending(x => x.Id)
                 .Select(x => x.Value).FirstOrDefaultAsync();
 

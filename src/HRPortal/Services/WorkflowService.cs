@@ -1431,7 +1431,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             if (string.IsNullOrWhiteSpace(step.AssignmentFieldCode))
                 throw new InvalidOperationException($"فیلد تعیین جایگاه برای مرحله «{step.Title}» تنظیم نشده است.");
             var selectedValue = await db.WorkflowFieldValues.AsNoTracking()
-                .Where(x => x.WorkflowInstanceId == instance.Id && x.FieldCode == step.AssignmentFieldCode)
+                .Where(x => x.WorkflowInstanceId == instance.Id && x.FieldCode == step.AssignmentFieldCode &&
+                    x.WorkflowStepField.FieldType == "PositionPicker")
                 .OrderByDescending(x => x.UpdatedAt).ThenByDescending(x => x.Id)
                 .Select(x => x.Value).FirstOrDefaultAsync(cancellationToken);
             if (!int.TryParse(selectedValue, out var selectedPositionId))

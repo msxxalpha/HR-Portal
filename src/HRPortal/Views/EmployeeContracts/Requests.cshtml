@@ -82,6 +82,7 @@
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="id" value="@r.Id" />
                                         <select name="deleteMode" aria-label="نحوه حذف درخواست" required>
+                                            <option value="" selected disabled>انتخاب نحوه حذف…</option>
                                             <option value="PreserveHistory">حذف با حفظ سوابق</option>
                                             <option value="DeleteAll">حذف کامل اطلاعات</option>
                                         </select>

@@ -860,6 +860,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
         if (!stopFound)
             throw new InvalidOperationException($"در زنجیره بالادستی کارمند، رده توقف «{stopRankType}» پیدا نشد؛ ساختار سازمانی یا تنظیم مرحله را بررسی کنید.");
+        if (route.Count == 0)
+            throw new InvalidOperationException("برای این کارمند، در مسیر سازمانی از رده سرپرستی تا پیش از مدیرعامل هیچ جایگاه ارزیابی وجود ندارد؛ ابتدا ساختار سازمانی را اصلاح کنید.");
 
         // A hierarchy stage must route to the explicitly assigned position holder. Falling
         // back to every employee in the department would send evaluation tasks to peers.

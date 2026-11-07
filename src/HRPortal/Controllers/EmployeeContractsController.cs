@@ -824,7 +824,7 @@ public class EmployeeContractsController(
                 if (request.WorkflowInstance is not null)
                 {
                     var instance = request.WorkflowInstance;
-                    var previousStatus = instance.Status;
+                    var previousAdminStatus = instance.Status;
                     foreach (var task in instance.Tasks.Where(x => x.Status == "Pending"))
                     {
                         task.Status = "Cancelled";
@@ -838,7 +838,7 @@ public class EmployeeContractsController(
                     {
                         WorkflowInstanceId = instance.Id,
                         WorkflowStepId = instance.Tasks.FirstOrDefault()?.WorkflowStepId,
-                        FromStatus = previousStatus,
+                        FromStatus = previousAdminStatus,
                         ToStatus = "Cancelled",
                         Action = "AdminDeletePreserveHistory",
                         ActorEmployeeId = GetCurrentEmployeeId(),

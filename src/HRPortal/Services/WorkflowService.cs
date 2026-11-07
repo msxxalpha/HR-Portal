@@ -111,7 +111,10 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                         WorkflowStepId = stepMap[source.Id].Id,
                         ToStepId = transition.ToStepId.HasValue && stepMap.TryGetValue(transition.ToStepId.Value, out var target)
                             ? target.Id : null,
-                        Action = transition.Action, Title = transition.Title
+                        Action = transition.Action, Title = transition.Title,
+                        ConditionFieldCode = transition.ConditionFieldCode,
+                        ConditionOperator = transition.ConditionOperator,
+                        ConditionValue = transition.ConditionValue
                     });
                 }
                 await db.SaveChangesAsync();
@@ -239,31 +242,53 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         await db.SaveChangesAsync();
     }
 
-    public async Task SaveTransitionAsync(int stepId, string action, int? toStepId)
+    public async Task SaveTransitionAsync(int stepId, string action, int? toStepId,
+        string? conditionFieldCode = null, string conditionOperator = "Equals", string? conditionValue = null)
     {
-        var step = await db.WorkflowSteps.FindAsync(stepId)
+        var step = await db.WorkflowSteps.Include(x => x.WorkflowDefinition).Include(x => x.Fields)
+            .FirstOrDefaultAsync(x => x.Id == stepId)
             ?? throw new InvalidOperationException("مرحله یافت نشد.");
+        if (step.WorkflowDefinition.IsRuntimeInstance)
+            throw new InvalidOperationException("نسخه اجرایی درخواست قابل ویرایش نیست.");
+        if (await db.WorkflowInstances.AnyAsync(x => x.WorkflowDefinitionId == step.WorkflowDefinitionId ||
+            x.WorkflowDefinition.SourceDefinitionId == step.WorkflowDefinitionId))
+            throw new InvalidOperationException("این گردش کار قبلاً استفاده شده است؛ ابتدا مشخصات آن را ذخیره کنید تا نسخه جدید ساخته شود، سپس مسیرها را تغییر دهید.");
 
-        if (toStepId.HasValue)
-        {
-            var target = await db.WorkflowSteps.FirstOrDefaultAsync(x =>
-                x.Id == toStepId.Value && x.WorkflowDefinitionId == step.WorkflowDefinitionId);
-            if (target is null)
-                throw new InvalidOperationException("مرحله مقصد معتبر نیست.");
-        }
+        if (toStepId.HasValue && !await db.WorkflowSteps.AnyAsync(x =>
+            x.Id == toStepId.Value && x.WorkflowDefinitionId == step.WorkflowDefinitionId))
+            throw new InvalidOperationException("مرحله مقصد معتبر نیست.");
 
         action = NormalizeAction(action);
-        var transition = await db.WorkflowTransitions
-            .FirstOrDefaultAsync(x => x.WorkflowStepId == stepId && x.Action == action);
+        conditionFieldCode = string.IsNullOrWhiteSpace(conditionFieldCode) ? null : conditionFieldCode.Trim();
+        conditionOperator = conditionOperator is "NotEquals" or "Contains" or "IsEmpty" or "NotEmpty" ? conditionOperator : "Equals";
+        if (conditionFieldCode is not null)
+        {
+            if (!step.Fields.Any(x => x.Code == conditionFieldCode))
+                throw new InvalidOperationException("فیلد شرط باید از فیلدهای همین مرحله انتخاب شود.");
+            if (conditionOperator is not ("IsEmpty" or "NotEmpty") && string.IsNullOrWhiteSpace(conditionValue))
+                throw new InvalidOperationException("مقدار شرط الزامی است.");
+        }
+        else
+        {
+            conditionValue = null;
+            conditionOperator = "Equals";
+        }
 
+        var query = db.WorkflowTransitions.Where(x => x.WorkflowStepId == stepId && x.Action == action);
+        var transition = conditionFieldCode is null
+            ? await query.FirstOrDefaultAsync(x => x.ConditionFieldCode == null)
+            : await query.FirstOrDefaultAsync(x => x.ConditionFieldCode == conditionFieldCode &&
+                x.ConditionOperator == conditionOperator && x.ConditionValue == conditionValue);
         if (transition is null)
         {
             transition = new WorkflowTransition { WorkflowStepId = stepId, Action = action };
             db.WorkflowTransitions.Add(transition);
         }
-
         transition.ToStepId = toStepId;
-        transition.Title = ActionTitle(action);
+        transition.Title = conditionFieldCode is null ? ActionTitle(action) : $"{ActionTitle(action)} — {conditionFieldCode}";
+        transition.ConditionFieldCode = conditionFieldCode;
+        transition.ConditionOperator = conditionOperator;
+        transition.ConditionValue = conditionValue?.Trim();
         await db.SaveChangesAsync();
     }
 
@@ -670,7 +695,10 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                         WorkflowStepId = clone.Id,
                         ToStepId = targetId,
                         Action = transition.Action,
-                        Title = transition.Title
+                        Title = transition.Title,
+                        ConditionFieldCode = transition.ConditionFieldCode,
+                        ConditionOperator = transition.ConditionOperator,
+                        ConditionValue = transition.ConditionValue
                     });
                 }
             }
@@ -1277,7 +1305,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
         if (action == "Approve")
         {
-            var next = await ResolveTransitionAsync(task.WorkflowStepId, "Approve", instance.WorkflowDefinition.Steps);
+            var next = await ResolveTransitionAsync(task.WorkflowStepId, "Approve", instance.Id, instance.WorkflowDefinition.Steps);
             if (next is null || task.WorkflowStep.IsFinalStep)
             {
                 instance.Status = "Approved";
@@ -1293,7 +1321,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         }
         else if (action == "Reject")
         {
-            var next = await ResolveTransitionAsync(task.WorkflowStepId, "Reject", instance.WorkflowDefinition.Steps);
+            var next = await ResolveTransitionAsync(task.WorkflowStepId, "Reject", instance.Id, instance.WorkflowDefinition.Steps);
             if (next is null)
             {
                 instance.Status = "Rejected";
@@ -1309,7 +1337,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         }
         else
         {
-            var next = await ResolveTransitionAsync(task.WorkflowStepId, "Return", instance.WorkflowDefinition.Steps);
+            var next = await ResolveTransitionAsync(task.WorkflowStepId, "Return", instance.Id, instance.WorkflowDefinition.Steps);
             if (next is null)
             {
                 instance.Status = "Returned";
@@ -1487,13 +1515,38 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task<WorkflowStep?> ResolveTransitionAsync(int stepId, string action, ICollection<WorkflowStep> steps)
+    private async Task<WorkflowStep?> ResolveTransitionAsync(int stepId, string action, int instanceId, ICollection<WorkflowStep> steps)
     {
-        var transition = await db.WorkflowTransitions.AsNoTracking()
-            .FirstOrDefaultAsync(x => x.WorkflowStepId == stepId && x.Action == action);
+        var transitions = await db.WorkflowTransitions.AsNoTracking()
+            .Where(x => x.WorkflowStepId == stepId && x.Action == action)
+            .OrderBy(x => x.Id).ToListAsync();
 
-        if (transition?.ToStepId is int id)
-            return steps.FirstOrDefault(x => x.Id == id);
+        // Conditional routes are evaluated against the latest saved value of a field
+        // anywhere in this workflow instance. A conditionless route is the fallback.
+        WorkflowTransition? fallback = null;
+        foreach (var transition in transitions)
+        {
+            if (string.IsNullOrWhiteSpace(transition.ConditionFieldCode))
+            {
+                fallback ??= transition;
+                continue;
+            }
+
+            var actual = await db.WorkflowFieldValues.AsNoTracking()
+                .Where(x => x.WorkflowInstanceId == instanceId && x.FieldCode == transition.ConditionFieldCode)
+                .OrderByDescending(x => x.UpdatedAt).ThenByDescending(x => x.Id)
+                .Select(x => x.Value).FirstOrDefaultAsync();
+
+            if (MatchesTransitionCondition(actual, transition.ConditionOperator, transition.ConditionValue))
+            {
+                return transition.ToStepId is int targetId
+                    ? steps.FirstOrDefault(x => x.Id == targetId)
+                    : null;
+            }
+        }
+
+        if (fallback is not null)
+            return fallback.ToStepId is int fallbackId ? steps.FirstOrDefault(x => x.Id == fallbackId) : null;
 
         if (action == "Approve")
         {
@@ -1504,6 +1557,20 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         }
 
         return null;
+    }
+
+    private static bool MatchesTransitionCondition(string? actual, string conditionOperator, string? expected)
+    {
+        var value = actual?.Trim() ?? "";
+        var target = expected?.Trim() ?? "";
+        return conditionOperator switch
+        {
+            "NotEquals" => !string.Equals(value, target, StringComparison.OrdinalIgnoreCase),
+            "Contains" => value.Contains(target, StringComparison.OrdinalIgnoreCase),
+            "IsEmpty" => string.IsNullOrWhiteSpace(value),
+            "NotEmpty" => !string.IsNullOrWhiteSpace(value),
+            _ => string.Equals(value, target, StringComparison.OrdinalIgnoreCase)
+        };
     }
 
     private int? ResolveEmployeePosition(int employeeId, int? preferredPositionId)

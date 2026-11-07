@@ -237,6 +237,13 @@ public class WorkflowController(
 
         ViewBag.History = await workflow.GetHistoryAsync(id);
 
+        if (instance.EntityType == "Suggestion" && int.TryParse(instance.EntityId, out var suggestionId))
+        {
+            ViewBag.WorkflowSuggestion = await db.Suggestions.AsNoTracking()
+                .Include(x => x.Members).Include(x => x.Attachments)
+                .FirstOrDefaultAsync(x => x.Id == suggestionId);
+        }
+
         if (instance.EntityType == ContractRenewalWorkflowService.WorkflowEntityType &&
             int.TryParse(instance.EntityId, out var renewalRequestId))
         {
@@ -322,6 +329,12 @@ public class WorkflowController(
 
         ViewBag.History = await workflow.GetHistoryAsync(task.WorkflowInstanceId);
         ViewBag.FieldGroups = await workflow.GetTaskFieldGroupsAsync(id, employeeId);
+        if (task.WorkflowInstance.EntityType == "Suggestion" && int.TryParse(task.WorkflowInstance.EntityId, out var suggestionId))
+        {
+            ViewBag.WorkflowSuggestion = await db.Suggestions.AsNoTracking()
+                .Include(x => x.Members).Include(x => x.Attachments)
+                .FirstOrDefaultAsync(x => x.Id == suggestionId);
+        }
         return View(task);
     }
 

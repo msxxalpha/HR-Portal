@@ -11,6 +11,7 @@ public class WorkflowStep
     public string HierarchyStopRankType { get; set; } = "معاونت";
     public int? OrganizationNodeId { get; set; }
     public int? AssignedEmployeeId { get; set; }
+    public string? AssignmentFieldCode { get; set; }
     public string AssignmentMode { get; set; } = "Any";
     public bool AllowApprove { get; set; } = true;
     public bool AllowReject { get; set; } = true;

@@ -6,6 +6,7 @@
     var history = ViewBag.History as List<WorkflowHistory> ?? [];
     var groups = ViewBag.FieldGroups as List<WorkflowTaskFieldGroup> ?? [];
     var suggestion = ViewBag.WorkflowSuggestion as Suggestion;
+    var workflowPositions = ViewBag.WorkflowPositions as List<OrganizationNode> ?? [];
 }
 @if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
 @if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
@@ -90,6 +91,16 @@
                             else if (field.FieldType == "TextArea")
                             {
                                 <textarea id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="@(group.IsCurrentStep ? $"values[{field.Code}]" : $"previousValues[{field.FieldDefinitionId}]")" rows="3" maxlength="@(field.MaxLength ?? 4000)" required="@(group.IsCurrentStep && field.IsRequired)">@field.Value</textarea>
+                            }
+                            else if (field.FieldType == "PositionPicker")
+                            {
+                                <select id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="@(group.IsCurrentStep ? $"values[{field.Code}]" : $"previousValues[{field.FieldDefinitionId}]")" required="@(group.IsCurrentStep && field.IsRequired)" disabled="@(!group.IsCurrentStep)">
+                                    <option value="">انتخاب جایگاه سازمانی</option>
+                                    @foreach (var position in workflowPositions)
+                                    {
+                                        <option value="@position.Id" selected="@(field.Value == position.Id.ToString())">@position.Title — @position.RankType</option>
+                                    }
+                                </select>
                             }
                             else if (field.FieldType == "Select")
                             {

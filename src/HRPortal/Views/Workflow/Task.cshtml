@@ -29,6 +29,15 @@
 
 @if (suggestion != null)
 {
+    @if (Model.WorkflowStep.AssignmentType == "Requester" && Model.WorkflowInstance.RequesterEmployeeId == Model.AssignedEmployeeId)
+    {
+        <section class="card" style="margin-top:1rem">
+            <div class="section-head"><div><h3>اصلاح اطلاعات پیشنهاد</h3><span class="muted">این درخواست برای اصلاح به پیشنهاددهنده برگشت داده شده است.</span></div>
+                <a class="btn btn-main" href="/Suggestions/Create?id=@suggestion.Id">ویرایش فرم پیشنهاد</a>
+            </div>
+            <p class="muted">پس از ذخیره اصلاحات، به همین کارتابل بازگردید و اقدام «تأیید» را برای ارسال مجدد انجام دهید.</p>
+        </section>
+    }
     <section class="card form-stack" style="margin-top:1rem">
         <div class="section-head"><div><h3>متن پیشنهاد ثبت‌شده</h3><span class="muted">@suggestion.SuggestionNumber · @suggestion.Category</span></div></div>
         <h4>@suggestion.Title</h4>

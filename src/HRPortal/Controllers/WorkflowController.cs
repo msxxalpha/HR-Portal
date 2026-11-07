@@ -473,6 +473,16 @@ public class WorkflowController(
     [HttpPost]
     [Authorize(Policy = "Workflow.Manage")]
     [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteTransition(int id, int definitionId)
+    {
+        try { await workflow.DeleteTransitionAsync(id); TempData["Success"] = "مسیر شرطی حذف شد."; }
+        catch (Exception ex) { TempData["Error"] = ex.Message; }
+        return RedirectToAction(nameof(Manage), new { id = definitionId });
+    }
+
+    [HttpPost]
+    [Authorize(Policy = "Workflow.Manage")]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> SaveTransition(int stepId, int definitionId, string action, int? toStepId,
         string? conditionFieldCode, string conditionOperator = "Equals", string? conditionValue = null)
     {

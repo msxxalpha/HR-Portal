@@ -178,8 +178,14 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         var assignmentType = model.AssignmentType is "Hierarchy" or "Employee" or "Requester" or "FieldPosition" ? model.AssignmentType : "Position";
         if (assignmentType == "Position" && !model.OrganizationNodeId.HasValue)
             throw new InvalidOperationException("برای مرحله جایگاه ثابت، انتخاب جایگاه سازمانی الزامی است.");
-        if (assignmentType == "FieldPosition" && (string.IsNullOrWhiteSpace(model.AssignmentFieldCode) || model.AssignmentFieldCode.Length > 100))
-            throw new InvalidOperationException("کد فیلد انتخاب جایگاه سازمانی الزامی است.");
+        if (assignmentType == "FieldPosition")
+        {
+            if (string.IsNullOrWhiteSpace(model.AssignmentFieldCode) || model.AssignmentFieldCode.Length > 100)
+                throw new InvalidOperationException("کد فیلد انتخاب جایگاه سازمانی الزامی است.");
+            if (!await db.WorkflowStepFields.AnyAsync(f => f.Code == model.AssignmentFieldCode.Trim() &&
+                f.FieldType == "PositionPicker" && f.WorkflowStep.WorkflowDefinitionId == model.WorkflowDefinitionId))
+                throw new InvalidOperationException("ابتدا در یکی از مراحل همین گردش کار، فیلدی با همین کد و از نوع «انتخاب جایگاه سازمانی فعال» تعریف کنید.");
+        }
         if (assignmentType == "Hierarchy" &&
             (string.IsNullOrWhiteSpace(model.HierarchyStopRankType) ||
              !await db.OrganizationRankDefinitions.AnyAsync(x => x.Title == model.HierarchyStopRankType.Trim())))
@@ -1416,7 +1422,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             if (string.IsNullOrWhiteSpace(step.AssignmentFieldCode))
                 throw new InvalidOperationException($"فیلد تعیین جایگاه برای مرحله «{step.Title}» تنظیم نشده است.");
             var selectedValue = await db.WorkflowFieldValues.AsNoTracking()
-                .Where(x => x.WorkflowInstanceId == instance.Id && x.WorkflowStepId == step.Id && x.FieldCode == step.AssignmentFieldCode)
+                .Where(x => x.WorkflowInstanceId == instance.Id && x.FieldCode == step.AssignmentFieldCode)
                 .OrderByDescending(x => x.UpdatedAt).ThenByDescending(x => x.Id)
                 .Select(x => x.Value).FirstOrDefaultAsync(cancellationToken);
             if (!int.TryParse(selectedValue, out var selectedPositionId))

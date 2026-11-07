@@ -182,9 +182,11 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         {
             if (string.IsNullOrWhiteSpace(model.AssignmentFieldCode) || model.AssignmentFieldCode.Length > 100)
                 throw new InvalidOperationException("کد فیلد انتخاب جایگاه سازمانی الزامی است.");
-            if (!await db.WorkflowStepFields.AnyAsync(f => f.Code == model.AssignmentFieldCode.Trim() &&
-                f.FieldType == "PositionPicker" && f.WorkflowStep.WorkflowDefinitionId == model.WorkflowDefinitionId))
-                throw new InvalidOperationException("ابتدا در یکی از مراحل همین گردش کار، فیلدی با همین کد و از نوع «انتخاب جایگاه سازمانی فعال» تعریف کنید.");
+            var positionFieldCount = await db.WorkflowStepFields.CountAsync(f => f.Code == model.AssignmentFieldCode.Trim() &&
+                f.FieldType == "PositionPicker" && f.WorkflowStep.WorkflowDefinitionId == model.WorkflowDefinitionId &&
+                f.WorkflowStep.SortOrder < model.SortOrder);
+            if (positionFieldCount != 1)
+                throw new InvalidOperationException("باید دقیقاً یک فیلد «انتخاب جایگاه سازمانی فعال» با این کد در یکی از مراحل قبلی گردش کار تعریف شده باشد.");
         }
         if (assignmentType == "Hierarchy" &&
             (string.IsNullOrWhiteSpace(model.HierarchyStopRankType) ||
@@ -478,6 +480,13 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                     throw new InvalidOperationException($"تاریخ فیلد «{field.Title}» معتبر نیست.");
                 if (field.FieldType == "Select" && !(field.Options ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Contains(value))
                     throw new InvalidOperationException($"گزینه انتخاب‌شده برای فیلد «{field.Title}» معتبر نیست.");
+                if (field.FieldType == "PositionPicker")
+                {
+                    if (!int.TryParse(value, out var selectedPositionId) ||
+                        !await db.OrganizationNodes.AnyAsync(n => n.Id == selectedPositionId && n.IsActive &&
+                            n.Revision.IsFinalized && n.Revision.EffectiveDate <= DateTime.Today, cancellationToken))
+                        throw new InvalidOperationException($"جایگاه انتخاب‌شده برای فیلد «{field.Title}» معتبر یا فعال نیست.");
+                }
             }
             db.WorkflowFieldValues.Add(new WorkflowFieldValue
             {

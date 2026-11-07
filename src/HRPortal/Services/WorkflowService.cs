@@ -175,9 +175,11 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         if (string.IsNullOrWhiteSpace(model.Code) || string.IsNullOrWhiteSpace(model.Title))
             throw new InvalidOperationException("کد و عنوان مرحله الزامی است.");
 
-        var assignmentType = model.AssignmentType is "Hierarchy" or "Employee" or "Requester" ? model.AssignmentType : "Position";
+        var assignmentType = model.AssignmentType is "Hierarchy" or "Employee" or "Requester" or "FieldPosition" ? model.AssignmentType : "Position";
         if (assignmentType == "Position" && !model.OrganizationNodeId.HasValue)
             throw new InvalidOperationException("برای مرحله جایگاه ثابت، انتخاب جایگاه سازمانی الزامی است.");
+        if (assignmentType == "FieldPosition" && (string.IsNullOrWhiteSpace(model.AssignmentFieldCode) || model.AssignmentFieldCode.Length > 100))
+            throw new InvalidOperationException("کد فیلد انتخاب جایگاه سازمانی الزامی است.");
         if (assignmentType == "Hierarchy" &&
             (string.IsNullOrWhiteSpace(model.HierarchyStopRankType) ||
              !await db.OrganizationRankDefinitions.AnyAsync(x => x.Title == model.HierarchyStopRankType.Trim())))
@@ -213,6 +215,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         entity.HierarchyStopRankType = model.HierarchyStopRankType;
         entity.OrganizationNodeId = assignmentType == "Position" ? model.OrganizationNodeId : null;
         entity.AssignedEmployeeId = assignmentType == "Employee" ? model.AssignedEmployeeId : null;
+        entity.AssignmentFieldCode = assignmentType == "FieldPosition" ? model.AssignmentFieldCode!.Trim() : null;
         entity.AssignmentMode = model.AssignmentMode is "All" ? "All" : "Any";
         entity.AllowApprove = model.AllowApprove;
         entity.AllowReject = model.AllowReject;
@@ -331,6 +334,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             throw new InvalidOperationException("کد این فیلد در مرحله تکراری است.");
         if (type == "Select" && string.IsNullOrWhiteSpace(model.Options))
             throw new InvalidOperationException("برای فیلد انتخابی، گزینه‌ها را وارد کنید.");
+        if (type == "PositionPicker" && !string.IsNullOrWhiteSpace(model.Options))
+            throw new InvalidOperationException("فهرست جایگاه‌ها به‌صورت پویا از ساختار سازمانی فعال خوانده می‌شود.");
         if (model.MaxLength is < 1 or > 4000)
             throw new InvalidOperationException("حداکثر طول باید بین ۱ تا ۴۰۰۰ باشد.");
 
@@ -426,6 +431,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         "Date" => "Date",
         "Checkbox" => "Checkbox",
         "Select" => "Select",
+        "PositionPicker" => "PositionPicker",
         _ => throw new InvalidOperationException("نوع فیلد نامعتبر است.")
     };
 
@@ -861,6 +867,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         OrganizationNodeId = organizationNodeId,
         AssignedEmployeeId = assignedEmployeeId,
         AssignmentMode = source.AssignmentMode,
+        AssignmentFieldCode = source.AssignmentFieldCode,
         AllowApprove = source.AllowApprove,
         AllowReject = source.AllowReject,
         AllowReturn = source.AllowReturn,
@@ -1403,13 +1410,26 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             return;
         }
 
-        if (!step.OrganizationNodeId.HasValue)
+        int? targetPositionId = step.OrganizationNodeId;
+        if (step.AssignmentType == "FieldPosition")
+        {
+            if (string.IsNullOrWhiteSpace(step.AssignmentFieldCode))
+                throw new InvalidOperationException($"فیلد تعیین جایگاه برای مرحله «{step.Title}» تنظیم نشده است.");
+            var selectedValue = await db.WorkflowFieldValues.AsNoTracking()
+                .Where(x => x.WorkflowInstanceId == instance.Id && x.WorkflowStepId == step.Id && x.FieldCode == step.AssignmentFieldCode)
+                .OrderByDescending(x => x.UpdatedAt).ThenByDescending(x => x.Id)
+                .Select(x => x.Value).FirstOrDefaultAsync(cancellationToken);
+            if (!int.TryParse(selectedValue, out var selectedPositionId))
+                throw new InvalidOperationException($"در مرحله «{step.Title}» باید یک جایگاه سازمانی معتبر انتخاب شود.");
+            targetPositionId = selectedPositionId;
+        }
+        if (!targetPositionId.HasValue)
             throw new InvalidOperationException($"برای مرحله «{step.Title}» جایگاه سازمانی تعیین نشده است.");
 
         var configuredPosition = await db.OrganizationNodes
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Id == step.OrganizationNodeId.Value, cancellationToken)
-            ?? throw new InvalidOperationException($"جایگاه تنظیم‌شده برای مرحله «{step.Title}» یافت نشد.");
+            .FirstOrDefaultAsync(x => x.Id == targetPositionId.Value && x.IsActive, cancellationToken)
+            ?? throw new InvalidOperationException($"جایگاه انتخاب‌شده برای مرحله «{step.Title}» یافت نشد یا فعال نیست.");
 
         var isRuntimeDefinition = await db.WorkflowDefinitions.AsNoTracking()
             .Where(x => x.Id == instance.WorkflowDefinitionId)

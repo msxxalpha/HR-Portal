@@ -311,7 +311,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
         modelBuilder.Entity<WorkflowTransition>(e =>
         {
             e.HasKey(x => x.Id);
-            e.HasIndex(x => new { x.WorkflowStepId, x.Action }).IsUnique();
+            e.HasIndex(x => new { x.WorkflowStepId, x.Action, x.Id });
             e.HasOne(x => x.WorkflowStep).WithMany(x => x.OutgoingTransitions).HasForeignKey(x => x.WorkflowStepId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.ToStep).WithMany().HasForeignKey(x => x.ToStepId).OnDelete(DeleteBehavior.Restrict);
         });

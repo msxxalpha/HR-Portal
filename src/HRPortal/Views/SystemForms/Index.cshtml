@@ -18,7 +18,7 @@
     {
         <div class="table-wrap">
             <table>
-                <thead><tr><th>کد سیستمی</th><th>عنوان فرم</th><th>نوع اجرا</th><th>وضعیت</th><th>قابلیت گردش کار</th><th>توضیحات</th></tr></thead>
+                <thead><tr><th>کد سیستمی</th><th>عنوان فرم</th><th>نوع اجرا</th><th>وضعیت</th><th>قابلیت گردش کار</th><th>توضیحات</th><th>عملیات</th></tr></thead>
                 <tbody>
                 @foreach (var form in Model)
                 {
@@ -29,6 +29,20 @@
                         <td><span class="badge">@(form.IsActive ? "فعال" : "غیرفعال")</span></td>
                         <td>@(form.IsActive && form.ImplementationType == "GenericWorkflow" ? "قابل انتخاب در مدیریت گردش کار" : "ندارد")</td>
                         <td>@(string.IsNullOrWhiteSpace(form.Description) ? "—" : form.Description)</td>
+                        <td>
+                            @if (form.ImplementationType != "Custom")
+                            {
+                                <form asp-action="Delete" method="post" onsubmit="return confirm('فرم «@form.Title» حذف شود؟ این عملیات قابل بازگشت نیست.');" style="display:inline">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@form.Id" />
+                                    <button type="submit" class="btn btn-sm btn-danger">حذف</button>
+                                </form>
+                            }
+                            else
+                            {
+                                <span class="muted">سیستمی</span>
+                            }
+                        </td>
                     </tr>
                 }
                 </tbody>

@@ -1,5 +1,6 @@
 @model List<HRPortal.Models.SystemFormDefinition>
 @{
+    var codeManagedFormCodes = ViewBag.CodeManagedFormCodes as HashSet<string> ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     Layout = "~/Views/Shared/_Layout.cshtml";
     ViewData["Title"] = "مدیریت فرم‌ها";
 }
@@ -30,7 +31,7 @@
                         <td>@(form.IsActive && form.ImplementationType == "GenericWorkflow" ? "قابل انتخاب در مدیریت گردش کار" : "ندارد")</td>
                         <td>@(string.IsNullOrWhiteSpace(form.Description) ? "—" : form.Description)</td>
                         <td>
-                            @if (form.ImplementationType != "Custom")
+                            @if (form.ImplementationType != "Custom" && !codeManagedFormCodes.Contains(form.Code))
                             {
                                 <form asp-action="Delete" method="post" onsubmit="return confirm('فرم «@form.Title» حذف شود؟ این عملیات قابل بازگشت نیست.');" style="display:inline">
                                     @Html.AntiForgeryToken()

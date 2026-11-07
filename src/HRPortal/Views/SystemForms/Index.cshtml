@@ -4,75 +4,39 @@
     ViewData["Title"] = "مدیریت فرم‌ها";
 }
 <div class="page-head">
-    <div><h1>مدیریت فرم‌ها</h1><p>ثبت فرم‌های عملیاتی و تعیین نوع اجرای آن‌ها؛ فرم‌های اختصاصی از موتور گردش کار عمومی مستقل می‌مانند.</p></div>
+    <div><h1>مدیریت فرم‌ها</h1><p>فهرست فرم‌های عملیاتی که از طریق پیاده‌سازی کدنویسی‌شده در سامانه شناسایی و ثبت شده‌اند.</p></div>
 </div>
 @if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
 @if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
 <section class="card">
-    <div class="section-head"><h3>فرم‌های ثبت‌شده در سامانه</h3></div>
-    <div class="table-wrap">
-        <table>
-            <thead><tr><th>کد سیستمی</th><th>عنوان فرم</th><th>نوع پیاده‌سازی</th><th>فعال</th><th>توضیحات</th><th>عملیات</th></tr></thead>
-            <tbody>
-            @foreach (var form in Model)
-            {
-                <tr>
-                    <td>@form.Code</td><td>@form.Title</td>
-                    <td>
-                        <form method="post" action="/SystemForms/Save" class="form-stack">
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="id" value="@form.Id" />
-                            <input type="hidden" name="code" value="@form.Code" />
-                            <input type="hidden" name="title" value="@form.Title" />
-                            <input type="hidden" name="implementationType" value="@form.ImplementationType" />
-                            <input type="hidden" name="supportsWorkflowSpecified" value="true" />
-                            <input type="hidden" name="isActive" value="@form.IsActive.ToString().ToLowerInvariant()" />
-                            <input type="hidden" name="description" value="@form.Description" />
-                            @if (form.ImplementationType == "Custom")
-                            {
-                                <span class="badge">اختصاصی و مستقل</span>
-                                <small class="muted">این فرم با منطق اختصاصی اجرا می‌شود و قابلیت اتصال به موتور عمومی ندارد.</small>
-                            }
-                            else
-                            {
-                                <label class="check-chip"><input type="checkbox" name="supportsWorkflow" value="true" checked="@(form.ImplementationType == "GenericWorkflow")" /> قابلیت استفاده از گردش کار عمومی</label>
-                                <button class="btn btn-outline btn-sm" type="submit">ذخیره قابلیت</button>
-                            }
-                        </form>
-                    </td>
-                    <td>@(form.IsActive ? "فعال" : "غیرفعال")</td>
-                    <td>@form.Description</td>
-                    <td>
-                        <form method="post" action="/SystemForms/Save" class="form-stack">
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="id" value="@form.Id" />
-                            <input type="hidden" name="code" value="@form.Code" />
-                            <input type="hidden" name="implementationType" value="@form.ImplementationType" />
-                            <input type="hidden" name="isActive" value="@form.IsActive.ToString().ToLowerInvariant()" />
-                            <label>عنوان<input name="title" value="@form.Title" required maxlength="200" /></label>
-                            <label>توضیحات<input name="description" value="@form.Description" maxlength="1000" /></label>
-                            <button class="btn btn-outline btn-sm" type="submit">ذخیره عنوان</button>
-                        </form>
-                    </td>
-                </tr>
-            }
-            </tbody>
-        </table>
-    </div>
-    <p class="muted">فرم تمدید قرارداد ارزشیابی به‌صورت اختصاصی اجرا می‌شود. برای فرم ساده جدید ابتدا باید فرم عملیاتی آن پیاده‌سازی و ثبت شود؛ ثبت در این فهرست به‌تنهایی فرم اجرایی ایجاد نمی‌کند.</p>
-</section>
-<section class="card form-stack">
-    <h3>ثبت فرم جدید</h3>
-    <form method="post" action="/SystemForms/Save" class="form-stack">
-        @Html.AntiForgeryToken()
-        <input type="hidden" name="id" value="0" />
-        <div class="grid-2">
-            <label>کد سیستمی (ثابت و یکتا)<input name="code" required maxlength="100" placeholder="TravelRequest" /></label>
-            <label>عنوان فرم<input name="title" required maxlength="200" /></label>
-            <label>نوع پیاده‌سازی<select name="implementationType"><option value="Standalone">ساده و مستقل</option><option value="GenericWorkflow">قابل اتصال به گردش کار عمومی</option></select></label>
-            <label class="check-chip"><input type="checkbox" name="isActive" value="true" checked /> فعال</label>
+    <div class="section-head"><div><h3>فرم‌های شناسایی‌شده</h3><span class="muted">این فهرست به‌صورت خودکار از قرارداد فرم‌های پیاده‌سازی‌شده در کد سامانه همگام می‌شود.</span></div></div>
+    @if (Model.Count == 0)
+    {
+        <div class="empty">هنوز فرم عملیاتی قابل ثبت در سامانه شناسایی نشده است.</div>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>کد سیستمی</th><th>عنوان فرم</th><th>نوع اجرا</th><th>وضعیت</th><th>قابلیت گردش کار</th><th>توضیحات</th></tr></thead>
+                <tbody>
+                @foreach (var form in Model)
+                {
+                    <tr>
+                        <td><code>@form.Code</code></td>
+                        <td><strong>@form.Title</strong></td>
+                        <td>@(form.ImplementationType == "Custom" ? "اختصاصی و مستقل" : form.ImplementationType == "GenericWorkflow" ? "فرم اختصاصی متصل به موتور عمومی" : "مستقل")</td>
+                        <td><span class="badge">@(form.IsActive ? "فعال" : "غیرفعال")</span></td>
+                        <td>@(form.IsActive && form.ImplementationType == "GenericWorkflow" ? "قابل انتخاب در مدیریت گردش کار" : "ندارد")</td>
+                        <td>@(string.IsNullOrWhiteSpace(form.Description) ? "—" : form.Description)</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
         </div>
-        <label>توضیحات<textarea name="description" rows="2" maxlength="1000"></textarea></label>
-        <button class="btn btn-main" type="submit">ثبت فرم</button>
-    </form>
+    }
+    <div class="note" style="margin-top:1rem">
+        <strong>نحوه افزودن فرم جدید:</strong>
+        فرم‌ها مانند سایر بخش‌های سامانه به‌صورت اختصاصی کدنویسی می‌شوند. هنگام پیاده‌سازی، قرارداد مشترک اتصال به گردش کار را پیاده‌سازی می‌کنند و مشخصات آن‌ها در اجرای سامانه به‌طور خودکار در این فهرست قرار می‌گیرد. در این بخش نیازی به ساخت فرم، ورود دستی کد یا ثبت دستی مشخصات نیست.
+    </div>
 </section>

@@ -880,23 +880,27 @@ public class EmployeeContractsController(
 
                 if (definitionId.HasValue)
                 {
-                    var stepIds = await db.WorkflowSteps.Where(x => x.WorkflowDefinitionId == definitionId.Value)
-                        .Select(x => x.Id).ToListAsync();
-                    if (stepIds.Count > 0)
+                    var hasOtherInstances = await db.WorkflowInstances.AnyAsync(x =>
+                        x.WorkflowDefinitionId == definitionId.Value && (!instanceId.HasValue || x.Id != instanceId.Value));
+                    if (!hasOtherInstances)
                     {
-                        db.WorkflowTransitions.RemoveRange(db.WorkflowTransitions.Where(x =>
-                            stepIds.Contains(x.WorkflowStepId) || stepIds.Contains(x.ToStepId)));
-                        db.WorkflowStepFields.RemoveRange(db.WorkflowStepFields.Where(x => stepIds.Contains(x.WorkflowStepId)));
-                        await db.SaveChangesAsync();
-                        db.WorkflowSteps.RemoveRange(db.WorkflowSteps.Where(x => stepIds.Contains(x.Id)));
-                        await db.SaveChangesAsync();
-                    }
-                    var definition = await db.WorkflowDefinitions.FirstOrDefaultAsync(x => x.Id == definitionId.Value);
-                    if (definition is not null &&
-                        !await db.WorkflowInstances.AnyAsync(x => x.WorkflowDefinitionId == definition.Id))
-                    {
-                        db.WorkflowDefinitions.Remove(definition);
-                        await db.SaveChangesAsync();
+                        var stepIds = await db.WorkflowSteps.Where(x => x.WorkflowDefinitionId == definitionId.Value)
+                            .Select(x => x.Id).ToListAsync();
+                        if (stepIds.Count > 0)
+                        {
+                            db.WorkflowTransitions.RemoveRange(db.WorkflowTransitions.Where(x =>
+                                stepIds.Contains(x.WorkflowStepId) || stepIds.Contains(x.ToStepId)));
+                            db.WorkflowStepFields.RemoveRange(db.WorkflowStepFields.Where(x => stepIds.Contains(x.WorkflowStepId)));
+                            await db.SaveChangesAsync();
+                            db.WorkflowSteps.RemoveRange(db.WorkflowSteps.Where(x => stepIds.Contains(x.Id)));
+                            await db.SaveChangesAsync();
+                        }
+                        var definition = await db.WorkflowDefinitions.FirstOrDefaultAsync(x => x.Id == definitionId.Value);
+                        if (definition is not null)
+                        {
+                            db.WorkflowDefinitions.Remove(definition);
+                            await db.SaveChangesAsync();
+                        }
                     }
                 }
 

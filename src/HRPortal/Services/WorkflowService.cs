@@ -927,7 +927,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         var authorizedTasks = new List<WorkflowTask>();
         foreach (var task in tasks)
         {
-            if (task.AssignedPositionId.HasValue)
+            if (task.AssignedPositionId.HasValue || task.WorkflowStep.OrganizationNodeId.HasValue)
             {
                 if (await IsCurrentPositionAssigneeAsync(employeeId, task))
                     authorizedTasks.Add(task);
@@ -1181,11 +1181,9 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 return assignedIds.Contains(employeeId);
             }
 
-            return await db.Employees.AnyAsync(x => x.Id == employeeId && x.Status == "فعال" &&
-                (x.OrganizationUnitId == currentPosition.Id ||
-                 x.OrganizationDepartmentId == currentPosition.Id ||
-                 x.OrganizationSectionId == currentPosition.Id ||
-                 x.OrganizationPositionId == currentPosition.Id));
+            // No explicit holder means the task remains unassigned; organizational
+            // membership in a parent unit must never make a subordinate its assignee.
+            return false;
         }
 
         if (assignedIds.Count > 0)
@@ -1193,11 +1191,9 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 employeeId, isActiveEmployee: true,
                 currentPosition.AssignedEmployeeIdsCsv, currentPosition.PositionHolderEmployeeId);
 
-        return await db.Employees.AnyAsync(x => x.Id == employeeId && x.Status == "فعال" &&
-            (x.OrganizationUnitId == currentPosition.Id ||
-             x.OrganizationDepartmentId == currentPosition.Id ||
-             x.OrganizationSectionId == currentPosition.Id ||
-             x.OrganizationPositionId == currentPosition.Id));
+        // A position without an explicit active holder is an unassigned task,
+        // not a task for every employee belonging to that organizational unit.
+        return false;
     }
 
     public async Task<WorkflowInstance?> GetInstanceForAdminAsync(int id) =>
@@ -1228,13 +1224,14 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 (x.AssignedPositionId.HasValue ||
                  x.WorkflowStep.OrganizationNodeId.HasValue ||
                  x.AssignedEmployeeId == employeeId));
-        if (task is not null && task.AssignedPositionId.HasValue &&
+        if (task is not null &&
+            (task.AssignedPositionId.HasValue || task.WorkflowStep.OrganizationNodeId.HasValue) &&
             !await IsCurrentPositionAssigneeAsync(employeeId, task))
             return null;
-        if (task is not null && !task.AssignedPositionId.HasValue &&
+        if (task is not null && !task.AssignedPositionId.HasValue && !task.WorkflowStep.OrganizationNodeId.HasValue &&
             !await db.Employees.AnyAsync(e => e.Id == employeeId && e.Status == "فعال"))
             return null;
-        if (task is not null && !task.AssignedPositionId.HasValue &&
+        if (task is not null && !task.AssignedPositionId.HasValue && !task.WorkflowStep.OrganizationNodeId.HasValue &&
             !WorkflowPositionAssignmentResolver.IsExplicitEmployeeAssignee(
                 employeeId, task.AssignedEmployeeId, isActiveEmployee: true))
             return null;
@@ -1546,46 +1543,19 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             return;
         }
 
-        var employees = await db.Employees
-            .AsNoTracking()
-            .Where(e => e.Status == "فعال" &&
-                (e.OrganizationUnitId == positionId ||
-                 e.OrganizationDepartmentId == positionId ||
-                 e.OrganizationSectionId == positionId ||
-                 e.OrganizationPositionId == positionId))
-            .OrderBy(e => e.Id)
-            .ToListAsync(cancellationToken);
-
-        if (employees.Count == 0)
+        // A fixed organizational-node assignment belongs only to the explicit
+        // holder(s) of that exact node. Employee department/unit fields describe
+        // organizational membership, not node ownership; using them here can leak
+        // a manager's task to one or more subordinate employees.
+        db.WorkflowTasks.Add(new WorkflowTask
         {
-            db.WorkflowTasks.Add(new WorkflowTask
-            {
-                WorkflowInstanceId = instance.Id,
-                WorkflowStepId = step.Id,
-                AssignedPositionId = positionId
-            });
-        }
-        else if (step.AssignmentMode == "All")
-        {
-            foreach (var employee in employees)
-                db.WorkflowTasks.Add(new WorkflowTask
-                {
-                    WorkflowInstanceId = instance.Id,
-                    WorkflowStepId = step.Id,
-                    AssignedPositionId = positionId,
-                    AssignedEmployeeId = employee.Id
-                });
-        }
-        else
-        {
-            db.WorkflowTasks.Add(new WorkflowTask
-            {
-                WorkflowInstanceId = instance.Id,
-                WorkflowStepId = step.Id,
-                AssignedPositionId = positionId,
-                AssignedEmployeeId = employees.Count == 1 ? employees[0].Id : null
-            });
-        }
+            WorkflowInstanceId = instance.Id,
+            WorkflowStepId = step.Id,
+            AssignedPositionId = positionId,
+            AssignedEmployeeId = step.AssignmentMode == "Any" && assignedEmployeeIds.Count == 1
+                ? assignedEmployeeIds[0]
+                : null
+        });
 
         await db.SaveChangesAsync(cancellationToken);
     }

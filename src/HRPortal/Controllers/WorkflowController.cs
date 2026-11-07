@@ -473,9 +473,10 @@ public class WorkflowController(
     [HttpPost]
     [Authorize(Policy = "Workflow.Manage")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> SaveTransition(int stepId, int definitionId, string action, int? toStepId)
+    public async Task<IActionResult> SaveTransition(int stepId, int definitionId, string action, int? toStepId,
+        string? conditionFieldCode, string conditionOperator = "Equals", string? conditionValue = null)
     {
-        try { await workflow.SaveTransitionAsync(stepId, action, toStepId); TempData["Success"] = "مسیر گردش کار ذخیره شد."; }
+        try { await workflow.SaveTransitionAsync(stepId, action, toStepId, conditionFieldCode, conditionOperator, conditionValue); TempData["Success"] = "مسیر گردش کار ذخیره شد."; }
         catch (Exception ex) { TempData["Error"] = ex.Message; }
         return RedirectToAction(nameof(Manage), new { id = definitionId });
     }

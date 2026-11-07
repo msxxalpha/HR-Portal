@@ -171,6 +171,9 @@ AND NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'UX_OrganizationNodes_Revis
 IF COL_LENGTH(N'dbo.WorkflowDefinitions', N'FormCode') IS NULL ALTER TABLE [dbo].[WorkflowDefinitions] ADD [FormCode] nvarchar(100) NULL;
 IF COL_LENGTH(N'dbo.WorkflowSteps', N'AllowEditPreviousData') IS NULL ALTER TABLE [dbo].[WorkflowSteps] ADD [AllowEditPreviousData] bit NOT NULL CONSTRAINT [DF_WorkflowSteps_AllowEditPreviousData] DEFAULT 0;
 IF COL_LENGTH(N'dbo.WorkflowSteps', N'RequireNotes') IS NULL ALTER TABLE [dbo].[WorkflowSteps] ADD [RequireNotes] bit NOT NULL CONSTRAINT [DF_WorkflowSteps_RequireNotes] DEFAULT 0;
+IF COL_LENGTH(N'dbo.WorkflowTransitions', N'ConditionFieldCode') IS NULL ALTER TABLE [dbo].[WorkflowTransitions] ADD [ConditionFieldCode] nvarchar(100) NULL;
+IF COL_LENGTH(N'dbo.WorkflowTransitions', N'ConditionOperator') IS NULL ALTER TABLE [dbo].[WorkflowTransitions] ADD [ConditionOperator] nvarchar(20) NOT NULL CONSTRAINT [DF_WorkflowTransitions_ConditionOperator] DEFAULT N'Equals';
+IF COL_LENGTH(N'dbo.WorkflowTransitions', N'ConditionValue') IS NULL ALTER TABLE [dbo].[WorkflowTransitions] ADD [ConditionValue] nvarchar(4000) NULL;
 
 IF COL_LENGTH(N'dbo.WorkflowDefinitions', N'IsRuntimeInstance') IS NULL ALTER TABLE [dbo].[WorkflowDefinitions] ADD [IsRuntimeInstance] bit NOT NULL CONSTRAINT [DF_WorkflowDefinitions_IsRuntimeInstance] DEFAULT 0;
 IF COL_LENGTH(N'dbo.WorkflowDefinitions', N'SourceDefinitionId') IS NULL ALTER TABLE [dbo].[WorkflowDefinitions] ADD [SourceDefinitionId] int NULL;
@@ -192,8 +195,10 @@ IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowDefinitions_Code
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowSteps_Definition_Sort' AND object_id=OBJECT_ID(N'dbo.WorkflowSteps'))
     EXEC sys.sp_executesql N'CREATE INDEX [IX_WorkflowSteps_Definition_Sort] ON [dbo].[WorkflowSteps]([WorkflowDefinitionId],[SortOrder]);';
 
+IF EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowTransitions_Step_Action' AND object_id=OBJECT_ID(N'dbo.WorkflowTransitions') AND is_unique=1)
+    DROP INDEX [IX_WorkflowTransitions_Step_Action] ON [dbo].[WorkflowTransitions];
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowTransitions_Step_Action' AND object_id=OBJECT_ID(N'dbo.WorkflowTransitions'))
-    EXEC sys.sp_executesql N'CREATE UNIQUE INDEX [IX_WorkflowTransitions_Step_Action] ON [dbo].[WorkflowTransitions]([WorkflowStepId],[Action]);';
+    EXEC sys.sp_executesql N'CREATE INDEX [IX_WorkflowTransitions_Step_Action] ON [dbo].[WorkflowTransitions]([WorkflowStepId],[Action],[Id]);';
 
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_WorkflowInstances_Entity' AND object_id=OBJECT_ID(N'dbo.WorkflowInstances'))
     EXEC sys.sp_executesql N'CREATE INDEX [IX_WorkflowInstances_Entity] ON [dbo].[WorkflowInstances]([EntityType],[EntityId]);';

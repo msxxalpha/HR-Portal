@@ -1159,10 +1159,16 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         var assignedIds = GetAssignedEmployeeIds(currentPosition);
         if (task.WorkflowStep.AssignmentMode == "All")
         {
-            if (task.AssignedEmployeeId != employeeId)
-                return false;
+            // Tasks created before a position received its occupants have no
+            // per-employee task rows. Resolve those rows dynamically for all current
+            // occupants, while preserving person-specific rows when an employee is set.
+            if (task.AssignedEmployeeId.HasValue)
+                return task.AssignedEmployeeId.Value == employeeId &&
+                    (assignedIds.Count == 0 || assignedIds.Contains(employeeId));
+
             if (assignedIds.Count > 0)
                 return assignedIds.Contains(employeeId);
+
             return await db.Employees.AnyAsync(x => x.Id == employeeId && x.Status == "فعال" &&
                 (x.OrganizationUnitId == currentPosition.Id ||
                  x.OrganizationDepartmentId == currentPosition.Id ||

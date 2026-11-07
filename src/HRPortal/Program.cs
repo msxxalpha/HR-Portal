@@ -81,6 +81,8 @@ builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<RoleService>();
 builder.Services.AddScoped<IClaimsTransformation, PermissionClaimsTransformation>();
 builder.Services.AddScoped<WorkflowService>();
+builder.Services.AddScoped<IWorkflowFormDefinitionProvider, SuggestionsWorkflowFormProvider>();
+builder.Services.AddScoped<SystemFormRegistrationService>();
 builder.Services.AddScoped<MonthlyPerformanceService>();
 builder.Services.AddScoped<MonthlyPerformanceImprovementService>();
 builder.Services.AddScoped<ContractRenewalWorkflowService>();
@@ -130,6 +132,8 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<HRPortalDbContext>();
     await DatabaseInitializer.InitializeAsync(db);
+    var formRegistration = scope.ServiceProvider.GetRequiredService<SystemFormRegistrationService>();
+    await formRegistration.SyncAsync();
 }
 
 if (!app.Environment.IsDevelopment())

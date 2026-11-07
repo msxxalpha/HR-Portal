@@ -78,7 +78,7 @@
                                 }
                                 @if (User.HasClaim("IsAdmin", "1"))
                                 {
-                                    <form method="post" action="/EmployeeContracts/DeleteRequest" class="contract-admin-delete-form" onsubmit="return confirmAdminContractDelete(this);">
+                                    <form method="post" action="/EmployeeContracts/DeleteRequest" class="contract-admin-delete-form" style="display:flex;gap:.35rem;align-items:center;flex-wrap:wrap" onsubmit="return confirmAdminContractDelete(this);">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="id" value="@r.Id" />
                                         <select name="deleteMode" aria-label="نحوه حذف درخواست" required>
@@ -97,12 +97,12 @@
                                         <button class="btn btn-outline btn-sm danger" type="submit">توقف</button>
                                     </form>
                                 }
-                                @if (!row.CanEditOrDelete && !row.CanStop)
+                                @if (!row.CanEditOrDelete && !row.CanStop && !User.HasClaim("IsAdmin", "1"))
                                 {
                                     <span class="muted">بدون عملیات — سوابق حفظ شده</span>
                                 }
                             </div>
-                            @if (row.HasAnyEvaluation && row.CanStop)
+                            @if (row.HasAnyEvaluation && row.CanStop && !User.HasClaim("IsAdmin", "1"))
                             {
                                 <small class="muted">ویرایش و حذف غیرفعال است؛ حداقل یک مرحله ارزیابی ثبت شده.</small>
                             }

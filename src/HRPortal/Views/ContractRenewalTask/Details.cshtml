@@ -362,7 +362,7 @@
             <input type="hidden" name="id" value="@Model.Task.Id" />
             @if (Model.IsHrDisciplinaryScoreDeductionEnabled)
             {
-                <label>درصد کسر امتیاز بابت سوابق انضباطی *
+                <label>درصد کسر امتیاز *
                     <input id="disciplinaryDeductionPercent" type="number" name="disciplinaryDeductionPercent" min="0" max="100" step="0.01" required value="@score(r.HrDisciplinaryDeductionPercent)" />
                 </label>
                 <p class="muted">امتیاز نهایی پس از کسر از امتیاز اولیه محاسبه می‌شود و پیشنهاد سیستم بر اساس امتیاز جدید به‌روزرسانی خواهد شد.</p>
@@ -380,6 +380,42 @@
 
 @if (Model.StageKind == "CEO")
 {
+    <section class="card ceo-decision-card">
+        <style>
+            .ceo-decision-card .ceo-decision-highlights { font-size: 1.08rem; font-weight: 700; }
+            .ceo-decision-card .ceo-decision-highlights strong { font-size: 1.14rem; font-weight: 800; }
+            .ceo-decision-card .ceo-evaluator-table td, .ceo-decision-card .ceo-evaluator-table th { font-weight: 700; }
+            .ceo-decision-card .ceo-evaluator-table td:nth-child(3), .ceo-decision-card .ceo-evaluator-table td:nth-child(4) { font-size: 1.08rem; }
+        </style>
+        <div class="section-head"><div><h3>خلاصه کمی برای تصمیم‌گیری مدیرعامل</h3><span class="muted">امتیاز هر ارزیاب و مدت متناظر با همان امتیاز، مستقل از سایر ارزیاب‌ها</span></div></div>
+        <div class="table-wrap">
+            <table class="ceo-evaluator-table">
+                <thead><tr><th>ارزیاب / جایگاه سازمانی</th><th>مرحله</th><th>امتیاز از ۱۰۰</th><th>مدت متناظر با امتیاز</th></tr></thead>
+                <tbody>
+                @foreach (var stage in Model.AllScoreStages)
+                {
+                    <tr>
+                        <td>@stage.PositionTitle</td>
+                        <td>@stage.StageTitle</td>
+                        <td>@score(stage.ScoreTotal)</td>
+                        <td>@Math.Min(ContractRenewalWorkflowService.SuggestedContractMonths(stage.ScoreTotal), Model.MaximumAllowedContractMonths) ماه</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+        <div class="contract-preview-grid ceo-decision-highlights">
+            <div><span>امتیاز نهایی مبنای تصمیم (پس از کسر احتمالی)</span><strong>@score(r.FinalEvaluationScore) از ۱۰۰</strong></div>
+            <div><span>مدت محاسبه‌شده بر اساس امتیاز نهایی</span><strong>@Math.Min(ContractRenewalWorkflowService.SuggestedContractMonths(r.FinalEvaluationScore), Model.MaximumAllowedContractMonths) ماه</strong></div>
+            <div><span>امتیاز پایه آخرین ارزیاب سازمانی</span><strong>@score(r.OriginalEvaluationScore ?? r.FinalEvaluationScore) از ۱۰۰</strong></div>
+            <div><span>درصد کسر امتیاز</span><strong>@score(r.HrDisciplinaryDeductionPercent)٪</strong></div>
+            <div><span>نظر مدیر حراست</span><strong>@securityDecisionTitle(r.SecurityDecision)</strong></div>
+            <div><span>مدت مجاز طبق نظر حراست</span><strong>@Model.MaximumAllowedContractMonths ماه</strong></div>
+            <div><span>مدت پیشنهادی مدیر منابع انسانی</span><strong>@(r.HrProposedContractMonths?.ToString() ?? "ثبت نشده") ماه</strong></div>
+            <div><span>توضیحات مدیر حراست</span><strong>@(string.IsNullOrWhiteSpace(r.SecurityComment) ? "ثبت نشده" : r.SecurityComment)</strong></div>
+            <div><span>توضیحات مدیر منابع انسانی</span><strong>@(string.IsNullOrWhiteSpace(r.HrComment) ? "ثبت نشده" : r.HrComment)</strong></div>
+        </div>
+    </section>
     <section class="card">
         <div class="section-head"><div><h3>تصمیم نهایی مدیرعامل</h3><span class="muted">مدت پیشنهادی منابع انسانی قابل تغییر است؛ تأیید شما فرایند را نهایی می‌کند.</span></div></div>
         @if (!Model.IsReadOnly) { <form method="post" action="/ContractRenewalTask/Submit" class="form-stack">

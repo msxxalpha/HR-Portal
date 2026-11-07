@@ -442,6 +442,17 @@ public class EmployeeContractsController(
         }
 
         var employee = model.SelectedEmployee!;
+        try
+        {
+            await renewalWorkflow.ValidateEvaluationPathAsync(employee.Id);
+        }
+        catch (InvalidOperationException ex)
+        {
+            model.ErrorMessage = ex.Message;
+            model.ShowPreview = true;
+            return View("Renewal", model);
+        }
+
         if (await HasExistingRenewalForPeriodAsync(employee.Id, employee.ContractEndDate))
         {
             model.ErrorMessage = "برای تاریخ پایان قرارداد فعلی این کارمند، درخواست تمدید ثبت‌شده، در جریان یا نهایی وجود دارد. برای جلوگیری از درخواست تکراری، ابتدا فهرست درخواست‌ها را بررسی کنید.";
@@ -786,29 +797,138 @@ public class EmployeeContractsController(
     }
 
     [HttpPost, Authorize(Policy = "ContractRenewal.Delete"), ValidateAntiForgeryToken]
-    public async Task<IActionResult> DeleteRequest(int id)
+    public async Task<IActionResult> DeleteRequest(int id, string? deleteMode)
     {
+        var isAdmin = User.HasClaim("IsAdmin", "1");
         var request = await db.ContractRenewalRequests
             .Include(x => x.WorkflowInstance).ThenInclude(x => x!.Tasks)
-            .FirstOrDefaultAsync(x => x.Id == id && x.Status != "حذف شده");
+            .FirstOrDefaultAsync(x => x.Id == id);
         if (request is null) return NotFound();
-        if (request.WorkflowInstance is null || request.WorkflowInstance.Status != "InProgress" ||
+
+        if (isAdmin)
+        {
+            if (deleteMode is not ("PreserveHistory" or "DeleteAll"))
+            {
+                TempData["Error"] = "نوع حذف را مشخص کنید: حفظ سوابق یا حذف کامل اطلاعات.";
+                return RedirectToAction(nameof(Requests), new { includeDeleted = true });
+            }
+
+            var requestCode = request.RequestCode;
+            await using var adminTransaction = await db.Database.BeginTransactionAsync();
+            if (deleteMode == "PreserveHistory")
+            {
+                if (request.Status != "حذف شده")
+                    await PreserveRequestRevisionAsync(request, "AdminDeletePreserveHistory");
+                request.Status = "حذف شده";
+                request.CompletedAt = DateTime.UtcNow;
+                if (request.WorkflowInstance is not null)
+                {
+                    var instance = request.WorkflowInstance;
+                    var previousStatus = instance.Status;
+                    foreach (var task in instance.Tasks.Where(x => x.Status == "Pending"))
+                    {
+                        task.Status = "Cancelled";
+                        task.Action = "AdminDelete";
+                        task.CompletedAt = DateTime.UtcNow;
+                    }
+                    instance.Status = "Cancelled";
+                    instance.CurrentStepId = null;
+                    instance.CompletedAt = DateTime.UtcNow;
+                    db.WorkflowHistory.Add(new WorkflowHistory
+                    {
+                        WorkflowInstanceId = instance.Id,
+                        WorkflowStepId = instance.Tasks.FirstOrDefault()?.WorkflowStepId,
+                        FromStatus = previousStatus,
+                        ToStatus = "Cancelled",
+                        Action = "AdminDeletePreserveHistory",
+                        ActorEmployeeId = GetCurrentEmployeeId(),
+                        Comment = "مدیر سامانه درخواست را حذف کرد؛ تمام سوابق، امتیازها و گردش کار برای مراجعه بعدی حفظ شدند."
+                    });
+                }
+                await db.SaveChangesAsync();
+                await adminTransaction.CommitAsync();
+                await audit.WriteAsync("حذف درخواست تمدید قرارداد با حفظ سوابق", nameof(ContractRenewalRequest),
+                    request.Id.ToString(), requestCode);
+                TempData["Success"] = $"درخواست {requestCode} از فهرست فعال حذف شد؛ تمام سوابق و امتیازها حفظ شدند.";
+            }
+            else
+            {
+                var instanceId = request.WorkflowInstanceId;
+                var definitionId = request.WorkflowInstance?.WorkflowDefinitionId;
+                request.WorkflowInstanceId = null;
+                db.ContractRenewalRequestRevisions.RemoveRange(
+                    db.ContractRenewalRequestRevisions.Where(x => x.ContractRenewalRequestId == request.Id));
+                await db.SaveChangesAsync();
+
+                if (instanceId.HasValue)
+                {
+                    db.WorkflowFieldValues.RemoveRange(db.WorkflowFieldValues.Where(x => x.WorkflowInstanceId == instanceId.Value));
+                    db.EmployeePerformanceEvaluationScores.RemoveRange(db.EmployeePerformanceEvaluationScores.Where(x => x.WorkflowInstanceId == instanceId.Value));
+                    db.WorkflowHistory.RemoveRange(db.WorkflowHistory.Where(x => x.WorkflowInstanceId == instanceId.Value));
+                    db.WorkflowTasks.RemoveRange(db.WorkflowTasks.Where(x => x.WorkflowInstanceId == instanceId.Value));
+                    await db.SaveChangesAsync();
+
+                    var instance = await db.WorkflowInstances.FirstOrDefaultAsync(x => x.Id == instanceId.Value);
+                    if (instance is not null)
+                    {
+                        instance.CurrentStepId = null;
+                        await db.SaveChangesAsync();
+                        db.WorkflowInstances.Remove(instance);
+                        await db.SaveChangesAsync();
+                    }
+                }
+
+                if (definitionId.HasValue)
+                {
+                    var stepIds = await db.WorkflowSteps.Where(x => x.WorkflowDefinitionId == definitionId.Value)
+                        .Select(x => x.Id).ToListAsync();
+                    if (stepIds.Count > 0)
+                    {
+                        db.WorkflowTransitions.RemoveRange(db.WorkflowTransitions.Where(x =>
+                            stepIds.Contains(x.WorkflowStepId) || stepIds.Contains(x.ToStepId)));
+                        db.WorkflowStepFields.RemoveRange(db.WorkflowStepFields.Where(x => stepIds.Contains(x.WorkflowStepId)));
+                        await db.SaveChangesAsync();
+                        db.WorkflowSteps.RemoveRange(db.WorkflowSteps.Where(x => stepIds.Contains(x.Id)));
+                        await db.SaveChangesAsync();
+                    }
+                    var definition = await db.WorkflowDefinitions.FirstOrDefaultAsync(x => x.Id == definitionId.Value);
+                    if (definition is not null &&
+                        !await db.WorkflowInstances.AnyAsync(x => x.WorkflowDefinitionId == definition.Id))
+                    {
+                        db.WorkflowDefinitions.Remove(definition);
+                        await db.SaveChangesAsync();
+                    }
+                }
+
+                db.ContractRenewalRequests.Remove(request);
+                await db.SaveChangesAsync();
+                await adminTransaction.CommitAsync();
+                await audit.WriteAsync("حذف کامل درخواست تمدید قرارداد", nameof(ContractRenewalRequest),
+                    id.ToString(), requestCode);
+                TempData["Success"] = $"درخواست {requestCode} و تمام اطلاعات، امتیازها، تاریخچه و گردش کار وابسته به آن به‌طور کامل حذف شد.";
+            }
+            return RedirectToAction(nameof(Requests), new { includeDeleted = true });
+        }
+
+        // Non-administrators retain the previous limited soft-delete behavior.
+        if (request.Status == "حذف شده" || request.WorkflowInstance is null ||
+            request.WorkflowInstance.Status != "InProgress" ||
             await HasEvaluationActivityAsync(request.WorkflowInstance.Id))
         {
-            TempData["Error"] = "حذف فقط تا پیش از ثبت اولین ارزیابی مجاز است. سوابق قبلی به‌صورت نرم‌حذف حفظ می‌شوند.";
+            TempData["Error"] = "حذف برای کاربران عادی فقط تا پیش از ثبت اولین ارزیابی مجاز است؛ برای حذف در سایر وضعیت‌ها با مدیر سامانه تماس بگیرید.";
             return RedirectToAction(nameof(Requests));
         }
 
         await using var transaction = await db.Database.BeginTransactionAsync();
-        var instance = request.WorkflowInstance;
-        var previousStatus = instance.Status;
+        var activeInstance = request.WorkflowInstance;
+        var previousStatus = activeInstance.Status;
         await PreserveRequestRevisionAsync(request, "BeforeDelete");
         request.Status = "حذف شده";
         request.CompletedAt = DateTime.UtcNow;
-        instance.Status = "Cancelled";
-        instance.CurrentStepId = null;
-        instance.CompletedAt = DateTime.UtcNow;
-        foreach (var task in instance.Tasks.Where(x => x.Status == "Pending"))
+        activeInstance.Status = "Cancelled";
+        activeInstance.CurrentStepId = null;
+        activeInstance.CompletedAt = DateTime.UtcNow;
+        foreach (var task in activeInstance.Tasks.Where(x => x.Status == "Pending"))
         {
             task.Status = "Cancelled";
             task.Action = "Delete";
@@ -816,8 +936,8 @@ public class EmployeeContractsController(
         }
         db.WorkflowHistory.Add(new WorkflowHistory
         {
-            WorkflowInstanceId = instance.Id,
-            WorkflowStepId = instance.Tasks.FirstOrDefault(x => x.Status == "Cancelled")?.WorkflowStepId,
+            WorkflowInstanceId = activeInstance.Id,
+            WorkflowStepId = activeInstance.Tasks.FirstOrDefault(x => x.Status == "Cancelled")?.WorkflowStepId,
             FromStatus = previousStatus,
             ToStatus = "Cancelled",
             Action = "Delete",

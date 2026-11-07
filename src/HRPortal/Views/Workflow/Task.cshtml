@@ -84,7 +84,7 @@
                                     }
                                     else
                                     {
-                                        @(string.IsNullOrWhiteSpace(field.Value) ? "—" : field.Value)
+                                        @(field.FieldType == "PositionPicker" && int.TryParse(field.Value, out var positionId) ? workflowPositions.FirstOrDefault(p => p.Id == positionId)?.Title ?? "جایگاه نامعتبر/غیرفعال" : string.IsNullOrWhiteSpace(field.Value) ? "—" : field.Value)
                                     }
                                 </div>
                             }

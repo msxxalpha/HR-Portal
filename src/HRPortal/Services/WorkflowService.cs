@@ -1116,7 +1116,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 .ToListAsync();
             foreach (var task in pendingTasks)
             {
-                if (task.AssignedPositionId.HasValue)
+                if (task.AssignedPositionId.HasValue || task.WorkflowStep.OrganizationNodeId.HasValue)
                 {
                     if (await IsCurrentPositionAssigneeAsync(employeeId, task))
                     {

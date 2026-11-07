@@ -94,7 +94,7 @@
                             }
                             else if (field.FieldType == "PositionPicker")
                             {
-                                <select id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="@(group.IsCurrentStep ? $"values[{field.Code}]" : $"previousValues[{field.FieldDefinitionId}]")" required="@(group.IsCurrentStep && field.IsRequired)" disabled="@(!group.IsCurrentStep)">
+                                <select id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="@(group.IsCurrentStep ? $"values[{field.Code}]" : $"previousValues[{field.FieldDefinitionId}]")" required="@(group.IsCurrentStep && field.IsRequired)" disabled="@(!group.IsEditable)">
                                     <option value="">انتخاب جایگاه سازمانی</option>
                                     @foreach (var position in workflowPositions)
                                     {

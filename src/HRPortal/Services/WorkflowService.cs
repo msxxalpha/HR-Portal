@@ -748,6 +748,11 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         WorkflowPositionAssignmentResolver.GetAssignedEmployeeIds(
             position.AssignedEmployeeIdsCsv, position.PositionHolderEmployeeId);
 
+    public async Task ValidateHierarchyRouteAsync(int subjectEmployeeId, string stopRankType = "مدیرعامل", CancellationToken cancellationToken = default)
+    {
+        _ = await BuildHierarchyRouteAsync(subjectEmployeeId, stopRankType, cancellationToken);
+    }
+
     private async Task<List<OrganizationNode>> BuildHierarchyRouteAsync(
         int subjectEmployeeId, string stopRankType, CancellationToken cancellationToken)
     {

@@ -1,14 +1,57 @@
-using HRPortal.Data;
 using HRPortal.Models;
-using Microsoft.EntityFrameworkCore;
+
 namespace HRPortal.Services;
 
-public class AuditService(HRPortalDbContext db, IHttpContextAccessor http)
+/// <summary>
+/// Semantic audit events emitted by business services. Persistence is queued and
+/// deliberately decoupled from the business DbContext/transaction.
+/// </summary>
+public class AuditService(AuditLogQueue queue, IHttpContextAccessor http)
 {
-    public async Task WriteAsync(string action, string entity, string? entityId = null, string? description = null, int? employeeId = null)
+    public Task WriteAsync(string action, string entity, string? entityId = null, string? description = null, int? employeeId = null)
     {
-        var settings = await db.SystemSettings.AsNoTracking().FirstOrDefaultAsync(); if (settings?.EnableAuditLog == false) return;
-        if (employeeId is null && int.TryParse(http.HttpContext?.User.FindFirst("EmployeeId")?.Value, out var id)) employeeId = id;
-        db.AuditLogs.Add(new AuditLog { EmployeeId = employeeId, Action = action, EntityName = entity, EntityId = entityId, Description = description, IpAddress = http.HttpContext?.Connection.RemoteIpAddress?.ToString() }); await db.SaveChangesAsync();
+        try
+        {
+            var context = http.HttpContext;
+            var principal = context?.User;
+            if (employeeId is null && int.TryParse(principal?.FindFirst("EmployeeId")?.Value, out var id))
+                employeeId = id;
+            int? adminId = int.TryParse(principal?.FindFirst("AdminId")?.Value, out var parsedAdminId)
+                ? parsedAdminId : null;
+            var isAdmin = principal?.HasClaim("IsAdmin", "1") == true;
+            var failedLogin = action.Contains("ناموفق", StringComparison.Ordinal);
+            var userName = principal?.FindFirst("AdminUsername")?.Value ??
+                principal?.Identity?.Name ??
+                (failedLogin ? entityId : null);
+
+            queue.TryEnqueue(new AuditLog
+            {
+                EmployeeId = employeeId,
+                AdminUserId = adminId,
+                UserName = Limit(userName, 200),
+                UserType = isAdmin ? "Admin" : principal?.FindFirst("UserType")?.Value ?? (failedLogin ? "Anonymous" : "Employee"),
+                Action = Limit(action, 100) ?? action,
+                EntityName = Limit(entity, 100) ?? entity,
+                EntityId = Limit(entityId, 200),
+                Description = Limit(description, 2000),
+                IpAddress = Limit(context?.Connection.RemoteIpAddress?.ToString(), 64),
+                HttpMethod = Limit(context?.Request.Method, 10),
+                RequestPath = Limit(context?.Request.Path.Value, 500),
+                Controller = "BusinessEvent",
+                ActionName = Limit(action, 100),
+                Category = failedLogin ? "Security" : "Business",
+                CorrelationId = Limit(context?.TraceIdentifier, 100),
+                IsSuccess = !failedLogin
+            });
+        }
+        catch
+        {
+            // Audit failures must not break the business operation.
+        }
+
+        return Task.CompletedTask;
     }
+
+    private static string? Limit(string? value, int max) =>
+        string.IsNullOrEmpty(value) ? value : value.Length <= max ? value : value[..max];
 }

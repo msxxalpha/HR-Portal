@@ -100,16 +100,16 @@ public class ReportsController(HRPortalDbContext db) : Controller
                 !int.TryParse(User.FindFirst("EmployeeId")?.Value, out var currentEmployeeId))
                 return Forbid();
 
-            var employee = await db.Employees.AsNoTracking()
+            var employeeRecord = await db.Employees.AsNoTracking()
                 .Where(x => x.Id == currentEmployeeId && x.IsSystemUser && x.Status == "فعال")
                 .Select(x => new { x.OrganizationPositionId })
                 .FirstOrDefaultAsync(cancellationToken);
-            if (employee is null) return Forbid();
+            if (employeeRecord is null) return Forbid();
 
             string? currentPositionCode = null;
-            if (employee.OrganizationPositionId.HasValue)
+            if (employeeRecord.OrganizationPositionId.HasValue)
                 currentPositionCode = await db.OrganizationNodes.AsNoTracking()
-                    .Where(x => x.Id == employee.OrganizationPositionId.Value)
+                    .Where(x => x.Id == employeeRecord.OrganizationPositionId.Value)
                     .Select(x => x.Code).FirstOrDefaultAsync(cancellationToken);
 
             var eligibleRanks = new HashSet<string>(
@@ -119,8 +119,8 @@ public class ReportsController(HRPortalDbContext db) : Controller
             anchorNodes = nodes.Where(node =>
                     eligibleRanks.Contains(NormalizeRank(node.RankType)) &&
                     (AssignedIds(node.AssignedEmployeeIdsCsv, node.PositionHolderEmployeeId).Contains(currentEmployeeId) ||
-                     (employee.OrganizationPositionId.HasValue &&
-                      (node.Id == employee.OrganizationPositionId.Value ||
+                     (employeeRecord.OrganizationPositionId.HasValue &&
+                      (node.Id == employeeRecord.OrganizationPositionId.Value ||
                        (!string.IsNullOrWhiteSpace(currentPositionCode) &&
                         string.Equals(node.Code?.Trim(), currentPositionCode.Trim(), StringComparison.OrdinalIgnoreCase)))))
                 .Select(node => (node.Id, node.Title)).ToList();

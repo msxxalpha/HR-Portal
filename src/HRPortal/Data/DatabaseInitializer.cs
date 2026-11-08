@@ -9,6 +9,7 @@ public static class DatabaseInitializer
     {
         await db.Database.EnsureCreatedAsync();
         await EnsureSchemaAsync(db);
+        await EnsureAuditLogSchemaAsync(db);
         await db.Database.ExecuteSqlRawAsync(@"
 IF OBJECT_ID(N'dbo.SystemSettings', N'U') IS NOT NULL
 AND COL_LENGTH(N'dbo.SystemSettings', N'PayrollMinimumYear') IS NULL
@@ -214,6 +215,49 @@ BEGIN
 END;
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'UX_EmployeePermissions_Employee_Permission' AND object_id=OBJECT_ID(N'dbo.EmployeePermissions'))
     CREATE UNIQUE INDEX UX_EmployeePermissions_Employee_Permission ON dbo.EmployeePermissions(EmployeeId,PermissionId);";
+        await db.Database.ExecuteSqlRawAsync(sql);
+    }
+
+    private static async Task EnsureAuditLogSchemaAsync(HRPortalDbContext db)
+    {
+        const string sql = @"
+IF OBJECT_ID(N'dbo.AuditLogs', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.AuditLogs(
+        Id bigint IDENTITY(1,1) NOT NULL CONSTRAINT PK_AuditLogs PRIMARY KEY,
+        EmployeeId int NULL,
+        Action nvarchar(100) NOT NULL,
+        EntityName nvarchar(100) NOT NULL,
+        EntityId nvarchar(200) NULL,
+        Description nvarchar(2000) NULL,
+        IpAddress nvarchar(64) NULL,
+        CreatedAt datetime2 NOT NULL CONSTRAINT DF_AuditLogs_CreatedAt DEFAULT SYSUTCDATETIME()
+    );
+END;
+
+IF COL_LENGTH(N'dbo.AuditLogs', N'AdminUserId') IS NULL ALTER TABLE dbo.AuditLogs ADD AdminUserId int NULL;
+IF COL_LENGTH(N'dbo.AuditLogs', N'UserName') IS NULL ALTER TABLE dbo.AuditLogs ADD UserName nvarchar(200) NULL;
+IF COL_LENGTH(N'dbo.AuditLogs', N'UserType') IS NULL ALTER TABLE dbo.AuditLogs ADD UserType nvarchar(30) NULL;
+IF COL_LENGTH(N'dbo.AuditLogs', N'HttpMethod') IS NULL ALTER TABLE dbo.AuditLogs ADD HttpMethod nvarchar(10) NULL;
+IF COL_LENGTH(N'dbo.AuditLogs', N'RequestPath') IS NULL ALTER TABLE dbo.AuditLogs ADD RequestPath nvarchar(500) NULL;
+IF COL_LENGTH(N'dbo.AuditLogs', N'Controller') IS NULL ALTER TABLE dbo.AuditLogs ADD Controller nvarchar(100) NULL;
+IF COL_LENGTH(N'dbo.AuditLogs', N'ActionName') IS NULL ALTER TABLE dbo.AuditLogs ADD ActionName nvarchar(100) NULL;
+IF COL_LENGTH(N'dbo.AuditLogs', N'StatusCode') IS NULL ALTER TABLE dbo.AuditLogs ADD StatusCode int NULL;
+IF COL_LENGTH(N'dbo.AuditLogs', N'DurationMs') IS NULL ALTER TABLE dbo.AuditLogs ADD DurationMs bigint NULL;
+IF COL_LENGTH(N'dbo.AuditLogs', N'Category') IS NULL ALTER TABLE dbo.AuditLogs ADD Category nvarchar(50) NULL;
+IF COL_LENGTH(N'dbo.AuditLogs', N'CorrelationId') IS NULL ALTER TABLE dbo.AuditLogs ADD CorrelationId nvarchar(100) NULL;
+IF COL_LENGTH(N'dbo.AuditLogs', N'UserAgent') IS NULL ALTER TABLE dbo.AuditLogs ADD UserAgent nvarchar(500) NULL;
+IF COL_LENGTH(N'dbo.AuditLogs', N'IsSuccess') IS NULL ALTER TABLE dbo.AuditLogs ADD IsSuccess bit NULL;
+
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_AuditLogs_CreatedAt' AND object_id=OBJECT_ID(N'dbo.AuditLogs'))
+    CREATE INDEX IX_AuditLogs_CreatedAt ON dbo.AuditLogs(CreatedAt);
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_AuditLogs_Employee_CreatedAt' AND object_id=OBJECT_ID(N'dbo.AuditLogs'))
+    CREATE INDEX IX_AuditLogs_Employee_CreatedAt ON dbo.AuditLogs(EmployeeId, CreatedAt);
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_AuditLogs_UserName_CreatedAt' AND object_id=OBJECT_ID(N'dbo.AuditLogs'))
+    CREATE INDEX IX_AuditLogs_UserName_CreatedAt ON dbo.AuditLogs(UserName, CreatedAt);
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_AuditLogs_Category_CreatedAt' AND object_id=OBJECT_ID(N'dbo.AuditLogs'))
+    CREATE INDEX IX_AuditLogs_Category_CreatedAt ON dbo.AuditLogs(Category, CreatedAt);
+";
         await db.Database.ExecuteSqlRawAsync(sql);
     }
 

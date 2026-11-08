@@ -89,13 +89,14 @@ public sealed class ActivityAuditMiddleware(RequestDelegate next, ILogger<Activi
     {
         if (status >= 400) return "Failure";
         if (string.Equals(controller, "Account", StringComparison.OrdinalIgnoreCase)) return "Security";
-        if (string.Equals(controller, "Workflow", StringComparison.OrdinalIgnoreCase) ||
-            path.Contains("Contracts", StringComparison.OrdinalIgnoreCase) ||
-            path.Contains("Suggestions", StringComparison.OrdinalIgnoreCase)) return "Workflow";
-        if (string.Equals(controller, "Users", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(controller, "SystemSettings", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(controller, "Organization", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(controller, "Workflow", StringComparison.OrdinalIgnoreCase)) return "Administration";
+        if (new[] { "Workflow", "EmployeeContracts", "ContractRenewalTask", "Suggestions",
+                "SuggestionsReports", "MonthlyPerformance", "MonthlyPerformanceAdmin", "MonthlyPerformanceReports" }
+            .Contains(controller, StringComparer.OrdinalIgnoreCase)) return "Workflow";
+        if (new[] { "Users", "Organization", "OrganizationPositions", "SystemSettings",
+                "SystemForms", "DatabaseMaintenance" }
+            .Contains(controller, StringComparer.OrdinalIgnoreCase)) return "Administration";
+        if (new[] { "Payroll", "PersonnelOrder", "Reports" }
+            .Contains(controller, StringComparer.OrdinalIgnoreCase)) return "EmployeeServices";
         return "Application";
     }
 

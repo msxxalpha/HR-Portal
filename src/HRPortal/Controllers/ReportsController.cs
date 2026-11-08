@@ -111,7 +111,7 @@ public class ReportsController(HRPortalDbContext db) : Controller
         {
             if (PersianDateService.TryParse(fromJalali, out var parsed))
             {
-                fromUtc = DateTime.SpecifyKind(parsed.Date, DateTimeKind.Utc);
+                fromUtc = PersianDateService.ToUtcFromTehran(parsed.Date);
                 model.FromDate = parsed.Date;
             }
             else ModelState.AddModelError(nameof(fromJalali), "تاریخ شروع شمسی معتبر نیست.");
@@ -120,7 +120,7 @@ public class ReportsController(HRPortalDbContext db) : Controller
         {
             if (PersianDateService.TryParse(toJalali, out var parsed))
             {
-                toUtcExclusive = DateTime.SpecifyKind(parsed.Date.AddDays(1), DateTimeKind.Utc);
+                toUtcExclusive = PersianDateService.ToUtcFromTehran(parsed.Date.AddDays(1));
                 model.ToDate = parsed.Date;
             }
             else ModelState.AddModelError(nameof(toJalali), "تاریخ پایان شمسی معتبر نیست.");

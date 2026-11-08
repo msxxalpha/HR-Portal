@@ -22,8 +22,7 @@ public class DatabaseMaintenanceController(
         "WorkflowInstances",
         "OrganizationChanges",
         "OtpChallenges",
-        "Announcements",
-        "AuditLogs"
+        "Announcements"
     ];
 
     [HttpGet]

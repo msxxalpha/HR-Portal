@@ -105,7 +105,7 @@
                     </div>
                 </details>
             }
-            @if (Can("Reports.ActivityPerformance.View")) {
+            @if (Can("Reports.View") || Can("Reports.ActivityPerformance.View")) {
                 <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Reports") ? "open" : null)">
                     <summary><span class="nav-icon">▥</span>گزارش‌ها</summary><div class="nav-submenu"><a href="/Reports/ActivityPerformance">گزارش عملکرد فعالیتها</a></div>
                 </details>

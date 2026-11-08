@@ -129,7 +129,7 @@
                     {
                         <label class="role-rank-option">
                             <input type="checkbox" name="rankTypes" value="@rankType"
-                                   @(assignedRanks.Contains(rankType, StringComparer.OrdinalIgnoreCase) ? "checked" : "") />
+                                   @(assignedRanks.Contains(HRPortal.Services.RoleService.NormalizeRankType(rankType), StringComparer.OrdinalIgnoreCase) ? "checked" : "") />
                             <span>@rankType</span>
                         </label>
                     }

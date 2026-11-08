@@ -86,6 +86,13 @@ public class RoleService(HRPortalDbContext db)
             title.StartsWith("مدیرماژولارزیابیعملکرد", StringComparison.Ordinal);
     }
 
+    public static string NormalizeRankType(string? value) =>
+        (value ?? string.Empty).Trim()
+            .Replace("ي", "ی", StringComparison.Ordinal)
+            .Replace("ك", "ک", StringComparison.Ordinal)
+            .Replace("‌", string.Empty, StringComparison.Ordinal)
+            .Replace(" ", string.Empty, StringComparison.Ordinal);
+
     public static HashSet<string> AggregatePermissionCodes(params IEnumerable<string>[] permissionSets)
     {
         var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -108,15 +115,11 @@ public class RoleService(HRPortalDbContext db)
                  string.Equals(node.Code, organizationPositionCode, StringComparison.OrdinalIgnoreCase)))
             .Select(node => node.Id).ToHashSet();
 
-        bool CsvContainsEmployee(string? csv) =>
-            (csv ?? string.Empty)
-                .Split([',', '،', ';', '؛'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Any(value => int.TryParse(value, out var parsed) && parsed == employeeId);
-
         return currentNodes
-            .Where(node => node.PositionHolderEmployeeId == employeeId ||
-                assignedPositionNodeIds.Contains(node.Id) || CsvContainsEmployee(node.AssignedEmployeeIdsCsv))
-            .Select(node => node.RankType?.Trim() ?? string.Empty)
+            .Where(node => assignedPositionNodeIds.Contains(node.Id) ||
+                WorkflowPositionAssignmentResolver.GetAssignedEmployeeIds(
+                    node.AssignedEmployeeIdsCsv, node.PositionHolderEmployeeId).Contains(employeeId))
+            .Select(node => NormalizeRankType(node.RankType))
             .Where(rank => !string.IsNullOrWhiteSpace(rank))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
@@ -326,12 +329,19 @@ public class RoleService(HRPortalDbContext db)
                     employeeId, employee.OrganizationPositionId, positionCode, nodes);
                 if (rankTypes.Count > 0)
                 {
-                    var rankRoleIds = await db.RoleOrganizationRanks.AsNoTracking()
+                    // Compare normalized Persian rank labels in memory. SQL collation and
+                    // Arabic/Persian Yeh-Kaf variants must not silently suppress an assignment.
+                    var rankAssignments = await db.RoleOrganizationRanks.AsNoTracking()
                         .Join(db.Roles.AsNoTracking().Where(role => role.IsActive),
                             assignment => assignment.RoleId, role => role.Id,
                             (assignment, role) => new { assignment.RoleId, assignment.RankType })
-                        .Where(x => rankTypes.Contains(x.RankType))
-                        .Select(x => x.RoleId).Distinct().ToListAsync();
+                        .ToListAsync();
+                    var normalizedEmployeeRanks = rankTypes
+                        .Select(NormalizeRankType)
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    var rankRoleIds = rankAssignments
+                        .Where(x => normalizedEmployeeRanks.Contains(NormalizeRankType(x.RankType)))
+                        .Select(x => x.RoleId).Distinct().ToList();
 
                     if (rankRoleIds.Count > 0)
                         inheritedCodes = await db.RolePermissions.AsNoTracking()
@@ -394,11 +404,16 @@ public class RoleService(HRPortalDbContext db)
             throw new InvalidOperationException("نقش یافت نشد.");
 
         var validTypes = await GetOrganizationRankTypesAsync();
+        var canonicalTypes = validTypes
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .GroupBy(NormalizeRankType, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
         var selected = rankTypes
             .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Select(x => x.Trim())
-            .Where(x => validTypes.Contains(x, StringComparer.OrdinalIgnoreCase))
+            .Select(NormalizeRankType)
+            .Where(canonicalTypes.ContainsKey)
             .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(x => canonicalTypes[x])
             .ToList();
 
         db.RoleOrganizationRanks.RemoveRange(

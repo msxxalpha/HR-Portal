@@ -64,9 +64,17 @@ public class ReportsController(HRPortalDbContext db) : Controller
             return result;
         }
 
+        string? employeePositionCode = null;
+        if (employee.OrganizationPositionId.HasValue)
+            employeePositionCode = await db.OrganizationNodes.AsNoTracking()
+                .Where(x => x.Id == employee.OrganizationPositionId.Value)
+                .Select(x => x.Code).FirstOrDefaultAsync(cancellationToken);
+
         var userNodes = nodes.Where(n =>
             n.PositionHolderEmployeeId == currentEmployeeId ||
             n.Id == employee.OrganizationPositionId ||
+            (!string.IsNullOrWhiteSpace(employeePositionCode) &&
+             string.Equals(n.Code, employeePositionCode, StringComparison.OrdinalIgnoreCase)) ||
             ParseEmployeeIds(n.AssignedEmployeeIdsCsv).Contains(currentEmployeeId)).ToList();
         var eligibleNodes = userNodes.Where(n => ReportableRanks.Contains((n.RankType ?? string.Empty).Trim())).ToList();
         if (eligibleNodes.Count == 0) return Forbid();
@@ -91,10 +99,26 @@ public class ReportsController(HRPortalDbContext db) : Controller
             .SelectMany(n => ParseEmployeeIds(n.AssignedEmployeeIdsCsv)
                 .Concat(n.PositionHolderEmployeeId.HasValue ? new[] { n.PositionHolderEmployeeId.Value } : Array.Empty<int>()))
             .ToHashSet();
+        var subordinatePositionCodes = nodes.Where(n => subordinateNodeIds.Contains(n.Id))
+            .Select(n => n.Code).Where(code => !string.IsNullOrWhiteSpace(code))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var positionedEmployees = await db.Employees.AsNoTracking()
-            .Where(x => x.OrganizationPositionId.HasValue && subordinateNodeIds.Contains(x.OrganizationPositionId.Value))
-            .Select(x => x.Id).ToListAsync(cancellationToken);
-        scopedEmployees.UnionWith(positionedEmployees);
+            .Where(x => x.OrganizationPositionId.HasValue)
+            .Select(x => new { x.Id, PositionId = x.OrganizationPositionId!.Value })
+            .ToListAsync(cancellationToken);
+        var employeePositionIds = positionedEmployees.Select(x => x.PositionId).Distinct().ToArray();
+        var employeePositionCodes = employeePositionIds.Length == 0
+            ? new Dictionary<int, string>()
+            : await db.OrganizationNodes.AsNoTracking()
+                .Where(x => employeePositionIds.Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id, x => x.Code, cancellationToken);
+        foreach (var positionedEmployee in positionedEmployees)
+        {
+            if (subordinateNodeIds.Contains(positionedEmployee.PositionId) ||
+                (employeePositionCodes.TryGetValue(positionedEmployee.PositionId, out var positionCode) &&
+                 subordinatePositionCodes.Contains(positionCode)))
+                scopedEmployees.Add(positionedEmployee.Id);
+        }
         scopedEmployees.Remove(currentEmployeeId);
 
         var model = new ActivityPerformanceReportViewModel

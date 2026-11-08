@@ -1,0 +1,143 @@
+@model HRPortal.Models.ActivityPerformanceReportViewModel
+@using HRPortal.Services
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "گزارش عملکرد فعالیتها";
+    var noScope = (bool?)ViewBag.NoReportScope ?? false;
+}
+<style>
+.activity-report{display:grid;gap:16px;min-width:0}
+.activity-hero{background:linear-gradient(115deg,#102b49,#176078);color:#fff;border-radius:16px;padding:20px 22px}
+.activity-hero h1{font-size:1.35rem;margin:0 0 7px}.activity-hero p{margin:0;color:#d7e7f1;line-height:1.9}
+.activity-scope{font-size:.84rem;color:#e2edf4;margin-top:10px}
+.activity-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.activity-kpi{background:#fff;border:1px solid #e3e9ef;border-radius:12px;padding:13px;min-width:0}
+.activity-kpi span{display:block;color:#64748b;font-size:.8rem}.activity-kpi strong{display:block;color:#17324d;font-size:1.5rem;margin-top:6px}
+.activity-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:end}
+.activity-filters label{display:block;font-weight:600;font-size:.84rem;color:#475569;min-width:0}
+.activity-filters input,.activity-filters select{width:100%;min-width:0;min-height:40px;border:1px solid #cbd5e1;border-radius:8px;padding:8px;background:#fff;color:#172033;font:inherit}
+.activity-filters .jalali-date-input{display:flex;align-items:center;gap:6px;min-width:0;position:relative}
+.activity-filters .jalali-date-input input{flex:1;min-width:0}
+.activity-filters .jalali-date-open{flex:none;white-space:nowrap;font:inherit}
+.activity-filter-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.activity-filter-actions button,.activity-filter-actions a{font:inherit}
+.activity-list{display:grid;gap:10px;min-width:0}
+.activity-item{border:1px solid #e5eaf0;border-radius:12px;background:#fff;padding:13px;min-width:0;display:grid;gap:9px}
+.activity-item-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.activity-user{font-weight:800;color:#17324d}.activity-time{font-size:.8rem;color:#64748b;white-space:nowrap}
+.activity-details{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.activity-detail{min-width:0;background:#f8fafc;border-radius:8px;padding:8px}
+.activity-detail small{display:block;color:#64748b;font-size:.74rem;margin-bottom:4px}
+.activity-detail strong{display:block;font-size:.84rem;overflow-wrap:anywhere}
+.activity-path{direction:ltr;text-align:left;overflow-wrap:anywhere;font-size:.8rem}
+.activity-result{display:inline-flex;padding:3px 9px;border-radius:30px;background:#e8f5ec;color:#17643a;font-size:.77rem}
+.activity-result.fail{background:#fff0f0;color:#b42318}
+.activity-muted{color:#64748b;font-size:.8rem;overflow-wrap:anywhere}
+.activity-pagination{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+@media(max-width:900px){.activity-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.activity-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.activity-filters,.activity-details{grid-template-columns:1fr}.activity-hero{padding:16px}.activity-hero h1{font-size:1.15rem}}
+</style>
+<div class="activity-report">
+    <section class="activity-hero">
+        <h1>گزارش عملکرد فعالیتها</h1>
+        <p>گزارش فعالیت‌های ثبت‌شده کاربران در فرم‌ها و بخش‌های سامانه، با رعایت محدوده دسترسی سازمانی و ساختار نهایی‌شده.</p>
+        @if (!noScope) { <div class="activity-scope">محدوده قابل مشاهده: <strong>@Model.ScopeTitle</strong> · کارکنان زیرمجموعه: @Model.ScopedEmployeeCount</div> }
+    </section>
+
+    @if (noScope)
+    {
+        <div class="alert warning">ساختار سازمانی نهایی‌شده برای تعیین محدوده گزارش در دسترس نیست.</div>
+    }
+    else
+    {
+        <section class="card" style="padding:15px">
+            <div class="section-head"><div><h3>فیلترهای گزارش</h3><span class="muted">فقط فعالیت‌های کاربران زیرمجموعه شما نمایش داده می‌شود.</span></div></div>
+            <form method="get" action="/Reports/ActivityPerformance" class="activity-filters">
+                <label>از تاریخ شمسی
+                    <div class="jalali-date-input"><input type="text" name="fromJalali" data-jalali-date autocomplete="off" inputmode="numeric" placeholder="۱۴۰۵/۰۱/۰۱" value="@Model.FromJalali" /><button type="button" class="btn btn-outline jalali-date-open" data-jalali-trigger aria-label="انتخاب تاریخ شروع">تقویم</button></div>
+                </label>
+                <label>تا تاریخ شمسی
+                    <div class="jalali-date-input"><input type="text" name="toJalali" data-jalali-date autocomplete="off" inputmode="numeric" placeholder="۱۴۰۵/۱۲/۲۹" value="@Model.ToJalali" /><button type="button" class="btn btn-outline jalali-date-open" data-jalali-trigger aria-label="انتخاب تاریخ پایان">تقویم</button></div>
+                </label>
+                <label>کاربر / نام کاربری
+                    <input name="userName" value="@Model.UserName" placeholder="جستجو در کاربران زیرمجموعه" />
+                </label>
+                <label>عبارت جستجو
+                    <input name="q" value="@Model.Search" placeholder="فرم، عملیات، مسیر یا شناسه" />
+                </label>
+                <label>گروه فعالیت
+                    <select name="category">
+                        <option value="">همه گروه‌ها</option>
+                        @foreach (var item in new[] { ("Security","امنیتی و ورود"),("Administration","مدیریتی"),("Workflow","گردش کار"),("Business","عملیات کسب‌وکار"),("Application","فعالیت سامانه"),("EmployeeServices","خدمات کارکنان و گزارش‌ها"),("Failure","خطا و ناموفق") })
+                        { <option value="@item.Item1" selected="@(Model.Category == item.Item1)">@item.Item2</option> }
+                    </select>
+                </label>
+                <label>نوع عملیات
+                    <select name="method">
+                        <option value="">همه</option>
+                        <option value="GET" selected="@(Model.Method == "GET")">مشاهده (GET)</option>
+                        <option value="POST" selected="@(Model.Method == "POST")">ثبت/ویرایش (POST)</option>
+                        <option value="PUT" selected="@(Model.Method == "PUT")">به‌روزرسانی (PUT)</option>
+                        <option value="DELETE" selected="@(Model.Method == "DELETE")">حذف (DELETE)</option>
+                    </select>
+                </label>
+                <label>نتیجه عملیات
+                    <select name="success">
+                        <option value="">همه</option>
+                        <option value="true" selected="@(Model.Success == true)">موفق</option>
+                        <option value="false" selected="@(Model.Success == false)">ناموفق</option>
+                    </select>
+                </label>
+                <div class="activity-filter-actions">
+                    <button type="submit" class="btn btn-main">اعمال فیلتر</button>
+                    <a href="/Reports/ActivityPerformance" class="btn btn-outline">پاک‌کردن فیلترها</a>
+                </div>
+            </form>
+            @if (!ViewData.ModelState.IsValid) { <div class="alert warning" style="margin-top:10px">تاریخ‌های واردشده معتبر نیستند؛ لطفاً از تقویم شمسی استفاده کنید.</div> }
+        </section>
+
+        <section class="activity-kpis">
+            <div class="activity-kpi"><span>کل فعالیت‌های فیلترشده</span><strong>@Model.TotalCount.ToString("N0")</strong></div>
+            <div class="activity-kpi"><span>فعالیت موفق</span><strong>@Model.SuccessCount.ToString("N0")</strong></div>
+            <div class="activity-kpi"><span>خطا / عملیات ناموفق</span><strong>@Model.FailureCount.ToString("N0")</strong></div>
+            <div class="activity-kpi"><span>کاربران فعال در گزارش</span><strong>@Model.UniqueUserCount.ToString("N0")</strong></div>
+        </section>
+
+        <section class="card" style="padding:15px;min-width:0">
+            <div class="section-head"><div><h3>جزئیات فعالیت‌ها</h3><span class="muted">آخرین فعالیت‌ها در ابتدا · حداکثر ۵۰ رکورد در هر صفحه</span></div><span class="badge">@Model.TotalCount.ToString("N0") رکورد</span></div>
+            @if (Model.Items.Count == 0)
+            {
+                <div class="empty">فعالیتی با فیلترهای انتخاب‌شده در محدوده سازمانی شما یافت نشد.</div>
+            }
+            else
+            {
+                <div class="activity-list">
+                    @foreach (var item in Model.Items)
+                    {
+                        var failed = item.IsSuccess == false || (item.StatusCode.HasValue && item.StatusCode >= 400);
+                        <article class="activity-item">
+                            <div class="activity-item-head">
+                                <div><div class="activity-user">@(string.IsNullOrWhiteSpace(item.UserName) ? "کاربر" : item.UserName) <span class="activity-muted">· @(item.UserType == "Admin" ? "مدیر سامانه" : "کارمند")</span></div><div class="activity-muted">@(item.CreatedAt.Kind == DateTimeKind.Utc ? item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm:ss") : item.CreatedAt.ToString("yyyy/MM/dd HH:mm:ss"))</div></div>
+                                <span class="activity-result @(failed ? "fail" : "")">@(failed ? "ناموفق" : "موفق") · @(item.StatusCode?.ToString() ?? "—")</span>
+                            </div>
+                            <div class="activity-details">
+                                <div class="activity-detail"><small>بخش / فرم</small><strong>@item.EntityName <span class="activity-muted">(@item.Category)</span></strong></div>
+                                <div class="activity-detail"><small>عملیات</small><strong>@item.Action · @item.HttpMethod</strong></div>
+                                <div class="activity-detail"><small>مدت اجرا</small><strong>@(item.DurationMs?.ToString("N0") ?? "—") میلی‌ثانیه</strong></div>
+                            </div>
+                            <div class="activity-path">@item.RequestPath</div>
+                            @if (!string.IsNullOrWhiteSpace(item.Description)) { <div class="activity-muted">@item.Description</div> }
+                        </article>
+                    }
+                </div>
+                <div class="activity-pagination" style="margin-top:14px">
+                    <span class="activity-muted">صفحه @Model.Page از @Model.TotalPages · نمایش @Model.Items.Count از @Model.TotalCount</span>
+                    <div class="activity-filter-actions">
+                        @if (Model.Page > 1) { <a class="btn btn-outline" href="@Url.Action("ActivityPerformance", new { fromJalali=Model.FromJalali,toJalali=Model.ToJalali,userName=Model.UserName,q=Model.Search,category=Model.Category,method=Model.Method,success=Model.Success,page=Model.Page-1 })">قبلی</a> }
+                        @if (Model.Page < Model.TotalPages) { <a class="btn btn-main" href="@Url.Action("ActivityPerformance", new { fromJalali=Model.FromJalali,toJalali=Model.ToJalali,userName=Model.UserName,q=Model.Search,category=Model.Category,method=Model.Method,success=Model.Success,page=Model.Page+1 })">بعدی</a> }
+                    </div>
+                </div>
+            }
+        </section>
+    }
+</div>

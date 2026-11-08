@@ -1,19 +1,19 @@
 @model HRPortal.Models.AuditLogReportViewModel
 @{
     ViewData["Title"] = "گزارش فعالیت کاربران";
-    string Date(DateTime value) => value.ToString("yyyy-MM-dd");
+
 }
-<style>
+<style>\n.audit-filters button,.audit-filters a{font:inherit;font-family:inherit}\n.audit-btn{font:inherit;font-family:inherit;font-weight:600}\n.audit-filters .jalali-date-input{display:flex;gap:6px;align-items:center;min-width:0;position:relative}\n.audit-filters .jalali-date-input input{flex:1;min-width:0}\n.audit-filters .jalali-date-open{flex:none;white-space:nowrap;font:inherit}
 .audit-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:18px}
 .audit-kpi{background:#fff;border:1px solid #e5eaf0;border-radius:12px;padding:14px}
 .audit-kpi strong{display:block;font-size:1.45rem;color:#17324d}
 .audit-filters{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px;align-items:end}
 .audit-filters label{display:block;font-weight:600;margin-bottom:5px}
 .audit-filters input,.audit-filters select{width:100%;min-height:40px;border:1px solid #ccd5df;border-radius:8px;padding:7px;background:#fff}
-.audit-table-wrap{overflow:auto;background:#fff;border:1px solid #e5eaf0;border-radius:12px}
-.audit-table{width:100%;border-collapse:collapse;min-width:1050px;font-size:.88rem}
-.audit-table th,.audit-table td{padding:10px;border-bottom:1px solid #edf0f3;text-align:right;vertical-align:top}
-.audit-table th{background:#f5f7fa;position:sticky;top:0;white-space:nowrap}
+.audit-table-wrap{overflow:hidden;background:#fff;border:1px solid #e5eaf0;border-radius:12px;max-width:100%}
+.audit-table{width:100%;table-layout:fixed;border-collapse:collapse;min-width:0;font-size:.82rem}
+.audit-table th,.audit-table td{padding:8px 6px;border-bottom:1px solid #edf0f3;text-align:right;vertical-align:top;overflow-wrap:anywhere;word-break:break-word}
+.audit-table th{background:#f5f7fa;position:sticky;top:0;white-space:normal}
 .audit-muted{color:#687789;font-size:.8rem}
 .audit-status{display:inline-block;border-radius:20px;padding:3px 9px;background:#edf7f0;color:#237443}
 .audit-status.fail{background:#fff0f0;color:#b42318}
@@ -21,7 +21,7 @@
 .audit-btn{border:0;border-radius:8px;padding:9px 16px;background:#17324d;color:#fff;cursor:pointer;text-decoration:none}
 .audit-btn.secondary{background:#e9eef3;color:#17324d}
 @media(max-width:900px){.audit-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.audit-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:560px){.audit-filters{grid-template-columns:1fr}}
+@media(max-width:560px){.audit-filters{grid-template-columns:1fr}.audit-table{font-size:.72rem}.audit-table th,.audit-table td{padding:6px 3px}.audit-table th:nth-child(5),.audit-table td:nth-child(5),.audit-table th:nth-child(7),.audit-table td:nth-child(7),.audit-table th:nth-child(8),.audit-table td:nth-child(8){display:none}}
 </style>
 
 <div class="audit-kpis">
@@ -33,8 +33,8 @@
 
 <section class="card" style="padding:16px;margin-bottom:18px">
     <form method="get" class="audit-filters">
-        <div><label for="from">از تاریخ (UTC)</label><input id="from" name="from" type="date" value="@Date(Model.FromUtc)" /></div>
-        <div><label for="to">تا تاریخ (UTC)</label><input id="to" name="to" type="date" value="@Date(Model.ToUtc)" /></div>
+        <div><label for="fromJalali">از تاریخ شمسی</label><div class="jalali-date-input"><input id="fromJalali" name="fromJalali" type="text" data-jalali-date autocomplete="off" inputmode="numeric" placeholder="۱۴۰۵/۰۱/۰۱" value="@HRPortal.Services.PersianDateService.Format(Model.FromUtc)" /><button type="button" class="audit-btn secondary jalali-date-open" data-jalali-trigger>تقویم</button></div></div>
+        <div><label for="toJalali">تا تاریخ شمسی</label><div class="jalali-date-input"><input id="toJalali" name="toJalali" type="text" data-jalali-date autocomplete="off" inputmode="numeric" placeholder="۱۴۰۵/۱۲/۲۹" value="@HRPortal.Services.PersianDateService.Format(Model.ToUtc)" /><button type="button" class="audit-btn secondary jalali-date-open" data-jalali-trigger>تقویم</button></div></div>
         <div><label for="userName">کاربر</label><input id="userName" name="userName" value="@Model.UserName" placeholder="نام یا نام کاربری" /></div>
         <div><label for="q">جستجو</label><input id="q" name="q" value="@Model.Search" placeholder="فرم، عملیات، مسیر یا شناسه" /></div>
         <div><label for="category">گروه فعالیت</label>
@@ -105,7 +105,7 @@
     <span class="audit-muted">صفحه @Model.Page از @Model.TotalPages · نمایش @Model.Items.Count از @Model.TotalCount رویداد</span>
     <div class="audit-actions">
         @if (Model.Page > 1)
-        { <a class="audit-btn secondary" href="@Url.Action("Index", new { from = Date(Model.FromUtc), to = Date(Model.ToUtc), q = Model.Search, userName = Model.UserName, category = Model.Category, method = Model.Method, success = Model.Success, page = Model.Page - 1 })">قبلی</a> }
+        { <a class="audit-btn secondary" href="@Url.Action("Index", new { fromJalali = HRPortal.Services.PersianDateService.Format(Model.FromUtc), toJalali = HRPortal.Services.PersianDateService.Format(Model.ToUtc), q = Model.Search, userName = Model.UserName, category = Model.Category, method = Model.Method, success = Model.Success, page = Model.Page - 1 })">قبلی</a> }
         @if (Model.Page < Model.TotalPages)
         { <a class="audit-btn" href="@Url.Action("Index", new { from = Date(Model.FromUtc), to = Date(Model.ToUtc), q = Model.Search, userName = Model.UserName, category = Model.Category, method = Model.Method, success = Model.Success, page = Model.Page + 1 })">بعدی</a> }
     </div>

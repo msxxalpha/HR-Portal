@@ -229,7 +229,8 @@ public class EnvironmentSettingsService(HRPortalDbContext db, ReportCredentialPr
         entity.FaviconUrl = model.FaviconUrl?.Trim() ?? "";
         entity.ItemsPerPage = model.ItemsPerPage;
         entity.PayrollMinimumYear = model.PayrollMinimumYear;
-        entity.EnableAuditLog = model.EnableAuditLog;
+        // Audit is mandatory for operational traceability; it cannot be disabled from settings.
+        entity.EnableAuditLog = true;
         entity.MaintenanceMode = model.MaintenanceMode;
         entity.MaintenanceMessage = model.MaintenanceMessage?.Trim() ?? "";
         entity.AllowUserSelfService = model.AllowUserSelfService;

@@ -210,6 +210,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.Property(x => x.Action).HasMaxLength(100).IsRequired();
             e.Property(x => x.EntityName).HasMaxLength(100).IsRequired();
             e.Property(x => x.EntityId).HasMaxLength(200);
+            e.Property(x => x.Description).HasMaxLength(2000);
             e.Property(x => x.IpAddress).HasMaxLength(64);
             e.Property(x => x.HttpMethod).HasMaxLength(10);
             e.Property(x => x.RequestPath).HasMaxLength(500);

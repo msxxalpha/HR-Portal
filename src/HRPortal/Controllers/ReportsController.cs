@@ -18,7 +18,7 @@ public class ReportsController(HRPortalDbContext db, RoleService roles) : Contro
 
     [HttpGet]
     public async Task<IActionResult> ActivityPerformance(
-        string? direction, string? status, string? workflow, string? employee,
+        string? direction, string? status, string? workflow, string? employee, string? organizationalRank,
         DateTime? from, DateTime? to, string? fromJalali, string? toJalali, CancellationToken cancellationToken)
     {
         if (!string.IsNullOrWhiteSpace(fromJalali))
@@ -37,6 +37,7 @@ public class ReportsController(HRPortalDbContext db, RoleService roles) : Contro
             Status = string.IsNullOrWhiteSpace(status) ? "all" : status,
             Workflow = string.IsNullOrWhiteSpace(workflow) ? "all" : workflow,
             Employee = string.IsNullOrWhiteSpace(employee) ? "all" : employee,
+            OrganizationalRank = string.IsNullOrWhiteSpace(organizationalRank) ? "all" : organizationalRank,
             From = from?.Date,
             To = to?.Date
         };
@@ -184,10 +185,28 @@ public class ReportsController(HRPortalDbContext db, RoleService roles) : Contro
             .ToListAsync(cancellationToken);
         directEmployeeIds = directEmployees.Select(x => x.Id).ToHashSet();
         model.DirectEmployeeCount = directEmployees.Count;
+
+        // Resolve the rank from the employee's assigned position in this finalized hierarchy.
+        var employeeRanks = new Dictionary<int, string>();
+        foreach (var node in directNodes.OrderBy(x => x.Id))
+        {
+            var rank = string.IsNullOrWhiteSpace(node.RankType) ? "سایر" : node.RankType.Trim();
+            foreach (var employeeId in AssignedIds(node.AssignedEmployeeIdsCsv, node.PositionHolderEmployeeId))
+                if (directEmployeeIds.Contains(employeeId) && !employeeRanks.ContainsKey(employeeId))
+                    employeeRanks[employeeId] = rank;
+            foreach (var employee in directEmployees.Where(x => x.OrganizationPositionId == node.Id))
+                if (!employeeRanks.ContainsKey(employee.Id))
+                    employeeRanks[employee.Id] = rank;
+        }
+
+        model.OrganizationalRankOptions = employeeRanks.Values
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x, StringComparer.CurrentCulture).ToList();
         model.EmployeeOptions = directEmployees.Select(x => new ExecutiveWorkflowEmployeeOption
         {
             Id = x.Id.ToString(),
-            Title = $"{x.FirstName} {x.LastName} ({x.PersonnelNumber})"
+            Title = $"{x.FirstName} {x.LastName} ({x.PersonnelNumber})",
+            RankType = employeeRanks.TryGetValue(x.Id, out var employeeRank) ? employeeRank : "سایر"
         }).ToList();
 
         var instances = await db.WorkflowInstances.AsNoTracking()
@@ -294,6 +313,17 @@ public class ReportsController(HRPortalDbContext db, RoleService roles) : Contro
             }).ToList();
         if (model.Workflow != "all")
             allRows = allRows.Where(x => x.WorkflowTitle == model.Workflow).ToList();
+        if (model.OrganizationalRank != "all")
+        {
+            var employeesInRank = model.EmployeeOptions
+                .Where(x => string.Equals(x.RankType, model.OrganizationalRank, StringComparison.OrdinalIgnoreCase))
+                .Select(x => int.TryParse(x.Id, out var id) ? id : 0).Where(id => id > 0).ToHashSet();
+            allRows = allRows.Where(row => instances.Any(instance => instance.Id == row.Id &&
+                (employeesInRank.Contains(instance.RequesterEmployeeId) ||
+                 instance.Tasks.Any(task => task.AssignedEmployeeId.HasValue && employeesInRank.Contains(task.AssignedEmployeeId.Value)) ||
+                 instance.Tasks.Any(task => task.AssignedPositionId.HasValue && directNodes.Any(node =>
+                     node.Id == task.AssignedPositionId.Value && string.Equals(node.RankType, model.OrganizationalRank, StringComparison.OrdinalIgnoreCase)))))).ToList();
+        }
         if (model.Employee != "all" && int.TryParse(model.Employee, out var selectedEmployeeId))
         {
             var selectedPositionId = directEmployees.FirstOrDefault(x => x.Id == selectedEmployeeId)?.OrganizationPositionId;

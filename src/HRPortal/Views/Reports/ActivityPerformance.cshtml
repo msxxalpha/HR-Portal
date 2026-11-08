@@ -51,10 +51,9 @@
 
     @if (noStructure)
     {
-        <div class="alert warning">برای تولید این گزارش، ابتدا ساختار سازمانی را نهایی کنید و وجود گره‌ای با رتبه «مدیرعامل» را بررسی کنید.</div>
+        <div class="alert warning">ساختار سازمانی نهایی‌شده و قابل استفاده برای محدوده این گزارش پیدا نشد. اجزای داشبورد نمایش داده می‌شوند، اما تا تعیین ساختار معتبر، داده‌ای برای تحلیل در دسترس نیست.</div>
     }
-    else
-    {
+
         <section class="card">
             <div class="section-head"><div><h3>فیلترهای تحلیلی</h3><span class="muted">فیلترها روی شاخص‌ها، نمودارها و جدول به‌صورت یکپارچه اعمال می‌شوند.</span></div></div>
             <form method="get" action="/Reports/ActivityPerformance" class="exec-filters">
@@ -181,7 +180,6 @@
                 <div class="exec-foot"><span id="visibleRows">نمایش @Model.Rows.Count ردیف</span><span>سن گردش بر اساس زمان ثبت تا اکنون محاسبه می‌شود؛ برچسب‌های کیفی شاخص‌های هشدار عملیاتی هستند.</span></div>
             }
         </section>
-    }
 </div>
 <script>
 (() => {

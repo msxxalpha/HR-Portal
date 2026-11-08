@@ -86,7 +86,8 @@ public class ReportsController(HRPortalDbContext db) : Controller
                 foreach (var childId in children) pending.Enqueue(childId);
         }
 
-        var subordinateNodeIds = scopeNodeIds.Except(eligibleNodes.Select(n => n.Id)).ToHashSet();\n        var scopedEmployees = nodes.Where(n => subordinateNodeIds.Contains(n.Id))
+        var subordinateNodeIds = scopeNodeIds.Except(eligibleNodes.Select(n => n.Id)).ToHashSet();
+        var scopedEmployees = nodes.Where(n => subordinateNodeIds.Contains(n.Id))
             .SelectMany(n => ParseEmployeeIds(n.AssignedEmployeeIdsCsv)
                 .Concat(n.PositionHolderEmployeeId.HasValue ? new[] { n.PositionHolderEmployeeId.Value } : Array.Empty<int>()))
             .ToHashSet();

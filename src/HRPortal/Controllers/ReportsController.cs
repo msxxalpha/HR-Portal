@@ -199,7 +199,8 @@ public class ReportsController(HRPortalDbContext db, RoleService roles) : Contro
                     employeeRanks[employee.Id] = rank;
         }
 
-        model.OrganizationalRankOptions = employeeRanks.Values
+        model.OrganizationalRankOptions = directNodes.Select(x => string.IsNullOrWhiteSpace(x.RankType) ? "سایر" : x.RankType.Trim())
+            .Concat(employeeRanks.Values)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(x => x, StringComparer.CurrentCulture).ToList();
         model.EmployeeOptions = directEmployees.Select(x => new ExecutiveWorkflowEmployeeOption

@@ -275,9 +275,9 @@ public class ReportsController(HRPortalDbContext db) : Controller
                 (i.RequesterEmployeeId == selectedEmployeeId ||
                  i.Tasks.Any(t => t.AssignedEmployeeId == selectedEmployeeId ||
                     (t.AssignedPositionId.HasValue && directNodes.Any(n => n.Id == t.AssignedPositionId.Value &&
-                        (n.PositionHolderEmployeeId == selectedEmployeeId ||
-                         n.Id == selectedPositionId ||
-                         (n.AssignedEmployeeIdsCsv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Contains(selectedEmployeeId.ToString())))))))
+                        (n.Id == selectedPositionId ||
+                         WorkflowPositionAssignmentResolver.GetAssignedEmployeeIds(
+                             n.AssignedEmployeeIdsCsv, n.PositionHolderEmployeeId).Contains(selectedEmployeeId)))))))
             ).ToList();
         }
         if (model.From.HasValue) allRows = allRows.Where(x => x.StartedAt.Date >= model.From.Value.Date).ToList();

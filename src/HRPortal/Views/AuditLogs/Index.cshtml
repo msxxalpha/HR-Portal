@@ -40,7 +40,7 @@
         <div><label for="category">گروه فعالیت</label>
             <select id="category" name="category">
                 <option value="">همه</option>
-                @foreach (var item in new[] { ("Security","امنیتی و ورود"), ("Administration","مدیریتی"), ("Workflow","گردش کار"), ("Business","عملیات کسب‌وکار"), ("Application","فعالیت سامانه"), ("Failure","خطا و ناموفق") })
+                @foreach (var item in new[] { ("Security","امنیتی و ورود"), ("Administration","مدیریتی"), ("Workflow","گردش کار"), ("Business","عملیات کسب‌وکار"), ("Application","فعالیت سامانه"), ("EmployeeServices","خدمات کارکنان و گزارش‌ها"), ("Failure","خطا و ناموفق") })
                 { <option value="@item.Item1" selected="@(Model.Category == item.Item1)">@item.Item2</option> }
             </select>
         </div>

@@ -203,8 +203,25 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
         });
         modelBuilder.Entity<AuditLog>(e =>
         {
+            e.ToTable("AuditLogs");
             e.HasKey(x => x.Id);
-            e.HasIndex(x => x.CreatedAt);
+            e.Property(x => x.UserName).HasMaxLength(200);
+            e.Property(x => x.UserType).HasMaxLength(30);
+            e.Property(x => x.Action).HasMaxLength(100).IsRequired();
+            e.Property(x => x.EntityName).HasMaxLength(100).IsRequired();
+            e.Property(x => x.EntityId).HasMaxLength(200);
+            e.Property(x => x.IpAddress).HasMaxLength(64);
+            e.Property(x => x.HttpMethod).HasMaxLength(10);
+            e.Property(x => x.RequestPath).HasMaxLength(500);
+            e.Property(x => x.Controller).HasMaxLength(100);
+            e.Property(x => x.ActionName).HasMaxLength(100);
+            e.Property(x => x.Category).HasMaxLength(50);
+            e.Property(x => x.CorrelationId).HasMaxLength(100);
+            e.Property(x => x.UserAgent).HasMaxLength(500);
+            e.HasIndex(x => x.CreatedAt).HasDatabaseName("IX_AuditLogs_CreatedAt");
+            e.HasIndex(x => new { x.EmployeeId, x.CreatedAt }).HasDatabaseName("IX_AuditLogs_Employee_CreatedAt");
+            e.HasIndex(x => new { x.UserName, x.CreatedAt }).HasDatabaseName("IX_AuditLogs_UserName_CreatedAt");
+            e.HasIndex(x => new { x.Category, x.CreatedAt }).HasDatabaseName("IX_AuditLogs_Category_CreatedAt");
         });
         modelBuilder.Entity<SystemSettings>().HasKey(x => x.Id);
         modelBuilder.Entity<SystemSettings>().Property(x => x.EnableHrDisciplinaryScoreDeduction).HasDefaultValue(true);

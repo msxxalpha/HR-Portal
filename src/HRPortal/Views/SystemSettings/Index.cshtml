@@ -186,12 +186,12 @@
 
             <label class="toggle-card">
                 <span class="toggle-text">
-                    <strong>ثبت رویدادهای سامانه</strong>
-                    <small>ثبت رخدادهای مدیریتی و امنیتی</small>
+                    <strong>ثبت کلیه فعالیت‌های کاربران</strong>
+                    <small>این قابلیت برای حفظ سوابق عملیاتی و امنیتی همیشه فعال است و قابل غیرفعال‌سازی نیست.</small>
                 </span>
                 <span class="switch-control">
-                    <input type="checkbox" name="EnableAuditLog" value="true" @(Model.EnableAuditLog ? "checked" : "") aria-label="ثبت رویدادها" />
-                    <input type="hidden" name="EnableAuditLog" value="false" />
+                    <input type="hidden" name="EnableAuditLog" value="true" />
+                    <input type="checkbox" checked disabled aria-label="ثبت فعالیت‌ها فعال است" />
                     <span class="switch-slider"></span>
                 </span>
             </label>

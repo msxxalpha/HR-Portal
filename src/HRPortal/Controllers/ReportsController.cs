@@ -48,7 +48,7 @@ public class ReportsController(HRPortalDbContext db) : Controller
         }
 
         var revisionId = await db.OrganizationStructureRevisions.AsNoTracking()
-            .Where(x => x.IsFinalized)
+            .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
             .OrderByDescending(x => x.EffectiveDate).ThenByDescending(x => x.FinalizedAt).ThenByDescending(x => x.Id)
             .Select(x => (int?)x.Id).FirstOrDefaultAsync(cancellationToken);
 
@@ -77,12 +77,21 @@ public class ReportsController(HRPortalDbContext db) : Controller
         if (isAdmin)
         {
             var ceo = nodes.FirstOrDefault(x => NormalizeRank(x.RankType) == NormalizeRank("مدیرعامل"));
-            if (ceo is null)
+            if (ceo is not null)
+                anchorNodes.Add((ceo.Id, ceo.Title));
+            else
             {
-                ViewBag.NoFinalizedStructure = true;
-                return View("ActivityPerformance", model);
+                // The administrator is not tied to an employee position. If a
+                // finalized hierarchy has no explicitly tagged CEO node, retain
+                // administrator access by scoping the report to all root branches.
+                anchorNodes.AddRange(nodes.Where(x => !x.ParentId.HasValue)
+                    .Select(x => (x.Id, x.Title)));
+                if (anchorNodes.Count == 0)
+                {
+                    ViewBag.NoFinalizedStructure = true;
+                    return View("ActivityPerformance", model);
+                }
             }
-            anchorNodes.Add((ceo.Id, ceo.Title));
         }
         else
         {

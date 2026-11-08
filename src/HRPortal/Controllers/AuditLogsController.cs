@@ -1,5 +1,5 @@
 using HRPortal.Data;
-using HRPortal.Models;
+using HRPortal.Models;\nusing HRPortal.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -12,9 +12,20 @@ public class AuditLogsController(HRPortalDbContext db) : Controller
 {
     [HttpGet("")]
     public async Task<IActionResult> Index(
-        DateTime? from, DateTime? to, string? q, string? userName,
+        DateTime? from, DateTime? to, string? fromJalali, string? toJalali, string? q, string? userName,
         string? category, string? method, bool? success, int page = 1)
     {
+        if (!string.IsNullOrWhiteSpace(fromJalali))
+        {
+            if (PersianDateService.TryParse(fromJalali, out var parsedFrom)) from = parsedFrom;
+            else ModelState.AddModelError(nameof(fromJalali), "تاریخ شروع شمسی معتبر نیست.");
+        }
+        if (!string.IsNullOrWhiteSpace(toJalali))
+        {
+            if (PersianDateService.TryParse(toJalali, out var parsedTo)) to = parsedTo;
+            else ModelState.AddModelError(nameof(toJalali), "تاریخ پایان شمسی معتبر نیست.");
+        }
+
         var today = DateTime.UtcNow.Date;
         var fromUtc = from?.Date ?? today.AddDays(-7);
         var toUtcExclusive = to?.Date.AddDays(1) ?? today.AddDays(1);

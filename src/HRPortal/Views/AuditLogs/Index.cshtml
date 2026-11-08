@@ -107,6 +107,6 @@
         @if (Model.Page > 1)
         { <a class="audit-btn secondary" href="@Url.Action("Index", new { fromJalali = HRPortal.Services.PersianDateService.Format(Model.FromUtc), toJalali = HRPortal.Services.PersianDateService.Format(Model.ToUtc), q = Model.Search, userName = Model.UserName, category = Model.Category, method = Model.Method, success = Model.Success, page = Model.Page - 1 })">قبلی</a> }
         @if (Model.Page < Model.TotalPages)
-        { <a class="audit-btn" href="@Url.Action("Index", new { from = Date(Model.FromUtc), to = Date(Model.ToUtc), q = Model.Search, userName = Model.UserName, category = Model.Category, method = Model.Method, success = Model.Success, page = Model.Page + 1 })">بعدی</a> }
+        { <a class="audit-btn" href="@Url.Action("Index", new { fromJalali = HRPortal.Services.PersianDateService.Format(Model.FromUtc), toJalali = HRPortal.Services.PersianDateService.Format(Model.ToUtc), q = Model.Search, userName = Model.UserName, category = Model.Category, method = Model.Method, success = Model.Success, page = Model.Page + 1 })">بعدی</a> }
     </div>
 </div>

@@ -95,7 +95,7 @@ public class ReportsController(HRPortalDbContext db) : Controller
         }
         else
         {
-            if (!PermissionAuthorization.HasPermission(User, "Reports.ActivityPerformance.View") ||
+            if (!(PermissionAuthorization.HasPermission(User, "Reports.ActivityPerformance.View") ||\n                  PermissionAuthorization.HasPermission(User, "Reports.View")) ||
                 !int.TryParse(User.FindFirst("EmployeeId")?.Value, out var currentEmployeeId))
                 return Forbid();
 

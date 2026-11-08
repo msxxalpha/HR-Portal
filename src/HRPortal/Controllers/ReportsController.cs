@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace HRPortal.Controllers;
 
 [Authorize]
-public class ReportsController(HRPortalDbContext db) : Controller
+public class ReportsController(HRPortalDbContext db, RoleService roles) : Controller
 {
     [HttpGet]
     public IActionResult Index() => RedirectToAction(nameof(ActivityPerformance));
@@ -47,9 +47,16 @@ public class ReportsController(HRPortalDbContext db) : Controller
             (model.From, model.To) = (model.To, model.From);
         }
 
+        // Prefer the currently effective finalized revision. If the organization
+        // has only finalized its first version with a future effective date, use
+        // that sole available finalized version instead of rendering an empty report.
         var revisionId = await db.OrganizationStructureRevisions.AsNoTracking()
             .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
             .OrderByDescending(x => x.EffectiveDate).ThenByDescending(x => x.FinalizedAt).ThenByDescending(x => x.Id)
+            .Select(x => (int?)x.Id).FirstOrDefaultAsync(cancellationToken);
+        revisionId ??= await db.OrganizationStructureRevisions.AsNoTracking()
+            .Where(x => x.IsFinalized)
+            .OrderBy(x => x.EffectiveDate).ThenByDescending(x => x.FinalizedAt).ThenByDescending(x => x.Id)
             .Select(x => (int?)x.Id).FirstOrDefaultAsync(cancellationToken);
 
         if (!revisionId.HasValue)
@@ -62,12 +69,16 @@ public class ReportsController(HRPortalDbContext db) : Controller
             .Where(x => x.OrganizationStructureRevisionId == revisionId.Value && x.IsActive)
             .Select(x => new { x.Id, x.ParentId, x.Title, x.Code, x.RankType, x.PositionHolderEmployeeId, x.AssignedEmployeeIdsCsv })
             .ToListAsync(cancellationToken);
-        static string NormalizeRank(string? value) =>
-            (value ?? string.Empty).Trim()
+        static string NormalizeRank(string? value)
+        {
+            var normalized = (value ?? string.Empty).Trim()
                 .Replace("ي", "ی", StringComparison.Ordinal)
                 .Replace("ك", "ک", StringComparison.Ordinal)
                 .Replace("‌", string.Empty, StringComparison.Ordinal)
                 .Replace(" ", string.Empty, StringComparison.Ordinal);
+            // Accept the common Persian spelling variant used in some org charts.
+            return normalized.Replace("رییس", "رئیس", StringComparison.Ordinal);
+        }
 
         static HashSet<int> AssignedIds(string? csv, int? holderId) =>
             WorkflowPositionAssignmentResolver.GetAssignedEmployeeIds(csv, holderId).ToHashSet();
@@ -95,9 +106,14 @@ public class ReportsController(HRPortalDbContext db) : Controller
         }
         else
         {
-            if (!(PermissionAuthorization.HasPermission(User, "Reports.ActivityPerformance.View") ||
-                  PermissionAuthorization.HasPermission(User, "Reports.View")) ||
-                !int.TryParse(User.FindFirst("EmployeeId")?.Value, out var currentEmployeeId))
+            if (!int.TryParse(User.FindFirst("EmployeeId")?.Value, out var currentEmployeeId))
+                return Forbid();
+
+            // Read effective grants from the database on every report request.
+            // This avoids a valid assignment being hidden by stale/missing cookie claims.
+            var effectivePermissions = await roles.GetEmployeePermissionsAsync(currentEmployeeId);
+            if (!effectivePermissions.Contains("Reports.ActivityPerformance.View") &&
+                !effectivePermissions.Contains("Reports.View"))
                 return Forbid();
 
             var employeeRecord = await db.Employees.AsNoTracking()

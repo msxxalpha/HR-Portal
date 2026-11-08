@@ -9,7 +9,8 @@
     var isBuiltIn = (bool?)ViewBag.IsBuiltInRole ?? false;
     var groups = permissions.GroupBy(x => x.Module).OrderBy(x => x.Key).ToList();
 }
-<style>.role-rank-inline{border:1px solid #dce5ee;border-radius:12px;padding:16px;margin-top:18px;background:#f8fafc}.role-rank-inline h3{margin:0 0 6px}.role-rank-inline .role-rank-grid{margin-top:12px}</style>\n<div class="page-head role-editor-head">
+<style>.role-rank-inline{border:1px solid #dce5ee;border-radius:12px;padding:16px;margin-top:18px;background:#f8fafc}.role-rank-inline h3{margin:0 0 6px}.role-rank-inline .role-rank-grid{margin-top:12px}</style>
+<div class="page-head role-editor-head">
     <div>
         <a class="role-back-link" href="/Users#roles">بازگشت به فهرست نقش‌ها</a>
         <h1>@(Model.Id == 0 ? "تعریف نقش جدید" : "ویرایش نقش و تنظیم دسترسی‌ها")</h1>

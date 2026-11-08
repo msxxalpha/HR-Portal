@@ -161,15 +161,16 @@ public class UsersController(
     }
 
     [HttpPost, Authorize(Policy = "Roles.Manage"), ValidateAntiForgeryToken]
-    public async Task<IActionResult> SaveRole(RoleEditModel model)
+    public async Task<IActionResult> SaveRole(RoleEditModel model, string[]? rankTypes)
     {
         try
         {
             var roleId = await roles.SaveRoleAsync(model);
+            await roles.SaveRoleRankTypesAsync(roleId, rankTypes ?? []);
             await audit.WriteAsync(
                 model.Id == 0 ? "ایجاد نقش جدید" : "ویرایش نقش",
                 "Role", roleId.ToString(), model.Code);
-            TempData["Success"] = "نقش و دسترسی‌های آن با موفقیت ذخیره شد.";
+            TempData["Success"] = "نقش، دسترسی‌ها و تخصیص رده‌های سازمانی با موفقیت ذخیره شد.";
             return RedirectToAction(nameof(EditRole), new { id = roleId });
         }
         catch (InvalidOperationException ex)

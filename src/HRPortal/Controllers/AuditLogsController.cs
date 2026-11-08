@@ -27,10 +27,12 @@ public class AuditLogsController(HRPortalDbContext db) : Controller
             else ModelState.AddModelError(nameof(toJalali), "تاریخ پایان شمسی معتبر نیست.");
         }
 
-        var today = DateTime.UtcNow.Date;
-        var fromUtc = from?.Date ?? today.AddDays(-7);
-        var toUtcExclusive = to?.Date.AddDays(1) ?? today.AddDays(1);
-        if (toUtcExclusive <= fromUtc) toUtcExclusive = fromUtc.AddDays(1);
+        var todayTehran = PersianDateService.ToTehran(DateTime.UtcNow).Date;
+        var fromLocal = from?.Date ?? todayTehran.AddDays(-7);
+        var toLocalExclusive = to?.Date.AddDays(1) ?? todayTehran.AddDays(1);
+        if (toLocalExclusive <= fromLocal) toLocalExclusive = fromLocal.AddDays(1);
+        var fromUtc = PersianDateService.ToUtcFromTehran(fromLocal);
+        var toUtcExclusive = PersianDateService.ToUtcFromTehran(toLocalExclusive);
 
         var query = db.AuditLogs.AsNoTracking()
             .Where(x => x.CreatedAt >= fromUtc && x.CreatedAt < toUtcExclusive);

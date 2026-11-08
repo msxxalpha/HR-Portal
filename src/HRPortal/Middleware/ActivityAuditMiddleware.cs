@@ -46,6 +46,7 @@ public sealed class ActivityAuditMiddleware(RequestDelegate next, ILogger<Activi
                     var userName = isAdmin
                         ? context.User.FindFirst("AdminUsername")?.Value ?? context.User.Identity?.Name
                         : context.User.Identity?.Name ?? context.User.FindFirst("PersonnelNumber")?.Value;
+                    var routeEntityId = route.TryGetValue("id", out var routeId) ? routeId?.ToString() : null;
 
                     var entry = new AuditLog
                     {
@@ -56,7 +57,7 @@ public sealed class ActivityAuditMiddleware(RequestDelegate next, ILogger<Activi
                             context.User.FindFirst("UserType")?.Value ?? (isAuthenticated ? "Employee" : "Anonymous"),
                         Action = Limit(actionName ?? context.Request.Method, 100) ?? context.Request.Method,
                         EntityName = Limit(controller ?? "HTTP", 100) ?? "HTTP",
-                        EntityId = null,
+                        EntityId = Limit(routeEntityId, 200),
                         Description = Limit($"درخواست {context.Request.Method} {path}", 2000),
                         IpAddress = Limit(context.Connection.RemoteIpAddress?.ToString(), 64),
                         HttpMethod = Limit(context.Request.Method, 10),
@@ -67,7 +68,7 @@ public sealed class ActivityAuditMiddleware(RequestDelegate next, ILogger<Activi
                         DurationMs = (long)Math.Max(0, elapsed),
                         Category = CategoryFor(controller, actionName, path, status),
                         CorrelationId = Limit(context.TraceIdentifier, 100),
-                        UserAgent = Limit(context.Request.Headers.UserAgent.ToString(), 500),
+                        UserAgent = Limit(context.Request.Headers["User-Agent"].ToString(), 500),
                         IsSuccess = status < 400
                     };
                     queue.TryEnqueue(entry);

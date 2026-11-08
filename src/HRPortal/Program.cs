@@ -66,6 +66,8 @@ builder.Services.AddDbContext<HRPortalDbContext>(o =>
 
 builder.Services.AddScoped<SystemSettingsService>();
 builder.Services.AddScoped<EnvironmentSettingsService>();
+builder.Services.AddSingleton<AuditLogQueue>();
+builder.Services.AddHostedService<AuditLogWriter>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<OtpService>();
 builder.Services.AddScoped<OrganizationService>();
@@ -181,6 +183,9 @@ app.Use(async (ctx, next) =>
     await next();
 });
 app.UseAuthorization();
+// Request audit runs after authentication/authorization so it can record the
+// effective actor and the final response code. It never reads form bodies.
+app.UseMiddleware<ActivityAuditMiddleware>();
 
 app.MapControllerRoute(
     name: "root",

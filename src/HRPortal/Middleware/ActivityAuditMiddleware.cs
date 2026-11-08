@@ -18,7 +18,8 @@ public sealed class ActivityAuditMiddleware(RequestDelegate next, ILogger<Activi
         }
         catch
         {
-            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            if (!context.Response.HasStarted)
+                context.Response.StatusCode = StatusCodes.Status500InternalServerError;
             throw;
         }
         finally
@@ -43,6 +44,8 @@ public sealed class ActivityAuditMiddleware(RequestDelegate next, ILogger<Activi
                     int? adminId = int.TryParse(context.User.FindFirst("AdminId")?.Value, out var aid) ? aid : null;
                     var elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
                     var status = context.Response.StatusCode;
+                    var authenticationRedirect = !isAuthenticated && status is 301 or 302 && !isAuthenticationAttempt;
+                    var failedRequest = status >= 400 || authenticationRedirect;
                     var userName = isAdmin
                         ? context.User.FindFirst("AdminUsername")?.Value ?? context.User.Identity?.Name
                         : context.User.Identity?.Name ?? context.User.FindFirst("PersonnelNumber")?.Value;
@@ -66,10 +69,10 @@ public sealed class ActivityAuditMiddleware(RequestDelegate next, ILogger<Activi
                         ActionName = Limit(actionName, 100),
                         StatusCode = status,
                         DurationMs = (long)Math.Max(0, elapsed),
-                        Category = CategoryFor(controller, actionName, path, status),
+                        Category = failedRequest ? "Failure" : CategoryFor(controller, actionName, path, status),
                         CorrelationId = Limit(context.TraceIdentifier, 100),
                         UserAgent = Limit(context.Request.Headers["User-Agent"].ToString(), 500),
-                        IsSuccess = status < 400
+                        IsSuccess = !failedRequest
                     };
                     queue.TryEnqueue(entry);
                 }

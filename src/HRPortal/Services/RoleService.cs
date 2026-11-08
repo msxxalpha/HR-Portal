@@ -91,7 +91,8 @@ public class RoleService(HRPortalDbContext db)
             .Replace("ي", "ی", StringComparison.Ordinal)
             .Replace("ك", "ک", StringComparison.Ordinal)
             .Replace("‌", string.Empty, StringComparison.Ordinal)
-            .Replace(" ", string.Empty, StringComparison.Ordinal);
+            .Replace(" ", string.Empty, StringComparison.Ordinal)
+            .Replace("رییس", "رئیس", StringComparison.Ordinal);
 
     public static HashSet<string> AggregatePermissionCodes(params IEnumerable<string>[] permissionSets)
     {

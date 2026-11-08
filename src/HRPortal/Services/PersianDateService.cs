@@ -93,6 +93,20 @@ public static class PersianDateService
         }
     }
 
+    private static readonly TimeZoneInfo TehranTimeZone = ResolveTehranTimeZone();
+
+    private static TimeZoneInfo ResolveTehranTimeZone()
+    {
+        try { return TimeZoneInfo.FindSystemTimeZoneById("Iran Standard Time"); }
+        catch (TimeZoneNotFoundException) { return TimeZoneInfo.FindSystemTimeZoneById("Asia/Tehran"); }
+    }
+
+    public static DateTime ToUtcFromTehran(DateTime tehranLocalDateTime) =>
+        TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(tehranLocalDateTime, DateTimeKind.Unspecified), TehranTimeZone);
+
+    public static DateTime ToTehran(DateTime utcDateTime) =>
+        TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utcDateTime, DateTimeKind.Utc), TehranTimeZone);
+
     private static string NormalizeDigits(string value)
     {
         const string fa = "۰۱۲۳۴۵۶۷۸۹";

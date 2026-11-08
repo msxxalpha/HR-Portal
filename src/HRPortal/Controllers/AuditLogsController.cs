@@ -63,8 +63,8 @@ public class AuditLogsController(HRPortalDbContext db) : Controller
 
         var model = new AuditLogReportViewModel
         {
-            FromUtc = fromUtc,
-            ToUtc = toUtcExclusive.AddDays(-1),
+            FromUtc = fromLocal,
+            ToUtc = toLocalExclusive.AddDays(-1),
             Search = q,
             UserName = userName,
             Category = category,

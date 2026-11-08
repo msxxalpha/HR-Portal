@@ -305,6 +305,13 @@ public class RoleService(HRPortalDbContext db)
             .OrderByDescending(x => x.EffectiveDate).ThenByDescending(x => x.FinalizedAt).ThenByDescending(x => x.Id)
             .Select(x => (int?)x.Id).FirstOrDefaultAsync();
 
+        // Keep rank-based role grants resolvable when the first finalized
+        // organization revision has a future effective date.
+        revisionId ??= await db.OrganizationStructureRevisions.AsNoTracking()
+            .Where(x => x.IsFinalized)
+            .OrderBy(x => x.EffectiveDate).ThenByDescending(x => x.FinalizedAt).ThenByDescending(x => x.Id)
+            .Select(x => (int?)x.Id).FirstOrDefaultAsync();
+
         if (revisionId.HasValue)
         {
             var employee = await db.Employees.AsNoTracking()

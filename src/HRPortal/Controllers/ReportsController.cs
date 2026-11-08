@@ -122,7 +122,7 @@ public class ReportsController(HRPortalDbContext db) : Controller
                      (employeeRecord.OrganizationPositionId.HasValue &&
                       (node.Id == employeeRecord.OrganizationPositionId.Value ||
                        (!string.IsNullOrWhiteSpace(currentPositionCode) &&
-                        string.Equals(node.Code?.Trim(), currentPositionCode.Trim(), StringComparison.OrdinalIgnoreCase)))))
+                        string.Equals(node.Code?.Trim(), currentPositionCode.Trim(), StringComparison.OrdinalIgnoreCase))))))
                 .Select(node => (node.Id, node.Title)).ToList();
 
             if (anchorNodes.Count == 0) return Forbid();

@@ -47,9 +47,15 @@
                         @foreach (var item in Model.WorkflowOptions) { <option value="@item" selected="@(Model.Workflow == item)">@item</option> }
                     </select>
                 </label>
+                <label>رده سازمانی
+                    <select name="organizationalRank" id="organizationalRankFilter">
+                        <option value="all" selected="@(Model.OrganizationalRank == "all")">همه رده‌ها</option>
+                        @foreach (var rank in Model.OrganizationalRankOptions) { <option value="@rank" selected="@(Model.OrganizationalRank == rank)">@rank</option> }
+                    </select>
+                </label>
                 <label>کارمند مرتبط
-                    <select name="employee"><option value="all">همه کارکنان زیرمجموعه</option>
-                        @foreach (var item in Model.EmployeeOptions) { <option value="@item.Id" selected="@(Model.Employee == item.Id)">@item.Title</option> }
+                    <select name="employee" id="relatedEmployeeFilter"><option value="all">همه کارکنان رده انتخاب‌شده</option>
+                        @foreach (var item in Model.EmployeeOptions) { <option value="@item.Id" data-rank="@item.RankType" selected="@(Model.Employee == item.Id)">@item.Title</option> }
                     </select>
                 </label>
                 <label>از تاریخ ثبت
@@ -165,6 +171,24 @@
             });
             if (visibleRows) visibleRows.textContent = 'نمایش ' + count + ' ردیف از ' + table.querySelectorAll('tbody tr').length;
         });
+    }
+    const rankFilter = document.getElementById('organizationalRankFilter');
+    const employeeFilter = document.getElementById('relatedEmployeeFilter');
+    if (rankFilter && employeeFilter) {
+        const syncEmployees = () => {
+            const rank = rankFilter.value;
+            let selectedStillVisible = false;
+            [...employeeFilter.options].forEach((option, index) => {
+                if (index === 0) { option.hidden = false; return; }
+                const visible = rank === 'all' || option.dataset.rank === rank;
+                option.hidden = !visible;
+                if (visible && option.value === employeeFilter.value) selectedStillVisible = true;
+            });
+            if (!selectedStillVisible) employeeFilter.value = 'all';
+            employeeFilter.options[0].textContent = rank === 'all' ? 'همه کارکنان زیرمجموعه' : 'همه کارکنان این رده';
+        };
+        rankFilter.addEventListener('change', syncEmployees);
+        syncEmployees();
     }
     const exportButton = document.getElementById('exportCsv');
     if (exportButton && table) {

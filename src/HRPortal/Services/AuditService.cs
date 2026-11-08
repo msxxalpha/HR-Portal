@@ -22,14 +22,17 @@ public class AuditService(AuditLogQueue queue, IHttpContextAccessor http)
             var failedLogin = action.Contains("ناموفق", StringComparison.Ordinal);
             var userName = principal?.FindFirst("AdminUsername")?.Value ??
                 principal?.Identity?.Name ??
-                (failedLogin ? entityId : null);
+                (action.Contains("ورود موفق", StringComparison.Ordinal) ? description :
+                 failedLogin ? entityId : null);
 
             queue.TryEnqueue(new AuditLog
             {
                 EmployeeId = employeeId,
                 AdminUserId = adminId,
                 UserName = Limit(userName, 200),
-                UserType = isAdmin ? "Admin" : principal?.FindFirst("UserType")?.Value ?? (failedLogin ? "Anonymous" : "Employee"),
+                UserType = isAdmin || entity == "AdminUser" || action.Contains("مدیر", StringComparison.Ordinal)
+                    ? "Admin"
+                    : principal?.FindFirst("UserType")?.Value ?? (failedLogin && employeeId is null ? "Anonymous" : "Employee"),
                 Action = Limit(action, 100) ?? action,
                 EntityName = Limit(entity, 100) ?? entity,
                 EntityId = Limit(entityId, 200),

@@ -6,6 +6,7 @@ public class ExecutiveWorkflowReportViewModel
     public string Status { get; set; } = "all";
     public string Workflow { get; set; } = "all";
     public string Employee { get; set; } = "all";
+    public string OrganizationalRank { get; set; } = "all";
     public DateTime? From { get; set; }
     public DateTime? To { get; set; }
     public bool HasCeoNode { get; set; }
@@ -25,6 +26,7 @@ public class ExecutiveWorkflowReportViewModel
     public double AverageCompletionDays { get; set; }
     public List<string> WorkflowOptions { get; set; } = [];
     public List<ExecutiveWorkflowEmployeeOption> EmployeeOptions { get; set; } = [];
+    public List<string> OrganizationalRankOptions { get; set; } = [];
     public List<ExecutiveWorkflowChartItem> StatusChart { get; set; } = [];
     public List<ExecutiveWorkflowChartItem> DirectionChart { get; set; } = [];
     public List<ExecutiveWorkflowChartItem> WorkflowChart { get; set; } = [];
@@ -35,6 +37,7 @@ public class ExecutiveWorkflowEmployeeOption
 {
     public string Id { get; set; } = "";
     public string Title { get; set; } = "";
+    public string RankType { get; set; } = "";
 }
 
 public class ExecutiveWorkflowChartItem

@@ -119,12 +119,15 @@
                 </details>
             }
             @if (Can("Users.Manage") || Can("Roles.Manage") || Can("Workflow.Manage") || Can("Settings.View")) {
-                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Users") || Context.Request.Path.StartsWithSegments("/Workflow/Manage") || Context.Request.Path.StartsWithSegments("/SystemSettings") ? "open" : null)">
+                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Users") || Context.Request.Path.StartsWithSegments("/Workflow/Manage") || Context.Request.Path.StartsWithSegments("/SystemSettings") || Context.Request.Path.StartsWithSegments("/AuditLogs") ? "open" : null)">
                     <summary><span class="nav-icon">⚙</span>تنظیمات و مدیریت</summary><div class="nav-submenu">
                         @if (Can("Users.Manage") || Can("Roles.Manage")) { <a href="/Users">کاربران و نقش‌ها</a> }
                         @if (Can("Workflow.Manage")) { <a href="/Workflow/Manage">مدیریت گردش کار</a> }
                         @if (Can("Settings.View")) { <a href="/SystemSettings">تنظیمات سامانه</a> }
-                        @if (isAdmin) { <a href="/DatabaseMaintenance">پاکسازی اطلاعات عملیاتی</a> }
+                        @if (isAdmin) {
+                            <a href="/AuditLogs">گزارش فعالیت کاربران</a>
+                            <a href="/DatabaseMaintenance">پاکسازی اطلاعات عملیاتی</a>
+                        }
                     </div>
                 </details>
             }

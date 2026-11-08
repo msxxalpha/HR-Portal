@@ -395,7 +395,8 @@ public class RoleService(HRPortalDbContext db)
     {
         var rows = await db.RoleOrganizationRanks.AsNoTracking().ToListAsync();
         return rows.GroupBy(x => x.RoleId)
-            .ToDictionary(g => g.Key, g => g.Select(x => x.RankType).ToList());
+            .ToDictionary(g => g.Key, g => g.Select(x => NormalizeRankType(x.RankType))
+                .Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList());
     }
 
     public async Task SaveRoleRankTypesAsync(int roleId, IEnumerable<string> rankTypes)

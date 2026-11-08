@@ -86,12 +86,12 @@ public class ReportsController(HRPortalDbContext db) : Controller
                 foreach (var childId in children) pending.Enqueue(childId);
         }
 
-        var scopedEmployees = nodes.Where(n => scopeNodeIds.Contains(n.Id))
+        var subordinateNodeIds = scopeNodeIds.Except(eligibleNodes.Select(n => n.Id)).ToHashSet();\n        var scopedEmployees = nodes.Where(n => subordinateNodeIds.Contains(n.Id))
             .SelectMany(n => ParseEmployeeIds(n.AssignedEmployeeIdsCsv)
                 .Concat(n.PositionHolderEmployeeId.HasValue ? new[] { n.PositionHolderEmployeeId.Value } : Array.Empty<int>()))
             .ToHashSet();
         var positionedEmployees = await db.Employees.AsNoTracking()
-            .Where(x => x.OrganizationPositionId.HasValue && scopeNodeIds.Contains(x.OrganizationPositionId.Value))
+            .Where(x => x.OrganizationPositionId.HasValue && subordinateNodeIds.Contains(x.OrganizationPositionId.Value))
             .Select(x => x.Id).ToListAsync(cancellationToken);
         scopedEmployees.UnionWith(positionedEmployees);
         scopedEmployees.Remove(currentEmployeeId);

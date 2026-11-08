@@ -80,7 +80,7 @@
         @foreach (var item in Model.Items)
         {
             <tr>
-                <td style="white-space:nowrap">@item.CreatedAt.ToString("yyyy/MM/dd HH:mm:ss")</td>
+                <td style="white-space:normal;overflow-wrap:anywhere">@item.CreatedAt.ToString("yyyy/MM/dd HH:mm:ss")</td>
                 <td>@(string.IsNullOrWhiteSpace(item.UserName) ? "کاربر ناشناس" : item.UserName)<div class="audit-muted">@(item.UserType == "Admin" ? "مدیر سامانه" : item.UserType == "Employee" ? "کارمند" : "ناشناس")</div></td>
                 <td>@item.EntityName<div class="audit-muted">@item.Category</div></td>
                 <td>@item.Action<div class="audit-muted">@item.HttpMethod</div></td>

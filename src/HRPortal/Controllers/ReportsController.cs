@@ -194,9 +194,9 @@ public class ReportsController(HRPortalDbContext db, RoleService roles) : Contro
             foreach (var employeeId in AssignedIds(node.AssignedEmployeeIdsCsv, node.PositionHolderEmployeeId))
                 if (directEmployeeIds.Contains(employeeId) && !employeeRanks.ContainsKey(employeeId))
                     employeeRanks[employeeId] = rank;
-            foreach (var employee in directEmployees.Where(x => x.OrganizationPositionId == node.Id))
-                if (!employeeRanks.ContainsKey(employee.Id))
-                    employeeRanks[employee.Id] = rank;
+            foreach (var positionedEmployee in directEmployees.Where(x => x.OrganizationPositionId == node.Id))
+                if (!employeeRanks.ContainsKey(positionedEmployee.Id))
+                    employeeRanks[positionedEmployee.Id] = rank;
         }
 
         model.OrganizationalRankOptions = directNodes.Select(x => string.IsNullOrWhiteSpace(x.RankType) ? "سایر" : x.RankType.Trim())

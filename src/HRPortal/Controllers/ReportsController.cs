@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using HRPortal.Data;
 using HRPortal.Models;
 using HRPortal.Services;
@@ -7,247 +8,159 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HRPortal.Controllers;
 
-[Authorize(Policy = "Reports.View")]
+[Authorize(Policy = "Reports.ActivityPerformance.View")]
 public class ReportsController(HRPortalDbContext db) : Controller
 {
-    [HttpGet]
-    public IActionResult Index() => RedirectToAction(nameof(ExecutiveWorkflow));
-
-    [HttpGet]
-    public async Task<IActionResult> ExecutiveWorkflow(
-        string? direction, string? status, string? workflow, string? employee,
-        DateTime? from, DateTime? to, string? fromJalali, string? toJalali, CancellationToken cancellationToken)
+    private static readonly HashSet<string> ReportableRanks = new(StringComparer.OrdinalIgnoreCase)
     {
-        if (!string.IsNullOrWhiteSpace(fromJalali))
-        {
-            if (PersianDateService.TryParse(fromJalali, out var parsedFrom)) from = parsedFrom;
-            else ModelState.AddModelError(nameof(fromJalali), "تاریخ شروع شمسی معتبر نیست.");
-        }
-        if (!string.IsNullOrWhiteSpace(toJalali))
-        {
-            if (PersianDateService.TryParse(toJalali, out var parsedTo)) to = parsedTo;
-            else ModelState.AddModelError(nameof(toJalali), "تاریخ پایان شمسی معتبر نیست.");
-        }
-        var model = new ExecutiveWorkflowReportViewModel
-        {
-            Direction = string.IsNullOrWhiteSpace(direction) ? "all" : direction,
-            Status = string.IsNullOrWhiteSpace(status) ? "all" : status,
-            Workflow = string.IsNullOrWhiteSpace(workflow) ? "all" : workflow,
-            Employee = string.IsNullOrWhiteSpace(employee) ? "all" : employee,
-            From = from?.Date,
-            To = to?.Date
-        };
+        "مدیرعامل", "معاونت", "معاون", "مدیریت", "مدیر", "ریاست", "رئیس"
+    };
 
-        if (model.From.HasValue && model.To.HasValue && model.From > model.To)
-        {
-            ModelState.AddModelError(nameof(from), "تاریخ شروع نباید بعد از تاریخ پایان باشد.");
-            (model.From, model.To) = (model.To, model.From);
-        }
+    [HttpGet]
+    public IActionResult Index() => RedirectToAction(nameof(ActivityPerformance));
+
+    [HttpGet]
+    public IActionResult ExecutiveWorkflow() => RedirectToAction(nameof(ActivityPerformance));
+
+    [HttpGet]
+    public async Task<IActionResult> ActivityPerformance(
+        string? fromJalali, string? toJalali, string? userName, string? q,
+        string? category, string? method, bool? success, int page = 1,
+        CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue("EmployeeId"), out var currentEmployeeId))
+            return Forbid();
+
+        var employee = await db.Employees.AsNoTracking()
+            .Where(x => x.Id == currentEmployeeId && x.IsSystemUser && x.Status == "فعال")
+            .Select(x => new { x.Id, x.OrganizationPositionId })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (employee is null) return Forbid();
 
         var revisionId = await db.OrganizationStructureRevisions.AsNoTracking()
-            .Where(x => x.IsFinalized)
+            .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
             .OrderByDescending(x => x.EffectiveDate).ThenByDescending(x => x.FinalizedAt).ThenByDescending(x => x.Id)
             .Select(x => (int?)x.Id).FirstOrDefaultAsync(cancellationToken);
-
         if (!revisionId.HasValue)
         {
-            ViewBag.NoFinalizedStructure = true;
-            return View(model);
+            ViewBag.NoReportScope = true;
+            return View(new ActivityPerformanceReportViewModel());
         }
 
         var nodes = await db.OrganizationNodes.AsNoTracking()
             .Where(x => x.OrganizationStructureRevisionId == revisionId.Value && x.IsActive)
-            .Select(x => new { x.Id, x.ParentId, x.Title, x.Code, x.RankType, x.PositionHolderEmployeeId, x.AssignedEmployeeIdsCsv })
-            .ToListAsync(cancellationToken);
-        var ceo = nodes.FirstOrDefault(x => x.RankType == "مدیرعامل");
-        if (ceo is null)
+            .Select(x => new
+            {
+                x.Id, x.ParentId, x.Title, x.Code, x.RankType,
+                x.PositionHolderEmployeeId, x.AssignedEmployeeIdsCsv
+            }).ToListAsync(cancellationToken);
+
+        static HashSet<int> ParseEmployeeIds(string? csv)
         {
-            ViewBag.NoFinalizedStructure = true;
-            return View(model);
+            var result = new HashSet<int>();
+            foreach (var raw in (csv ?? string.Empty).Split([',', '،', ';', '؛'],
+                         StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                if (int.TryParse(raw, out var id) && id > 0) result.Add(id);
+            return result;
         }
 
-        model.HasCeoNode = true;
-        model.CeoTitle = ceo.Title;
-        var directNodes = nodes.Where(x => x.ParentId == ceo.Id).ToList();
-        var directNodeIds = directNodes.Select(x => x.Id).ToHashSet();
-        model.DirectPositionCount = directNodes.Count;
+        var userNodes = nodes.Where(n =>
+            n.PositionHolderEmployeeId == currentEmployeeId ||
+            n.Id == employee.OrganizationPositionId ||
+            ParseEmployeeIds(n.AssignedEmployeeIdsCsv).Contains(currentEmployeeId)).ToList();
+        var eligibleNodes = userNodes.Where(n => ReportableRanks.Contains((n.RankType ?? string.Empty).Trim())).ToList();
+        if (eligibleNodes.Count == 0) return Forbid();
 
-        var directEmployeeIds = directNodes
-            .SelectMany(x => new[] { x.PositionHolderEmployeeId }.Where(id => id.HasValue).Select(id => id!.Value)
-                .Concat((x.AssignedEmployeeIdsCsv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                    .Select(raw => int.TryParse(raw, out var id) ? id : 0).Where(id => id > 0)))
+        // Scope is derived only from the authenticated user's current position
+        // in the finalized organization tree; request parameters cannot widen it.
+        var childrenByParent = nodes.Where(n => n.ParentId.HasValue)
+            .GroupBy(n => n.ParentId!.Value)
+            .ToDictionary(g => g.Key, g => g.Select(n => n.Id).ToList());
+        var scopeNodeIds = new HashSet<int>();
+        var pending = new Queue<int>(eligibleNodes.Select(n => n.Id));
+        while (pending.Count > 0)
+        {
+            var nodeId = pending.Dequeue();
+            if (!scopeNodeIds.Add(nodeId)) continue;
+            if (childrenByParent.TryGetValue(nodeId, out var children))
+                foreach (var childId in children) pending.Enqueue(childId);
+        }
+
+        var scopedEmployees = nodes.Where(n => scopeNodeIds.Contains(n.Id))
+            .SelectMany(n => ParseEmployeeIds(n.AssignedEmployeeIdsCsv)
+                .Concat(n.PositionHolderEmployeeId.HasValue ? new[] { n.PositionHolderEmployeeId.Value } : Array.Empty<int>()))
             .ToHashSet();
-        var positionedEmployeeIds = await db.Employees.AsNoTracking()
-            .Where(x => x.Status == "فعال" && x.OrganizationPositionId.HasValue && directNodeIds.Contains(x.OrganizationPositionId.Value))
+        var positionedEmployees = await db.Employees.AsNoTracking()
+            .Where(x => x.OrganizationPositionId.HasValue && scopeNodeIds.Contains(x.OrganizationPositionId.Value))
             .Select(x => x.Id).ToListAsync(cancellationToken);
-        directEmployeeIds.UnionWith(positionedEmployeeIds);
+        scopedEmployees.UnionWith(positionedEmployees);
+        scopedEmployees.Remove(currentEmployeeId);
 
-        var directEmployees = await db.Employees.AsNoTracking()
-            .Where(x => directEmployeeIds.Contains(x.Id) && x.Status == "فعال")
-            .OrderBy(x => x.LastName).ThenBy(x => x.FirstName)
-            .Select(x => new { x.Id, x.FirstName, x.LastName, x.PersonnelNumber, x.OrganizationPositionId })
-            .ToListAsync(cancellationToken);
-        directEmployeeIds = directEmployees.Select(x => x.Id).ToHashSet();
-        model.DirectEmployeeCount = directEmployees.Count;
-        model.EmployeeOptions = directEmployees.Select(x => new ExecutiveWorkflowEmployeeOption
+        var model = new ActivityPerformanceReportViewModel
         {
-            Id = x.Id.ToString(),
-            Title = $"{x.FirstName} {x.LastName} ({x.PersonnelNumber})"
-        }).ToList();
+            FromJalali = fromJalali, ToJalali = toJalali, UserName = userName,
+            Search = q, Category = category, Method = method, Success = success,
+            ScopeTitle = eligibleNodes.Count == 1 ? eligibleNodes[0].Title :
+                string.Join("، ", eligibleNodes.Select(x => x.Title).Distinct()),
+            ScopedEmployeeCount = scopedEmployees.Count
+        };
 
-        var instances = await db.WorkflowInstances.AsNoTracking()
-            .Where(x => directEmployeeIds.Contains(x.RequesterEmployeeId) ||
-                x.Tasks.Any(t =>
-                    (t.AssignedPositionId.HasValue && directNodeIds.Contains(t.AssignedPositionId.Value)) ||
-                    (t.AssignedEmployeeId.HasValue && directEmployeeIds.Contains(t.AssignedEmployeeId.Value))))
-            .Include(x => x.RequesterEmployee)
-            .Include(x => x.WorkflowDefinition)
-            .Include(x => x.CurrentStep).ThenInclude(x => x!.OrganizationNode)
-            .Include(x => x.Tasks).ThenInclude(x => x.WorkflowStep).ThenInclude(x => x.OrganizationNode)
-            .Include(x => x.Tasks).ThenInclude(x => x.AssignedEmployee)
-            .Include(x => x.Tasks).ThenInclude(x => x.AssignedPosition)
-            .Include(x => x.History)
-            .OrderByDescending(x => x.StartedAt)
-            .ToListAsync(cancellationToken);
-
-        var allRows = instances.Select(instance =>
+        DateTime? fromUtc = null, toUtcExclusive = null;
+        if (!string.IsNullOrWhiteSpace(fromJalali))
         {
-            var relevantTasks = instance.Tasks.Where(t =>
-                (t.AssignedPositionId.HasValue && directNodeIds.Contains(t.AssignedPositionId.Value)) ||
-                (t.AssignedEmployeeId.HasValue && directEmployeeIds.Contains(t.AssignedEmployeeId.Value))).ToList();
-            var isIncoming = relevantTasks.Count > 0;
-            var isOutgoing = directEmployeeIds.Contains(instance.RequesterEmployeeId);
-            var currentTasks = instance.Tasks.Where(t => t.Status == "Pending").OrderBy(t => t.CreatedAt).ToList();
-            var currentOwner = currentTasks.Select(t =>
-                t.AssignedEmployee is not null
-                    ? $"{t.AssignedEmployee.FirstName} {t.AssignedEmployee.LastName}"
-                    : t.AssignedPosition?.Title ?? t.WorkflowStep.OrganizationNode?.Title ?? t.WorkflowStep.Title)
-                .FirstOrDefault() ?? instance.CurrentStep?.OrganizationNode?.Title ?? instance.CurrentStep?.Title ?? "—";
-            var latestHistory = instance.History.OrderByDescending(h => h.CreatedAt).ThenByDescending(h => h.Id).FirstOrDefault();
-            var ageDays = Math.Max(0, (int)Math.Floor((DateTime.UtcNow - instance.StartedAt).TotalDays));
-            var statusTitle = instance.Status switch
+            if (PersianDateService.TryParse(fromJalali, out var parsed))
             {
-                "Approved" => "تأیید نهایی",
-                "Completed" => "تکمیل‌شده",
-                "Rejected" => "ردشده",
-                "Returned" => "برگشت‌خورده",
-                "Cancelled" => "لغوشده",
-                _ => "در حال گردش"
-            };
-            var qualitySignal = instance.Status switch
-            {
-                "Rejected" => "ردشده؛ بررسی علت",
-                "Returned" => "برگشت برای اصلاح",
-                "Approved" or "Completed" => ageDays <= 3 ? "تکمیل سریع" : "تکمیل‌شده",
-                _ when latestHistory?.Action == "Return" => "برگشت برای اصلاح",
-                _ when currentTasks.Count == 0 => "نیازمند بررسی مالک مرحله",
-                _ when ageDays >= 14 => "ماندگاری بحرانی",
-                _ when ageDays >= 7 => "ماندگاری بالا",
-                _ => "در جریان عادی"
-            };
-            var qualityClass = instance.Status switch
-            {
-                "Rejected" => "danger",
-                "Returned" => "warning",
-                "Approved" or "Completed" => ageDays <= 3 ? "success" : "neutral",
-                _ when currentTasks.Count == 0 || ageDays >= 14 => "danger",
-                _ when latestHistory?.Action == "Return" || ageDays >= 7 => "warning",
-                _ => "info"
-            };
-            return new ExecutiveWorkflowReportRow
-            {
-                Id = instance.Id,
-                RequestCode = $"{instance.EntityType} · {instance.EntityId}",
-                WorkflowTitle = instance.WorkflowDefinition?.Title ?? "گردش کار",
-                RequesterName = $"{instance.RequesterEmployee?.FirstName} {instance.RequesterEmployee?.LastName}".Trim(),
-                RequesterPersonnelNumber = instance.RequesterEmployee?.PersonnelNumber ?? "—",
-                Direction = isIncoming && isOutgoing ? "ورودی و خروجی" : isIncoming ? "ورودی" : "خروجی",
-                Status = instance.Status,
-                StatusTitle = statusTitle,
-                CurrentStep = instance.CurrentStep?.Title ?? "—",
-                CurrentOwner = currentOwner,
-                StartedAt = instance.StartedAt,
-                CompletedAt = instance.CompletedAt,
-                AgeDays = ageDays,
-                QualitySignal = qualitySignal,
-                QualityClass = qualityClass,
-                LastAction = latestHistory?.Action switch
-                {
-                    "Submit" => "ثبت درخواست",
-                    "Approve" => "تأیید",
-                    "Reject" => "رد",
-                    "Return" => "برگشت",
-                    "SaveDraft" => "ذخیره پیش‌نویس",
-                    _ => latestHistory?.Action ?? "—"
-                },
-                LastComment = latestHistory?.Comment
-            };
-        }).ToList();
-
-        if (model.Direction == "incoming") allRows = allRows.Where(x => x.Direction.Contains("ورودی", StringComparison.Ordinal)).ToList();
-        else if (model.Direction == "outgoing") allRows = allRows.Where(x => x.Direction.Contains("خروجی", StringComparison.Ordinal)).ToList();
-
-        if (model.Status != "all")
-            allRows = allRows.Where(x => model.Status switch
-            {
-                "inprogress" => x.Status == "InProgress",
-                "approved" => x.Status == "Approved" || x.Status == "Completed",
-                "rejected" => x.Status == "Rejected",
-                "returned" => x.Status == "Returned",
-                "cancelled" => x.Status == "Cancelled",
-                _ => true
-            }).ToList();
-        if (model.Workflow != "all")
-            allRows = allRows.Where(x => x.WorkflowTitle == model.Workflow).ToList();
-        if (model.Employee != "all" && int.TryParse(model.Employee, out var selectedEmployeeId))
-        {
-            var selectedPositionId = directEmployees.FirstOrDefault(x => x.Id == selectedEmployeeId)?.OrganizationPositionId;
-            allRows = allRows.Where(x => instances.Any(i => i.Id == x.Id &&
-                (i.RequesterEmployeeId == selectedEmployeeId ||
-                 i.Tasks.Any(t => t.AssignedEmployeeId == selectedEmployeeId ||
-                    (t.AssignedPositionId.HasValue && directNodes.Any(n => n.Id == t.AssignedPositionId.Value &&
-                        (n.PositionHolderEmployeeId == selectedEmployeeId ||
-                         n.Id == selectedPositionId ||
-                         (n.AssignedEmployeeIdsCsv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Contains(selectedEmployeeId.ToString())))))))
-            ).ToList();
+                fromUtc = DateTime.SpecifyKind(parsed.Date, DateTimeKind.Utc);
+                model.FromDate = parsed.Date;
+            }
+            else ModelState.AddModelError(nameof(fromJalali), "تاریخ شروع شمسی معتبر نیست.");
         }
-        if (model.From.HasValue) allRows = allRows.Where(x => x.StartedAt.Date >= model.From.Value.Date).ToList();
-        if (model.To.HasValue) allRows = allRows.Where(x => x.StartedAt.Date <= model.To.Value.Date).ToList();
+        if (!string.IsNullOrWhiteSpace(toJalali))
+        {
+            if (PersianDateService.TryParse(toJalali, out var parsed))
+            {
+                toUtcExclusive = DateTime.SpecifyKind(parsed.Date.AddDays(1), DateTimeKind.Utc);
+                model.ToDate = parsed.Date;
+            }
+            else ModelState.AddModelError(nameof(toJalali), "تاریخ پایان شمسی معتبر نیست.");
+        }
+        if (fromUtc.HasValue && toUtcExclusive.HasValue && fromUtc >= toUtcExclusive)
+        {
+            ModelState.AddModelError(nameof(toJalali), "تاریخ پایان نباید قبل از تاریخ شروع باشد.");
+            var originalFrom = fromUtc.Value;
+            fromUtc = toUtcExclusive.Value.AddDays(-1);
+            toUtcExclusive = originalFrom.AddDays(1);
+        }
 
-        model.Rows = allRows.OrderByDescending(x => x.StartedAt).ToList();
-        model.TotalCount = model.Rows.Count;
-        model.IncomingCount = model.Rows.Count(x => x.Direction.Contains("ورودی", StringComparison.Ordinal));
-        model.OutgoingCount = model.Rows.Count(x => x.Direction.Contains("خروجی", StringComparison.Ordinal));
-        model.InProgressCount = model.Rows.Count(x => x.Status == "InProgress");
-        model.CompletedCount = model.Rows.Count(x => x.Status == "Approved" || x.Status == "Completed");
-        model.RejectedCount = model.Rows.Count(x => x.Status == "Rejected");
-        model.ReturnedCount = model.Rows.Count(x => x.Status == "Returned" || (x.Status == "InProgress" && x.LastAction == "برگشت"));
-        model.CancelledCount = model.Rows.Count(x => x.Status == "Cancelled");
-        model.PendingTaskCount = instances.Where(i => model.Rows.Any(r => r.Id == i.Id)).SelectMany(i => i.Tasks).Count(t => t.Status == "Pending");
-        model.AgingCount = model.Rows.Count(x => x.Status == "InProgress" && x.AgeDays >= 7);
-        var completedRows = model.Rows.Where(x => x.CompletedAt.HasValue && x.CompletedAt.Value >= x.StartedAt).ToList();
-        model.AverageCompletionDays = completedRows.Count == 0 ? 0 :
-            Math.Round(completedRows.Average(x => (x.CompletedAt!.Value - x.StartedAt).TotalDays), 1);
+        var query = db.AuditLogs.AsNoTracking()
+            .Where(x => x.EmployeeId.HasValue && scopedEmployees.Contains(x.EmployeeId.Value));
+        if (fromUtc.HasValue) query = query.Where(x => x.CreatedAt >= fromUtc.Value);
+        if (toUtcExclusive.HasValue) query = query.Where(x => x.CreatedAt < toUtcExclusive.Value);
+        if (!string.IsNullOrWhiteSpace(userName))
+            query = query.Where(x => x.UserName != null && x.UserName.Contains(userName.Trim()));
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            var term = q.Trim();
+            query = query.Where(x => x.Action.Contains(term) || x.EntityName.Contains(term) ||
+                (x.Description != null && x.Description.Contains(term)) ||
+                (x.RequestPath != null && x.RequestPath.Contains(term)) ||
+                (x.EntityId != null && x.EntityId.Contains(term)));
+        }
+        if (!string.IsNullOrWhiteSpace(category)) query = query.Where(x => x.Category == category);
+        if (!string.IsNullOrWhiteSpace(method)) query = query.Where(x => x.HttpMethod == method);
+        if (success.HasValue) query = query.Where(x => x.IsSuccess == success.Value);
 
-        model.WorkflowOptions = model.Rows.Select(x => x.WorkflowTitle).Distinct().OrderBy(x => x).ToList();
-        model.StatusChart =
-        [
-            new() { Label = "در حال گردش", Count = model.InProgressCount, Color = "#2563eb" },
-            new() { Label = "تکمیل/تأیید", Count = model.CompletedCount, Color = "#16a34a" },
-            new() { Label = "ردشده", Count = model.RejectedCount, Color = "#dc2626" },
-            new() { Label = "برگشت‌خورده/اصلاح", Count = model.ReturnedCount, Color = "#d97706" },
-            new() { Label = "لغوشده", Count = model.CancelledCount, Color = "#64748b" }
-        ];
-        model.DirectionChart =
-        [
-            new() { Label = "ورودی", Count = model.IncomingCount, Color = "#0f766e" },
-            new() { Label = "خروجی", Count = model.OutgoingCount, Color = "#7c3aed" }
-        ];
-        model.WorkflowChart = model.Rows.GroupBy(x => x.WorkflowTitle)
-            .Select(g => new ExecutiveWorkflowChartItem { Label = g.Key, Count = g.Count(), Color = "#475569" })
-            .OrderByDescending(x => x.Count).Take(8).ToList();
+        model.TotalCount = await query.CountAsync(cancellationToken);
+        model.FailureCount = await query.CountAsync(x =>
+            x.IsSuccess == false || (x.StatusCode.HasValue && x.StatusCode >= 400), cancellationToken);
+        model.SuccessCount = model.TotalCount - model.FailureCount;
+        model.UniqueUserCount = await query.Where(x => x.UserName != null)
+            .Select(x => x.UserName!).Distinct().CountAsync(cancellationToken);
+        model.Page = Math.Clamp(page, 1, Math.Max(1, (int)Math.Ceiling(model.TotalCount / 50d)));
+        model.Items = await query.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+            .Skip((model.Page - 1) * 50).Take(50).ToListAsync(cancellationToken);
 
-        ViewBag.NoFinalizedStructure = false;
+        ViewBag.NoReportScope = false;
         return View(model);
     }
 }

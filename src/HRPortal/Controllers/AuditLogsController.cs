@@ -45,7 +45,7 @@ public class AuditLogsController(HRPortalDbContext db) : Controller
         var total = await query.CountAsync();
         var failures = await query.CountAsync(x => x.IsSuccess == false || (x.StatusCode.HasValue && x.StatusCode >= 400));
         var users = await query.Where(x => x.UserName != null).Select(x => x.UserName!).Distinct().CountAsync();
-        page = Math.Max(1, page);
+        page = Math.Clamp(page, 1, Math.Max(1, (int)Math.Ceiling(total / 50d)));
 
         var model = new AuditLogReportViewModel
         {

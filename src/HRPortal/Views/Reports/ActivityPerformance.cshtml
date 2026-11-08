@@ -44,7 +44,7 @@
     <section class="exec-hero">
         <div>
             <h1>داشبورد تحلیلی گردش درخواست‌ها</h1>
-            <p>نمای یکپارچه وضعیت کمی و کیفی درخواست‌های ورودی به کارتابل و درخواست‌های خروجی کارکنانِ مستقر در گره‌های مستقیم زیرمجموعه مدیرعامل، بر اساس آخرین ساختار سازمانی نهایی‌شده.</p>
+            <p>نمای یکپارچه وضعیت کمی و کیفی درخواست‌های ورودی به کارتابل و درخواست‌های مرتبط با کارکنان زیرمجموعه جایگاه سازمانی شما، بر اساس آخرین ساختار سازمانی نهایی‌شده.</p>
         </div>
         <div class="hero-mark" aria-hidden="true">▥</div>
     </section>
@@ -81,7 +81,7 @@
                     </select>
                 </label>
                 <label>کارمند مرتبط
-                    <select name="employee"><option value="all">همه کارکنان مستقیم</option>
+                    <select name="employee"><option value="all">همه کارکنان زیرمجموعه</option>
                         @foreach (var item in Model.EmployeeOptions) { <option value="@item.Id" selected="@(Model.Employee == item.Id)">@item.Title</option> }
                     </select>
                 </label>
@@ -91,11 +91,11 @@
 <div class="jalali-date-input"><input type="text" name="toJalali" data-jalali-date autocomplete="off" inputmode="numeric" placeholder="۱۴۰۵/۰۷/۳۰" value="@(Model.To.HasValue ? HRPortal.Services.PersianDateService.Format(Model.To.Value) : "")" /><button type="button" class="btn btn-outline jalali-date-open" data-jalali-trigger aria-label="انتخاب تاریخ پایان">تقویم</button></div></label>
                 <div class="exec-filter-actions">
                     <button class="btn btn-main" type="submit">اعمال فیلتر</button>
-                    <a class="btn btn-outline" href="/Reports/ExecutiveWorkflow">پاک‌کردن فیلترها</a>
+                    <a class="btn btn-outline" href="/Reports/ActivityPerformance">پاک‌کردن فیلترها</a>
                 </div>
             </form>
             @if (!ViewData.ModelState.IsValid) { <div class="alert warning">تاریخ‌های واردشده بررسی شوند.</div> }
-            <div class="exec-muted">گره مرجع: <strong>@Model.CeoTitle</strong> · گره‌های مستقیم زیرمجموعه: @Model.DirectPositionCount · کارکنان فعال شناسایی‌شده: @Model.DirectEmployeeCount</div>
+            <div class="exec-muted">جایگاه مرجع: <strong>@Model.CeoTitle</strong> · گره‌های مستقیم زیرمجموعه: @Model.DirectPositionCount · کارکنان فعال شناسایی‌شده: @Model.DirectEmployeeCount</div>
         </section>
 
         <section class="exec-kpis">

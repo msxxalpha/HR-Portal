@@ -1,0 +1,112 @@
+@model HRPortal.Models.AuditLogReportViewModel
+@{
+    ViewData["Title"] = "گزارش فعالیت کاربران";
+    string Date(DateTime value) => value.ToString("yyyy-MM-dd");
+}
+<style>
+.audit-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:18px}
+.audit-kpi{background:#fff;border:1px solid #e5eaf0;border-radius:12px;padding:14px}
+.audit-kpi strong{display:block;font-size:1.45rem;color:#17324d}
+.audit-filters{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px;align-items:end}
+.audit-filters label{display:block;font-weight:600;margin-bottom:5px}
+.audit-filters input,.audit-filters select{width:100%;min-height:40px;border:1px solid #ccd5df;border-radius:8px;padding:7px;background:#fff}
+.audit-table-wrap{overflow:auto;background:#fff;border:1px solid #e5eaf0;border-radius:12px}
+.audit-table{width:100%;border-collapse:collapse;min-width:1050px;font-size:.88rem}
+.audit-table th,.audit-table td{padding:10px;border-bottom:1px solid #edf0f3;text-align:right;vertical-align:top}
+.audit-table th{background:#f5f7fa;position:sticky;top:0;white-space:nowrap}
+.audit-muted{color:#687789;font-size:.8rem}
+.audit-status{display:inline-block;border-radius:20px;padding:3px 9px;background:#edf7f0;color:#237443}
+.audit-status.fail{background:#fff0f0;color:#b42318}
+.audit-actions{display:flex;gap:8px;flex-wrap:wrap}
+.audit-btn{border:0;border-radius:8px;padding:9px 16px;background:#17324d;color:#fff;cursor:pointer;text-decoration:none}
+.audit-btn.secondary{background:#e9eef3;color:#17324d}
+@media(max-width:900px){.audit-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.audit-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.audit-filters{grid-template-columns:1fr}}
+</style>
+
+<div class="audit-kpis">
+    <div class="audit-kpi"><span class="audit-muted">کل رویدادهای فیلترشده</span><strong>@Model.TotalCount.ToString("N0")</strong></div>
+    <div class="audit-kpi"><span class="audit-muted">عملیات موفق</span><strong>@Model.SuccessCount.ToString("N0")</strong></div>
+    <div class="audit-kpi"><span class="audit-muted">خطاها و درخواست‌های ناموفق</span><strong>@Model.FailureCount.ToString("N0")</strong></div>
+    <div class="audit-kpi"><span class="audit-muted">کاربران یکتا</span><strong>@Model.UniqueUserCount.ToString("N0")</strong></div>
+</div>
+
+<section class="card" style="padding:16px;margin-bottom:18px">
+    <form method="get" class="audit-filters">
+        <div><label for="from">از تاریخ (UTC)</label><input id="from" name="from" type="date" value="@Date(Model.FromUtc)" /></div>
+        <div><label for="to">تا تاریخ (UTC)</label><input id="to" name="to" type="date" value="@Date(Model.ToUtc)" /></div>
+        <div><label for="userName">کاربر</label><input id="userName" name="userName" value="@Model.UserName" placeholder="نام یا نام کاربری" /></div>
+        <div><label for="q">جستجو</label><input id="q" name="q" value="@Model.Search" placeholder="فرم، عملیات، مسیر یا شناسه" /></div>
+        <div><label for="category">گروه فعالیت</label>
+            <select id="category" name="category">
+                <option value="">همه</option>
+                @foreach (var item in new[] { ("Security","امنیتی و ورود"), ("Administration","مدیریتی"), ("Workflow","گردش کار"), ("Business","عملیات کسب‌وکار"), ("Application","فعالیت سامانه"), ("Failure","خطا و ناموفق") })
+                { <option value="@item.Item1" selected="@(Model.Category == item.Item1)">@item.Item2</option> }
+            </select>
+        </div>
+        <div><label for="method">نوع درخواست</label>
+            <select id="method" name="method">
+                <option value="">همه</option>
+                <option value="GET" selected="@(Model.Method == "GET")">GET - مشاهده</option>
+                <option value="POST" selected="@(Model.Method == "POST")">POST - ثبت/ویرایش</option>
+                <option value="PUT" selected="@(Model.Method == "PUT")">PUT - به‌روزرسانی</option>
+                <option value="DELETE" selected="@(Model.Method == "DELETE")">DELETE - حذف</option>
+            </select>
+        </div>
+        <div><label for="success">نتیجه</label>
+            <select id="success" name="success">
+                <option value="">همه</option>
+                <option value="true" selected="@(Model.Success == true)">موفق</option>
+                <option value="false" selected="@(Model.Success == false)">ناموفق</option>
+            </select>
+        </div>
+        <div class="audit-actions">
+            <button class="audit-btn" type="submit">اعمال فیلتر</button>
+            <a class="audit-btn secondary" href="/AuditLogs">پاک‌کردن فیلترها</a>
+        </div>
+    </form>
+</section>
+
+<div class="audit-table-wrap">
+<table class="audit-table">
+    <thead><tr><th>تاریخ و زمان (UTC)</th><th>کاربر</th><th>بخش / فرم</th><th>عملیات</th><th>مسیر</th><th>نتیجه</th><th>مدت</th><th>IP</th></tr></thead>
+    <tbody>
+    @if (Model.Items.Count == 0)
+    {
+        <tr><td colspan="8" style="text-align:center;padding:28px">موردی با فیلترهای انتخاب‌شده یافت نشد.</td></tr>
+    }
+    else
+    {
+        @foreach (var item in Model.Items)
+        {
+            <tr>
+                <td style="white-space:nowrap">@item.CreatedAt.ToString("yyyy/MM/dd HH:mm:ss")</td>
+                <td>@(string.IsNullOrWhiteSpace(item.UserName) ? "کاربر ناشناس" : item.UserName)<div class="audit-muted">@(item.UserType == "Admin" ? "مدیر سامانه" : item.UserType == "Employee" ? "کارمند" : "ناشناس")</div></td>
+                <td>@item.EntityName<div class="audit-muted">@item.Category</div></td>
+                <td>@item.Action<div class="audit-muted">@item.HttpMethod</div></td>
+                <td dir="ltr" style="text-align:left;max-width:260px;overflow-wrap:anywhere">@item.RequestPath</td>
+                <td>
+                    @if (item.IsSuccess == false || (item.StatusCode.HasValue && item.StatusCode >= 400))
+                    { <span class="audit-status fail">ناموفق · @item.StatusCode</span> }
+                    else
+                    { <span class="audit-status">موفق · @(item.StatusCode?.ToString() ?? "—")</span> }
+                    @if (!string.IsNullOrWhiteSpace(item.Description)) { <div class="audit-muted">@item.Description</div> }
+                </td>
+                <td>@(item.DurationMs?.ToString("N0") ?? "—") ms</td>
+                <td dir="ltr">@item.IpAddress</td>
+            </tr>
+        }
+    }
+    </tbody>
+</table>
+</div>
+
+<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap">
+    <span class="audit-muted">صفحه @Model.Page از @Model.TotalPages · نمایش @Model.Items.Count از @Model.TotalCount رویداد</span>
+    <div class="audit-actions">
+        @if (Model.Page > 1)
+        { <a class="audit-btn secondary" href="@Url.Action("Index", new { from = Date(Model.FromUtc), to = Date(Model.ToUtc), q = Model.Search, userName = Model.UserName, category = Model.Category, method = Model.Method, success = Model.Success, page = Model.Page - 1 })">قبلی</a> }
+        @if (Model.Page < Model.TotalPages)
+        { <a class="audit-btn" href="@Url.Action("Index", new { from = Date(Model.FromUtc), to = Date(Model.ToUtc), q = Model.Search, userName = Model.UserName, category = Model.Category, method = Model.Method, success = Model.Success, page = Model.Page + 1 })">بعدی</a> }
+    </div>
+</div>

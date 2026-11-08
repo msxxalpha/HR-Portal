@@ -9,7 +9,7 @@
     var isBuiltIn = (bool?)ViewBag.IsBuiltInRole ?? false;
     var groups = permissions.GroupBy(x => x.Module).OrderBy(x => x.Key).ToList();
 }
-<div class="page-head role-editor-head">
+<style>.role-rank-inline{border:1px solid #dce5ee;border-radius:12px;padding:16px;margin-top:18px;background:#f8fafc}.role-rank-inline h3{margin:0 0 6px}.role-rank-inline .role-rank-grid{margin-top:12px}</style>\n<div class="page-head role-editor-head">
     <div>
         <a class="role-back-link" href="/Users#roles">بازگشت به فهرست نقش‌ها</a>
         <h1>@(Model.Id == 0 ? "تعریف نقش جدید" : "ویرایش نقش و تنظیم دسترسی‌ها")</h1>
@@ -141,43 +141,6 @@
         </div>
     </div>
 </form>
-
-@if (Model.Id > 0)
-{
-    <div class="card role-rank-card">
-        <div class="section-head">
-            <div>
-                <h3>تخصیص نقش به رده‌های سازمانی</h3>
-                <span class="muted">کارکنان منتسب به این رده‌ها، مجوزهای همین نقش را به ارث می‌برند. این تخصیص مستقل از نقش‌های مستقیم کاربران است.</span>
-            </div>
-            <span class="role-count">@assignedRanks.Count رده انتخاب‌شده</span>
-        </div>
-        <form method="post" action="/Users/SaveRoleRanks">
-            @Html.AntiForgeryToken()
-            <input type="hidden" name="roleId" value="@Model.Id" />
-            @if (rankTypes.Count == 0)
-            {
-                <div class="empty">رده سازمانی فعالی برای تخصیص وجود ندارد. ابتدا رده‌ها را در اطلاعات پایه تعریف کنید.</div>
-            }
-            else
-            {
-                <div class="role-rank-grid">
-                    @foreach (var rankType in rankTypes)
-                    {
-                        <label class="role-rank-option">
-                            <input type="checkbox" name="rankTypes" value="@rankType"
-                                   @(assignedRanks.Contains(rankType, StringComparer.OrdinalIgnoreCase) ? "checked" : "") />
-                            <span>@rankType</span>
-                        </label>
-                    }
-                </div>
-            }
-            <div class="form-actions">
-                <button class="btn btn-main" type="submit">ذخیره تخصیص رده‌های سازمانی</button>
-            </div>
-        </form>
-    </div>
-}
 
 @section Scripts {
 <script>

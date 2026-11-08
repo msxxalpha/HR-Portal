@@ -165,6 +165,10 @@ app.UseRouting();
 app.UseSession();
 app.UseAuthentication();
 
+// Capture the full request pipeline, including authorization failures and
+// maintenance redirects, while the authenticated principal is already available.
+app.UseMiddleware<ActivityAuditMiddleware>();
+
 // Maintenance enforcement runs after cookie authentication so a signed-in
 // system administrator can continue working while employee access is paused.
 app.UseMiddleware<MaintenanceModeMiddleware>();
@@ -183,9 +187,6 @@ app.Use(async (ctx, next) =>
     await next();
 });
 app.UseAuthorization();
-// Request audit runs after authentication/authorization so it can record the
-// effective actor and the final response code. It never reads form bodies.
-app.UseMiddleware<ActivityAuditMiddleware>();
 
 app.MapControllerRoute(
     name: "root",

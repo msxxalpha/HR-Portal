@@ -61,7 +61,17 @@ else
     @foreach (var step in selected.Steps.OrderBy(x => x.SortOrder))
     {
         <div class="workflow-step-card">
-            <div class="workflow-step-head"><strong>@(step.SortOrder). @step.Title</strong><span>@step.Code · @(step.AssignmentType == "Hierarchy" ? $"زنجیره جایگاه‌ها تا {step.HierarchyStopRankType}" : step.OrganizationNode?.Title ?? "بدون جایگاه")</span></div>
+            <div class="workflow-step-head">
+                    @if (step.AssignmentType == "Hierarchy")
+                    {
+                        <strong>سیاست برخورد با جایگاه خالی</strong>
+                    }
+                    else
+                    {
+                        <strong>@(step.SortOrder). @step.Title</strong>
+                        <span>@step.Code · @(step.OrganizationNode?.Title ?? "بدون جایگاه")</span>
+                    }
+                </div>
             <form method="post" action="/Workflow/SaveStepRules" class="form-stack workflow-stage-rules">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="id" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" />
@@ -194,7 +204,15 @@ else
     <form method="post" action="/Workflow/SaveStep" class="form-stack">
         @Html.AntiForgeryToken()
         <input type="hidden" name="WorkflowDefinitionId" value="@selected.Id" />
-        <div class="grid-2"><label>کد مرحله<input name="Code" required placeholder="Supervisor" /></label><label>عنوان مرحله<input name="Title" required placeholder="بررسی سرپرست" /></label><label>ترتیب<input name="SortOrder" type="number" value="10" /></label><label>نوع تخصیص مرحله<select name="AssignmentType" id="assignmentType"><option value="Position">جایگاه سازمانی ثابت</option><option value="Hierarchy">زنجیره جایگاه‌های بالاتر از کارمند</option><option value="Requester">درخواست‌کننده (برای بازگشت جهت اصلاح)</option><option value="FieldPosition">جایگاه انتخاب‌شده در فرم همین مرحله</option></select></label><label id="fixedPositionField">جایگاه سازمانی<select name="OrganizationNodeId"><option value="">انتخاب جایگاه</option>@foreach (var p in Model.Positions){<option value="@p.Id">@p.Title — @p.RankType</option>}</select></label><label id="assignmentFieldCode" style="display:none">کد فیلد انتخاب جایگاه<input name="AssignmentFieldCode" maxlength="100" placeholder="SelectedPosition" /><small>این کد باید با فیلد «انتخاب جایگاه سازمانی فعال» در یکی از مراحل قبلی یکسان باشد.</small></label><label id="hierarchyStopField">توقف مسیر پویا در رده<select name="HierarchyStopRankType">@foreach (var rank in Model.RankTitles){<option value="@rank" selected="@(rank == defaultHierarchyStopRank)">@(rank == defaultHierarchyStopRank && rank == "معاونت" ? "معاونت (پیش‌فرض)" : rank)</option>}</select></label><label>نحوه تخصیص<select name="AssignmentMode"><option value="Any">هر یک از متصدیان جایگاه</option><option value="All">همه متصدیان جایگاه</option></select></label><label class="toggle-card compact-toggle"><span class="toggle-text"><strong>مرحله نهایی</strong></span><span class="switch-control"><input type="checkbox" name="IsFinalStep" value="true" /><span class="switch-slider"></span></span></label></div>
+        <div class="grid-2"><label>کد مرحله<input name="Code" required placeholder="Supervisor" /></label><label>عنوان مرحله<input name="Title" required placeholder="بررسی سرپرست" /></label><label>ترتیب<input name="SortOrder" type="number" value="10" /></label><label>نوع تخصیص مرحله<select name="AssignmentType" id="assignmentType"><option value="Position">جایگاه سازمانی ثابت</option><option value="Hierarchy">زنجیره جایگاه‌های بالاتر از کارمند</option><option value="Requester">درخواست‌کننده (برای بازگشت جهت اصلاح)</option><option value="FieldPosition">جایگاه انتخاب‌شده در فرم همین مرحله</option></select></label><label id="fixedPositionField">جایگاه سازمانی<select name="OrganizationNodeId"><option value="">انتخاب جایگاه</option>@foreach (var p in Model.Positions){<option value="@p.Id">@p.Title — @p.RankType</option>}</select></label><label id="assignmentFieldCode" style="display:none">کد فیلد انتخاب جایگاه<input name="AssignmentFieldCode" maxlength="100" placeholder="SelectedPosition" /><small>این کد باید با فیلد «انتخاب جایگاه سازمانی فعال» در یکی از مراحل قبلی یکسان باشد.</small></label><label id="hierarchyStopField">توقف مسیر پویا در رده
+                    <select name="HierarchyStopRankType">
+                        <option value="__BeforeCEO__" selected="@(defaultHierarchyStopRank == "__BeforeCEO__")">تا آخرین جایگاه زنجیره پیش از مدیرعامل</option>
+                        @foreach (var rank in Model.RankTitles)
+                        {
+                            <option value="@rank" selected="@(rank == defaultHierarchyStopRank)">@(rank == defaultHierarchyStopRank && rank == "معاونت" ? "معاونت (پیش‌فرض)" : rank)</option>
+                        }
+                    </select>
+                </label><label>نحوه تخصیص<select name="AssignmentMode"><option value="Any">هر یک از متصدیان جایگاه</option><option value="All">همه متصدیان جایگاه</option></select></label><label class="toggle-card compact-toggle"><span class="toggle-text"><strong>مرحله نهایی</strong></span><span class="switch-control"><input type="checkbox" name="IsFinalStep" value="true" /><span class="switch-slider"></span></span></label></div>
         <div class="actions"><label class="check-chip"><input type="checkbox" name="AllowApprove" value="true" checked /> تأیید</label><label class="check-chip"><input type="checkbox" name="AllowReject" value="true" checked /> رد</label><label class="check-chip"><input type="checkbox" name="AllowReturn" value="true" checked /> برگشت</label><label class="check-chip"><input type="checkbox" name="RequireCommentOnReject" value="true" checked /> توضیح رد اجباری</label><label class="check-chip"><input type="checkbox" name="RequireCommentOnReturn" value="true" /> توضیح برگشت اجباری</label></div>
         <button class="btn btn-main" type="submit">افزودن مرحله</button>
     </form>

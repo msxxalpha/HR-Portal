@@ -673,7 +673,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             throw new InvalidOperationException("هر گردش کار می‌تواند دقیقاً یک مرحله زنجیره جایگاه‌های سازمانی داشته باشد.");
 
         var template = hierarchyTemplates[0];
-        var routeResult = await BuildHierarchyRouteAsync(subjectEmployeeId, template.HierarchyStopRankType, template.HierarchyVacancyPolicy, template.HierarchySubstitutePositionId, cancellationToken);
+        var minimumRankType = source.Code.StartsWith("__internal_contractrenewal_", StringComparison.Ordinal) ? "سرپرستی" : null;
+        var routeResult = await BuildHierarchyRouteAsync(subjectEmployeeId, template.HierarchyStopRankType, template.HierarchyVacancyPolicy, template.HierarchySubstitutePositionId, cancellationToken, minimumRankType);
         var route = routeResult.Route;
         if (route.Count == 0)
             throw new InvalidOperationException("در مسیر بالادستی کارمند هیچ جایگاه دارای متصدی فعالی برای ارزیابی پیدا نشد؛ انتساب‌های ساختار سازمانی را بررسی کنید.");
@@ -788,13 +789,21 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
     public async Task ValidateHierarchyRouteAsync(int subjectEmployeeId, string stopRankType = "مدیرعامل", CancellationToken cancellationToken = default)
     {
-        var result = await BuildHierarchyRouteAsync(subjectEmployeeId, stopRankType, "Skip", null, cancellationToken);
+        await GetHierarchyRoutePreviewAsync(subjectEmployeeId, stopRankType, null, cancellationToken);
+    }
+
+    public async Task<(List<OrganizationNode> Route, List<OrganizationNode> SkippedPositions)> GetHierarchyRoutePreviewAsync(
+        int subjectEmployeeId, string stopRankType, string? minimumRankType, CancellationToken cancellationToken = default)
+    {
+        var result = await BuildHierarchyRouteAsync(subjectEmployeeId, stopRankType, "Skip", null, cancellationToken, minimumRankType);
         if (result.Route.Count == 0)
-            throw new InvalidOperationException("در مسیر بالادستی کارمند هیچ جایگاه دارای متصدی فعالی برای ارزیابی پیدا نشد؛ انتساب‌های ساختار سازمانی را بررسی کنید.");
+            throw new InvalidOperationException("در مسیر بالادستی کارمند، از حداقل رده تعیین‌شده تا پیش از مدیرعامل هیچ جایگاه دارای متصدی فعالی برای ارزیابی پیدا نشد؛ انتساب‌های ساختار سازمانی را بررسی کنید.");
+        return result;
     }
 
     private async Task<(List<OrganizationNode> Route, List<OrganizationNode> SkippedPositions)> BuildHierarchyRouteAsync(
-        int subjectEmployeeId, string stopRankType, string vacancyPolicy, int? substitutePositionId, CancellationToken cancellationToken)
+        int subjectEmployeeId, string stopRankType, string vacancyPolicy, int? substitutePositionId, CancellationToken cancellationToken,
+        string? minimumRankType = null)
     {
         var employee = await db.Employees.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == subjectEmployeeId && x.Status == "فعال", cancellationToken)
@@ -900,8 +909,23 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
         if (!stopFound)
             throw new InvalidOperationException($"در زنجیره بالادستی کارمند، رده توقف «{stopRankType}» پیدا نشد؛ ساختار سازمانی یا تنظیم مرحله را بررسی کنید.");
+
+        // Rank SortOrder is top-down (CEO=10 ... supervisor=50). For the
+        // contract-renewal route, exclude the subject's lower ranks and begin at
+        // the first supervisor-level node while preserving the actual parent chain.
+        if (!string.IsNullOrWhiteSpace(minimumRankType))
+        {
+            var rankDefinitions = await db.OrganizationRankDefinitions.AsNoTracking().ToListAsync(cancellationToken);
+            var minimumRank = rankDefinitions.FirstOrDefault(x => x.Title == minimumRankType)
+                ?? throw new InvalidOperationException($"رده حداقل «{minimumRankType}» در اطلاعات پایه رده‌های سازمانی تعریف نشده است.");
+            var rankOrder = rankDefinitions.ToDictionary(x => x.Title, x => x.SortOrder, StringComparer.Ordinal);
+            route = route.Where(position =>
+                rankOrder.TryGetValue(position.RankType, out var order) && order <= minimumRank.SortOrder)
+                .ToList();
+        }
+
         if (route.Count == 0)
-            throw new InvalidOperationException("برای این کارمند، در مسیر سازمانی از رده سرپرستی تا پیش از مدیرعامل هیچ جایگاه ارزیابی وجود ندارد؛ ابتدا ساختار سازمانی را اصلاح کنید.");
+            throw new InvalidOperationException($"برای این کارمند، در مسیر سازمانی از رده «{minimumRankType ?? "حداقل تعیین‌شده"}» تا پیش از مدیرعامل هیچ جایگاه ارزیابی وجود ندارد؛ ابتدا ساختار سازمانی را اصلاح کنید.");
 
         // Vacancy handling is configured per hierarchy stage. Only explicitly assigned
         // active holders are valid; department peers are never an implicit fallback.

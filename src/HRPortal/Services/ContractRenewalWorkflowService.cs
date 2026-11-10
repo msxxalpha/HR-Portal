@@ -8,8 +8,14 @@ public class ContractRenewalWorkflowService(HRPortalDbContext db, WorkflowServic
 {
     public const string WorkflowEntityType = "ContractRenewalRequest";
 
-    public Task ValidateEvaluationPathAsync(int employeeId, CancellationToken cancellationToken = default) =>
-        workflow.ValidateHierarchyRouteAsync(employeeId, "مدیرعامل", cancellationToken);
+    public async Task<List<string>> ValidateEvaluationPathAsync(int employeeId, CancellationToken cancellationToken = default)
+    {
+        var route = await workflow.GetHierarchyRoutePreviewAsync(employeeId, "مدیرعامل", "سرپرستی", cancellationToken);
+        return route.SkippedPositions
+            .Select(x => $"{x.Title} ({x.RankType})")
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+    }
 
     public async Task<WorkflowInstance> StartAsync(
         ContractRenewalRequest request,

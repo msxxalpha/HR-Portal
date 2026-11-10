@@ -65,6 +65,22 @@ else
             <form method="post" action="/Workflow/SaveStepRules" class="form-stack workflow-stage-rules">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="id" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" />
+                <div class="grid-2">
+                    <label>سیاست برخورد با جایگاه خالی
+                        <select name="hierarchyVacancyPolicy" class="vacancy-policy" data-step="@step.Id" @(step.AssignmentType == "Hierarchy" ? "" : "disabled")>
+                            <option value="Skip" selected="@(step.HierarchyVacancyPolicy == "Skip")">عبور از جایگاه خالی و ادامه مسیر</option>
+                            <option value="Stop" selected="@(step.HierarchyVacancyPolicy == "Stop")">توقف گردش کار تا تعیین متصدی</option>
+                            <option value="Substitute" selected="@(step.HierarchyVacancyPolicy == "Substitute")">ارجاع به جایگاه جانشین</option>
+                        </select>
+                    </label>
+                    <label class="vacancy-substitute" data-step="@step.Id" style="display:@(step.HierarchyVacancyPolicy == "Substitute" ? "block" : "none")">
+                        جایگاه جانشین
+                        <select name="hierarchySubstitutePositionId">
+                            <option value="">انتخاب جایگاه جانشین</option>
+                            @foreach (var p in Model.Positions) { <option value="@p.Id" selected="@(step.HierarchySubstitutePositionId == p.Id)">@p.Title — @p.RankType</option> }
+                        </select>
+                    </label>
+                </div>
                 <div class="actions"><label class="check-chip"><input type="checkbox" name="allowEditPreviousData" value="true" checked="@step.AllowEditPreviousData" /> اجازه ویرایش اطلاعات مراحل قبلی در این مرحله</label><label class="check-chip"><input type="checkbox" name="requireNotes" value="true" checked="@step.RequireNotes" /> ثبت ملاحظات در این مرحله اجباری باشد</label><button class="btn btn-outline btn-sm" type="submit">ذخیره تنظیمات مرحله</button></div>
             </form>
             <div class="workflow-step-actions">
@@ -195,6 +211,12 @@ else
  const fieldCode=document.getElementById('assignmentFieldCode');
  function sync(){const dynamic=type.value==='Hierarchy';const requester=type.value==='Requester';const fieldPosition=type.value==='FieldPosition';fixed.style.display=(dynamic||requester||fieldPosition)?'none':'';stop.style.display=dynamic?'':'none';fieldCode.style.display=fieldPosition?'':'none';}
  type.addEventListener('change',sync);sync();
+ document.querySelectorAll('.vacancy-policy').forEach(function(select){
+   const step=select.dataset.step;
+   const target=document.querySelector('.vacancy-substitute[data-step="'+step+'"]');
+   function update(){if(target)target.style.display=select.value==='Substitute'?'':'none';}
+   select.addEventListener('change',update);update();
+ });
 })();
 </script>
 }

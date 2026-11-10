@@ -177,6 +177,8 @@ public class ContractRenewalWorkflowService(HRPortalDbContext db, WorkflowServic
                 SortOrder = 20,
                 AssignmentType = "Hierarchy",
                 HierarchyStopRankType = "مدیرعامل",
+                HierarchyVacancyPolicy = "Skip",
+                HierarchySubstitutePositionId = null,
                 AssignmentMode = "Any",
                 AllowApprove = true,
                 AllowReject = false,

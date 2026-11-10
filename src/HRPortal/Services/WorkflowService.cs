@@ -586,11 +586,14 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             ? await db.Database.BeginTransactionAsync(cancellationToken)
             : null;
 
+        List<OrganizationNode> skippedHierarchyPositions = [];
         if (definition.Steps.Any(x => x.AssignmentType == "Hierarchy"))
         {
             if (!subjectEmployeeId.HasValue)
                 throw new InvalidOperationException("برای شروع گردش کار جایگاه‌محور، انتخاب کارمند موضوع درخواست الزامی است.");
-            definition = await BuildRuntimeDefinitionAsync(definition, subjectEmployeeId.Value, cancellationToken);
+            var runtimeResult = await BuildRuntimeDefinitionAsync(definition, subjectEmployeeId.Value, cancellationToken);
+            definition = runtimeResult.Definition;
+            skippedHierarchyPositions = runtimeResult.SkippedPositions;
         }
 
         var first = definition.Steps.OrderBy(x => x.SortOrder).FirstOrDefault()
@@ -620,6 +623,19 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             ActorEmployeeId = requester.Id,
             Comment = "شروع گردش کار"
         });
+        foreach (var skippedPosition in skippedHierarchyPositions)
+        {
+            db.WorkflowHistory.Add(new WorkflowHistory
+            {
+                WorkflowInstanceId = instance.Id,
+                WorkflowStepId = first.Id,
+                FromStatus = "InProgress",
+                ToStatus = "InProgress",
+                Action = "HierarchyVacancySkipped",
+                ActorEmployeeId = requester.Id,
+                Comment = $"جایگاه «{skippedPosition.Title}» به دلیل نداشتن متصدی فعال، در مسیر ارزیابی عبور داده شد."
+            });
+        }
         await db.SaveChangesAsync(cancellationToken);
 
         await audit.WriteAsync("شروع گردش کار", nameof(WorkflowInstance), instance.Id.ToString(), definition.Title);
@@ -628,7 +644,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         return instance;
     }
 
-    private async Task<WorkflowDefinition> BuildRuntimeDefinitionAsync(
+    private async Task<(WorkflowDefinition Definition, List<OrganizationNode> SkippedPositions)> BuildRuntimeDefinitionAsync(
         WorkflowDefinition source, int subjectEmployeeId, CancellationToken cancellationToken)
     {
         var hierarchyTemplates = source.Steps.Where(x => x.AssignmentType == "Hierarchy").ToList();
@@ -636,9 +652,10 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             throw new InvalidOperationException("هر گردش کار می‌تواند دقیقاً یک مرحله زنجیره جایگاه‌های سازمانی داشته باشد.");
 
         var template = hierarchyTemplates[0];
-        var route = await BuildHierarchyRouteAsync(subjectEmployeeId, template.HierarchyStopRankType, cancellationToken);
+        var routeResult = await BuildHierarchyRouteAsync(subjectEmployeeId, template.HierarchyStopRankType, cancellationToken);
+        var route = routeResult.Route;
         if (route.Count == 0)
-            throw new InvalidOperationException("برای کارمند انتخاب‌شده مسیر سازمانی پویا پیدا نشد.");
+            throw new InvalidOperationException("در مسیر بالادستی کارمند هیچ جایگاه دارای متصدی فعالی برای ارزیابی پیدا نشد؛ انتساب‌های ساختار سازمانی را بررسی کنید.");
 
         var runtime = new WorkflowDefinition
         {
@@ -741,7 +758,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
         await db.SaveChangesAsync(cancellationToken);
         runtime.Steps = allRuntimeSteps;
-        return runtime;
+        return (runtime, routeResult.SkippedPositions);
     }
 
     private static List<int> GetAssignedEmployeeIds(OrganizationNode position) =>
@@ -750,10 +767,12 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
     public async Task ValidateHierarchyRouteAsync(int subjectEmployeeId, string stopRankType = "مدیرعامل", CancellationToken cancellationToken = default)
     {
-        _ = await BuildHierarchyRouteAsync(subjectEmployeeId, stopRankType, cancellationToken);
+        var result = await BuildHierarchyRouteAsync(subjectEmployeeId, stopRankType, cancellationToken);
+        if (result.Route.Count == 0)
+            throw new InvalidOperationException("در مسیر بالادستی کارمند هیچ جایگاه دارای متصدی فعالی برای ارزیابی پیدا نشد؛ انتساب‌های ساختار سازمانی را بررسی کنید.");
     }
 
-    private async Task<List<OrganizationNode>> BuildHierarchyRouteAsync(
+    private async Task<(List<OrganizationNode> Route, List<OrganizationNode> SkippedPositions)> BuildHierarchyRouteAsync(
         int subjectEmployeeId, string stopRankType, CancellationToken cancellationToken)
     {
         var employee = await db.Employees.AsNoTracking()
@@ -863,17 +882,23 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         if (route.Count == 0)
             throw new InvalidOperationException("برای این کارمند، در مسیر سازمانی از رده سرپرستی تا پیش از مدیرعامل هیچ جایگاه ارزیابی وجود ندارد؛ ابتدا ساختار سازمانی را اصلاح کنید.");
 
-        // A hierarchy stage must route to the explicitly assigned position holder. Falling
-        // back to every employee in the department would send evaluation tasks to peers.
+        // Route only through explicitly assigned, active position holders. Vacant
+        // hierarchy nodes are skipped and recorded in the workflow history; this never
+        // falls back to department peers or changes fixed-position workflow stages.
+        var skippedPositions = new List<OrganizationNode>();
+        var occupiedRoute = new List<OrganizationNode>();
         foreach (var position in route)
         {
             var assignedEmployeeIds = GetAssignedEmployeeIds(position);
-            if (assignedEmployeeIds.Count == 0 ||
-                !await db.Employees.AnyAsync(x => assignedEmployeeIds.Contains(x.Id) && x.Status == "فعال", cancellationToken))
-                throw new InvalidOperationException($"برای جایگاه «{position.Title}» دست‌کم یک کارمند منتسب و فعال تعیین نشده است. در مدیریت ساختار سازمانی، انتساب کارکنان را بررسی کنید.");
+            var hasActiveAssignee = assignedEmployeeIds.Count > 0 &&
+                await db.Employees.AnyAsync(x => assignedEmployeeIds.Contains(x.Id) && x.Status == "فعال", cancellationToken);
+            if (hasActiveAssignee)
+                occupiedRoute.Add(position);
+            else
+                skippedPositions.Add(position);
         }
 
-        return route;
+        return (occupiedRoute, skippedPositions);
     }
 
     private static WorkflowStep CloneStep(

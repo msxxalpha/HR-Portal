@@ -429,6 +429,17 @@ public class WorkflowController(
     [HttpPost]
     [Authorize(Policy = "Workflow.Manage")]
     [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveStepRules(int id, int definitionId, bool allowEditPreviousData, bool requireNotes,
+        string hierarchyVacancyPolicy = "Skip", int? hierarchySubstitutePositionId = null)
+    {
+        try { await workflow.SaveStepRulesAsync(id, allowEditPreviousData, requireNotes, hierarchyVacancyPolicy, hierarchySubstitutePositionId); TempData["Success"] = "تنظیمات مرحله ذخیره شد."; }
+        catch (Exception ex) { TempData["Error"] = ex.Message; }
+        return RedirectToAction(nameof(Manage), new { id = definitionId });
+    }
+
+    [HttpPost]
+    [Authorize(Policy = "Workflow.Manage")]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> SaveStep(WorkflowStepEditModel model)
     {
         try { await workflow.SaveStepAsync(model); TempData["Success"] = "مرحله ذخیره شد."; }

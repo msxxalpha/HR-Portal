@@ -641,6 +641,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             ActorEmployeeId = requester.Id,
             Comment = "شروع گردش کار"
         });
+        var vacancyPolicy = definition.Steps.Select(x => x.HierarchyVacancyPolicy).FirstOrDefault(x => x != "Skip") ?? "Skip";
         foreach (var skippedPosition in skippedHierarchyPositions)
         {
             db.WorkflowHistory.Add(new WorkflowHistory
@@ -649,9 +650,11 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 WorkflowStepId = first.Id,
                 FromStatus = "InProgress",
                 ToStatus = "InProgress",
-                Action = "HierarchyVacancySkipped",
+                Action = vacancyPolicy == "Substitute" ? "HierarchyVacancySubstituted" : "HierarchyVacancySkipped",
                 ActorEmployeeId = requester.Id,
-                Comment = $"جایگاه «{skippedPosition.Title}» به دلیل نداشتن متصدی فعال، در مسیر ارزیابی عبور داده شد."
+                Comment = vacancyPolicy == "Substitute"
+                    ? $"جایگاه «{skippedPosition.Title}» متصدی فعال نداشت و طبق تنظیم مرحله به جایگاه جانشین از پیش تعیین‌شده ارجاع شد."
+                    : $"جایگاه «{skippedPosition.Title}» به دلیل نداشتن متصدی فعال، طبق تنظیم مرحله از مسیر ارزیابی عبور داده شد."
             });
         }
         await db.SaveChangesAsync(cancellationToken);
@@ -921,7 +924,11 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             var assignedEmployeeIds = GetAssignedEmployeeIds(position);
             var hasActiveAssignee = assignedEmployeeIds.Count > 0 &&
                 await db.Employees.AnyAsync(x => assignedEmployeeIds.Contains(x.Id) && x.Status == "فعال", cancellationToken);
-            if (hasActiveAssignee) { occupiedRoute.Add(position); continue; }
+            if (hasActiveAssignee)
+            {
+                if (occupiedRoute.All(x => x.Id != position.Id)) occupiedRoute.Add(position);
+                continue;
+            }
             if (vacancyPolicy == "Stop")
                 throw new InvalidOperationException($"جایگاه «{position.Title}» در مسیر ارزیابی متصدی فعال ندارد؛ طبق تنظیم مرحله، گردش کار متوقف شد.");
             skippedPositions.Add(position);

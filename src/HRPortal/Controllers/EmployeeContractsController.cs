@@ -442,9 +442,10 @@ public class EmployeeContractsController(
         }
 
         var employee = model.SelectedEmployee!;
+        List<string> skippedEvaluationPositions;
         try
         {
-            await renewalWorkflow.ValidateEvaluationPathAsync(employee.Id);
+            skippedEvaluationPositions = await renewalWorkflow.ValidateEvaluationPathAsync(employee.Id);
         }
         catch (InvalidOperationException ex)
         {
@@ -502,6 +503,14 @@ public class EmployeeContractsController(
             await db.SaveChangesAsync();
 
             var instance = await renewalWorkflow.StartAsync(request, requesterEmployeeId);
+            // Read the actual runtime audit entries so the notice reflects the exact
+            // route that was frozen for this request.
+            skippedEvaluationPositions = await db.WorkflowHistory.AsNoTracking()
+                .Where(x => x.WorkflowInstanceId == instance.Id && x.Action == "HierarchyVacancySkipped")
+                .OrderBy(x => x.Id)
+                .Select(x => x.Comment ?? "")
+                .Where(x => x != "")
+                .ToListAsync();
             request.WorkflowInstanceId = instance.Id;
             request.Status = "در انتظار تأیید اطلاعات اولیه";
             await db.SaveChangesAsync();
@@ -510,6 +519,9 @@ public class EmployeeContractsController(
             await audit.WriteAsync("ثبت و شروع ارزشیابی تمدید قرارداد", nameof(ContractRenewalRequest),
                 request.Id.ToString(), request.RequestCode);
             TempData["Success"] = $"درخواست {request.RequestCode} ثبت شد و برای بررسی اطلاعات اولیه به جایگاه تأییدکننده ارجاع شد.";
+            if (skippedEvaluationPositions.Count > 0)
+                TempData["Warning"] = "توجه: در مسیر ارزیابی عملکرد، به دلیل نداشتن نیروی فعال منتسب، از جایگاه(های) زیر عبور شده است: " +
+                    string.Join(" ", skippedEvaluationPositions) + " ارجاع از جایگاه بالاترِ دارای متصدی فعال ادامه می‌یابد.";
             return RedirectToAction(nameof(Renewal));
         }
         catch (Exception ex)

@@ -12,6 +12,8 @@ public class WorkflowStepEditModel
     public string? AssignmentFieldCode { get; set; }
     public string AssignmentType { get; set; } = "Position";
     public string HierarchyStopRankType { get; set; } = "معاونت";
+    public string HierarchyVacancyPolicy { get; set; } = "Skip";
+    public int? HierarchySubstitutePositionId { get; set; }
     public string AssignmentMode { get; set; } = "Any";
     public bool AllowApprove { get; set; } = true;
     public bool AllowReject { get; set; } = true;

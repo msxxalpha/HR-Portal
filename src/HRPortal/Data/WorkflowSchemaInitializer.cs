@@ -179,6 +179,8 @@ IF COL_LENGTH(N'dbo.WorkflowTransitions', N'ConditionValue') IS NULL ALTER TABLE
 IF COL_LENGTH(N'dbo.WorkflowDefinitions', N'IsRuntimeInstance') IS NULL ALTER TABLE [dbo].[WorkflowDefinitions] ADD [IsRuntimeInstance] bit NOT NULL CONSTRAINT [DF_WorkflowDefinitions_IsRuntimeInstance] DEFAULT 0;
 IF COL_LENGTH(N'dbo.WorkflowDefinitions', N'SourceDefinitionId') IS NULL ALTER TABLE [dbo].[WorkflowDefinitions] ADD [SourceDefinitionId] int NULL;
 IF COL_LENGTH(N'dbo.WorkflowSteps', N'HierarchyStopRankType') IS NULL ALTER TABLE [dbo].[WorkflowSteps] ADD [HierarchyStopRankType] nvarchar(30) NOT NULL CONSTRAINT [DF_WorkflowSteps_HierarchyStopRankType] DEFAULT N'معاونت';
+IF COL_LENGTH(N'dbo.WorkflowSteps', N'HierarchyVacancyPolicy') IS NULL ALTER TABLE [dbo].[WorkflowSteps] ADD [HierarchyVacancyPolicy] nvarchar(20) NOT NULL CONSTRAINT [DF_WorkflowSteps_HierarchyVacancyPolicy] DEFAULT N'Skip';
+IF COL_LENGTH(N'dbo.WorkflowSteps', N'HierarchySubstitutePositionId') IS NULL ALTER TABLE [dbo].[WorkflowSteps] ADD [HierarchySubstitutePositionId] int NULL;
 IF OBJECT_ID(N'dbo.WorkflowSteps', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.WorkflowSteps', N'AssignedEmployeeId') IS NULL ALTER TABLE [dbo].[WorkflowSteps] ADD [AssignedEmployeeId] int NULL;
 
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_SystemFormDefinitions_Code' AND object_id=OBJECT_ID(N'dbo.SystemFormDefinitions'))

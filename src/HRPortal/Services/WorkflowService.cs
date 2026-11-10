@@ -221,8 +221,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         entity.SortOrder = model.SortOrder;
         entity.AssignmentType = assignmentType;
         entity.HierarchyStopRankType = model.HierarchyStopRankType;
-        entity.HierarchyVacancyPolicy = model.HierarchyVacancyPolicy is "Stop" or "Substitute" ? model.HierarchyVacancyPolicy : "Skip";
-        entity.HierarchySubstitutePositionId = entity.HierarchyVacancyPolicy == "Substitute" ? model.HierarchySubstitutePositionId : null;
+        // Vacancy policy is edited through SaveStepRulesAsync; do not reset it when
+        // unrelated stage properties are saved from the stage editor.
         entity.OrganizationNodeId = assignmentType == "Position" ? model.OrganizationNodeId : null;
         entity.AssignedEmployeeId = assignmentType == "Employee" ? model.AssignedEmployeeId : null;
         entity.AssignmentFieldCode = assignmentType == "FieldPosition" ? model.AssignmentFieldCode!.Trim() : null;

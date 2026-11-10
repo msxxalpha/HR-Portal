@@ -82,7 +82,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                     {
                         WorkflowDefinitionId = entity.Id, Code = source.Code, Title = source.Title,
                         SortOrder = source.SortOrder, AssignmentType = source.AssignmentType,
-                        HierarchyStopRankType = source.HierarchyStopRankType, OrganizationNodeId = source.OrganizationNodeId, AssignedEmployeeId = source.AssignedEmployeeId, AssignmentMode = source.AssignmentMode,
+                        HierarchyStopRankType = source.HierarchyStopRankType, HierarchyVacancyPolicy = source.HierarchyVacancyPolicy, HierarchySubstitutePositionId = source.HierarchySubstitutePositionId, OrganizationNodeId = source.OrganizationNodeId, AssignedEmployeeId = source.AssignedEmployeeId, AssignmentMode = source.AssignmentMode,
                         AllowApprove = source.AllowApprove, AllowReject = source.AllowReject, AllowReturn = source.AllowReturn,
                         RequireCommentOnReject = source.RequireCommentOnReject,
                         RequireCommentOnReturn = source.RequireCommentOnReturn, IsFinalStep = source.IsFinalStep,
@@ -221,6 +221,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         entity.SortOrder = model.SortOrder;
         entity.AssignmentType = assignmentType;
         entity.HierarchyStopRankType = model.HierarchyStopRankType;
+        entity.HierarchyVacancyPolicy = model.HierarchyVacancyPolicy is "Stop" or "Substitute" ? model.HierarchyVacancyPolicy : "Skip";
+        entity.HierarchySubstitutePositionId = entity.HierarchyVacancyPolicy == "Substitute" ? model.HierarchySubstitutePositionId : null;
         entity.OrganizationNodeId = assignmentType == "Position" ? model.OrganizationNodeId : null;
         entity.AssignedEmployeeId = assignmentType == "Employee" ? model.AssignedEmployeeId : null;
         entity.AssignmentFieldCode = assignmentType == "FieldPosition" ? model.AssignmentFieldCode!.Trim() : null;
@@ -238,7 +240,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         await db.SaveChangesAsync();
     }
 
-    public async Task SaveStepRulesAsync(int stepId, bool allowEditPreviousData, bool requireNotes)
+    public async Task SaveStepRulesAsync(int stepId, bool allowEditPreviousData, bool requireNotes, string hierarchyVacancyPolicy = "Skip", int? hierarchySubstitutePositionId = null)
     {
         var step = await db.WorkflowSteps.Include(x => x.WorkflowDefinition)
             .FirstOrDefaultAsync(x => x.Id == stepId)
@@ -247,6 +249,22 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             throw new InvalidOperationException("نسخه اجرایی درخواست قابل ویرایش نیست.");
         if (await db.WorkflowInstances.AnyAsync(x => x.WorkflowDefinitionId == step.WorkflowDefinitionId || x.WorkflowDefinition.SourceDefinitionId == step.WorkflowDefinitionId))
             throw new InvalidOperationException("این گردش کار قبلاً استفاده شده است؛ ابتدا مشخصات آن را ذخیره کنید تا نسخه جدید ساخته شود، سپس تنظیمات مرحله را تغییر دهید.");
+        hierarchyVacancyPolicy = hierarchyVacancyPolicy is "Stop" or "Substitute" ? hierarchyVacancyPolicy : "Skip";
+        if (step.AssignmentType == "Hierarchy" && hierarchyVacancyPolicy == "Substitute")
+        {
+            if (!hierarchySubstitutePositionId.HasValue)
+                throw new InvalidOperationException("برای سیاست جانشین، انتخاب جایگاه جانشین الزامی است.");
+            var substitute = await db.OrganizationNodes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == hierarchySubstitutePositionId.Value && x.IsActive &&
+                    x.Revision.IsFinalized && x.Revision.EffectiveDate <= DateTime.Today);
+            if (substitute is null)
+                throw new InvalidOperationException("جایگاه جانشین باید در ساختار نهایی و مؤثر سازمانی فعال باشد.");
+            var holders = GetAssignedEmployeeIds(substitute);
+            if (holders.Count == 0 || !await db.Employees.AnyAsync(x => holders.Contains(x.Id) && x.Status == "فعال"))
+                throw new InvalidOperationException("جایگاه جانشین باید دست‌کم یک متصدی فعال داشته باشد.");
+        }
+        step.HierarchyVacancyPolicy = hierarchyVacancyPolicy;
+        step.HierarchySubstitutePositionId = step.AssignmentType == "Hierarchy" && hierarchyVacancyPolicy == "Substitute" ? hierarchySubstitutePositionId : null;
         step.AllowEditPreviousData = allowEditPreviousData;
         step.RequireNotes = requireNotes;
         step.WorkflowDefinition.UpdatedAt = DateTime.UtcNow;
@@ -652,7 +670,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             throw new InvalidOperationException("هر گردش کار می‌تواند دقیقاً یک مرحله زنجیره جایگاه‌های سازمانی داشته باشد.");
 
         var template = hierarchyTemplates[0];
-        var routeResult = await BuildHierarchyRouteAsync(subjectEmployeeId, template.HierarchyStopRankType, cancellationToken);
+        var routeResult = await BuildHierarchyRouteAsync(subjectEmployeeId, template.HierarchyStopRankType, template.HierarchyVacancyPolicy, template.HierarchySubstitutePositionId, cancellationToken);
         var route = routeResult.Route;
         if (route.Count == 0)
             throw new InvalidOperationException("در مسیر بالادستی کارمند هیچ جایگاه دارای متصدی فعالی برای ارزیابی پیدا نشد؛ انتساب‌های ساختار سازمانی را بررسی کنید.");
@@ -767,13 +785,13 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
     public async Task ValidateHierarchyRouteAsync(int subjectEmployeeId, string stopRankType = "مدیرعامل", CancellationToken cancellationToken = default)
     {
-        var result = await BuildHierarchyRouteAsync(subjectEmployeeId, stopRankType, cancellationToken);
+        var result = await BuildHierarchyRouteAsync(subjectEmployeeId, stopRankType, "Skip", null, cancellationToken);
         if (result.Route.Count == 0)
             throw new InvalidOperationException("در مسیر بالادستی کارمند هیچ جایگاه دارای متصدی فعالی برای ارزیابی پیدا نشد؛ انتساب‌های ساختار سازمانی را بررسی کنید.");
     }
 
     private async Task<(List<OrganizationNode> Route, List<OrganizationNode> SkippedPositions)> BuildHierarchyRouteAsync(
-        int subjectEmployeeId, string stopRankType, CancellationToken cancellationToken)
+        int subjectEmployeeId, string stopRankType, string vacancyPolicy, int? substitutePositionId, CancellationToken cancellationToken)
     {
         var employee = await db.Employees.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == subjectEmployeeId && x.Status == "فعال", cancellationToken)
@@ -882,22 +900,34 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         if (route.Count == 0)
             throw new InvalidOperationException("برای این کارمند، در مسیر سازمانی از رده سرپرستی تا پیش از مدیرعامل هیچ جایگاه ارزیابی وجود ندارد؛ ابتدا ساختار سازمانی را اصلاح کنید.");
 
-        // Route only through explicitly assigned, active position holders. Vacant
-        // hierarchy nodes are skipped and recorded in the workflow history; this never
-        // falls back to department peers or changes fixed-position workflow stages.
+        // Vacancy handling is configured per hierarchy stage. Only explicitly assigned
+        // active holders are valid; department peers are never an implicit fallback.
         var skippedPositions = new List<OrganizationNode>();
         var occupiedRoute = new List<OrganizationNode>();
+        OrganizationNode? substitutePosition = null;
+        if (vacancyPolicy == "Substitute")
+        {
+            if (!substitutePositionId.HasValue)
+                throw new InvalidOperationException("سیاست جانشین برای این مرحله انتخاب شده اما جایگاه جانشین تعیین نشده است.");
+            substitutePosition = nodes.FirstOrDefault(x => x.Id == substitutePositionId.Value && x.IsActive);
+            if (substitutePosition is null)
+                throw new InvalidOperationException("جایگاه جانشین در نسخه نهایی و مؤثر ساختار سازمانی فعال وجود ندارد.");
+            var substituteHolders = GetAssignedEmployeeIds(substitutePosition);
+            if (substituteHolders.Count == 0 || !await db.Employees.AnyAsync(x => substituteHolders.Contains(x.Id) && x.Status == "فعال", cancellationToken))
+                throw new InvalidOperationException($"جایگاه جانشین «{substitutePosition.Title}» متصدی فعال ندارد.");
+        }
         foreach (var position in route)
         {
             var assignedEmployeeIds = GetAssignedEmployeeIds(position);
             var hasActiveAssignee = assignedEmployeeIds.Count > 0 &&
                 await db.Employees.AnyAsync(x => assignedEmployeeIds.Contains(x.Id) && x.Status == "فعال", cancellationToken);
-            if (hasActiveAssignee)
-                occupiedRoute.Add(position);
-            else
-                skippedPositions.Add(position);
+            if (hasActiveAssignee) { occupiedRoute.Add(position); continue; }
+            if (vacancyPolicy == "Stop")
+                throw new InvalidOperationException($"جایگاه «{position.Title}» در مسیر ارزیابی متصدی فعال ندارد؛ طبق تنظیم مرحله، گردش کار متوقف شد.");
+            skippedPositions.Add(position);
+            if (vacancyPolicy == "Substitute" && substitutePosition is not null && occupiedRoute.All(x => x.Id != substitutePosition.Id))
+                occupiedRoute.Add(substitutePosition);
         }
-
         return (occupiedRoute, skippedPositions);
     }
 
@@ -911,6 +941,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         SortOrder = sortOrder,
         AssignmentType = assignmentType,
         HierarchyStopRankType = source.HierarchyStopRankType,
+        HierarchyVacancyPolicy = source.HierarchyVacancyPolicy,
+        HierarchySubstitutePositionId = source.HierarchySubstitutePositionId,
         OrganizationNodeId = organizationNodeId,
         AssignedEmployeeId = assignedEmployeeId,
         AssignmentMode = source.AssignmentMode,

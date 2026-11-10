@@ -190,7 +190,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         }
         if (assignmentType == "Hierarchy" &&
             (string.IsNullOrWhiteSpace(model.HierarchyStopRankType) ||
-             !await db.OrganizationRankDefinitions.AnyAsync(x => x.Title == model.HierarchyStopRankType.Trim())))
+             (model.HierarchyStopRankType != "__BeforeCEO__" &&
+              !await db.OrganizationRankDefinitions.AnyAsync(x => x.Title == model.HierarchyStopRankType.Trim()))))
             throw new InvalidOperationException("رده توقف مسیر پویا باید از فهرست رده‌های سازمانی اطلاعات پایه انتخاب شود.");
         if (assignmentType == "Employee" && (!model.AssignedEmployeeId.HasValue || !await db.Employees.AnyAsync(x => x.Id == model.AssignedEmployeeId.Value && x.Status == "فعال")))
             throw new InvalidOperationException("برای مرحله اختصاص‌یافته به کارمند، انتخاب کارمند فعال الزامی است.");
@@ -805,6 +806,10 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         int subjectEmployeeId, string stopRankType, string vacancyPolicy, int? substitutePositionId, CancellationToken cancellationToken,
         string? minimumRankType = null)
     {
+        // Special option means follow the actual parent chain until the CEO node,
+        // excluding CEO itself from the evaluation route.
+        if (stopRankType == "__BeforeCEO__")
+            stopRankType = "مدیرعامل";
         var employee = await db.Employees.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == subjectEmployeeId && x.Status == "فعال", cancellationToken)
             ?? throw new InvalidOperationException("کارمند موضوع گردش کار یافت نشد.");

@@ -9,6 +9,8 @@ public class WorkflowStep
     public int SortOrder { get; set; }
     public string AssignmentType { get; set; } = "Position";
     public string HierarchyStopRankType { get; set; } = "معاونت";
+    public string HierarchyVacancyPolicy { get; set; } = "Skip";
+    public int? HierarchySubstitutePositionId { get; set; }
     public int? OrganizationNodeId { get; set; }
     public int? AssignedEmployeeId { get; set; }
     public string? AssignmentFieldCode { get; set; }

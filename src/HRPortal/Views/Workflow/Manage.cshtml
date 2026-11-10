@@ -66,7 +66,8 @@ else
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="id" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" />
                 <div class="grid-2">
-                    <label>سیاست برخورد با جایگاه خالی
+                    <label class="hierarchy-vacancy-setting">سیاست برخورد با جایگاه خالی
+                        <small class="muted">این تنظیم فقط برای مرحله‌ای با نوع تخصیص «زنجیره جایگاه‌های بالاتر» فعال است.</small>
                         <select name="hierarchyVacancyPolicy" class="vacancy-policy" data-step="@step.Id" @(step.AssignmentType == "Hierarchy" ? "" : "disabled")>
                             <option value="Skip" selected="@(step.HierarchyVacancyPolicy == "Skip")">عبور از جایگاه خالی و ادامه مسیر</option>
                             <option value="Stop" selected="@(step.HierarchyVacancyPolicy == "Stop")">توقف گردش کار تا تعیین متصدی</option>

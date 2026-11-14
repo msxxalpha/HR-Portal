@@ -1,6 +1,7 @@
 using HRPortal.Models;
 using HRPortal.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -355,7 +356,7 @@ public class WorkflowController(
     [HttpPost]
     [Authorize(Policy = "Workflow.Inbox")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Act(int id, string action, string? comment, Dictionary<string, string?>? values, Dictionary<string, string?>? previousValues)
+    public async Task<IActionResult> Act(int id, string action, string? comment)
     {
         if (!int.TryParse(User.FindFirst("EmployeeId")?.Value, out var employeeId))
             return Forbid();
@@ -364,6 +365,13 @@ public class WorkflowController(
         if (task is null) return NotFound();
         if (task.WorkflowInstance.EntityType == ContractRenewalWorkflowService.WorkflowEntityType)
             return RedirectToAction("Details", "ContractRenewalTask", new { id });
+
+        // Dictionary model binding can fall back to unrelated form keys when a
+        // collection prefix is not recognized. Read only the explicitly named
+        // values[...] and previousValues[...] fields from the posted form.
+        var postedForm = await Request.ReadFormAsync(HttpContext.RequestAborted);
+        var values = ReadPrefixedFormValues(postedForm, "values");
+        var previousValues = ReadPrefixedFormValues(postedForm, "previousValues");
 
         try
         {
@@ -379,6 +387,32 @@ public class WorkflowController(
         return action == "SaveDraft"
             ? RedirectToAction(nameof(Task), new { id })
             : RedirectToAction(nameof(Inbox));
+    }
+
+    private static Dictionary<string, string?> ReadPrefixedFormValues(
+        IFormCollection form, string prefix)
+    {
+        var result = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        var keyPrefix = prefix + "[";
+
+        foreach (var postedKey in form.Keys)
+        {
+            if (!postedKey.StartsWith(keyPrefix, StringComparison.OrdinalIgnoreCase) ||
+                !postedKey.EndsWith(']'))
+                continue;
+
+            var fieldKey = postedKey[keyPrefix.Length..^1].Trim();
+            if (fieldKey.Length == 0)
+                continue;
+
+            var postedValues = form[postedKey];
+            if (postedValues.Count > 1)
+                throw new InvalidOperationException($"فیلد «{fieldKey}» بیش از یک مقدار از فرم ارسال کرده است.");
+
+            result[fieldKey] = postedValues.Count == 0 ? null : postedValues[0];
+        }
+
+        return result;
     }
 
     [HttpGet]

@@ -464,7 +464,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 WorkflowStepId = step.Id,
                 StepTitle = step.Title,
                 IsCurrentStep = isCurrent,
-                IsEditable = isCurrent || task.WorkflowStep.AllowEditPreviousData,
+                IsEditable = isCurrent || task.Action == "ReturnedForEdit" || task.WorkflowStep.AllowEditPreviousData,
                 Fields = stepFields.Select(f =>
                 {
                     var value = values.FirstOrDefault(v => v.WorkflowStepFieldId == f.Id);
@@ -1102,7 +1102,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             PositionTitle = x.AssignedPosition == null ? "" : x.AssignedPosition.Title,
             Status = x.Status,
             CreatedAt = x.CreatedAt,
-            Comment = x.Comment
+            Comment = x.Comment,
+            Action = x.Action ?? ""
         }).ToList();
     }
 
@@ -1555,7 +1556,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             {
                 instance.CurrentStepId = next.Id;
                 instance.Status = "InProgress";
-                await CreateTasksAsync(instance, next, CancellationToken.None);
+                await CreateTasksAsync(instance, next, CancellationToken.None, "ReturnedForEdit");
             }
         }
 
@@ -1564,7 +1565,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         await audit.WriteAsync("اقدام در گردش کار", nameof(WorkflowTask), task.Id.ToString(), action);
     }
 
-    private async Task CreateTasksAsync(WorkflowInstance instance, WorkflowStep step, CancellationToken cancellationToken)
+    private async Task CreateTasksAsync(WorkflowInstance instance, WorkflowStep step, CancellationToken cancellationToken, string? taskAction = null)
     {
         if (step.AssignmentType == "Requester")
         {
@@ -1574,7 +1575,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             {
                 WorkflowInstanceId = instance.Id,
                 WorkflowStepId = step.Id,
-                AssignedEmployeeId = instance.RequesterEmployeeId
+                AssignedEmployeeId = instance.RequesterEmployeeId,
+                Action = taskAction
             });
             await db.SaveChangesAsync(cancellationToken);
             return;
@@ -1590,7 +1592,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             {
                 WorkflowInstanceId = instance.Id,
                 WorkflowStepId = step.Id,
-                AssignedEmployeeId = step.AssignedEmployeeId
+                AssignedEmployeeId = step.AssignedEmployeeId,
+                Action = taskAction
             });
             await db.SaveChangesAsync(cancellationToken);
             return;
@@ -1675,7 +1678,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                         WorkflowInstanceId = instance.Id,
                         WorkflowStepId = step.Id,
                         AssignedPositionId = positionId,
-                        AssignedEmployeeId = assigneeId
+                        AssignedEmployeeId = assigneeId,
+                        Action = taskAction
                     });
             }
             else
@@ -1685,7 +1689,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                     WorkflowInstanceId = instance.Id,
                     WorkflowStepId = step.Id,
                     AssignedPositionId = positionId,
-                    AssignedEmployeeId = activeAssigneeIds.Count == 1 ? activeAssigneeIds[0] : null
+                    AssignedEmployeeId = activeAssigneeIds.Count == 1 ? activeAssigneeIds[0] : null,
+                    Action = taskAction
                 });
             }
             await db.SaveChangesAsync(cancellationToken);
@@ -1703,7 +1708,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             AssignedPositionId = positionId,
             AssignedEmployeeId = step.AssignmentMode == "Any" && assignedEmployeeIds.Count == 1
                 ? assignedEmployeeIds[0]
-                : null
+                : null,
+            Action = taskAction
         });
 
         await db.SaveChangesAsync(cancellationToken);

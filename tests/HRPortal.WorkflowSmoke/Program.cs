@@ -1767,6 +1767,8 @@ static async Task VerifyWorkflowStageEditingAndRequesterReturnAsync()
     Check(requesterTask is not null && requesterTask.WorkflowStepId == requesterStep.Id,
         "The original requester must be able to open the returned correction task.");
     var fieldGroups = await service.GetTaskFieldGroupsAsync(requesterTaskRow.TaskId, requester.Id);
+    Console.WriteLine("DEBUG requester groups: " + string.Join(" | ", fieldGroups.Select(g =>
+        $"step={g.WorkflowStepId}/{g.StepTitle}, current={g.IsCurrentStep}, editable={g.IsEditable}, fields={string.Join(",", g.Fields.Select(f => f.Code + "=" + f.Value))}")));
     Check(fieldGroups.Count == 1 && fieldGroups[0].IsCurrentStep && fieldGroups[0].IsEditable &&
           fieldGroups[0].Fields.Any(x => x.Code == "requesterCorrection"),
         "The requester must receive an editable form for the requester-correction step.");

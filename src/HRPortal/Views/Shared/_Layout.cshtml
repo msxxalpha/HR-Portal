@@ -113,12 +113,26 @@
             }
             @if (Can("Payroll.View") || Can("PersonnelOrder.View") || Can("OutsourcedServices.Create") || Can("OutsourcedServices.ViewAll") || Can("OutsourcedServices.Reports")) {
                 <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Payroll") || Context.Request.Path.StartsWithSegments("/PersonnelOrder") || Context.Request.Path.StartsWithSegments("/OutsourcedServices") || Context.Request.Path.StartsWithSegments("/OutsourcedServicesReports") ? "open" : null)">
-                    <summary><span class="nav-icon">▥</span>خدمات کارکنان</summary><div class="nav-submenu">
+                    <summary><span class="nav-icon">▥</span>خدمات کارکنان</summary>
+                    <div class="nav-submenu">
                         @if (Can("Payroll.View")) { <a href="/Payroll/Payslip">فیش حقوقی</a> }
                         @if (Can("PersonnelOrder.View")) { <a href="/PersonnelOrder">حکم کارگزینی</a> }
-                        @if (Can("OutsourcedServices.Create") || Can("OutsourcedServices.ViewAll")) { <a href="/OutsourcedServices">فهرست سفارش‌های خدمات برونسپاری</a> }
-                        @if (Can("OutsourcedServices.Create")) { <a href="/OutsourcedServices/Create">ثبت سفارش خدمات برونسپاری</a> }
-                        @if (Can("OutsourcedServices.Reports")) { <a href="/OutsourcedServicesReports">گزارش‌ها و داشبورد</a> }
+                        @if (Can("OutsourcedServices.Create") || Can("OutsourcedServices.ViewAll") || Can("OutsourcedServices.Reports"))
+                        {
+                            <details class="nav-subgroup" open="@(Context.Request.Path.StartsWithSegments("/OutsourcedServices") || Context.Request.Path.StartsWithSegments("/OutsourcedServicesReports") ? "open" : null)">
+                                <summary>ماژول درخواستها</summary>
+                                <div class="nav-submenu nav-submenu-nested">
+                                    <details class="nav-subgroup" open="@(Context.Request.Path.StartsWithSegments("/OutsourcedServices") || Context.Request.Path.StartsWithSegments("/OutsourcedServicesReports") ? "open" : null)">
+                                        <summary>حوزه خرید و تدارکات</summary>
+                                        <div class="nav-submenu nav-submenu-nested">
+                                            @if (Can("OutsourcedServices.Create")) { <a href="/OutsourcedServices/Create">ثبت سفارش خدمات برونسپاری</a> }
+                                            @if (Can("OutsourcedServices.Create") || Can("OutsourcedServices.ViewAll")) { <a href="/OutsourcedServices">فهرست سفارشهای خدمات برونسپاری</a> }
+                                            @if (Can("OutsourcedServices.Reports")) { <a href="/OutsourcedServicesReports">گزارشها و داشبورد</a> }
+                                        </div>
+                                    </details>
+                                </div>
+                            </details>
+                        }
                     </div>
                 </details>
             }

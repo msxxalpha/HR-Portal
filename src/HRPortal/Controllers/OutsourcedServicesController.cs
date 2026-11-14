@@ -119,7 +119,8 @@ public sealed class OutsourcedServicesController(
         try
         {
             var instance = await workflowSubmission.StartForFormAsync(
-                "OutsourcedServices", "OutsourcedServiceRequest", item.Id.ToString(), requesterId);
+                "OutsourcedServices", "OutsourcedServiceRequest", item.Id.ToString(), requesterId,
+                subjectEmployeeId: requesterId);
             if (instance is null)
                 TempData["Warning"] = "درخواست ثبت شد؛ برای آغاز ارجاع، ابتدا گردش کار «سفارش خدمات برونسپاری» را در مدیریت گردش کار تعریف و فعال کنید.";
             else

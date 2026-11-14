@@ -37,6 +37,7 @@ public sealed class OutsourcedServiceDashboardViewModel
     public int PendingCount { get; set; }
     public int CompletedCount { get; set; }
     public int RejectedCount { get; set; }
+    public int ReturnedCount { get; set; }
     public int UrgentCount { get; set; }
     public List<OutsourcedServiceBucket> PriorityBuckets { get; set; } = [];
     public List<OutsourcedServiceBucket> StatusBuckets { get; set; } = [];

@@ -82,7 +82,7 @@
     var outsourcedPriority = outsourcedService.Priority switch { "Emergency" => "اضطراری", "Urgent" => "فوری", _ => "عادی" };
     <section class="card" style="margin-top:1rem">
         <div class="section-head"><div><h3>مشخصات سفارش خدمات برونسپاری</h3><span class="muted">@outsourcedService.RequestNumber</span></div>
-            <a class="btn btn-outline" href="/OutsourcedServices/Details/@outsourcedService.Id">مشاهده صفحه درخواست</a>
+            @if (User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "OutsourcedServices.ViewAll") || User.HasClaim("Permission", "OutsourcedServices.Reports") || User.HasClaim("Permission", "OutsourcedServices.Create")) { <a class="btn btn-outline" href="/OutsourcedServices/Details/@outsourcedService.Id">مشاهده صفحه درخواست</a> }
         </div>
         <dl class="detail-list">
             <dt>شرح خدمات درخواستی</dt><dd>@outsourcedService.ServiceDescription</dd>

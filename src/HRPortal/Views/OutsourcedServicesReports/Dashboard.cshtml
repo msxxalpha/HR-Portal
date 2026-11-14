@@ -3,6 +3,8 @@
     ViewData["Title"] = "داشبورد سفارش خدمات برونسپاری";
     var units = ViewBag.Units as List<string> ?? new List<string>();
     var priorities = ViewBag.Priorities as Dictionary<string,string> ?? new Dictionary<string,string>();
+    var organizationalUnits = ViewBag.OrganizationalUnits as List<string> ?? new List<string>();
+    int maxOrganizationTotal = Math.Max(1, Model.OrganizationalUnitBuckets.Select(x => x.TotalCount).DefaultIfEmpty(0).Max());
     int maxPriority = Math.Max(1, Model.PriorityBuckets.Select(x=>x.Count).DefaultIfEmpty(0).Max());
     int maxStatus = Math.Max(1, Model.StatusBuckets.Select(x=>x.Count).DefaultIfEmpty(0).Max());
     int maxUnit = Math.Max(1, Model.UnitBuckets.Select(x=>x.Count).DefaultIfEmpty(0).Max());
@@ -14,7 +16,7 @@
     <div class="outsourced-hero">
         <div class="outsourced-hero-icon">▥</div>
         <div><span>ماژول درخواست‌ها / حوزه خرید و تدارکات / گزارش‌ها</span><h1>داشبورد سفارش خدمات برونسپاری</h1><p>پایش حجم درخواست‌ها، اولویت انجام، وضعیت گردش کار، واحد سنجش و روند ثبت سفارش‌ها.</p></div>
-        <div class="outsourced-hero-actions"><a class="btn btn-outline" href="/OutsourcedServicesReports">همه انواع گزارش‌ها</a><a class="btn btn-outline" href="/OutsourcedServices">فهرست سفارش‌ها</a><a class="btn btn-main" href="/OutsourcedServicesReports/Export?from=@Uri.EscapeDataString(Model.FromJalali ?? "")&to=@Uri.EscapeDataString(Model.ToJalali ?? "")&priority=@Model.Priority&status=@Model.Status&unit=@Uri.EscapeDataString(Model.UnitOfMeasure)">خروجی Excel/CSV</a></div>
+        <div class="outsourced-hero-actions"><a class="btn btn-outline" href="/OutsourcedServicesReports">همه انواع گزارش‌ها</a><a class="btn btn-outline" href="/OutsourcedServices">فهرست سفارش‌ها</a><a class="btn btn-main" href="/OutsourcedServicesReports/Export?from=@Uri.EscapeDataString(Model.FromJalali ?? "")&to=@Uri.EscapeDataString(Model.ToJalali ?? "")&priority=@Model.Priority&status=@Model.Status&unit=@Uri.EscapeDataString(Model.UnitOfMeasure)&organizationalUnit=@Uri.EscapeDataString(Model.OrganizationalUnit)">خروجی Excel/CSV</a></div>
     </div>
     @if (ViewBag.Error is string error) { <div class="alert error">@error</div> }
     <form method="get" action="/OutsourcedServicesReports/Dashboard" class="outsourced-filters">
@@ -39,6 +41,12 @@
         </label>
         <label>واحد سنجش
             <select name="unit"><option value="all">همه واحدها</option>@foreach(var u in units){<option value="@u" selected="@(Model.UnitOfMeasure==u)">@u</option>}</select>
+        </label>
+        <label>واحد سازمانی درخواست‌کننده
+            <select name="organizationalUnit">
+                <option value="all" selected="@(Model.OrganizationalUnit=="all")">همه واحدهای سازمانی</option>
+                @foreach(var org in organizationalUnits){<option value="@org" selected="@(Model.OrganizationalUnit==org)">@org</option>}
+            </select>
         </label>
         <div class="outsourced-filter-actions"><button class="btn btn-main" type="submit">اعمال فیلترها</button><a class="btn btn-outline" href="/OutsourcedServicesReports/Dashboard">پاک‌کردن فیلترها</a></div>
     </form>
@@ -67,6 +75,62 @@
             @foreach(var b in Model.UnitBuckets){<div class="outsourced-bar-row"><div><span>@b.Label</span><b>@b.Count</b></div><div class="outsourced-bar-track"><i style="width:@(100.0*b.Count/maxUnit)%"></i></div></div>}
         </article>
     </section>
+    <section class="outsourced-chart-card outsourced-org-chart-card">
+        <header>
+            <div><h2>توزیع سفارش‌ها به تفکیک واحدهای سازمانی</h2><small>واحد بر اساس گره مدیریت یا ریاست مستقیم زیرمجموعه مدیرعاملِ درخواست‌کننده تعیین شده است</small></div>
+            <strong>@Model.OrganizationalUnitBuckets.Sum(x => x.TotalCount) درخواست</strong>
+        </header>
+        <div class="outsourced-org-legend">
+            <span><i class="org-legend-inprogress"></i>در حال گردش</span>
+            <span><i class="org-legend-completed"></i>تأیید نهایی</span>
+            <span><i class="org-legend-rejected"></i>رد یا لغو شده</span>
+            <span><i class="org-legend-returned"></i>برگشت داده‌شده</span>
+            <span><i class="org-legend-notstarted"></i>بدون گردش کار</span>
+        </div>
+        @if(Model.OrganizationalUnitBuckets.Count==0)
+        {
+            <p class="outsourced-no-data">با فیلترهای فعلی، داده‌ای برای نمایش وجود ندارد.</p>
+        }
+        else
+        {
+            <div class="outsourced-org-chart" role="img" aria-label="نمودار میله‌ای انباشته تعداد سفارش‌ها به تفکیک واحد سازمانی و وضعیت گردش کار">
+                @foreach(var b in Model.OrganizationalUnitBuckets)
+                {
+                    <div class="outsourced-org-column" title="@b.Label: @b.TotalCount درخواست">
+                        <b class="outsourced-org-total">@b.TotalCount</b>
+                        <div class="outsourced-org-stack">
+                            <i class="org-segment-inprogress" style="height:@(180.0*b.InProgressCount/maxOrganizationTotal)px" title="در حال گردش: @b.InProgressCount"></i>
+                            <i class="org-segment-completed" style="height:@(180.0*b.CompletedCount/maxOrganizationTotal)px" title="تأیید نهایی: @b.CompletedCount"></i>
+                            <i class="org-segment-rejected" style="height:@(180.0*b.RejectedCount/maxOrganizationTotal)px" title="رد یا لغو شده: @b.RejectedCount"></i>
+                            <i class="org-segment-returned" style="height:@(180.0*b.ReturnedCount/maxOrganizationTotal)px" title="برگشت داده‌شده: @b.ReturnedCount"></i>
+                            <i class="org-segment-notstarted" style="height:@(180.0*b.NotStartedCount/maxOrganizationTotal)px" title="بدون گردش کار: @b.NotStartedCount"></i>
+                        </div>
+                        <small>@b.Label</small>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+    <style>
+        .outsourced-org-chart-card{grid-column:1/-1;min-width:0}
+        .outsourced-org-chart-card>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+        .outsourced-org-chart-card>header strong{white-space:nowrap;color:#173b60}
+        .outsourced-org-legend{display:flex;flex-wrap:wrap;gap:12px 20px;margin:18px 0 8px;color:#475569;font-size:.82rem}
+        .outsourced-org-legend span{display:inline-flex;align-items:center;gap:7px}
+        .outsourced-org-legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+        .org-legend-inprogress,.org-segment-inprogress{background:#2563eb}
+        .org-legend-completed,.org-segment-completed{background:#16a34a}
+        .org-legend-rejected,.org-segment-rejected{background:#dc2626}
+        .org-legend-returned,.org-segment-returned{background:#d97706}
+        .org-legend-notstarted,.org-segment-notstarted{background:#94a3b8}
+        .outsourced-org-chart{display:flex;align-items:flex-end;gap:22px;min-height:260px;overflow-x:auto;padding:16px 8px 8px;border-top:1px solid #e8edf3}
+        .outsourced-org-column{flex:0 0 86px;display:flex;flex-direction:column;align-items:center;gap:8px;min-height:238px;justify-content:flex-end}
+        .outsourced-org-total{font-size:.85rem;color:#334155;font-variant-numeric:tabular-nums}
+        .outsourced-org-stack{width:42px;height:180px;display:flex;flex-direction:column-reverse;justify-content:flex-start;overflow:hidden;border-radius:7px 7px 2px 2px;background:#f1f5f9}
+        .outsourced-org-stack i{display:block;width:100%;flex:0 0 auto;min-height:0}
+        .outsourced-org-column small{font-size:.76rem;text-align:center;line-height:1.7;max-width:100%;overflow-wrap:anywhere;color:#334155}
+        @@media(max-width:700px){.outsourced-org-chart{gap:14px}.outsourced-org-column{flex-basis:74px}}
+    </style>
     <section class="outsourced-list-card">
         <div class="outsourced-list-head"><div><h2>جدول جزئیات سفارش‌ها</h2><p>نمایش @Model.Rows.Count رکورد · حداکثر ۵۰۰۰ رکورد در هر گزارش</p></div><input id="outsourcedReportSearch" type="search" placeholder="جست‌وجوی شماره، شرح، درخواست‌کننده یا واحد..." /></div>
         @if(Model.Rows.Count==0){<div class="outsourced-empty"><h3>درخواستی با فیلترهای فعلی یافت نشد.</h3></div>}

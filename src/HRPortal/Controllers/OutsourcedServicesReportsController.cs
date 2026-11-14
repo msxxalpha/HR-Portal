@@ -27,7 +27,7 @@ public sealed class OutsourcedServicesReportsController(HRPortalDbContext db) : 
                 Code = "OutsourcedServices",
                 Title = "سفارش خدمات برونسپاری",
                 Category = "حوزه خرید و تدارکات",
-                Description = "گزارش حجم سفارش‌ها، اولویت‌ها، وضعیت گردش کار، واحدهای سنجش و روند ماهانه ثبت درخواست‌ها",
+                Description = "گزارش حجم سفارش‌ها، اولویت‌ها، وضعیت گردش کار، تفکیک واحدهای سازمانی و روند ماهانه ثبت درخواست‌ها",
                 Url = Url.Action(nameof(Dashboard)) ?? "/OutsourcedServicesReports/Dashboard",
                 Icon = "↗"
             }
@@ -107,11 +107,9 @@ public sealed class OutsourcedServicesReportsController(HRPortalDbContext db) : 
                 .ToListAsync()
             : new List<OrganizationNode>();
 
-        var allRequesterIds = await db.OutsourcedServiceRequests.AsNoTracking()
-            .Where(x => !x.IsDeleted)
-            .Select(x => x.RequesterEmployeeId).Distinct().ToArrayAsync();
         var employees = await db.Employees.AsNoTracking()
-            .Where(e => allRequesterIds.Contains(e.Id))
+            .Where(e => db.OutsourcedServiceRequests.Any(request =>
+                !request.IsDeleted && request.RequesterEmployeeId == e.Id))
             .Select(e => new
             {
                 e.Id,

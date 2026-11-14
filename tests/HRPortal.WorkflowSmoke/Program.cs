@@ -1805,7 +1805,11 @@ static async Task VerifyWorkflowStageEditingAndRequesterReturnAsync()
     await db.SaveChangesAsync();
 
     await service.CompleteTaskAsync(nextTask.Id, nextReviewer.Id, "Return",
-        "اطلاعات مرحله قبلی نیازمند اصلاح است.");
+        "اطلاعات مرحله قبلی نیازمند اصلاح است.",
+        values: new Dictionary<string, string?>
+        {
+            [$"field_{nextReviewFieldDefinition.Id}"] = "اطلاعات ثبت‌شده در مرحله بعد"
+        });
     var previousStageInbox = await service.GetInboxAsync(reviewer.Id);
     var returnedToPreviousStage = previousStageInbox.SingleOrDefault(x => x.WorkflowInstanceId == instance.Id);
     Check(returnedToPreviousStage is not null,
@@ -1997,7 +2001,11 @@ static async Task VerifyWorkflowDirectReturnAndPriorStageEditingAsync()
             });
         await db.SaveChangesAsync();
 
-        await service.CompleteTaskAsync(reviewTask.Id, reviewer.Id, "Return", "برای اصلاح به شروع‌کننده برگشت داده شود.");
+        await service.CompleteTaskAsync(reviewTask.Id, reviewer.Id, "Return", "برای اصلاح به شروع‌کننده برگشت داده شود.",
+            values: new Dictionary<string, string?>
+            {
+                [$"field_{reviewField.Id}"] = "نظر اولیه بررسی"
+            });
         var starterInbox = await service.GetInboxAsync(starter.Id);
         var returnedStarterTask = starterInbox.SingleOrDefault(x => x.WorkflowInstanceId == instance.Id);
         Check(returnedStarterTask is not null,

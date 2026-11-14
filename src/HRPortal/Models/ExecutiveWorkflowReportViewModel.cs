@@ -24,13 +24,19 @@ public class ExecutiveWorkflowReportViewModel
     public int PendingTaskCount { get; set; }
     public int AgingCount { get; set; }
     public double AverageCompletionDays { get; set; }
-    public List<string> WorkflowOptions { get; set; } = [];
+    public List<ExecutiveWorkflowTypeOption> WorkflowOptions { get; set; } = [];
     public List<ExecutiveWorkflowEmployeeOption> EmployeeOptions { get; set; } = [];
     public List<string> OrganizationalRankOptions { get; set; } = [];
     public List<ExecutiveWorkflowChartItem> StatusChart { get; set; } = [];
     public List<ExecutiveWorkflowChartItem> DirectionChart { get; set; } = [];
     public List<ExecutiveWorkflowChartItem> WorkflowChart { get; set; } = [];
     public List<ExecutiveWorkflowReportRow> Rows { get; set; } = [];
+}
+
+public class ExecutiveWorkflowTypeOption
+{
+    public string Code { get; set; } = "";
+    public string Title { get; set; } = "";
 }
 
 public class ExecutiveWorkflowEmployeeOption
@@ -52,6 +58,8 @@ public class ExecutiveWorkflowReportRow
     public int Id { get; set; }
     public string RequestCode { get; set; } = "";
     public string WorkflowTitle { get; set; } = "";
+    public string WorkflowTypeCode { get; set; } = "";
+    public string WorkflowTypeTitle { get; set; } = "";
     public string RequesterName { get; set; } = "";
     public string RequesterPersonnelNumber { get; set; } = "";
     public string Direction { get; set; } = "";

@@ -554,7 +554,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 db.WorkflowFieldValues.Any(value =>
                     value.WorkflowInstanceId == task.WorkflowInstanceId &&
                     value.WorkflowStepFieldId == x.Id &&
-                    value.WorkflowStepId == x.WorkflowStepId));
+                    value.WorkflowStepId == x.WorkflowStepId &&
+                    !string.IsNullOrWhiteSpace(value.Value)));
 
         var fields = await fieldQuery.ToListAsync(cancellationToken);
         if (fields.Count != submitted.Count)

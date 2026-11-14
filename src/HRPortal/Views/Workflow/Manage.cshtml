@@ -60,15 +60,22 @@ else
     <div class="section-head"><div><h3>مراحل</h3><span class="muted">تخصیص می‌تواند ثابت، زنجیره‌ای، درخواست‌کننده یا بر اساس جایگاه انتخاب‌شده در یک مرحله قبلی باشد.</span></div></div>
     @foreach (var step in selected.Steps.OrderBy(x => x.SortOrder))
     {
-        <div class="workflow-step-card">
-            <div class="workflow-step-head">
+        @{
+            var requesterSteps = selected.Steps.Where(x => x.Id != step.Id && x.AssignmentType == "Requester")
+                .OrderBy(x => x.SortOrder).ThenBy(x => x.Id).ToList();
+            var approveTransition = step.OutgoingTransitions.FirstOrDefault(x => x.Action == "Approve" && string.IsNullOrWhiteSpace(x.ConditionFieldCode));
+            var returnTransition = step.OutgoingTransitions.FirstOrDefault(x => x.Action == "Return" && string.IsNullOrWhiteSpace(x.ConditionFieldCode));
+            var rejectTransition = step.OutgoingTransitions.FirstOrDefault(x => x.Action == "Reject" && string.IsNullOrWhiteSpace(x.ConditionFieldCode));
+        }
+        <details class="workflow-step-card workflow-step-collapsible">
+            <summary class="workflow-step-head">
+                <span class="workflow-step-summary-main">
                     <strong>@(step.SortOrder). @step.Title</strong>
-                    <span>@step.Code · @(step.AssignmentType == "Hierarchy" ? "زنجیره جایگاه‌های بالاتر" : step.OrganizationNode?.Title ?? "بدون جایگاه")</span>
-                    @if (step.AssignmentType == "Hierarchy")
-                    {
-                        <span class="badge">مرحله زنجیره‌ای</span>
-                    }
-                </div>
+                    <span>@step.Code · @(step.AssignmentType == "Hierarchy" ? "زنجیره جایگاه‌های بالاتر" : step.AssignmentType == "Requester" ? "درخواست‌کننده" : step.AssignmentType == "Employee" ? "کارمند مشخص" : step.OrganizationNode?.Title ?? "بدون جایگاه")</span>
+                    @if (step.AssignmentType == "Hierarchy") { <span class="badge">مرحله زنجیره‌ای</span> }
+                </span>
+                <span class="workflow-step-toggle-label">نمایش تنظیمات مرحله</span>
+            </summary>
             <form method="post" action="/Workflow/SaveStep" class="form-stack workflow-step-editor" data-stage-editor>
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="Id" value="@step.Id" />
@@ -112,14 +119,14 @@ else
                             <option value="All" selected="@(step.AssignmentMode == "All")">همه متصدیان جایگاه</option>
                         </select>
                     </label>
-                    <label class="check-chip"><input type="checkbox" name="IsFinalStep" value="true" checked="@step.IsFinalStep" /> مرحله نهایی</label>
+                    <label class="check-chip"><input type="checkbox" name="IsFinalStep" value="true" checked="@step.IsFinalStep" /> مرحله نهایی<input type="hidden" name="IsFinalStep" value="false" /></label>
                 </div>
                 <div class="actions">
-                    <label class="check-chip"><input type="checkbox" name="AllowApprove" value="true" checked="@step.AllowApprove" /> تأیید</label>
-                    <label class="check-chip"><input type="checkbox" name="AllowReject" value="true" checked="@step.AllowReject" /> رد</label>
-                    <label class="check-chip"><input type="checkbox" name="AllowReturn" value="true" checked="@step.AllowReturn" /> برگشت</label>
-                    <label class="check-chip"><input type="checkbox" name="RequireCommentOnReject" value="true" checked="@step.RequireCommentOnReject" /> توضیح رد اجباری</label>
-                    <label class="check-chip"><input type="checkbox" name="RequireCommentOnReturn" value="true" checked="@step.RequireCommentOnReturn" /> توضیح برگشت اجباری</label>
+                    <label class="check-chip"><input type="checkbox" name="AllowApprove" value="true" checked="@step.AllowApprove" /> تأیید<input type="hidden" name="AllowApprove" value="false" /></label>
+                    <label class="check-chip"><input type="checkbox" name="AllowReject" value="true" checked="@step.AllowReject" /> رد<input type="hidden" name="AllowReject" value="false" /></label>
+                    <label class="check-chip"><input type="checkbox" name="AllowReturn" value="true" checked="@step.AllowReturn" /> برگشت<input type="hidden" name="AllowReturn" value="false" /></label>
+                    <label class="check-chip"><input type="checkbox" name="RequireCommentOnReject" value="true" checked="@step.RequireCommentOnReject" /> توضیح رد اجباری<input type="hidden" name="RequireCommentOnReject" value="false" /></label>
+                    <label class="check-chip"><input type="checkbox" name="RequireCommentOnReturn" value="true" checked="@step.RequireCommentOnReturn" /> توضیح برگشت اجباری<input type="hidden" name="RequireCommentOnReturn" value="false" /></label>
                     <button class="btn btn-main btn-sm" type="submit">ذخیره مشخصات مرحله</button>
                 </div>
             </form>
@@ -146,51 +153,86 @@ else
                 <div class="actions"><label class="check-chip"><input type="checkbox" name="allowEditPreviousData" value="true" checked="@step.AllowEditPreviousData" /> اجازه ویرایش اطلاعات مراحل قبلی در این مرحله</label><label class="check-chip"><input type="checkbox" name="requireNotes" value="true" checked="@step.RequireNotes" /> ثبت ملاحظات در این مرحله اجباری باشد</label><button class="btn btn-outline btn-sm" type="submit">ذخیره تنظیمات مرحله</button></div>
             </form>
             <div class="workflow-step-actions">
-                @foreach (var route in step.OutgoingTransitions.Where(x => !string.IsNullOrWhiteSpace(x.ConditionFieldCode)).OrderBy(x => x.Id))
-                {
-                    <div class="transition-form conditional-route-item">
-                        <span>اگر «@route.ConditionFieldCode» @route.ConditionOperator «@route.ConditionValue» ← @(route.ToStep?.Title ?? "پایان")</span>
-                        <form method="post" action="/Workflow/DeleteTransition" class="inline" onsubmit="return confirm('این مسیر شرطی حذف شود؟');">
-                            @Html.AntiForgeryToken()<input type="hidden" name="id" value="@route.Id" /><input type="hidden" name="definitionId" value="@selected.Id" />
-                            <button class="btn btn-outline btn-sm danger" type="submit">حذف مسیر</button>
-                        </form>
-                    </div>
-                }
+                <div class="workflow-route-heading"><h4>مسیرهای اصلی گردش کار</h4><span class="muted">مقصد هر عملیات را مشخص کنید. برای برگشت به ثبت‌کننده، یک مرحله با نوع تخصیص «درخواست‌کننده» در همین گردش‌کار تعریف کنید.</span></div>
+                <div class="workflow-route-grid">
+                    <form method="post" action="/Workflow/SaveTransition" class="transition-form workflow-route-card route-approve">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="stepId" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" />
+                        <input type="hidden" name="action" value="Approve" />
+                        <label><strong>تأیید به مرحله</strong>
+                            <select name="toStepId">
+                                <option value="" selected="@(approveTransition?.ToStepId is null)">پایان گردش کار</option>
+                                @foreach (var target in selected.Steps.Where(x => x.Id != step.Id).OrderBy(x => x.SortOrder))
+                                { <option value="@target.Id" selected="@(approveTransition?.ToStepId == target.Id)">@(target.SortOrder + " - " + target.Title)</option> }
+                            </select>
+                        </label>
+                        <button class="btn btn-outline btn-sm" type="submit">ذخیره مسیر تأیید</button>
+                    </form>
+                    <form method="post" action="/Workflow/SaveTransition" class="transition-form workflow-route-card route-return">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="stepId" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" />
+                        <input type="hidden" name="action" value="Return" />
+                        <label><strong>برگشت به</strong>
+                            <select name="toStepId">
+                                <option value="" selected="@(returnTransition?.ToStepId is null)">وضعیت برگشت / خاتمه برگشت</option>
+                                @if (requesterSteps.Count > 0)
+                                {
+                                    <optgroup label="بازگشت به ثبت‌کننده">
+                                        @foreach (var target in requesterSteps)
+                                        { <option value="@target.Id" selected="@(returnTransition?.ToStepId == target.Id)">برگشت به درخواست‌کننده — @target.Title</option> }
+                                    </optgroup>
+                                }
+                                <optgroup label="بازگشت به مراحل گردش کار">
+                                    @foreach (var target in selected.Steps.Where(x => x.Id != step.Id && x.AssignmentType != "Requester").OrderBy(x => x.SortOrder))
+                                    { <option value="@target.Id" selected="@(returnTransition?.ToStepId == target.Id)">@(target.SortOrder + " - " + target.Title)</option> }
+                                </optgroup>
+                            </select>
+                        </label>
+                        <button class="btn btn-outline btn-sm" type="submit">ذخیره مسیر برگشت</button>
+                    </form>
+                    <form method="post" action="/Workflow/SaveTransition" class="transition-form workflow-route-card route-reject">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="stepId" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" />
+                        <input type="hidden" name="action" value="Reject" />
+                        <label><strong>رد به مرحله</strong>
+                            <select name="toStepId">
+                                <option value="" selected="@(rejectTransition?.ToStepId is null)">پایان و رد درخواست</option>
+                                @foreach (var target in selected.Steps.Where(x => x.Id != step.Id).OrderBy(x => x.SortOrder))
+                                { <option value="@target.Id" selected="@(rejectTransition?.ToStepId == target.Id)">@(target.SortOrder + " - " + target.Title)</option> }
+                            </select>
+                        </label>
+                        <button class="btn btn-outline btn-sm" type="submit">ذخیره مسیر رد</button>
+                    </form>
+                </div>
                 <details class="workflow-conditional-routes">
-                    <summary>افزودن مسیر شرطی (بر اساس اطلاعات همین مرحله)</summary>
-                    <form method="post" action="/Workflow/SaveTransition" class="transition-form">
+                    <summary>افزودن یا مدیریت مسیرهای شرطی (زیر مسیرهای اصلی)</summary>
+                    @foreach (var route in step.OutgoingTransitions.Where(x => !string.IsNullOrWhiteSpace(x.ConditionFieldCode)).OrderBy(x => x.Id))
+                    {
+                        <div class="transition-form conditional-route-item">
+                            <span>اگر «@route.ConditionFieldCode» @route.ConditionOperator «@route.ConditionValue» ← @(route.ToStep?.Title ?? "پایان")</span>
+                            <form method="post" action="/Workflow/DeleteTransition" class="inline" onsubmit="return confirm('این مسیر شرطی حذف شود؟');">
+                                @Html.AntiForgeryToken()<input type="hidden" name="id" value="@route.Id" /><input type="hidden" name="definitionId" value="@selected.Id" />
+                                <button class="btn btn-outline btn-sm danger" type="submit">حذف مسیر</button>
+                            </form>
+                        </div>
+                    }
+                    <form method="post" action="/Workflow/SaveTransition" class="transition-form workflow-conditional-editor">
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="stepId" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" />
                         <label>هنگام عملیات <select name="action"><option value="Approve">تأیید</option><option value="Reject">رد</option><option value="Return">برگشت</option></select></label>
-                        <label>اگر فیلد <select name="conditionFieldCode" required><option value="">انتخاب فیلد</option>@foreach (var f in step.Fields.OrderBy(x=>x.SortOrder)){<option value="@f.Code">@f.Title (@f.Code)</option>}</select></label>
+                        <label>اگر فیلد <select name="conditionFieldCode" required><option value="">انتخاب فیلد</option>@foreach (var field in step.Fields.OrderBy(x => x.SortOrder)){<option value="@field.Code">@field.Title (@field.Code)</option>}</select></label>
                         <label>شرط <select name="conditionOperator"><option value="Equals">برابر باشد با</option><option value="NotEquals">برابر نباشد با</option><option value="Contains">شامل عبارت باشد</option><option value="IsEmpty">خالی باشد</option><option value="NotEmpty">خالی نباشد</option></select></label>
                         <label>مقدار <input name="conditionValue" maxlength="4000" placeholder="مثلاً واحد فنی" /></label>
-                        <label>به مرحله <select name="toStepId" required><option value="">انتخاب مرحله مقصد</option>@foreach (var s in selected.Steps.Where(x=>x.Id!=step.Id).OrderBy(x=>x.SortOrder)){<option value="@s.Id">@(s.SortOrder + " - " + s.Title)</option>}</select></label>
+                        <label>به مرحله <select name="toStepId" required><option value="">انتخاب مرحله مقصد</option>@foreach (var target in selected.Steps.Where(x => x.Id != step.Id).OrderBy(x => x.SortOrder)){<option value="@target.Id">@(target.SortOrder + " - " + target.Title)</option>}</select></label>
                         <button class="btn btn-outline btn-sm" type="submit">افزودن مسیر شرطی</button>
                     </form>
                     <p class="muted">مسیرهای شرطی به ترتیب ثبت بررسی می‌شوند. در صورت برقرار نبودن هیچ شرطی، مسیر تأیید عادی این مرحله اجرا می‌شود.</p>
                 </details>
-                <form method="post" action="/Workflow/SaveTransition" class="transition-form">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="stepId" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" />
-                    <label>تأیید → <select name="toStepId"><option value="" selected="@(step.OutgoingTransitions.FirstOrDefault(x => x.Action == "Approve" && string.IsNullOrWhiteSpace(x.ConditionFieldCode))?.ToStepId is null)">پایان</option>@foreach (var s in selected.Steps.Where(x=>x.Id!=step.Id).OrderBy(x=>x.SortOrder)){<option value="@s.Id" selected="@(step.OutgoingTransitions.FirstOrDefault(x => x.Action == "Approve" && string.IsNullOrWhiteSpace(x.ConditionFieldCode))?.ToStepId == s.Id)">@(s.SortOrder + " - " + s.Title)</option>}</select></label>
-                    <input type="hidden" name="action" value="Approve" /><button class="btn btn-outline btn-sm" type="submit">ذخیره مسیر تأیید</button>
-                </form>
-                <form method="post" action="/Workflow/SaveTransition" class="transition-form">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="stepId" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" />
-                    <label>برگشت → <select name="toStepId"><option value="" selected="@(step.OutgoingTransitions.FirstOrDefault(x => x.Action == "Return" && string.IsNullOrWhiteSpace(x.ConditionFieldCode))?.ToStepId is null)">وضعیت برگشت</option>@foreach (var s in selected.Steps.Where(x=>x.Id!=step.Id).OrderBy(x=>x.SortOrder)){<option value="@s.Id" selected="@(step.OutgoingTransitions.FirstOrDefault(x => x.Action == "Return" && string.IsNullOrWhiteSpace(x.ConditionFieldCode))?.ToStepId == s.Id)">@(s.SortOrder + " - " + s.Title)</option>}</select></label>
-                    <input type="hidden" name="action" value="Return" /><button class="btn btn-outline btn-sm" type="submit">ذخیره مسیر برگشت</button>
-                </form>
-                <form method="post" action="/Workflow/SaveTransition" class="transition-form">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="stepId" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" />
-                    <label>رد → <select name="toStepId"><option value="" selected="@(step.OutgoingTransitions.FirstOrDefault(x => x.Action == "Reject" && string.IsNullOrWhiteSpace(x.ConditionFieldCode))?.ToStepId is null)">پایان و رد</option>@foreach (var s in selected.Steps.Where(x=>x.Id!=step.Id).OrderBy(x=>x.SortOrder)){<option value="@s.Id" selected="@(step.OutgoingTransitions.FirstOrDefault(x => x.Action == "Reject" && string.IsNullOrWhiteSpace(x.ConditionFieldCode))?.ToStepId == s.Id)">@(s.SortOrder + " - " + s.Title)</option>}</select></label>
-                    <input type="hidden" name="action" value="Reject" /><button class="btn btn-outline btn-sm" type="submit">ذخیره مسیر رد</button>
-                </form>
-                <form method="post" action="/Workflow/DeleteStep" class="inline" onsubmit="return confirm('مرحله انتخاب‌شده و مسیرهای ورودی/خروجی مرتبط حذف می‌شوند؛ ترتیب مراحل باقی‌مانده به‌صورت خودکار بازتنظیم می‌شود. ادامه می‌دهید؟');">
-                    @Html.AntiForgeryToken()<input type="hidden" name="id" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" /><button class="btn btn-outline btn-sm danger" type="submit">حذف مرحله</button>
-                </form>
+                <div class="workflow-stage-footer">
+                    <form method="post" action="/Workflow/DeleteStep" class="inline" onsubmit="return confirm('مرحله انتخاب‌شده و مسیرهای ورودی/خروجی مرتبط حذف می‌شوند؛ ترتیب مراحل باقی‌مانده به‌صورت خودکار بازتنظیم می‌شود. ادامه می‌دهید؟');">
+                        @Html.AntiForgeryToken()<input type="hidden" name="id" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" /><button class="btn btn-outline btn-sm danger" type="submit">حذف مرحله</button>
+                    </form>
+                </div>
             </div>
             <div class="workflow-stage-fields">
                 <h4>فیلدهای فرم این مرحله</h4>
@@ -248,7 +290,7 @@ else
                     </form>
                 </details>
             </div>
-        </div>
+        </details>
     }
     <hr />
     <h3>افزودن مرحله</h3>

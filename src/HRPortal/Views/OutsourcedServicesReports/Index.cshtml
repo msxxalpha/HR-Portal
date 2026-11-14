@@ -7,7 +7,7 @@
     int maxStatus = Math.Max(1, Model.StatusBuckets.Select(x=>x.Count).DefaultIfEmpty(0).Max());
     int maxUnit = Math.Max(1, Model.UnitBuckets.Select(x=>x.Count).DefaultIfEmpty(0).Max());
     int maxMonth = Math.Max(1, Model.MonthlyBuckets.Select(x=>x.Count).DefaultIfEmpty(0).Max());
-    string statusLabel(string s) => s switch { "InProgress"=>"در حال گردش", "Completed"=>"تکمیل‌شده", "Rejected"=>"رد یا لغو شده", _=>"بدون گردش کار" };
+    string statusLabel(string s) => s switch { "InProgress"=>"در حال گردش", "Completed"=>"تکمیل‌شده", "Rejected"=>"رد یا لغو شده", "Returned"=>"برگشت داده‌شده", _=>"بدون گردش کار" };
     string priorityLabel(string s) => priorities.GetValueOrDefault(s,s);
 }
 <div class="outsourced-page outsourced-reports">
@@ -33,6 +33,7 @@
                 <option value="InProgress" selected="@(Model.Status=="InProgress")">در حال گردش</option>
                 <option value="Completed" selected="@(Model.Status=="Completed")">تکمیل‌شده</option>
                 <option value="Rejected" selected="@(Model.Status=="Rejected")">رد یا لغو شده</option>
+                <option value="Returned" selected="@(Model.Status=="Returned")">برگشت داده‌شده</option>
                 <option value="NotStarted" selected="@(Model.Status=="NotStarted")">بدون گردش کار</option>
             </select>
         </label>
@@ -46,6 +47,7 @@
         <article><span>در حال گردش</span><strong>@Model.PendingCount</strong><small>در انتظار تکمیل تأییدیه‌ها</small></article>
         <article><span>تکمیل‌شده</span><strong>@Model.CompletedCount</strong><small>پایان‌یافته در گردش کار</small></article>
         <article><span>رد یا لغو شده</span><strong>@Model.RejectedCount</strong><small>درخواست‌های خاتمه‌یافته بدون تأیید</small></article>
+        <article><span>برگشت داده‌شده</span><strong>@Model.ReturnedCount</strong><small>برای اصلاح یا بازنگری</small></article>
         <article><span>فوری و اضطراری</span><strong>@Model.UrgentCount</strong><small>نیازمند توجه ویژه</small></article>
     </section>
     <section class="outsourced-chart-grid">
@@ -71,7 +73,7 @@
         else{<div class="outsourced-table-wrap"><table class="outsourced-table" id="outsourcedReportTable">
             <thead><tr><th>شماره</th><th>شرح خدمات</th><th>درخواست‌کننده</th><th>واحد سازمانی</th><th>مقدار</th><th>تاریخ نیازمندی</th><th>اولویت</th><th>وضعیت</th><th>مرحله جاری</th><th>تاریخ ثبت</th><th>جزئیات</th></tr></thead>
             <tbody>@foreach(var row in Model.Rows){<tr>
-                <td dir="ltr"><strong>@row.RequestNumber</strong></td><td class="service-desc">@row.ServiceDescription</td><td>@row.RequesterName<small>@row.PersonnelNumber</small></td><td>@row.Organization</td><td>@row.Quantity.ToString("0.###") @row.UnitOfMeasure</td><td>@HRPortal.Services.PersianDateService.Format(row.NeedByDate)</td><td>@priorityLabel(row.Priority)</td><td>@statusLabel(row.Status=="InProgress"?"InProgress":row.Status=="Completed"?"Completed":row.Status=="Rejected"?"Rejected":"NotStarted")</td><td>@(string.IsNullOrWhiteSpace(row.CurrentStepTitle)?"—":row.CurrentStepTitle)</td><td>@HRPortal.Services.PersianDateService.Format(HRPortal.Services.PersianDateService.ToTehran(row.CreatedAtUtc))</td><td><a class="outsourced-detail-link" href="/OutsourcedServices/Details/@row.Id">مشاهده</a></td>
+                <td dir="ltr"><strong>@row.RequestNumber</strong></td><td class="service-desc">@row.ServiceDescription</td><td>@row.RequesterName<small>@row.PersonnelNumber</small></td><td>@row.Organization</td><td>@row.Quantity.ToString("0.###") @row.UnitOfMeasure</td><td>@HRPortal.Services.PersianDateService.Format(row.NeedByDate)</td><td>@priorityLabel(row.Priority)</td><td>@statusLabel(row.Status=="InProgress"?"InProgress":row.Status=="Completed"?"Completed":row.Status=="Rejected"?"Rejected":row.Status=="Returned"?"Returned":"NotStarted")</td><td>@(string.IsNullOrWhiteSpace(row.CurrentStepTitle)?"—":row.CurrentStepTitle)</td><td>@HRPortal.Services.PersianDateService.Format(HRPortal.Services.PersianDateService.ToTehran(row.CreatedAtUtc))</td><td><a class="outsourced-detail-link" href="/OutsourcedServices/Details/@row.Id">مشاهده</a></td>
             </tr>}</tbody>
         </table></div>}
     </section>

@@ -1,7 +1,6 @@
-@model List<HRPortal.Models.OutsourcedServiceRequest>
+@model List<HRPortal.Models.OutsourcedServiceRequestListItem>
 @{
     ViewData["Title"] = "سفارش خدمات برونسپاری";
-    var states = ViewBag.WorkflowStates as Dictionary<string,dynamic>;
     var canCreate = (bool)(ViewBag.CanCreate ?? false);
     string priority(string value) => value switch { "Emergency"=>"اضطراری", "Urgent"=>"فوری", _=>"عادی" };
     string priorityClass(string value) => value switch { "Emergency"=>"emergency", "Urgent"=>"urgent", _=>"normal" };
@@ -21,11 +20,10 @@
         else {
         <div class="outsourced-table-wrap"><table class="outsourced-table">
             <thead><tr><th>شماره درخواست</th><th>شرح خدمات</th><th>مقدار</th><th>تاریخ نیازمندی</th><th>اولویت</th><th>وضعیت گردش کار</th><th>تاریخ ثبت</th><th></th></tr></thead>
-            <tbody>@foreach(var item in Model){
-                var key=item.Id.ToString();
-                var workflow=ViewBag.WorkflowStates is IDictionary<string,object> map && map.TryGetValue(key,out var found) ? found : null;
-                var state=workflow?.Status?.ToString() ?? item.Status;
-                var step=workflow?.StepTitle?.ToString() ?? "";
+            <tbody>@foreach(var row in Model){
+                var item=row.Request;
+                var state=row.WorkflowStatus;
+                var step=row.CurrentStepTitle;
                 var stateLabel=state switch{"InProgress"=>"در حال گردش","Completed"=>"تکمیل‌شده","Rejected"=>"رد یا لغو شده",_=>"ثبت‌شده"};
                 <tr><td><strong dir="ltr">@item.RequestNumber</strong></td><td class="service-desc">@item.ServiceDescription</td><td>@item.Quantity.ToString("0.###") @item.UnitOfMeasure</td><td>@HRPortal.Services.PersianDateService.Format(item.NeedByDate)</td><td><span class="outsourced-priority @priorityClass(item.Priority)">@priority(item.Priority)</span></td><td><span class="outsourced-state">@stateLabel</span>@if(!string.IsNullOrWhiteSpace(step)){<small class="outsourced-step">@step</small>}</td><td>@HRPortal.Services.PersianDateService.Format(HRPortal.Services.PersianDateService.ToTehran(item.CreatedAtUtc))</td><td><a class="btn btn-outline btn-sm" href="/OutsourcedServices/Details/@item.Id">جزئیات</a></td></tr>
             }</tbody>

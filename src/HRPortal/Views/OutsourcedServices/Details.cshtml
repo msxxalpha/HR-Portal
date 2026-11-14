@@ -3,11 +3,18 @@
     ViewData["Title"] = "جزئیات سفارش خدمات برونسپاری";
     var requester = ViewBag.Requester;
     var workflow = ViewBag.Workflow;
+    var canEdit = (bool)(ViewBag.CanEdit ?? false);
+    var canDelete = (bool)(ViewBag.CanDelete ?? false);
+    var revisions = ViewBag.Revisions as List<HRPortal.Models.OutsourcedServiceRequestRevision> ?? new();
 }
 <div class="outsourced-page">
     @if (TempData["Success"] is string success) { <div class="alert success">@success</div> }
     @if (TempData["Warning"] is string warning) { <div class="alert warning">@warning</div> }
-    <div class="outsourced-hero"><div class="outsourced-hero-icon">✓</div><div><span>شماره پیگیری · <b dir="ltr">@Model.RequestNumber</b></span><h1>جزئیات سفارش خدمات برونسپاری</h1><p>اطلاعات ثبت‌شده و آخرین وضعیت گردش کار درخواست.</p></div><a class="btn btn-outline" href="/OutsourcedServices">بازگشت به فهرست</a></div>
+    <div class="outsourced-hero"><div class="outsourced-hero-icon">✓</div><div><span>شماره پیگیری · <b dir="ltr">@Model.RequestNumber</b></span><h1>جزئیات سفارش خدمات برونسپاری</h1><p>اطلاعات ثبت‌شده و آخرین وضعیت گردش کار درخواست.</p></div><div class="actions"><a class="btn btn-outline" href="/OutsourcedServices">بازگشت به فهرست</a>@if (canEdit){<a class="btn btn-main" href="/OutsourcedServices/Edit/@Model.Id">ویرایش درخواست</a>}@if (canDelete){<form method="post" action="/OutsourcedServices/Delete/@Model.Id" onsubmit="return confirm('درخواست بایگانی شود؟ سوابق درخواست و گردش کار حذف نخواهند شد.');">@Html.AntiForgeryToken()<button class="btn btn-outline danger" type="submit">حذف با حفظ سوابق</button></form>}</div></div>
+    @if (Model.IsDeleted)
+    {
+        <div class="alert warning">این درخواست بایگانی نرم شده است. اطلاعات اصلی، سوابق تغییرات و تاریخچه گردش کار برای پیگیری و حسابرسی حفظ شده‌اند.</div>
+    }
     <section class="outsourced-detail-grid">
         <article><small>شرح خدمات درخواستی</small><p>@Model.ServiceDescription</p></article>
         <article><small>واحد سنجش و مقدار</small><strong>@Model.Quantity.ToString("0.###") @Model.UnitOfMeasure</strong></article>
@@ -16,5 +23,26 @@
         <article><small>درخواست‌کننده</small><strong>@(requester?.Name ?? "—")</strong><span>@(requester?.PersonnelNumber ?? "")</span></article>
         <article><small>تاریخ و زمان ثبت</small><strong>@HRPortal.Services.PersianDateService.FormatDateTime(HRPortal.Services.PersianDateService.ToTehran(Model.CreatedAtUtc))</strong></article>
     </section>
-    <section class="outsourced-workflow-card"><h2>وضعیت گردش کار</h2>@if(workflow is null){<p>برای این فرم هنوز گردش کار فعالی تعریف نشده است یا گردش کار آغاز نشده است.</p><a href="/Workflow/MyRequests">مشاهده درخواست‌های من</a>}else{<div class="workflow-state-line"><strong>@(workflow.Status=="Completed"?"تکمیل‌شده":workflow.Status=="Approved"?"تأیید نهایی":workflow.Status=="Rejected"?"رد یا لغو شده":workflow.Status=="Returned"?"برگشت داده‌شده":"در حال گردش")</strong><span>@(string.IsNullOrWhiteSpace((string)workflow.StepTitle)?"مرحله جاری مشخص نشده":workflow.StepTitle)</span></div><a href="/Workflow/MyRequests">پیگیری در درخواست‌های من</a>}</section>
+    <section class="outsourced-workflow-card"><h2>وضعیت گردش کار</h2>@if(workflow is null){<p>برای این فرم هنوز گردش کار فعالی تعریف نشده است یا گردش کار آغاز نشده است.</p><a href="/Workflow/MyRequests">مشاهده درخواست‌های من</a>}else{<div class="workflow-state-line"><strong>@(workflow.Status=="Completed"?"تکمیل‌شده":workflow.Status=="Approved"?"تأیید نهایی":workflow.Status=="Rejected"?"رد یا لغو شده":workflow.Status=="Returned"?"برگشت داده‌شده":workflow.Status=="Cancelled"?"بایگانی‌شده":"در حال گردش")</strong><span>@(string.IsNullOrWhiteSpace((string)workflow.StepTitle)?"مرحله جاری مشخص نشده":workflow.StepTitle)</span></div><a href="/Workflow/MyRequests">پیگیری در درخواست‌های من</a>}</section>
+    @if (revisions.Count > 0)
+    {
+        <section class="outsourced-workflow-card">
+            <h2>سوابق تغییرات درخواست</h2>
+            <div class="workflow-history">
+            @foreach (var revision in revisions)
+            {
+                var actionTitle = revision.Action switch { "Created" => "ثبت اولیه", "Updated" => "ویرایش", "Deleted" => "بایگانی نرم", _ => revision.Action };
+                <article class="workflow-history-item">
+                    <div><strong>@actionTitle</strong><span>@HRPortal.Services.PersianDateService.FormatDateTime(HRPortal.Services.PersianDateService.ToTehran(revision.CreatedAtUtc))</span></div>
+                    <p>@(string.IsNullOrWhiteSpace(revision.ActorUserName) ? (revision.ActorEmployeeId.HasValue ? "کارمند" : "کاربر سامانه") : revision.ActorUserName)</p>
+                    <details>
+                        <summary>مشاهده نسخه‌های ثبت‌شده</summary>
+                        @if (!string.IsNullOrWhiteSpace(revision.BeforeJson)){<h4>قبل از تغییر</h4><pre dir="ltr" style="white-space:pre-wrap;overflow-wrap:anywhere">@revision.BeforeJson</pre>}
+                        @if (!string.IsNullOrWhiteSpace(revision.AfterJson)){<h4>بعد از تغییر</h4><pre dir="ltr" style="white-space:pre-wrap;overflow-wrap:anywhere">@revision.AfterJson</pre>}
+                    </details>
+                </article>
+            }
+            </div>
+        </section>
+    }
 </div>

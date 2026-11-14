@@ -25,6 +25,7 @@
     <link rel="stylesheet" href="https://unpkg.com/@@majidh1/jalalidatepicker/dist/jalalidatepicker.min.css" />
     <link rel="stylesheet" href="@Url.Content("~/css/site.css")" asp-append-version="true" />
     <link rel="stylesheet" href="@Url.Content("~/css/suggestions.css")" asp-append-version="true" />
+    <link rel="stylesheet" href="@Url.Content("~/css/outsourced-services.css")" asp-append-version="true" />
 </head>
 <body style="--navy:@company.PrimaryColor;--navy2:@company.SecondaryColor;">
 <div class="app-shell">
@@ -110,11 +111,14 @@
                     <summary><span class="nav-icon">▥</span>گزارش‌ها</summary><div class="nav-submenu"><a href="/Reports/ActivityPerformance">گزارش عملکرد فعالیتها</a></div>
                 </details>
             }
-            @if (Can("Payroll.View") || Can("PersonnelOrder.View")) {
-                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Payroll") || Context.Request.Path.StartsWithSegments("/PersonnelOrder") ? "open" : null)">
+            @if (Can("Payroll.View") || Can("PersonnelOrder.View") || Can("OutsourcedServices.Create") || Can("OutsourcedServices.ViewAll") || Can("OutsourcedServices.Reports")) {
+                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Payroll") || Context.Request.Path.StartsWithSegments("/PersonnelOrder") || Context.Request.Path.StartsWithSegments("/OutsourcedServices") ? "open" : null)">
                     <summary><span class="nav-icon">▥</span>خدمات کارکنان</summary><div class="nav-submenu">
                         @if (Can("Payroll.View")) { <a href="/Payroll/Payslip">فیش حقوقی</a> }
                         @if (Can("PersonnelOrder.View")) { <a href="/PersonnelOrder">حکم کارگزینی</a> }
+                        @if (Can("OutsourcedServices.Create") || Can("OutsourcedServices.ViewAll")) { <a href="/OutsourcedServices">فهرست سفارش‌های خدمات برونسپاری</a> }
+                        @if (Can("OutsourcedServices.Create")) { <a href="/OutsourcedServices/Create">ثبت سفارش خدمات برونسپاری</a> }
+                        @if (Can("OutsourcedServices.Reports")) { <a href="/OutsourcedServicesReports">گزارش‌ها و داشبورد</a> }
                     </div>
                 </details>
             }

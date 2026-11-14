@@ -120,6 +120,7 @@ public sealed class OutsourcedServicesReportsController(HRPortalDbContext db) : 
         model.PendingCount = rows.Count(x => NormalizeStatus(x.Status) == "InProgress");
         model.CompletedCount = rows.Count(x => NormalizeStatus(x.Status) == "Completed");
         model.RejectedCount = rows.Count(x => NormalizeStatus(x.Status) == "Rejected");
+        model.ReturnedCount = rows.Count(x => NormalizeStatus(x.Status) == "Returned");
         model.UrgentCount = rows.Count(x => x.Priority is "Urgent" or "Emergency");
         model.PriorityBuckets = rows.GroupBy(x => x.Priority)
             .Select(g => new OutsourcedServiceBucket { Label = PriorityLabels.GetValueOrDefault(g.Key, g.Key), Count = g.Count() })
@@ -181,6 +182,7 @@ public sealed class OutsourcedServicesReportsController(HRPortalDbContext db) : 
         "InProgress" or "Pending" or "New" => "InProgress",
         "Completed" or "Approved" or "Done" => "Completed",
         "Rejected" or "Cancelled" => "Rejected",
+        "Returned" => "Returned",
         _ => "NotStarted"
     };
 
@@ -189,6 +191,7 @@ public sealed class OutsourcedServicesReportsController(HRPortalDbContext db) : 
         "InProgress" => "در حال گردش",
         "Completed" => "تکمیل‌شده",
         "Rejected" => "رد یا لغو شده",
+        "Returned" => "برگشت داده‌شده",
         _ => "بدون گردش کار"
     };
 

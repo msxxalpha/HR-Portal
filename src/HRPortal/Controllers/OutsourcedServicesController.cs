@@ -202,7 +202,7 @@ public sealed class OutsourcedServicesController(
             Action = "Updated",
             BeforeJson = before,
             AfterJson = SnapshotJson(item),
-            ActorEmployeeId = TryEmployeeId(out var editorId) ? editorId : null,
+            ActorEmployeeId = TryEmployeeId(out var revisionEditorId) ? revisionEditorId : null,
             ActorUserName = CurrentActorName()
         });
         await db.SaveChangesAsync();

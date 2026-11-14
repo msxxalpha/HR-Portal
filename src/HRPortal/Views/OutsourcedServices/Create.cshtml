@@ -1,18 +1,20 @@
 @model HRPortal.Models.OutsourcedServiceRequestFormVm
 @{
-    ViewData["Title"] = "سفارش خدمات برونسپاری";
+    var isEdit = (bool)(ViewBag.IsEdit ?? false);
+    ViewData["Title"] = isEdit ? "ویرایش سفارش خدمات برونسپاری" : "سفارش خدمات برونسپاری";
+    var formAction = isEdit ? Url.Action("Edit", "OutsourcedServices", new { id = Context.Request.RouteValues["id"] }) : Url.Action("Create", "OutsourcedServices");
     var units = (string[])ViewBag.Units;
     var priorities = (Dictionary<string,string>)ViewBag.Priorities;
 }
 <div class="outsourced-page">
     <div class="outsourced-hero">
         <div class="outsourced-hero-icon">↗</div>
-        <div><span>خدمات کارکنان</span><h1>ثبت سفارش خدمات برونسپاری</h1><p>درخواست خدمات موردنیاز را ثبت کنید تا پس از طی تأییدیه‌های سازمانی، برای انجام به پیمانکار برون‌سازمانی ارجاع شود.</p></div>
+        <div><span>خدمات کارکنان</span><h1>@(isEdit ? "ویرایش سفارش خدمات برونسپاری" : "ثبت سفارش خدمات برونسپاری")</h1><p>@(isEdit ? "اطلاعات درخواست را اصلاح کنید؛ نسخه قبلی برای سوابق و پیگیری محفوظ می‌ماند." : "درخواست خدمات موردنیاز را ثبت کنید تا پس از طی تأییدیه‌های سازمانی، برای انجام به پیمانکار برون‌سازمانی ارجاع شود.")</p></div>
         <a class="btn btn-outline" href="/OutsourcedServices">فهرست درخواست‌ها</a>
     </div>
     @if (TempData["Warning"] is string warning) { <div class="alert warning">@warning</div> }
     @if (!ViewData.ModelState.IsValid) { <div class="alert error">لطفاً اطلاعات مشخص‌شده را بررسی و اصلاح کنید.</div> }
-    <form method="post" action="/OutsourcedServices/Create" class="outsourced-form">
+    <form method="post" action="@formAction" class="outsourced-form">
         @Html.AntiForgeryToken()
         <div class="outsourced-section-head"><div><small>اطلاعات درخواست</small><h2>مشخصات خدمت موردنیاز</h2></div><span class="required-note">فیلدهای ستاره‌دار الزامی هستند</span></div>
         <div class="outsourced-form-grid">
@@ -42,8 +44,11 @@
         </div>
         <div class="outsourced-form-footer">
             <a class="btn btn-outline" href="/OutsourcedServices">انصراف</a>
-            <button class="btn btn-main" type="submit">ثبت درخواست و ارسال به گردش کار <span>←</span></button>
+            <button class="btn btn-main" type="submit">@(isEdit ? "ذخیره تغییرات" : "ثبت درخواست و ارسال به گردش کار") <span>←</span></button>
         </div>
     </form>
-    <div class="outsourced-process-note"><strong>پس از ثبت چه اتفاقی می‌افتد؟</strong><span>درخواست در سامانه ثبت می‌شود و در صورت تعریف گردش کار فعال برای این فرم، به‌صورت خودکار برای تأیید به مسئول یا جایگاه تعیین‌شده ارجاع خواهد شد. ارجاع به پیمانکار پس از تکمیل تأییدیه‌ها انجام می‌شود.</span></div>
+    @if (!isEdit)
+    {
+        <div class="outsourced-process-note"><strong>پس از ثبت چه اتفاقی می‌افتد؟</strong><span>درخواست در سامانه ثبت می‌شود و در صورت تعریف گردش کار فعال برای این فرم، به‌صورت خودکار برای تأیید به مسئول یا جایگاه تعیین‌شده ارجاع خواهد شد. ارجاع به پیمانکار پس از تکمیل تأییدیه‌ها انجام می‌شود.</span></div>
+    }
 </div>

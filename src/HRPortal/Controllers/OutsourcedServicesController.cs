@@ -10,7 +10,8 @@ namespace HRPortal.Controllers;
 [Authorize]
 public sealed class OutsourcedServicesController(
     HRPortalDbContext db,
-    WorkflowFormSubmissionService workflowSubmission) : Controller
+    WorkflowFormSubmissionService workflowSubmission,
+    AuditService audit) : Controller
 {
     private static readonly string[] Units =
     [
@@ -31,7 +32,8 @@ public sealed class OutsourcedServicesController(
     public async Task<IActionResult> Index()
     {
         if (!Has("OutsourcedServices.Create") && !Has("OutsourcedServices.ViewAll")) return Forbid();
-        var query = db.OutsourcedServiceRequests.AsNoTracking();
+        var query = db.OutsourcedServiceRequests.AsNoTracking()
+            .Where(x => !x.IsDeleted || IsAdmin);
         if (!Has("OutsourcedServices.ViewAll"))
         {
             if (!TryEmployeeId(out var employeeId)) return Forbid();
@@ -64,8 +66,7 @@ public sealed class OutsourcedServicesController(
     public IActionResult Create()
     {
         if (!Has("OutsourcedServices.Create")) return Forbid();
-        ViewBag.Units = Units;
-        ViewBag.Priorities = Priorities;
+        PrepareFormView(isEdit: false);
         return View(new OutsourcedServiceRequestFormVm
         {
             NeedByDateJalali = PersianDateService.Format(PersianDateService.ToTehran(DateTime.UtcNow))
@@ -76,26 +77,15 @@ public sealed class OutsourcedServicesController(
     public async Task<IActionResult> Create(OutsourcedServiceRequestFormVm model)
     {
         if (!Has("OutsourcedServices.Create")) return Forbid();
-        ViewBag.Units = Units;
-        ViewBag.Priorities = Priorities;
+        PrepareFormView(isEdit: false);
 
         var hasRequester = TryEmployeeId(out var requesterId) &&
             await db.Employees.AnyAsync(x => x.Id == requesterId && x.Status == "فعال" && x.IsSystemUser);
         if (!hasRequester)
             ModelState.AddModelError("", "اطلاعات کاربر درخواست‌کننده معتبر نیست.");
 
-        if (string.IsNullOrWhiteSpace(model.ServiceDescription) || model.ServiceDescription.Trim().Length > 3000)
-            ModelState.AddModelError(nameof(model.ServiceDescription), "شرح خدمات الزامی و حداکثر ۳۰۰۰ نویسه است.");
-        if (!Units.Contains(model.UnitOfMeasure))
-            ModelState.AddModelError(nameof(model.UnitOfMeasure), "واحد سنجش را از فهرست انتخاب کنید.");
-        if (model.Quantity <= 0 || model.Quantity > 999999999 || decimal.Round(model.Quantity, 3) != model.Quantity)
-            ModelState.AddModelError(nameof(model.Quantity), "مقدار باید بزرگ‌تر از صفر و حداکثر دارای سه رقم اعشار باشد.");
-        if (string.IsNullOrWhiteSpace(model.Priority) || !Priorities.ContainsKey(model.Priority))
-            ModelState.AddModelError(nameof(model.Priority), "اولویت انجام کار معتبر نیست.");
-        if (!PersianDateService.TryParse(model.NeedByDateJalali, out var needByDate))
-            ModelState.AddModelError(nameof(model.NeedByDateJalali), "تاریخ نیازمندی را با تقویم شمسی و به‌صورت معتبر وارد کنید.");
-
-        if (!ModelState.IsValid) return View(model);
+        if (!ValidateForm(model, out var needByDate) || !ModelState.IsValid)
+            return View("Create", model);
 
         var item = new OutsourcedServiceRequest
         {
@@ -115,6 +105,17 @@ public sealed class OutsourcedServicesController(
         var jalaliYear = PersianDateService.Format(PersianDateService.ToTehran(DateTime.UtcNow))[..4];
         item.RequestNumber = $"OS-{jalaliYear}-{item.Id:000000}";
         await db.SaveChangesAsync();
+        db.OutsourcedServiceRequestRevisions.Add(new OutsourcedServiceRequestRevision
+        {
+            RequestId = item.Id,
+            Action = "Created",
+            AfterJson = SnapshotJson(item),
+            ActorEmployeeId = requesterId,
+            ActorUserName = CurrentActorName()
+        });
+        await db.SaveChangesAsync();
+        await audit.WriteAsync("ثبت سفارش خدمات برونسپاری", nameof(OutsourcedServiceRequest),
+            item.Id.ToString(), $"ثبت درخواست {item.RequestNumber}", requesterId);
 
         try
         {
@@ -134,11 +135,147 @@ public sealed class OutsourcedServicesController(
         return RedirectToAction(nameof(Details), new { id = item.Id });
     }
 
+
+    [HttpGet]
+    public async Task<IActionResult> Edit(int id)
+    {
+        if (!IsAdmin && !Has("OutsourcedServices.Create")) return Forbid();
+        var item = await db.OutsourcedServiceRequests.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+        if (item is null) return NotFound();
+        if (!await CanManageRequestAsync(item)) return Forbid();
+
+        PrepareFormView(isEdit: true);
+        return View("Create", new OutsourcedServiceRequestFormVm
+        {
+            ServiceDescription = item.ServiceDescription,
+            UnitOfMeasure = item.UnitOfMeasure,
+            Quantity = item.Quantity,
+            NeedByDateJalali = PersianDateService.Format(item.NeedByDate),
+            Priority = item.Priority
+        });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Edit(int id, OutsourcedServiceRequestFormVm model)
+    {
+        if (!IsAdmin && !Has("OutsourcedServices.Create")) return Forbid();
+        PrepareFormView(isEdit: true);
+
+        await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+        var item = await db.OutsourcedServiceRequests
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+        if (item is null) return NotFound();
+        if (!await CanManageRequestAsync(item)) return Forbid();
+
+        if (!ValidateForm(model, out var needByDate) || !ModelState.IsValid)
+            return View("Create", model);
+
+        var before = SnapshotJson(item);
+        item.ServiceDescription = model.ServiceDescription.Trim();
+        item.UnitOfMeasure = model.UnitOfMeasure;
+        item.Quantity = model.Quantity;
+        item.NeedByDate = needByDate.Date;
+        item.Priority = model.Priority;
+        item.UpdatedAtUtc = DateTime.UtcNow;
+
+        db.OutsourcedServiceRequestRevisions.Add(new OutsourcedServiceRequestRevision
+        {
+            RequestId = item.Id,
+            Action = "Updated",
+            BeforeJson = before,
+            AfterJson = SnapshotJson(item),
+            ActorEmployeeId = TryEmployeeId(out var editorId) ? editorId : null,
+            ActorUserName = CurrentActorName()
+        });
+        await db.SaveChangesAsync();
+        await transaction.CommitAsync();
+
+        await audit.WriteAsync("ویرایش سفارش خدمات برونسپاری", nameof(OutsourcedServiceRequest),
+            item.Id.ToString(), $"ویرایش درخواست {item.RequestNumber}",
+            TryEmployeeId(out var actorId) ? actorId : null);
+        TempData["Success"] = "اطلاعات درخواست با حفظ نسخه قبلی با موفقیت ویرایش شد.";
+        return RedirectToAction(nameof(Details), new { id = item.Id });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Delete(int id)
+    {
+        if (!IsAdmin && !Has("OutsourcedServices.Create")) return Forbid();
+        await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+        var item = await db.OutsourcedServiceRequests
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+        if (item is null) return NotFound();
+        if (!await CanManageRequestAsync(item)) return Forbid();
+
+        var now = DateTime.UtcNow;
+        var before = SnapshotJson(item);
+        var actorId = TryEmployeeId(out var currentEmployeeId) ? currentEmployeeId : (int?)null;
+        item.IsDeleted = true;
+        item.DeletedAtUtc = now;
+        item.DeletedByEmployeeId = actorId;
+        item.UpdatedAtUtc = now;
+
+        var instance = await db.WorkflowInstances
+            .Where(x => x.EntityType == "OutsourcedServiceRequest" && x.EntityId == item.Id.ToString())
+            .OrderByDescending(x => x.StartedAt)
+            .FirstOrDefaultAsync();
+        if (instance is not null)
+        {
+            var previousStatus = instance.Status;
+            var previousStepId = instance.CurrentStepId;
+            if (instance.Status == "InProgress")
+            {
+                var pendingTasks = await db.WorkflowTasks
+                    .Where(x => x.WorkflowInstanceId == instance.Id && x.Status == "Pending")
+                    .ToListAsync();
+                foreach (var task in pendingTasks)
+                {
+                    task.Status = "Cancelled";
+                    task.Action = "RequestArchived";
+                    task.CompletedAt = now;
+                }
+                instance.Status = "Cancelled";
+                instance.CurrentStepId = null;
+                instance.CompletedAt = now;
+            }
+
+            db.WorkflowHistory.Add(new WorkflowHistory
+            {
+                WorkflowInstanceId = instance.Id,
+                WorkflowStepId = previousStepId,
+                FromStatus = previousStatus,
+                ToStatus = instance.Status,
+                Action = "RequestArchived",
+                ActorEmployeeId = actorId,
+                Comment = "درخواست توسط کاربر مجاز بایگانی نرم شد؛ سوابق گردش کار و مقادیر فرم حفظ شده‌اند."
+            });
+        }
+
+        db.OutsourcedServiceRequestRevisions.Add(new OutsourcedServiceRequestRevision
+        {
+            RequestId = item.Id,
+            Action = "Deleted",
+            BeforeJson = before,
+            AfterJson = SnapshotJson(item),
+            ActorEmployeeId = actorId,
+            ActorUserName = CurrentActorName()
+        });
+        await db.SaveChangesAsync();
+        await transaction.CommitAsync();
+
+        await audit.WriteAsync("حذف نرم سفارش خدمات برونسپاری", nameof(OutsourcedServiceRequest),
+            item.Id.ToString(), $"بایگانی درخواست {item.RequestNumber} با حفظ سوابق گردش کار", actorId);
+        TempData["Success"] = "درخواست بایگانی شد؛ سوابق درخواست و گردش کار حذف نشده‌اند.";
+        return RedirectToAction(nameof(Index));
+    }
+
     [HttpGet]
     public async Task<IActionResult> Details(int id)
     {
         if (!Has("OutsourcedServices.Create") && !Has("OutsourcedServices.ViewAll") && !Has("OutsourcedServices.Reports")) return Forbid();
-        var query = db.OutsourcedServiceRequests.AsNoTracking().AsQueryable();
+        var query = db.OutsourcedServiceRequests.AsNoTracking()
+            .Where(x => !x.IsDeleted || IsAdmin).AsQueryable();
         if (!Has("OutsourcedServices.ViewAll") && !Has("OutsourcedServices.Reports"))
         {
             if (!TryEmployeeId(out var employeeId)) return Forbid();
@@ -159,6 +296,86 @@ public sealed class OutsourcedServicesController(
         ViewBag.Requester = requester;
         ViewBag.Workflow = workflow;
         ViewBag.PriorityTitle = Priorities.GetValueOrDefault(item.Priority, item.Priority);
+        ViewBag.IsAdmin = IsAdmin;
+        ViewBag.CanEdit = !item.IsDeleted && await CanManageRequestAsync(item);
+        ViewBag.CanDelete = !item.IsDeleted && await CanManageRequestAsync(item);
+        ViewBag.Revisions = await db.OutsourcedServiceRequestRevisions.AsNoTracking()
+            .Where(x => x.RequestId == item.Id)
+            .OrderByDescending(x => x.CreatedAtUtc).Take(100).ToListAsync();
         return View(item);
     }
+
+    private void PrepareFormView(bool isEdit)
+    {
+        ViewBag.Units = Units;
+        ViewBag.Priorities = Priorities;
+        ViewBag.IsEdit = isEdit;
+    }
+
+    private bool ValidateForm(OutsourcedServiceRequestFormVm model, out DateTime needByDate)
+    {
+        needByDate = default;
+        if (string.IsNullOrWhiteSpace(model.ServiceDescription) ||
+            model.ServiceDescription.Trim().Length > 3000)
+            ModelState.AddModelError(nameof(model.ServiceDescription), "شرح خدمات الزامی و حداکثر ۳۰۰۰ نویسه است.");
+        if (!Units.Contains(model.UnitOfMeasure))
+            ModelState.AddModelError(nameof(model.UnitOfMeasure), "واحد سنجش را از فهرست انتخاب کنید.");
+        if (model.Quantity <= 0 || model.Quantity > 999999999 ||
+            decimal.Round(model.Quantity, 3) != model.Quantity)
+            ModelState.AddModelError(nameof(model.Quantity), "مقدار باید بزرگ‌تر از صفر و حداکثر دارای سه رقم اعشار باشد.");
+        if (string.IsNullOrWhiteSpace(model.Priority) || !Priorities.ContainsKey(model.Priority))
+            ModelState.AddModelError(nameof(model.Priority), "اولویت انجام کار معتبر نیست.");
+        if (!PersianDateService.TryParse(model.NeedByDateJalali, out needByDate))
+            ModelState.AddModelError(nameof(model.NeedByDateJalali), "تاریخ نیازمندی را با تقویم شمسی و به‌صورت معتبر وارد کنید.");
+        return ModelState.IsValid;
+    }
+
+    private async Task<bool> CanManageRequestAsync(OutsourcedServiceRequest item)
+    {
+        if (item.IsDeleted) return false;
+        if (IsAdmin) return true;
+        if (!Has("OutsourcedServices.Create") ||
+            !TryEmployeeId(out var employeeId) || employeeId != item.RequesterEmployeeId)
+            return false;
+
+        var instance = await db.WorkflowInstances.AsNoTracking()
+            .Where(x => x.EntityType == "OutsourcedServiceRequest" && x.EntityId == item.Id.ToString())
+            .OrderByDescending(x => x.StartedAt)
+            .FirstOrDefaultAsync();
+        if (instance is null) return true;
+        if (instance.Status != "InProgress" || !instance.CurrentStepId.HasValue) return false;
+
+        var firstStepId = await db.WorkflowSteps.AsNoTracking()
+            .Where(x => x.WorkflowDefinitionId == instance.WorkflowDefinitionId)
+            .OrderBy(x => x.SortOrder).ThenBy(x => x.Id)
+            .Select(x => (int?)x.Id).FirstOrDefaultAsync();
+        if (!firstStepId.HasValue || instance.CurrentStepId.Value != firstStepId.Value) return false;
+
+        var otherActorHasActed = await db.WorkflowHistory.AsNoTracking().AnyAsync(x =>
+            x.WorkflowInstanceId == instance.Id &&
+            x.ActorEmployeeId.HasValue && x.ActorEmployeeId.Value != item.RequesterEmployeeId &&
+            x.Action != "Created" && x.Action != "Submitted" && x.Action != "Submit");
+        return !otherActorHasActed;
+    }
+
+    private static string SnapshotJson(OutsourcedServiceRequest item) =>
+        System.Text.Json.JsonSerializer.Serialize(new
+        {
+            item.RequestNumber,
+            item.ServiceDescription,
+            item.UnitOfMeasure,
+            item.Quantity,
+            NeedByDate = item.NeedByDate.ToString("yyyy-MM-dd"),
+            item.Priority,
+            item.Status,
+            item.RequesterEmployeeId,
+            item.CreatedAtUtc,
+            item.UpdatedAtUtc,
+            item.IsDeleted,
+            item.DeletedAtUtc,
+            item.DeletedByEmployeeId
+        });
+
+    private string? CurrentActorName() =>
+        User.FindFirst("AdminUsername")?.Value ?? User.Identity?.Name;
 }

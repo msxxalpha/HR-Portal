@@ -10,6 +10,8 @@
     var workflowPositions = ViewBag.WorkflowPositions as List<OrganizationNode> ?? [];
     var isRequesterStage = Model.WorkflowStep.AssignmentType == "Requester" &&
         Model.WorkflowInstance.RequesterEmployeeId == Model.AssignedEmployeeId;
+    var isReturnedForEditTask = Model.Action == "ReturnedForEdit";
+    var canEditOutsourcedRequest = isRequesterStage || isReturnedForEditTask;
 }
 @if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
 @if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
@@ -69,7 +71,7 @@
     <section class="card form-stack" style="margin-top:1rem">
         <div class="section-head"><div><h3>مشخصات سفارش خدمات برونسپاری</h3><span class="muted">@outsourcedService.RequestNumber</span></div>
             <div class="actions">
-                @if (isRequesterStage)
+                @if (canEditOutsourcedRequest)
                 {
                     <a class="btn btn-main" href="/OutsourcedServices/Edit/@outsourcedService.Id?returnTaskId=@Model.Id">ویرایش اطلاعات درخواست</a>
                 }
@@ -79,9 +81,9 @@
                 }
             </div>
         </div>
-        @if (isRequesterStage)
+        @if (canEditOutsourcedRequest)
         {
-            <div class="note">این سفارش برای اصلاح به درخواست‌کننده اولیه بازگشته است. ابتدا اطلاعات درخواست را ویرایش و ذخیره کنید؛ سپس به همین صفحه برگردید و «ثبت مجدد و ادامه گردش کار» را بزنید.</div>
+            <div class="note">این سفارش طبق مسیر برگشت برای اصلاح به کارتابل شما ارجاع شده است. ابتدا اطلاعات درخواست را ویرایش و ذخیره کنید؛ سپس به همین صفحه برگردید و اقدام مجاز این مرحله را برای ادامه گردش کار ثبت کنید.</div>
         }
         <dl class="detail-list">
             <dt>شرح خدمات درخواستی</dt><dd>@outsourcedService.ServiceDescription</dd>
@@ -182,7 +184,7 @@
                     <button class="btn btn-outline" name="action" value="SaveDraft" type="submit">ذخیره پیش‌نویس</button>
                     @if (!isRequesterStage && Model.WorkflowStep.AllowReturn) { <button class="btn btn-outline" name="action" value="Return" type="submit">برگشت</button> }
                     @if (!isRequesterStage && Model.WorkflowStep.AllowReject) { <button class="btn danger" name="action" value="Reject" type="submit">رد درخواست</button> }
-                    @if (isRequesterStage || Model.WorkflowStep.AllowApprove) { <button class="btn btn-main" name="action" value="Approve" type="submit">@(isRequesterStage ? "ثبت مجدد و ادامه گردش کار" : "ذخیره اطلاعات و تأیید")</button> }
+                    @if (isRequesterStage || Model.WorkflowStep.AllowApprove) { <button class="btn btn-main" name="action" value="Approve" type="submit">@(canEditOutsourcedRequest ? "ذخیره اصلاحات و ادامه گردش کار" : "ذخیره اطلاعات و تأیید")</button> }
                 </div>
             </section>
         </form>
@@ -200,7 +202,7 @@ else
                 <button class="btn btn-outline" name="action" value="SaveDraft" type="submit">ذخیره پیش‌نویس</button>
                 @if (!isRequesterStage && Model.WorkflowStep.AllowReturn) { <button class="btn btn-outline" name="action" value="Return" type="submit">برگشت</button> }
                 @if (!isRequesterStage && Model.WorkflowStep.AllowReject) { <button class="btn danger" name="action" value="Reject" type="submit">رد درخواست</button> }
-                @if (isRequesterStage || Model.WorkflowStep.AllowApprove) { <button class="btn btn-main" name="action" value="Approve" type="submit">@(isRequesterStage ? "ثبت مجدد و ادامه گردش کار" : "تأیید")</button> }
+                @if (isRequesterStage || Model.WorkflowStep.AllowApprove) { <button class="btn btn-main" name="action" value="Approve" type="submit">@(canEditOutsourcedRequest ? "ذخیره اصلاحات و ادامه گردش کار" : "تأیید")</button> }
             </div>
         </form>
     </section>

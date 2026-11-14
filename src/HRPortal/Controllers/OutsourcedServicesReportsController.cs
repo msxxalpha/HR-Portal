@@ -66,40 +66,47 @@ public sealed class OutsourcedServicesReportsController(HRPortalDbContext db) : 
         if (model.UnitOfMeasure != "all")
             query = query.Where(x => x.UnitOfMeasure == model.UnitOfMeasure);
 
-        var raw = await query.OrderByDescending(x => x.CreatedAtUtc)
-            .Select(x => new
+        var requests = await query.OrderByDescending(x => x.CreatedAtUtc).Take(5000).ToListAsync();
+        var employeeIds = requests.Select(x => x.RequesterEmployeeId).Distinct().ToArray();
+        var employees = await db.Employees.AsNoTracking().Where(x => employeeIds.Contains(x.Id))
+            .Select(e => new
             {
-                Request = x,
-                Employee = db.Employees.Where(e => e.Id == x.RequesterEmployeeId)
-                    .Select(e => new
-                    {
-                        Name = e.FirstName + " " + e.LastName,
-                        e.PersonnelNumber,
-                        Organization = e.OrganizationSection != null ? e.OrganizationSection.Title :
-                            e.OrganizationDepartment != null ? e.OrganizationDepartment.Title :
-                            e.OrganizationUnit != null ? e.OrganizationUnit.Title : "—"
-                    }).FirstOrDefault(),
-                Workflow = db.WorkflowInstances.Where(w => w.EntityType == "OutsourcedServiceRequest" && w.EntityId == x.Id.ToString())
-                    .OrderByDescending(w => w.StartedAt)
-                    .Select(w => new { w.Status, Step = w.CurrentStep == null ? "" : w.CurrentStep.Title })
-                    .FirstOrDefault()
-            }).Take(5000).ToListAsync();
+                e.Id,
+                Name = e.FirstName + " " + e.LastName,
+                e.PersonnelNumber,
+                Organization = e.OrganizationSection != null ? e.OrganizationSection.Title :
+                    e.OrganizationDepartment != null ? e.OrganizationDepartment.Title :
+                    e.OrganizationUnit != null ? e.OrganizationUnit.Title : "—"
+            }).ToDictionaryAsync(x => x.Id);
+        var requestIds = requests.Select(x => x.Id.ToString()).ToArray();
+        var workflowRows = await db.WorkflowInstances.AsNoTracking()
+            .Where(w => w.EntityType == "OutsourcedServiceRequest" && requestIds.Contains(w.EntityId))
+            .OrderByDescending(w => w.StartedAt)
+            .Select(w => new { w.EntityId, w.Status, Step = w.CurrentStep == null ? "" : w.CurrentStep.Title })
+            .ToListAsync();
+        var workflows = workflowRows.GroupBy(x => x.EntityId)
+            .ToDictionary(x => x.Key, x => x.First());
 
-        var rows = raw.Select(x => new OutsourcedServiceReportRow
+        var rows = requests.Select(request =>
         {
-            Id = x.Request.Id,
-            RequestNumber = x.Request.RequestNumber,
-            ServiceDescription = x.Request.ServiceDescription,
-            UnitOfMeasure = x.Request.UnitOfMeasure,
-            Quantity = x.Request.Quantity,
-            NeedByDate = x.Request.NeedByDate,
-            Priority = x.Request.Priority,
-            Status = x.Workflow?.Status ?? x.Request.Status,
-            RequesterName = x.Employee?.Name ?? "—",
-            PersonnelNumber = x.Employee?.PersonnelNumber ?? "",
-            Organization = x.Employee?.Organization ?? "—",
-            CreatedAtUtc = x.Request.CreatedAtUtc,
-            CurrentStepTitle = x.Workflow?.Step ?? ""
+            employees.TryGetValue(request.RequesterEmployeeId, out var employee);
+            workflows.TryGetValue(request.Id.ToString(), out var workflow);
+            return new OutsourcedServiceReportRow
+            {
+                Id = request.Id,
+                RequestNumber = request.RequestNumber,
+                ServiceDescription = request.ServiceDescription,
+                UnitOfMeasure = request.UnitOfMeasure,
+                Quantity = request.Quantity,
+                NeedByDate = request.NeedByDate,
+                Priority = request.Priority,
+                Status = workflow?.Status ?? request.Status,
+                RequesterName = employee?.Name ?? "—",
+                PersonnelNumber = employee?.PersonnelNumber ?? "",
+                Organization = employee?.Organization ?? "—",
+                CreatedAtUtc = request.CreatedAtUtc,
+                CurrentStepTitle = workflow?.Step ?? ""
+            };
         }).ToList();
 
         if (model.Status != "all")

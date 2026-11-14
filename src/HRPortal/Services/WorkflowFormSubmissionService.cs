@@ -18,7 +18,8 @@ public sealed class WorkflowFormSubmissionService(
         string entityType,
         string entityId,
         int requesterEmployeeId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        int? subjectEmployeeId = null)
     {
         if (string.IsNullOrWhiteSpace(formCode) ||
             string.IsNullOrWhiteSpace(entityType) ||
@@ -43,6 +44,6 @@ public sealed class WorkflowFormSubmissionService(
             return existing;
 
         return await workflow.StartAsync(
-            definitionCode, entityType, entityId, requesterEmployeeId, cancellationToken, subjectEmployeeId: requesterEmployeeId);
+            definitionCode, entityType, entityId, requesterEmployeeId, cancellationToken, subjectEmployeeId: subjectEmployeeId);
     }
 }

@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Primitives;
 using QuestPDF.Infrastructure;
 
 static void Check(bool condition, string message)
@@ -21,6 +22,26 @@ await VerifyRoleAdministrationAsync();
 await VerifyImprovementActionsAsync();
 await VerifyEffectiveEmployeePermissionMatrixAsync();
 await VerifySuggestionsAnalyticsAsync();
+
+var workflowPostedForm = new FormCollection(new Dictionary<string, StringValues>
+{
+    ["__RequestVerificationToken"] = new StringValues("anti-forgery-token"),
+    ["id"] = new StringValues("123"),
+    ["comment"] = new StringValues("ملاحظات اقدام"),
+    ["action"] = new StringValues("Approve"),
+    ["values[field_45]"] = new StringValues("مقدار فیلد جاری"),
+    ["previousValues[21]"] = new StringValues("مقدار مرحله قبل")
+});
+var isolatedCurrentValues = WorkflowTaskFormValueReader.Read(workflowPostedForm, "values");
+var isolatedPreviousValues = WorkflowTaskFormValueReader.Read(workflowPostedForm, "previousValues");
+Check(isolatedCurrentValues.Count == 1 &&
+      isolatedCurrentValues.TryGetValue("field_45", out var currentFieldValue) &&
+      currentFieldValue == "مقدار فیلد جاری",
+    "Only values[...] entries may be included in the current workflow field dictionary.");
+Check(isolatedPreviousValues.Count == 1 &&
+      isolatedPreviousValues.TryGetValue("21", out var previousFieldValue) &&
+      previousFieldValue == "مقدار مرحله قبل",
+    "Only previousValues[...] entries may be included in the previous workflow field dictionary.");
 
 Check(ContractRenewalWorkflowService.MaximumAllowedContractMonths("ApproveOneMonth") == 1,
     "A one-month security approval must cap the allowed contract duration at one month.");

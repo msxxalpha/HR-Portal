@@ -503,21 +503,42 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         CancellationToken cancellationToken)
     {
         if (submitted is null || submitted.Count == 0) return;
-        if (!task.WorkflowStep.AllowEditPreviousData)
+
+        var isReturnedForEdit = task.Action == "ReturnedForEdit";
+        if (!isReturnedForEdit && !task.WorkflowStep.AllowEditPreviousData)
             throw new InvalidOperationException("ویرایش اطلاعات مراحل قبلی برای این مرحله مجاز نیست.");
 
-        var definitionStepIds = await db.WorkflowSteps.AsNoTracking()
-            .Where(x => x.WorkflowDefinitionId == task.WorkflowInstance.WorkflowDefinitionId && x.SortOrder < task.WorkflowStep.SortOrder)
-            .Select(x => x.Id).ToListAsync(cancellationToken);
         var fieldIds = submitted.Keys.Select(k => int.TryParse(k, out var id) ? id : 0).ToList();
         if (fieldIds.Any(id => id <= 0))
             throw new InvalidOperationException("شناسه فیلد مرحله قبلی نامعتبر است.");
 
-        var fields = await db.WorkflowStepFields
-            .Where(x => fieldIds.Contains(x.Id) && definitionStepIds.Contains(x.WorkflowStepId))
-            .ToListAsync(cancellationToken);
+        var fieldQuery = db.WorkflowStepFields
+            .Where(x => fieldIds.Contains(x.Id) &&
+                x.WorkflowStep.WorkflowDefinitionId == task.WorkflowInstance.WorkflowDefinitionId &&
+                x.WorkflowStepId != task.WorkflowStepId);
+
+        if (isReturnedForEdit)
+        {
+            // A return route can send a request to an earlier stage while data
+            // already entered in later stages still needs correction. Permit only
+            // fields that have an existing value snapshot in this same instance.
+            fieldQuery = fieldQuery.Where(field => db.WorkflowFieldValues.Any(value =>
+                value.WorkflowInstanceId == task.WorkflowInstanceId &&
+                value.WorkflowStepFieldId == field.Id &&
+                value.WorkflowStepId == field.WorkflowStepId));
+        }
+        else
+        {
+            var previousStepIds = await db.WorkflowSteps.AsNoTracking()
+                .Where(x => x.WorkflowDefinitionId == task.WorkflowInstance.WorkflowDefinitionId &&
+                    x.SortOrder < task.WorkflowStep.SortOrder)
+                .Select(x => x.Id).ToListAsync(cancellationToken);
+            fieldQuery = fieldQuery.Where(x => previousStepIds.Contains(x.WorkflowStepId));
+        }
+
+        var fields = await fieldQuery.ToListAsync(cancellationToken);
         if (fields.Count != submitted.Count)
-            throw new InvalidOperationException("شما فقط مجاز به ویرایش فیلدهای مراحل قبلی همین درخواست هستید.");
+            throw new InvalidOperationException("شما فقط مجاز به ویرایش فیلدهای قبلیِ ذخیره‌شده در همین درخواست هستید.");
 
         foreach (var field in fields)
         {

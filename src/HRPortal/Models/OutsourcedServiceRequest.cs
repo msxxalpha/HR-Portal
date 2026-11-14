@@ -15,6 +15,22 @@ public sealed class OutsourcedServiceRequest
     public int RequesterEmployeeId { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAtUtc { get; set; }
+    public int? DeletedByEmployeeId { get; set; }
+}
+
+public sealed class OutsourcedServiceRequestRevision
+{
+    public int Id { get; set; }
+    public int RequestId { get; set; }
+    [MaxLength(30)] public string Action { get; set; } = "";
+    public string? BeforeJson { get; set; }
+    public string? AfterJson { get; set; }
+    public int? ActorEmployeeId { get; set; }
+    [MaxLength(200)] public string? ActorUserName { get; set; }
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+    public OutsourcedServiceRequest Request { get; set; } = null!;
 }
 
 public sealed class OutsourcedServiceRequestFormVm

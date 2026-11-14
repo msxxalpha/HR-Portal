@@ -225,41 +225,29 @@ public class ReportsController(HRPortalDbContext db, RoleService roles) : Contro
             .OrderByDescending(x => x.StartedAt)
             .ToListAsync(cancellationToken);
 
-        // A workflow's primary type is the operational form (FormCode), not the
-        // individual workflow definition title. Many definitions/versions can
-        // therefore share one report filter option.
-        var formCodes = instances.Select(x => x.WorkflowDefinition?.FormCode)
-            .Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!.Trim())
+        // Group by operational form identity rather than workflow-definition code.
+        // This also consolidates per-request internal definitions such as contract renewal.
+        string ResolveWorkflowTypeCode(WorkflowInstance instance) =>
+            WorkflowReportFormTypeResolver.ResolveCode(instance.WorkflowDefinition?.FormCode, instance.EntityType);
+
+        var formCodes = instances.Select(ResolveWorkflowTypeCode)
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         var formTitles = await db.SystemFormDefinitions.AsNoTracking()
             .Where(x => formCodes.Contains(x.Code))
             .Select(x => new { x.Code, x.Title })
             .ToDictionaryAsync(x => x.Code, x => x.Title, StringComparer.OrdinalIgnoreCase, cancellationToken);
 
-        string ResolveWorkflowTypeCode(WorkflowDefinition? definition) =>
-            !string.IsNullOrWhiteSpace(definition?.FormCode)
-                ? definition.FormCode.Trim()
-                : !string.IsNullOrWhiteSpace(definition?.Code) ? "workflow:" + definition.Code.Trim() : "workflow:unknown";
-
-        string ResolveWorkflowTypeTitle(WorkflowDefinition? definition)
-        {
-            if (!string.IsNullOrWhiteSpace(definition?.FormCode))
-            {
-                var formCode = definition.FormCode.Trim();
-                if (formTitles.TryGetValue(formCode, out var formTitle) && !string.IsNullOrWhiteSpace(formTitle))
-                    return formTitle;
-                return formCode;
-            }
-            return definition?.Title ?? "گردش کار";
-        }
+        string ResolveWorkflowTypeTitle(WorkflowInstance instance) =>
+            WorkflowReportFormTypeResolver.ResolveTitle(
+                ResolveWorkflowTypeCode(instance), formTitles);
 
         model.WorkflowOptions = instances
-            .Select(x => x.WorkflowDefinition)
             .GroupBy(ResolveWorkflowTypeCode, StringComparer.OrdinalIgnoreCase)
             .Select(group => new ExecutiveWorkflowTypeOption
             {
                 Code = group.Key,
-                Title = ResolveWorkflowTypeTitle(group.First())
+                Title = ResolveWorkflowTypeTitle(group.First()),
+                Count = group.Count()
             })
             .OrderBy(x => x.Title, StringComparer.CurrentCulture)
             .ToList();
@@ -313,8 +301,8 @@ public class ReportsController(HRPortalDbContext db, RoleService roles) : Contro
                 Id = instance.Id,
                 RequestCode = $"{instance.EntityType} · {instance.EntityId}",
                 WorkflowTitle = instance.WorkflowDefinition?.Title ?? "گردش کار",
-                WorkflowTypeCode = ResolveWorkflowTypeCode(instance.WorkflowDefinition),
-                WorkflowTypeTitle = ResolveWorkflowTypeTitle(instance.WorkflowDefinition),
+                WorkflowTypeCode = ResolveWorkflowTypeCode(instance),
+                WorkflowTypeTitle = ResolveWorkflowTypeTitle(instance),
                 RequesterName = $"{instance.RequesterEmployee?.FirstName} {instance.RequesterEmployee?.LastName}".Trim(),
                 RequesterPersonnelNumber = instance.RequesterEmployee?.PersonnelNumber ?? "—",
                 Direction = isIncoming && isOutgoing ? "ورودی و خروجی" : isIncoming ? "ورودی" : "خروجی",

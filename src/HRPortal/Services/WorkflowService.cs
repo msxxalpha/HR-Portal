@@ -240,8 +240,9 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         entity.RequireCommentOnReject = model.RequireCommentOnReject;
         entity.RequireCommentOnReturn = model.RequireCommentOnReturn;
         entity.IsFinalStep = model.IsFinalStep;
-        entity.AllowEditPreviousData = model.AllowEditPreviousData;
-        entity.RequireNotes = model.RequireNotes;
+        // AllowEditPreviousData and RequireNotes are maintained by SaveStepRulesAsync.
+        // This editor intentionally does not post those settings, so leaving them
+        // untouched prevents a routine stage edit from silently resetting them.
         definition.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync();
@@ -1406,6 +1407,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         var task = await GetTaskAsync(taskId, actorEmployeeId)
             ?? throw new InvalidOperationException("این کارتابل به شما اختصاص ندارد یا قبلاً تعیین تکلیف شده است.");
 
+        if (task.WorkflowStep.AssignmentType == "Requester" && action is not ("Approve" or "SaveDraft"))
+            throw new InvalidOperationException("مرحله بازگشت به درخواست‌کننده فقط امکان ذخیره پیش‌نویس یا ثبت مجدد درخواست را دارد.");
         if (action == "Approve" && !task.WorkflowStep.AllowApprove ||
             action == "Reject" && !task.WorkflowStep.AllowReject ||
             action == "Return" && !task.WorkflowStep.AllowReturn)

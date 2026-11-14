@@ -1815,6 +1815,8 @@ static async Task VerifyWorkflowStageEditingAndRequesterReturnAsync()
         "Tasks created by any Return route must be marked as returned-for-edit.");
 
     var previousStageGroups = await service.GetTaskFieldGroupsAsync(returnedToPreviousStage.TaskId, reviewer.Id);
+    Console.WriteLine("DEBUG previous-stage groups: " + string.Join(" | ", previousStageGroups.Select(g =>
+        $"step={g.WorkflowStepId}/{g.StepTitle}, current={g.IsCurrentStep}, editable={g.IsEditable}, fields={string.Join(",", g.Fields.Select(f => f.Code + "=" + f.Value))}")));
     var editableDestination = previousStageGroups.SingleOrDefault(group => group.WorkflowStepId == reviewStep.Id);
     var readOnlyReturnSource = previousStageGroups.SingleOrDefault(group => group.WorkflowStepId == nextStep.Id);
     Check(previousStageGroups.Count == 2 && editableDestination is { IsCurrentStep: true, IsEditable: true } &&

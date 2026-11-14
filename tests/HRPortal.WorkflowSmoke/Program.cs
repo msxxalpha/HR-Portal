@@ -908,7 +908,10 @@ static async Task VerifyWorkflowTransitionLifecycleAsync()
         "The assigned employee must be able to open the first action form.");
 
     await service.CompleteTaskAsync(firstTask.Id, 11, "SaveDraft", "ذخیره موقت",
-        new Dictionary<string, string?> { ["ReviewNote"] = "پیش‌نویس" });
+        new Dictionary<string, string?> { ["field_1"] = "پیش‌نویس" });
+    Check(await db.WorkflowFieldValues.AnyAsync(x => x.WorkflowInstanceId == instance.Id &&
+        x.WorkflowStepFieldId == 1 && x.FieldCode == "ReviewNote" && x.Value == "پیش‌نویس"),
+        "A stable field ID posted by the task form must be mapped to its workflow field.");
     Check(await db.WorkflowTasks.AnyAsync(x => x.Id == firstTask.Id && x.Status == "Pending"),
         "Saving a draft must not complete or advance the task.");
     Check(await db.WorkflowHistory.AnyAsync(x => x.WorkflowInstanceId == instance.Id && x.Action == "SaveDraft"),

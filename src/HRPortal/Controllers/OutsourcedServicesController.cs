@@ -38,17 +38,26 @@ public sealed class OutsourcedServicesController(
             query = query.Where(x => x.RequesterEmployeeId == employeeId);
         }
 
-        var items = await query.OrderByDescending(x => x.CreatedAtUtc).Take(300).ToListAsync();
-        var ids = items.Select(x => x.Id.ToString()).ToArray();
+        var requests = await query.OrderByDescending(x => x.CreatedAtUtc).Take(300).ToListAsync();
+        var ids = requests.Select(x => x.Id.ToString()).ToArray();
         var workflows = await db.WorkflowInstances.AsNoTracking()
             .Where(x => x.EntityType == "OutsourcedServiceRequest" && ids.Contains(x.EntityId))
             .OrderByDescending(x => x.StartedAt)
             .Select(x => new { x.EntityId, x.Status, StepTitle = x.CurrentStep == null ? "" : x.CurrentStep.Title })
             .ToListAsync();
         var latest = workflows.GroupBy(x => x.EntityId).ToDictionary(x => x.Key, x => x.First());
-        ViewBag.WorkflowStates = latest;
+        var rows = requests.Select(request =>
+        {
+            latest.TryGetValue(request.Id.ToString(), out var workflow);
+            return new OutsourcedServiceRequestListItem
+            {
+                Request = request,
+                WorkflowStatus = workflow?.Status ?? request.Status,
+                CurrentStepTitle = workflow?.StepTitle ?? ""
+            };
+        }).ToList();
         ViewBag.CanCreate = Has("OutsourcedServices.Create");
-        return View(items);
+        return View(rows);
     }
 
     [HttpGet]
@@ -70,8 +79,9 @@ public sealed class OutsourcedServicesController(
         ViewBag.Units = Units;
         ViewBag.Priorities = Priorities;
 
-        if (!TryEmployeeId(out var requesterId) ||
-            !await db.Employees.AnyAsync(x => x.Id == requesterId && x.Status == "فعال" && x.IsSystemUser))
+        var hasRequester = TryEmployeeId(out var requesterId) &&
+            await db.Employees.AnyAsync(x => x.Id == requesterId && x.Status == "فعال" && x.IsSystemUser);
+        if (!hasRequester)
             ModelState.AddModelError("", "اطلاعات کاربر درخواست‌کننده معتبر نیست.");
 
         if (string.IsNullOrWhiteSpace(model.ServiceDescription) || model.ServiceDescription.Trim().Length > 3000)
@@ -147,37 +157,5 @@ public sealed class OutsourcedServicesController(
         ViewBag.Workflow = workflow;
         ViewBag.PriorityTitle = Priorities.GetValueOrDefault(item.Priority, item.Priority);
         return View(item);
-    }
-    [HttpGet]
-    public async Task<IActionResult> Index()
-    {
-        if (!Has("OutsourcedServices.Create") && !Has("OutsourcedServices.ViewAll")) return Forbid();
-        var query = db.OutsourcedServiceRequests.AsNoTracking();
-        if (!Has("OutsourcedServices.ViewAll"))
-        {
-            if (!TryEmployeeId(out var employeeId)) return Forbid();
-            query = query.Where(x => x.RequesterEmployeeId == employeeId);
-        }
-
-        var requests = await query.OrderByDescending(x => x.CreatedAtUtc).Take(300).ToListAsync();
-        var ids = requests.Select(x => x.Id.ToString()).ToArray();
-        var workflows = await db.WorkflowInstances.AsNoTracking()
-            .Where(x => x.EntityType == "OutsourcedServiceRequest" && ids.Contains(x.EntityId))
-            .OrderByDescending(x => x.StartedAt)
-            .Select(x => new { x.EntityId, x.Status, StepTitle = x.CurrentStep == null ? "" : x.CurrentStep.Title })
-            .ToListAsync();
-        var latest = workflows.GroupBy(x => x.EntityId).ToDictionary(x => x.Key, x => x.First());
-        var rows = requests.Select(request =>
-        {
-            latest.TryGetValue(request.Id.ToString(), out var workflow);
-            return new OutsourcedServiceRequestListItem
-            {
-                Request = request,
-                WorkflowStatus = workflow?.Status ?? request.Status,
-                CurrentStepTitle = workflow?.StepTitle ?? ""
-            };
-        }).ToList();
-        ViewBag.CanCreate = Has("OutsourcedServices.Create");
-        return View(rows);
     }
 }

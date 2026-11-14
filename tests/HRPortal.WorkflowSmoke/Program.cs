@@ -1850,3 +1850,345 @@ static async Task VerifyWorkflowStageEditingAndRequesterReturnAsync()
 
     Console.WriteLine("PASS: stage checkbox persistence, preservation of separate stage rules, requester return, specific-stage return with editable destination and read-only source data.");
 }
+
+
+static async Task VerifyWorkflowDirectReturnAndPriorStageEditingAsync()
+{
+    static Employee Person(string code, string firstName) => new()
+    {
+        PersonnelNumber = code, NationalId = "N-" + code,
+        FirstName = firstName, LastName = "آزمایشی", Mobile = "09120000000",
+        Gender = "مرد", Status = "فعال", IsSystemUser = true
+    };
+
+    // Direct return: there is deliberately NO Requester-assigned step. The first
+    // stage is position-backed, but the return-created task must belong only to
+    // the original form starter.
+    var directOptions = new DbContextOptionsBuilder<HRPortalDbContext>()
+        .UseInMemoryDatabase("workflow-direct-return-to-starter")
+        .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+        .Options;
+    await using (var db = new HRPortalDbContext(directOptions))
+    {
+        var starter = Person("DIR-STARTER", "شروع‌کننده");
+        var positionHolder = Person("DIR-HOLDER", "متصدی جایگاه");
+        var reviewer = Person("DIR-REVIEWER", "بررسی‌کننده");
+        var nextReviewer = Person("DIR-NEXT", "مسئول مرحله بعد");
+        var revision = new OrganizationStructureRevision
+        {
+            RevisionCode = "DIR-ORG-01", Title = "ساختار آزمون برگشت مستقیم",
+            EffectiveDate = DateTime.Today, IsFinalized = true, FinalizedAt = DateTime.UtcNow
+        };
+        var firstPosition = new OrganizationNode
+        {
+            Revision = revision, OrganizationStructureRevision = revision,
+            Code = "DIR-FIRST", Title = "جایگاه مرحله آغازین",
+            RankType = "مدیریت", IsActive = true,
+            PositionHolderEmployeeId = positionHolder.Id
+        };
+        var definition = new WorkflowDefinition
+        {
+            Code = "DIRECT-RETURN-SMOKE", Title = "آزمون برگشت مستقیم", IsActive = true,
+            FormCode = "DirectReturnSmoke"
+        };
+        var startStep = new WorkflowStep
+        {
+            WorkflowDefinition = definition, Code = "Start", Title = "مرحله آغازین فرم",
+            SortOrder = 10, AssignmentType = "Position", OrganizationNodeId = 1,
+            AllowApprove = false, AllowReject = false, AllowReturn = false
+        };
+        var reviewStep = new WorkflowStep
+        {
+            WorkflowDefinition = definition, Code = "Review", Title = "بررسی مسئول",
+            SortOrder = 20, AssignmentType = "Employee", AssignedEmployeeId = 0,
+            AllowApprove = true, AllowReturn = true, AllowReject = true,
+            RequireCommentOnReturn = true
+        };
+        var nextStep = new WorkflowStep
+        {
+            WorkflowDefinition = definition, Code = "Next", Title = "مرحله بعدی",
+            SortOrder = 30, AssignmentType = "Employee", AssignedEmployeeId = 0
+        };
+        definition.Steps.Add(startStep);
+        definition.Steps.Add(reviewStep);
+        definition.Steps.Add(nextStep);
+        var starterField = new WorkflowStepField
+        {
+            WorkflowStep = startStep, WorkflowStepId = 0, Code = "starterDescription",
+            Title = "شرح درخواست", FieldType = "TextArea", IsRequired = true, SortOrder = 10
+        };
+        var reviewField = new WorkflowStepField
+        {
+            WorkflowStep = reviewStep, WorkflowStepId = 0, Code = "reviewOpinion",
+            Title = "نظر بررسی‌کننده", FieldType = "TextArea", SortOrder = 10
+        };
+        var nextField = new WorkflowStepField
+        {
+            WorkflowStep = nextStep, WorkflowStepId = 0, Code = "nextOpinion",
+            Title = "اطلاعات مرحله بعد", FieldType = "TextArea", SortOrder = 10
+        };
+        startStep.Fields.Add(starterField);
+        reviewStep.Fields.Add(reviewField);
+        nextStep.Fields.Add(nextField);
+        db.AddRange(starter, positionHolder, reviewer, nextReviewer, revision,
+            firstPosition, definition);
+        await db.SaveChangesAsync();
+        startStep.OrganizationNodeId = firstPosition.Id;
+        reviewStep.AssignedEmployeeId = reviewer.Id;
+        nextStep.AssignedEmployeeId = nextReviewer.Id;
+        await db.SaveChangesAsync();
+
+        var service = new WorkflowService(db,
+            new AuditService(new AuditLogQueue(), new HttpContextAccessor()));
+        await service.SaveTransitionAsync(reviewStep.Id, "Return", null, returnToRequester: true);
+        await service.SaveTransitionAsync(startStep.Id, "Approve", nextStep.Id);
+
+        var returnRoute = await db.WorkflowTransitions.SingleAsync(x =>
+            x.WorkflowStepId == reviewStep.Id && x.Action == "Return");
+        Check(returnRoute.ToStepId is null &&
+              returnRoute.Title == WorkflowService.ReturnToRequesterTransitionTitle,
+            "The workflow designer must store direct-to-starter routing without a separate Requester step.");
+
+        await service.SaveStepAsync(new WorkflowStepEditModel
+        {
+            Id = startStep.Id, WorkflowDefinitionId = definition.Id,
+            Code = startStep.Code, Title = startStep.Title, SortOrder = startStep.SortOrder,
+            AssignmentType = "Position", OrganizationNodeId = firstPosition.Id,
+            AssignmentMode = "Any", AllowApprove = false, AllowReject = false,
+            AllowReturn = false, IsFinalStep = false
+        });
+        var savedStartStep = await db.WorkflowSteps.SingleAsync(x => x.Id == startStep.Id);
+
+        var instance = new WorkflowInstance
+        {
+            WorkflowDefinitionId = definition.Id, WorkflowDefinition = definition,
+            EntityType = "DirectReturnSmoke", EntityId = "1",
+            RequesterEmployeeId = starter.Id, RequesterEmployee = starter,
+            CurrentStepId = reviewStep.Id, CurrentStep = reviewStep, Status = "InProgress"
+        };
+        var reviewTask = new WorkflowTask
+        {
+            WorkflowInstance = instance, WorkflowStep = reviewStep,
+            WorkflowStepId = reviewStep.Id, AssignedEmployeeId = reviewer.Id, Status = "Pending"
+        };
+        instance.Tasks.Add(reviewTask);
+        db.WorkflowInstances.Add(instance);
+        await db.SaveChangesAsync();
+
+        db.WorkflowFieldValues.AddRange(
+            new WorkflowFieldValue
+            {
+                WorkflowInstanceId = instance.Id, WorkflowStepId = reviewStep.Id,
+                WorkflowStepFieldId = reviewField.Id, FieldCode = reviewField.Code,
+                FieldTitle = reviewField.Title, FieldType = reviewField.FieldType,
+                Value = "نظر اولیه بررسی", UpdatedByEmployeeId = reviewer.Id
+            },
+            new WorkflowFieldValue
+            {
+                WorkflowInstanceId = instance.Id, WorkflowStepId = nextStep.Id,
+                WorkflowStepFieldId = nextField.Id, FieldCode = nextField.Code,
+                FieldTitle = nextField.Title, FieldType = nextField.FieldType,
+                Value = "اطلاعات ثبت‌شده مرحله بعد", UpdatedByEmployeeId = nextReviewer.Id
+            });
+        await db.SaveChangesAsync();
+
+        await service.CompleteTaskAsync(reviewTask.Id, reviewer.Id, "Return", "برای اصلاح به شروع‌کننده برگشت داده شود.");
+        var starterInbox = await service.GetInboxAsync(starter.Id);
+        var returnedStarterTask = starterInbox.SingleOrDefault(x => x.WorkflowInstanceId == instance.Id);
+        Check(returnedStarterTask is not null,
+            "A direct return must appear in the original form starter's inbox even though the reused first stage is position-backed.");
+        Check(!(await service.GetInboxAsync(positionHolder.Id)).Any(x => x.WorkflowInstanceId == instance.Id),
+            "A direct-to-starter task must not leak into the configured position holder's inbox.");
+        var starterTask = await service.GetTaskAsync(returnedStarterTask!.TaskId, starter.Id);
+        Check(starterTask is not null && starterTask.WorkflowStepId == startStep.Id &&
+              starterTask.Action == "ReturnedForEdit" &&
+              starterTask.AssignedEmployeeId == starter.Id,
+            "The direct-return task must be assigned to the workflow instance's original requester at the first form step.");
+
+        var starterGroups = await service.GetTaskFieldGroupsAsync(returnedStarterTask.TaskId, starter.Id);
+        var startGroup = starterGroups.SingleOrDefault(x => x.WorkflowStepId == startStep.Id);
+        var sourceGroup = starterGroups.SingleOrDefault(x => x.WorkflowStepId == reviewStep.Id);
+        Check(starterGroups.Count == 2 && startGroup is { IsCurrentStep: true, IsEditable: true } &&
+              sourceGroup is { IsCurrentStep: false, IsEditable: false } &&
+              sourceGroup.Fields.Any(x => x.Code == reviewField.Code && x.Value == "نظر اولیه بررسی") &&
+              starterGroups.All(x => x.WorkflowStepId != nextStep.Id),
+            "A direct-return form must show the starter step as editable and the return-source stage as read-only, without unrelated stages.");
+
+        await service.CompleteTaskAsync(returnedStarterTask.TaskId, starter.Id, "Approve",
+            "اصلاحات انجام و درخواست ثبت مجدد شد.",
+            values: new Dictionary<string, string?>
+            {
+                [$"field_{starterField.Id}"] = "شرح اصلاح‌شده درخواست"
+            });
+        var refreshedInstance = await db.WorkflowInstances.SingleAsync(x => x.Id == instance.Id);
+        Check(refreshedInstance.Status == "InProgress" && refreshedInstance.CurrentStepId == nextStep.Id,
+            "The starter must be able to resubmit even when the reused first stage's normal AllowApprove flag is false.");
+        var nextTask = await db.WorkflowTasks.SingleAsync(x =>
+            x.WorkflowInstanceId == instance.Id && x.WorkflowStepId == nextStep.Id && x.Status == "Pending");
+        Check(nextTask.AssignedEmployeeId == nextReviewer.Id &&
+              (await service.GetInboxAsync(nextReviewer.Id)).Any(x => x.TaskId == nextTask.Id),
+            "After direct requester resubmission, the workflow must continue on its configured approval route.");
+    }
+
+    // AllowEditPreviousData: verify the independent setting survives general stage
+    // edits, prior populated fields are displayed as editable and are actually saved.
+    var previousOptions = new DbContextOptionsBuilder<HRPortalDbContext>()
+        .UseInMemoryDatabase("workflow-allow-edit-previous-data")
+        .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+        .Options;
+    await using (var db = new HRPortalDbContext(previousOptions))
+    {
+        var requester = Person("PRE-REQUESTER", "ثبت‌کننده");
+        var priorOwner = Person("PRE-OWNER", "مسئول مرحله قبل");
+        var currentOwner = Person("PRE-CURRENT", "مسئول مرحله جاری");
+        var definition = new WorkflowDefinition
+        {
+            Code = "ALLOW-EDIT-PREVIOUS-SMOKE", Title = "آزمون ویرایش مراحل قبل", IsActive = true
+        };
+        var priorStep = new WorkflowStep
+        {
+            WorkflowDefinition = definition, Code = "Prior", Title = "مرحله قبلی",
+            SortOrder = 10, AssignmentType = "Employee", AssignedEmployeeId = 0
+        };
+        var currentStep = new WorkflowStep
+        {
+            WorkflowDefinition = definition, Code = "Current", Title = "مرحله جاری",
+            SortOrder = 20, AssignmentType = "Employee", AssignedEmployeeId = 0,
+            AllowApprove = true
+        };
+        var futureStep = new WorkflowStep
+        {
+            WorkflowDefinition = definition, Code = "Future", Title = "مرحله بعدی",
+            SortOrder = 30, AssignmentType = "Employee", AssignedEmployeeId = 0
+        };
+        definition.Steps.Add(priorStep);
+        definition.Steps.Add(currentStep);
+        definition.Steps.Add(futureStep);
+        await db.AddRangeAsync(requester, priorOwner, currentOwner, definition);
+        await db.SaveChangesAsync();
+        priorStep.AssignedEmployeeId = priorOwner.Id;
+        currentStep.AssignedEmployeeId = currentOwner.Id;
+        futureStep.AssignedEmployeeId = priorOwner.Id;
+        await db.SaveChangesAsync();
+
+        var service = new WorkflowService(db,
+            new AuditService(new AuditLogQueue(), new HttpContextAccessor()));
+        await service.SaveStepRulesAsync(currentStep.Id, allowEditPreviousData: true, requireNotes: false);
+        await service.SaveStepAsync(new WorkflowStepEditModel
+        {
+            Id = currentStep.Id, WorkflowDefinitionId = definition.Id,
+            Code = currentStep.Code, Title = currentStep.Title + " اصلاح‌شده",
+            SortOrder = currentStep.SortOrder, AssignmentType = "Employee",
+            AssignedEmployeeId = currentOwner.Id, AssignmentMode = "Any",
+            AllowApprove = true, AllowReject = false, AllowReturn = false,
+            RequireCommentOnReject = false, RequireCommentOnReturn = false, IsFinalStep = false
+        });
+        var persistedCurrentStep = await db.WorkflowSteps.SingleAsync(x => x.Id == currentStep.Id);
+        Check(persistedCurrentStep.AllowEditPreviousData,
+            "The general stage editor must not overwrite the saved AllowEditPreviousData rule.");
+
+        var priorField = new WorkflowStepField
+        {
+            WorkflowStepId = priorStep.Id, Code = "priorValue", Title = "اطلاعات مرحله قبلی",
+            FieldType = "Text", SortOrder = 10
+        };
+        var currentField = new WorkflowStepField
+        {
+            WorkflowStepId = currentStep.Id, Code = "currentValue", Title = "اطلاعات مرحله جاری",
+            FieldType = "Text", SortOrder = 10
+        };
+        var futureField = new WorkflowStepField
+        {
+            WorkflowStepId = futureStep.Id, Code = "futureValue", Title = "اطلاعات مرحله بعدی",
+            FieldType = "Text", SortOrder = 10
+        };
+        db.WorkflowStepFields.AddRange(priorField, currentField, futureField);
+        var instance = new WorkflowInstance
+        {
+            WorkflowDefinitionId = definition.Id, WorkflowDefinition = definition,
+            EntityType = "AllowEditPreviousSmoke", EntityId = "1",
+            RequesterEmployeeId = requester.Id, RequesterEmployee = requester,
+            CurrentStepId = currentStep.Id, CurrentStep = currentStep, Status = "InProgress"
+        };
+        var currentTask = new WorkflowTask
+        {
+            WorkflowInstance = instance, WorkflowStep = currentStep, WorkflowStepId = currentStep.Id,
+            AssignedEmployeeId = currentOwner.Id, Status = "Pending"
+        };
+        instance.Tasks.Add(currentTask);
+        db.WorkflowInstances.Add(instance);
+        await db.SaveChangesAsync();
+        db.WorkflowFieldValues.AddRange(
+            new WorkflowFieldValue
+            {
+                WorkflowInstanceId = instance.Id, WorkflowStepId = priorStep.Id,
+                WorkflowStepFieldId = priorField.Id, FieldCode = priorField.Code,
+                FieldTitle = priorField.Title, FieldType = priorField.FieldType,
+                Value = "مقدار قبلی", UpdatedByEmployeeId = priorOwner.Id
+            },
+            new WorkflowFieldValue
+            {
+                WorkflowInstanceId = instance.Id, WorkflowStepId = futureStep.Id,
+                WorkflowStepFieldId = futureField.Id, FieldCode = futureField.Code,
+                FieldTitle = futureField.Title, FieldType = futureField.FieldType,
+                Value = "مقدار آینده", UpdatedByEmployeeId = priorOwner.Id
+            });
+        await db.SaveChangesAsync();
+
+        var groups = await service.GetTaskFieldGroupsAsync(currentTask.Id, currentOwner.Id);
+        var priorGroup = groups.SingleOrDefault(x => x.WorkflowStepId == priorStep.Id);
+        Check(priorGroup is { IsCurrentStep: false, IsEditable: true } &&
+              groups.All(x => x.WorkflowStepId != futureStep.Id),
+            "When AllowEditPreviousData is enabled, a current-stage assignee must see earlier populated fields as editable, but not future stages.");
+
+        await service.CompleteTaskAsync(currentTask.Id, currentOwner.Id, "SaveDraft",
+            "اصلاح داده مرحله قبل",
+            previousValues: new Dictionary<string, string?>
+            {
+                [priorField.Id.ToString()] = "مقدار اصلاح‌شده قبلی"
+            });
+        var updatedPriorValue = await db.WorkflowFieldValues.AsNoTracking()
+            .Where(x => x.WorkflowInstanceId == instance.Id && x.WorkflowStepFieldId == priorField.Id)
+            .OrderByDescending(x => x.UpdatedAt).ThenByDescending(x => x.Id)
+            .Select(x => x.Value).FirstAsync();
+        Check(updatedPriorValue == "مقدار اصلاح‌شده قبلی",
+            "A stage with AllowEditPreviousData enabled must persist the changed value of an earlier stage field.");
+    }
+
+    Console.WriteLine("PASS: direct return to original form starter without a requester step; editable destination/read-only return source; workflow resubmission; and verified AllowEditPreviousData persistence.");
+}
+
+static void VerifyWorkflowReportFormTypeAggregation()
+{
+    var formTitles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Suggestions"] = "ثبت و بررسی پیشنهادات"
+    };
+    var samples = new[]
+    {
+        (FormCode: (string?)null, EntityType: "ContractRenewalRequest"),
+        (FormCode: (string?)null, EntityType: "ContractRenewalRequest"),
+        (FormCode: (string?)null, EntityType: "ContractRenewalRequest"),
+        (FormCode: (string?)"Suggestions", EntityType: "Suggestion"),
+        (FormCode: (string?)"OutsourcedServices", EntityType: "OutsourcedServiceRequest")
+    };
+    var options = samples
+        .GroupBy(x => WorkflowReportFormTypeResolver.ResolveCode(x.FormCode, x.EntityType),
+            StringComparer.OrdinalIgnoreCase)
+        .Select(group => new
+        {
+            Code = group.Key,
+            Title = WorkflowReportFormTypeResolver.ResolveTitle(group.Key, formTitles),
+            Count = group.Count()
+        }).ToList();
+
+    var renewal = options.Single(x => x.Code == "ContractRenewalRequest");
+    var suggestions = options.Single(x => x.Code == "Suggestions");
+    var outsourced = options.Single(x => x.Code == "OutsourcedServices");
+    Check(options.Count == 3 && renewal.Count == 3 && renewal.Title == "تمدید قرارداد",
+        "Separate internal contract-renewal workflow definitions must aggregate under one form option with the total request count.");
+    Check(suggestions.Count == 1 && suggestions.Title == "ثبت و بررسی پیشنهادات" &&
+          outsourced.Count == 1 && outsourced.Title == "سفارش خدمات برونسپاری",
+        "Different operational forms must remain separate and use their registered or stable Persian form titles.");
+    Console.WriteLine("PASS: activity report form-type aggregation consolidates runtime definitions and exposes per-form counts.");
+}

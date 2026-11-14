@@ -88,9 +88,9 @@ public sealed class OutsourcedServicesController(
             ModelState.AddModelError(nameof(model.ServiceDescription), "شرح خدمات الزامی و حداکثر ۳۰۰۰ نویسه است.");
         if (!Units.Contains(model.UnitOfMeasure))
             ModelState.AddModelError(nameof(model.UnitOfMeasure), "واحد سنجش را از فهرست انتخاب کنید.");
-        if (model.Quantity <= 0 || model.Quantity > 999999999)
-            ModelState.AddModelError(nameof(model.Quantity), "مقدار باید عددی بزرگ‌تر از صفر باشد.");
-        if (!Priorities.ContainsKey(model.Priority))
+        if (model.Quantity <= 0 || model.Quantity > 999999999 || decimal.Round(model.Quantity, 3) != model.Quantity)
+            ModelState.AddModelError(nameof(model.Quantity), "مقدار باید بزرگ‌تر از صفر و حداکثر دارای سه رقم اعشار باشد.");
+        if (string.IsNullOrWhiteSpace(model.Priority) || !Priorities.ContainsKey(model.Priority))
             ModelState.AddModelError(nameof(model.Priority), "اولویت انجام کار معتبر نیست.");
         if (!PersianDateService.TryParse(model.NeedByDateJalali, out var needByDate))
             ModelState.AddModelError(nameof(model.NeedByDateJalali), "تاریخ نیازمندی را با تقویم شمسی و به‌صورت معتبر وارد کنید.");

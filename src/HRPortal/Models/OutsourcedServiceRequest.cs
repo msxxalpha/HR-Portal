@@ -67,3 +67,10 @@ public sealed class OutsourcedServiceReportRow
     public DateTime CreatedAtUtc { get; set; }
     public string CurrentStepTitle { get; set; } = "";
 }
+
+public sealed class OutsourcedServiceRequestListItem
+{
+    public OutsourcedServiceRequest Request { get; set; } = new();
+    public string WorkflowStatus { get; set; } = "Submitted";
+    public string CurrentStepTitle { get; set; } = "";
+}

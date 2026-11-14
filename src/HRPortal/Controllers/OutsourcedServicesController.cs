@@ -137,15 +137,17 @@ public sealed class OutsourcedServicesController(
 
 
     [HttpGet]
-    public async Task<IActionResult> Edit(int id)
+    public async Task<IActionResult> Edit(int id, int? returnTaskId)
     {
-        if (!IsAdmin && !Has("OutsourcedServices.Create")) return Forbid();
         var item = await db.OutsourcedServiceRequests.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
         if (item is null) return NotFound();
         if (!await CanManageRequestAsync(item)) return Forbid();
+        if (returnTaskId.HasValue &&
+            (!TryEmployeeId(out var editorId) || !await IsValidRequesterTaskAsync(item.Id, returnTaskId.Value, editorId)))
+            return Forbid();
 
-        PrepareFormView(isEdit: true);
+        PrepareFormView(isEdit: true, returnTaskId);
         return View("Create", new OutsourcedServiceRequestFormVm
         {
             ServiceDescription = item.ServiceDescription,
@@ -157,16 +159,18 @@ public sealed class OutsourcedServicesController(
     }
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(int id, OutsourcedServiceRequestFormVm model)
+    public async Task<IActionResult> Edit(int id, OutsourcedServiceRequestFormVm model, int? returnTaskId)
     {
-        if (!IsAdmin && !Has("OutsourcedServices.Create")) return Forbid();
-        PrepareFormView(isEdit: true);
+        PrepareFormView(isEdit: true, returnTaskId);
 
         await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
         var item = await db.OutsourcedServiceRequests
             .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
         if (item is null) return NotFound();
         if (!await CanManageRequestAsync(item)) return Forbid();
+        if (returnTaskId.HasValue &&
+            (!TryEmployeeId(out var editorId) || !await IsValidRequesterTaskAsync(item.Id, returnTaskId.Value, editorId)))
+            return Forbid();
 
         if (!ValidateForm(model, out var needByDate) || !ModelState.IsValid)
             return View("Create", model);
@@ -195,7 +199,9 @@ public sealed class OutsourcedServicesController(
             item.Id.ToString(), $"ویرایش درخواست {item.RequestNumber}",
             TryEmployeeId(out var actorId) ? actorId : null);
         TempData["Success"] = "اطلاعات درخواست با حفظ نسخه قبلی با موفقیت ویرایش شد.";
-        return RedirectToAction(nameof(Details), new { id = item.Id });
+        return returnTaskId.HasValue
+            ? RedirectToAction("Task", "Workflow", new { id = returnTaskId.Value })
+            : RedirectToAction(nameof(Details), new { id = item.Id });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -305,11 +311,12 @@ public sealed class OutsourcedServicesController(
         return View(item);
     }
 
-    private void PrepareFormView(bool isEdit)
+    private void PrepareFormView(bool isEdit, int? returnTaskId = null)
     {
         ViewBag.Units = Units;
         ViewBag.Priorities = Priorities;
         ViewBag.IsEdit = isEdit;
+        ViewBag.ReturnTaskId = returnTaskId;
     }
 
     private bool ValidateForm(OutsourcedServiceRequestFormVm model, out DateTime needByDate)
@@ -334,17 +341,27 @@ public sealed class OutsourcedServicesController(
     {
         if (item.IsDeleted) return false;
         if (IsAdmin) return true;
-        if (!Has("OutsourcedServices.Create") ||
-            !TryEmployeeId(out var employeeId) || employeeId != item.RequesterEmployeeId)
+        if (!TryEmployeeId(out var employeeId) || employeeId != item.RequesterEmployeeId)
             return false;
 
         var instance = await db.WorkflowInstances.AsNoTracking()
             .Where(x => x.EntityType == "OutsourcedServiceRequest" && x.EntityId == item.Id.ToString())
             .OrderByDescending(x => x.StartedAt)
             .FirstOrDefaultAsync();
-        if (instance is null) return true;
+        if (instance is null) return Has("OutsourcedServices.Create");
         if (instance.Status != "InProgress" || !instance.CurrentStepId.HasValue) return false;
 
+        // A pending Requester-assigned stage is an explicit authorization to edit
+        // this returned request even after other workflow actors have acted.
+        var hasRequesterCorrectionTask = await db.WorkflowTasks.AsNoTracking().AnyAsync(task =>
+            task.WorkflowInstanceId == instance.Id &&
+            task.WorkflowStepId == instance.CurrentStepId.Value &&
+            task.WorkflowStep.AssignmentType == "Requester" &&
+            task.Status == "Pending" &&
+            task.AssignedEmployeeId == employeeId);
+        if (hasRequesterCorrectionTask) return true;
+
+        if (!Has("OutsourcedServices.Create")) return false;
         var firstStepId = await db.WorkflowSteps.AsNoTracking()
             .Where(x => x.WorkflowDefinitionId == instance.WorkflowDefinitionId)
             .OrderBy(x => x.SortOrder).ThenBy(x => x.Id)
@@ -357,6 +374,18 @@ public sealed class OutsourcedServicesController(
             x.Action != "Created" && x.Action != "Submitted" && x.Action != "Submit");
         return !otherActorHasActed;
     }
+
+    private Task<bool> IsValidRequesterTaskAsync(int requestId, int taskId, int employeeId) =>
+        db.WorkflowTasks.AsNoTracking().AnyAsync(task =>
+            task.Id == taskId &&
+            task.Status == "Pending" &&
+            task.AssignedEmployeeId == employeeId &&
+            task.WorkflowStep.AssignmentType == "Requester" &&
+            task.WorkflowInstance.EntityType == "OutsourcedServiceRequest" &&
+            task.WorkflowInstance.EntityId == requestId.ToString() &&
+            task.WorkflowInstance.RequesterEmployeeId == employeeId &&
+            task.WorkflowInstance.Status == "InProgress" &&
+            task.WorkflowInstance.CurrentStepId == task.WorkflowStepId);
 
     private static string SnapshotJson(OutsourcedServiceRequest item) =>
         System.Text.Json.JsonSerializer.Serialize(new

@@ -171,6 +171,9 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             ?? throw new InvalidOperationException("گردش کار یافت نشد.");
         if (definition.IsRuntimeInstance)
             throw new InvalidOperationException("نسخه اجرایی یک درخواست قابل ویرایش نیست.");
+        if (await db.WorkflowInstances.AnyAsync(x =>
+                x.WorkflowDefinitionId == definition.Id || x.WorkflowDefinition.SourceDefinitionId == definition.Id))
+            throw new InvalidOperationException("این گردش کار قبلاً استفاده شده است؛ ابتدا مشخصات آن را ذخیره کنید تا نسخه جدید ساخته شود، سپس مراحل را ویرایش کنید.");
 
         if (string.IsNullOrWhiteSpace(model.Code) || string.IsNullOrWhiteSpace(model.Title))
             throw new InvalidOperationException("کد و عنوان مرحله الزامی است.");
@@ -338,11 +341,39 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
     public async Task DeleteStepAsync(int id)
     {
-        var step = await db.WorkflowSteps.FindAsync(id);
+        var step = await db.WorkflowSteps.Include(x => x.WorkflowDefinition)
+            .FirstOrDefaultAsync(x => x.Id == id);
         if (step is null) return;
-        if (await db.WorkflowFieldValues.AnyAsync(x => x.WorkflowStepId == id))
-            throw new InvalidOperationException("این مرحله در درخواست‌های ثبت‌شده اطلاعات دارد و برای حفظ سوابق قابل حذف نیست.");
+        if (step.WorkflowDefinition.IsRuntimeInstance)
+            throw new InvalidOperationException("مرحله‌ای از نسخه اجرایی درخواست قابل حذف نیست.");
+
+        var definitionId = step.WorkflowDefinitionId;
+        if (await db.WorkflowInstances.AnyAsync(x =>
+                x.WorkflowDefinitionId == definitionId || x.WorkflowDefinition.SourceDefinitionId == definitionId) ||
+            await db.WorkflowTasks.AnyAsync(x => x.WorkflowStepId == id) ||
+            await db.WorkflowHistory.AnyAsync(x => x.WorkflowStepId == id) ||
+            await db.WorkflowFieldValues.AnyAsync(x => x.WorkflowStepId == id))
+            throw new InvalidOperationException("این مرحله در درخواست یا سوابق گردش کار استفاده شده است؛ برای حفظ تاریخچه قابل حذف نیست. ابتدا مشخصات گردش کار را ذخیره کنید تا نسخه ویرایشی مستقل ایجاد شود.");
+
+        // Remove both outgoing routes and routes from other stages that point here;
+        // leaving a dangling destination would make the designer/runtime ambiguous.
+        var relatedTransitions = await db.WorkflowTransitions
+            .Where(x => x.WorkflowStepId == id || x.ToStepId == id)
+            .ToListAsync();
+        db.WorkflowTransitions.RemoveRange(relatedTransitions);
+
+        var fields = await db.WorkflowStepFields.Where(x => x.WorkflowStepId == id).ToListAsync();
+        db.WorkflowStepFields.RemoveRange(fields);
         db.WorkflowSteps.Remove(step);
+
+        var remainingSteps = await db.WorkflowSteps
+            .Where(x => x.WorkflowDefinitionId == definitionId && x.Id != id)
+            .OrderBy(x => x.SortOrder).ThenBy(x => x.Id)
+            .ToListAsync();
+        for (var index = 0; index < remainingSteps.Count; index++)
+            remainingSteps[index].SortOrder = (index + 1) * 10;
+
+        step.WorkflowDefinition.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
     }
     public async Task SaveStepFieldAsync(WorkflowStepFieldEditModel model)

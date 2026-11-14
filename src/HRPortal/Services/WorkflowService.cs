@@ -476,7 +476,11 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             var allStepFields = fields.Where(x => x.WorkflowStepId == step.Id).ToList();
             var isCurrent = step.Id == task.WorkflowStepId;
             var isReturnSourceStep = isReturnedForEdit && returnSourceStepId == step.Id;
-            var hasSavedValues = allStepFields.Where(f => values.Any(v => v.WorkflowStepFieldId == f.Id)).ToList();
+            // Empty snapshots are written for every field when a task is acted on.
+            // Show return-source data only for fields that actually held a value;
+            // looking across snapshots also keeps a field visible if it was later cleared.
+            var hasSavedValues = allStepFields.Where(f => values.Any(v =>
+                v.WorkflowStepFieldId == f.Id && !string.IsNullOrWhiteSpace(v.Value))).ToList();
             var stepFields = isCurrent
                 ? allStepFields
                 : isReturnedForEdit

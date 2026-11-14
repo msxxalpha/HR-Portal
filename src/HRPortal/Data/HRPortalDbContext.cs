@@ -6,6 +6,7 @@ namespace HRPortal.Data;
 public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : DbContext(options)
 {
     public DbSet<OutsourcedServiceRequest> OutsourcedServiceRequests => Set<OutsourcedServiceRequest>();
+    public DbSet<OutsourcedServiceRequestRevision> OutsourcedServiceRequestRevisions => Set<OutsourcedServiceRequestRevision>();
     public DbSet<Suggestion> Suggestions => Set<Suggestion>();
     public DbSet<SuggestionMember> SuggestionMembers => Set<SuggestionMember>();
     public DbSet<SuggestionAttachment> SuggestionAttachments => Set<SuggestionAttachment>();
@@ -71,7 +72,19 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.Property(x => x.UnitOfMeasure).HasMaxLength(40).IsRequired();
             e.Property(x => x.Priority).HasMaxLength(20).IsRequired();
             e.Property(x => x.Status).HasMaxLength(30).IsRequired();
+            e.HasIndex(x => new { x.IsDeleted, x.CreatedAtUtc });
             e.HasOne<Employee>().WithMany().HasForeignKey(x => x.RequesterEmployeeId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<OutsourcedServiceRequestRevision>(e =>
+        {
+            e.ToTable("OutsourcedServiceRequestRevisions");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Action).HasMaxLength(30).IsRequired();
+            e.Property(x => x.ActorUserName).HasMaxLength(200);
+            e.Property(x => x.BeforeJson).HasColumnType("nvarchar(max)");
+            e.Property(x => x.AfterJson).HasColumnType("nvarchar(max)");
+            e.HasIndex(x => new { x.RequestId, x.CreatedAtUtc });
+            e.HasOne(x => x.Request).WithMany().HasForeignKey(x => x.RequestId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<Suggestion>(e => { e.ToTable("Suggestions"); e.HasKey(x=>x.Id); e.HasIndex(x=>x.SuggestionNumber).IsUnique(); e.HasIndex(x=>new{x.ProposerEmployeeId,x.UpdatedAtUtc}); e.HasOne<Employee>().WithMany().HasForeignKey(x=>x.ProposerEmployeeId).OnDelete(DeleteBehavior.Restrict); });
         modelBuilder.Entity<SuggestionMember>(e => { e.ToTable("SuggestionMembers"); e.HasKey(x=>x.Id); e.HasIndex(x=>new{x.SuggestionId,x.EmployeeId}).IsUnique(); e.HasOne(x=>x.Suggestion).WithMany(x=>x.Members).HasForeignKey(x=>x.SuggestionId).OnDelete(DeleteBehavior.Cascade); e.HasOne<Employee>().WithMany().HasForeignKey(x=>x.EmployeeId).OnDelete(DeleteBehavior.Restrict); });

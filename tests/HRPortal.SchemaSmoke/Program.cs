@@ -49,6 +49,8 @@ foreach (var fixture in new[] { "HRPortal_SchemaLegacy_Test", "HRPortal_SchemaPa
             // Run twice to check both a legacy upgrade and repeatable startup.
             await MonthlyPerformanceSchemaInitializer.InitializeAsync(db);
             await MonthlyPerformanceSchemaInitializer.InitializeAsync(db);
+            await OutsourcedServiceSchemaInitializer.InitializeAsync(db);
+            await OutsourcedServiceSchemaInitializer.InitializeAsync(db);
             var periods = await db.MonthlyPerformancePeriods.AsNoTracking().ToListAsync();
             Check(periods.Count == 1 && periods[0].Title == "شهریور ۱۴۰۵",
                 "Legacy evaluation period was not preserved.");
@@ -69,6 +71,20 @@ foreach (var fixture in new[] { "HRPortal_SchemaLegacy_Test", "HRPortal_SchemaPa
         }
 
         await Execute(connection, @"
+IF COL_LENGTH(N'dbo.OutsourcedServiceRequests', N'IsDeleted') IS NULL
+   OR COL_LENGTH(N'dbo.OutsourcedServiceRequests', N'DeletedAtUtc') IS NULL
+   OR COL_LENGTH(N'dbo.OutsourcedServiceRequests', N'DeletedByEmployeeId') IS NULL
+    THROW 51100, N'Outsourced request archival columns were not added.', 1;
+IF OBJECT_ID(N'dbo.OutsourcedServiceRequestRevisions', N'U') IS NULL
+    THROW 51101, N'Outsourced request revision table was not created.', 1;
+IF NOT EXISTS (SELECT 1 FROM dbo.OutsourcedServiceRequests
+    WHERE RequestNumber=N'OS-LEGACY' AND IsDeleted=0)
+    THROW 51102, N'Legacy outsourced request was not preserved during schema upgrade.', 1;
+IF NOT EXISTS (SELECT 1 FROM sys.indexes
+    WHERE object_id=OBJECT_ID(N'dbo.OutsourcedServiceRequestRevisions')
+      AND name=N'IX_OutsourcedServiceRequestRevisions_Request_Created')
+    THROW 51103, N'Outsourced request revision index is missing.', 1;
+
 IF NOT EXISTS (SELECT 1 FROM sys.indexes
     WHERE object_id=OBJECT_ID(N'dbo.MonthlyPerformancePeriods')
       AND name=N'UX_MPPeriods_ActiveYearMonth' AND has_filter=1)
@@ -143,13 +159,34 @@ CREATE TABLE dbo.MonthlyPerformancePeriods(
     CreatedAt datetime2 NOT NULL,
     CONSTRAINT UQ_MonthlyPerformancePeriods_YearMonth UNIQUE([Year],[Month]),
     CONSTRAINT UQ_MonthlyPerformancePeriods_Code UNIQUE(Code));
+CREATE TABLE dbo.OutsourcedServiceRequests(
+    Id int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    RequestNumber nvarchar(30) NOT NULL,
+    ServiceDescription nvarchar(3000) NOT NULL,
+    UnitOfMeasure nvarchar(40) NOT NULL,
+    Quantity decimal(18,3) NOT NULL,
+    NeedByDate date NOT NULL,
+    Priority nvarchar(20) NOT NULL,
+    Status nvarchar(30) NOT NULL,
+    RequesterEmployeeId int NOT NULL,
+    CreatedAtUtc datetime2 NOT NULL,
+    UpdatedAtUtc datetime2 NOT NULL,
+    CONSTRAINT FK_OutsourcedServiceRequests_Employees
+        FOREIGN KEY(RequesterEmployeeId) REFERENCES dbo.Employees(Id));
+CREATE UNIQUE INDEX UX_OutsourcedServiceRequests_Number
+    ON dbo.OutsourcedServiceRequests(RequestNumber);
 " );
     await Execute(connection, @"INSERT INTO dbo.Employees DEFAULT VALUES;
 INSERT INTO dbo.OrganizationRankDefinitions(Title) VALUES(N'کارشناس');
 INSERT INTO dbo.OrganizationPositionDefinitions(Title,Grade) VALUES(N'کارشناس منابع انسانی',N'کارشناس');
 INSERT INTO dbo.MonthlyPerformancePeriods(
     Code,Title,[Year],[Month],StartAt,EndAt,IsEnabled,CreatedAt)
-VALUES(N'PER-LEGACY',N'شهریور ۱۴۰۵',1405,6,'2026-09-12','2026-09-17',1,SYSUTCDATETIME());");
+VALUES(N'PER-LEGACY',N'شهریور ۱۴۰۵',1405,6,'2026-09-12','2026-09-17',1,SYSUTCDATETIME());
+INSERT INTO dbo.OutsourcedServiceRequests(
+    RequestNumber,ServiceDescription,UnitOfMeasure,Quantity,NeedByDate,Priority,Status,
+    RequesterEmployeeId,CreatedAtUtc,UpdatedAtUtc)
+VALUES(N'OS-LEGACY',N'خدمت قدیمی',N'ساعت',2,'2026-11-20',N'Normal',N'Submitted',
+    1,SYSUTCDATETIME(),SYSUTCDATETIME());");
 }
 
 static async Task CreatePartiallyUpgradedFixture(SqlConnection connection)

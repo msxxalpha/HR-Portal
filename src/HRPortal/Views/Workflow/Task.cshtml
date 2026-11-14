@@ -8,6 +8,8 @@
     var suggestion = ViewBag.WorkflowSuggestion as Suggestion;
     var outsourcedService = ViewBag.WorkflowOutsourcedServiceRequest as HRPortal.Models.OutsourcedServiceRequest;
     var workflowPositions = ViewBag.WorkflowPositions as List<OrganizationNode> ?? [];
+    var isRequesterStage = Model.WorkflowStep.AssignmentType == "Requester" &&
+        Model.WorkflowInstance.RequesterEmployeeId == Model.AssignedEmployeeId;
 }
 @if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
 @if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
@@ -31,7 +33,7 @@
 
 @if (suggestion != null)
 {
-    @if (Model.WorkflowStep.AssignmentType == "Requester" && Model.WorkflowInstance.RequesterEmployeeId == Model.AssignedEmployeeId)
+    @if (isRequesterStage)
     {
         <section class="card" style="margin-top:1rem">
             <div class="section-head"><div><h3>اصلاح اطلاعات پیشنهاد</h3><span class="muted">این درخواست برای اصلاح به پیشنهاددهنده برگشت داده شده است.</span></div>
@@ -66,8 +68,21 @@
     var outsourcedPriority = outsourcedService.Priority switch { "Emergency" => "اضطراری", "Urgent" => "فوری", _ => "عادی" };
     <section class="card form-stack" style="margin-top:1rem">
         <div class="section-head"><div><h3>مشخصات سفارش خدمات برونسپاری</h3><span class="muted">@outsourcedService.RequestNumber</span></div>
-            @if (User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "OutsourcedServices.ViewAll") || User.HasClaim("Permission", "OutsourcedServices.Reports") || User.HasClaim("Permission", "OutsourcedServices.Create")) { <a class="btn btn-outline" href="/OutsourcedServices/Details/@outsourcedService.Id">مشاهده صفحه درخواست</a> }
+            <div class="actions">
+                @if (isRequesterStage)
+                {
+                    <a class="btn btn-main" href="/OutsourcedServices/Edit/@outsourcedService.Id?returnTaskId=@Model.Id">ویرایش اطلاعات درخواست</a>
+                }
+                else if (User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "OutsourcedServices.ViewAll") || User.HasClaim("Permission", "OutsourcedServices.Reports") || User.HasClaim("Permission", "OutsourcedServices.Create"))
+                {
+                    <a class="btn btn-outline" href="/OutsourcedServices/Details/@outsourcedService.Id">مشاهده صفحه درخواست</a>
+                }
+            </div>
         </div>
+        @if (isRequesterStage)
+        {
+            <div class="note">این سفارش برای اصلاح به درخواست‌کننده اولیه بازگشته است. ابتدا اطلاعات درخواست را ویرایش و ذخیره کنید؛ سپس به همین صفحه برگردید و «ثبت مجدد و ادامه گردش کار» را بزنید.</div>
+        }
         <dl class="detail-list">
             <dt>شرح خدمات درخواستی</dt><dd>@outsourcedService.ServiceDescription</dd>
             <dt>مقدار و واحد سنجش</dt><dd>@outsourcedService.Quantity.ToString("0.###") @outsourcedService.UnitOfMeasure</dd>
@@ -165,9 +180,9 @@
                 <small>این توضیح در تاریخچه اقدام گردش کار ثبت می‌شود و جزو اطلاعات اصلی فرم درخواست نیست.</small>
                 <div class="actions">
                     <button class="btn btn-outline" name="action" value="SaveDraft" type="submit">ذخیره پیش‌نویس</button>
-                    @if (Model.WorkflowStep.AllowReturn) { <button class="btn btn-outline" name="action" value="Return" type="submit">برگشت</button> }
-                    @if (Model.WorkflowStep.AllowReject) { <button class="btn danger" name="action" value="Reject" type="submit">رد درخواست</button> }
-                    @if (Model.WorkflowStep.AllowApprove) { <button class="btn btn-main" name="action" value="Approve" type="submit">ذخیره اطلاعات و تأیید</button> }
+                    @if (!isRequesterStage && Model.WorkflowStep.AllowReturn) { <button class="btn btn-outline" name="action" value="Return" type="submit">برگشت</button> }
+                    @if (!isRequesterStage && Model.WorkflowStep.AllowReject) { <button class="btn danger" name="action" value="Reject" type="submit">رد درخواست</button> }
+                    @if (isRequesterStage || Model.WorkflowStep.AllowApprove) { <button class="btn btn-main" name="action" value="Approve" type="submit">@(isRequesterStage ? "ثبت مجدد و ادامه گردش کار" : "ذخیره اطلاعات و تأیید")</button> }
                 </div>
             </section>
         </form>
@@ -183,9 +198,9 @@ else
             <label>ملاحظات @(Model.WorkflowStep.RequireNotes ? "*" : "")<textarea name="comment" rows="5" required="@Model.WorkflowStep.RequireNotes" placeholder="@(Model.WorkflowStep.RequireNotes ? "ثبت ملاحظات این مرحله الزامی است." : "در صورت نیاز توضیح خود را ثبت کنید.")"></textarea></label>
             <div class="actions">
                 <button class="btn btn-outline" name="action" value="SaveDraft" type="submit">ذخیره پیش‌نویس</button>
-                @if (Model.WorkflowStep.AllowReturn) { <button class="btn btn-outline" name="action" value="Return" type="submit">برگشت</button> }
-                @if (Model.WorkflowStep.AllowReject) { <button class="btn danger" name="action" value="Reject" type="submit">رد درخواست</button> }
-                @if (Model.WorkflowStep.AllowApprove) { <button class="btn btn-main" name="action" value="Approve" type="submit">تأیید</button> }
+                @if (!isRequesterStage && Model.WorkflowStep.AllowReturn) { <button class="btn btn-outline" name="action" value="Return" type="submit">برگشت</button> }
+                @if (!isRequesterStage && Model.WorkflowStep.AllowReject) { <button class="btn danger" name="action" value="Reject" type="submit">رد درخواست</button> }
+                @if (isRequesterStage || Model.WorkflowStep.AllowApprove) { <button class="btn btn-main" name="action" value="Approve" type="submit">@(isRequesterStage ? "ثبت مجدد و ادامه گردش کار" : "تأیید")</button> }
             </div>
         </form>
     </section>

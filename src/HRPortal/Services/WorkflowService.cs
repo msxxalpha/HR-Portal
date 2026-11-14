@@ -564,6 +564,11 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         foreach (var field in fields)
         {
             submitted.TryGetValue(field.Id.ToString(), out var raw);
+            // Prior-stage checkbox controls include a deliberate "بدون تغییر"
+            // option. An empty submission must not be interpreted as false.
+            if (field.FieldType == "Checkbox" && string.IsNullOrWhiteSpace(raw))
+                continue;
+
             var value = field.FieldType == "Checkbox"
                 ? (string.Equals(raw, "true", StringComparison.OrdinalIgnoreCase) || raw == "on" ? "true" : "false")
                 : raw?.Trim();

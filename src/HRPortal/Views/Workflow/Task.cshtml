@@ -101,7 +101,7 @@
 @if (groups.Count > 0)
 {
     <section class="card form-stack">
-        <div class="section-head"><div><h3>اطلاعات فرم</h3><p class="muted">فیلدهای مراحل قبل فقط در صورت مجاز بودن ویرایش در تنظیمات این مرحله قابل تغییر هستند.</p></div></div>
+        <div class="section-head"><div><h3>اطلاعات فرم</h3><p class="muted">اطلاعات مرحله جاری قابل ویرایش است. ویرایش اطلاعات مراحل قبل تابع مجوز همین مرحله است؛ در زمان برگشت، اطلاعات مرحله بازگرداننده فقط برای مشاهده نمایش داده می‌شود.</p></div></div>
         <form method="post" action="/Workflow/Act" class="form-stack" novalidate>
             @Html.AntiForgeryToken()
             <input type="hidden" name="id" value="@Model.Id" />

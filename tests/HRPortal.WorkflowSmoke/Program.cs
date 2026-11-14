@@ -1082,9 +1082,22 @@ static async Task VerifyContractRenewalRuntimeFlowAsync()
         MaxScore = 100m, ScoringGuidance = "ارزیابی کلی",
         IsActive = true, SortOrder = 1
     };
+    // The hierarchy route uses these master-data sort orders to retain all
+    // positions from the supervisor rank upward, while excluding the subject's
+    // lower rank. Seed the same rank vocabulary used by the organization fixture.
+    var rankDefinitions = new[]
+    {
+        new OrganizationRankDefinition { Id = 1, Title = "مدیرعامل", SortOrder = 10 },
+        new OrganizationRankDefinition { Id = 2, Title = "معاونت", SortOrder = 20 },
+        new OrganizationRankDefinition { Id = 3, Title = "مدیریت", SortOrder = 30 },
+        new OrganizationRankDefinition { Id = 4, Title = "ریاست", SortOrder = 40 },
+        new OrganizationRankDefinition { Id = 5, Title = "سرپرستی", SortOrder = 50 },
+        new OrganizationRankDefinition { Id = 6, Title = "بخش", SortOrder = 60 }
+    };
     db.AddRange(subject, supervisor, manager, deputy, security, hr, ceo, requester, initialApprover,
         revision, subjectPosition, supervisorPosition, managerPosition, deputyPosition,
         ceoPosition, securityPosition, hrPosition, approvalPosition, request, settings, question);
+    db.OrganizationRankDefinitions.AddRange(rankDefinitions);
     await db.SaveChangesAsync();
 
     var audit = new AuditService(new AuditLogQueue(), new HttpContextAccessor());

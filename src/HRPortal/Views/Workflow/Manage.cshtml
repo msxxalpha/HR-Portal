@@ -69,6 +69,60 @@ else
                         <span class="badge">مرحله زنجیره‌ای</span>
                     }
                 </div>
+            <form method="post" action="/Workflow/SaveStep" class="form-stack workflow-step-editor" data-stage-editor>
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="Id" value="@step.Id" />
+                <input type="hidden" name="WorkflowDefinitionId" value="@selected.Id" />
+                <div class="grid-2">
+                    <label>کد مرحله<input name="Code" value="@step.Code" required maxlength="100" /></label>
+                    <label>عنوان مرحله<input name="Title" value="@step.Title" required maxlength="200" /></label>
+                    <label>ترتیب نمایش<input name="SortOrder" type="number" min="1" step="1" value="@step.SortOrder" required /></label>
+                    <label>نوع تخصیص مرحله
+                        <select name="AssignmentType" class="assignment-type">
+                            <option value="Position" selected="@(step.AssignmentType == "Position")">جایگاه سازمانی ثابت</option>
+                            <option value="Hierarchy" selected="@(step.AssignmentType == "Hierarchy")">زنجیره جایگاه‌های بالاتر از کارمند</option>
+                            <option value="Requester" selected="@(step.AssignmentType == "Requester")">درخواست‌کننده (برای بازگشت جهت اصلاح)</option>
+                            <option value="FieldPosition" selected="@(step.AssignmentType == "FieldPosition")">جایگاه انتخاب‌شده در فرم همین مرحله</option>
+                            <option value="Employee" selected="@(step.AssignmentType == "Employee")">کارمند مشخص</option>
+                        </select>
+                    </label>
+                    <label class="assignment-position">جایگاه سازمانی
+                        <select name="OrganizationNodeId"><option value="">انتخاب جایگاه</option>
+                            @foreach (var p in Model.Positions) { <option value="@p.Id" selected="@(step.OrganizationNodeId == p.Id)">@p.Title — @p.RankType</option> }
+                        </select>
+                    </label>
+                    <label class="assignment-employee">کارمند مسئول
+                        <select name="AssignedEmployeeId"><option value="">انتخاب کارمند فعال</option>
+                            @foreach (var employee in Model.AvailableEmployees) { <option value="@employee.Id" selected="@(step.AssignedEmployeeId == employee.Id)">@employee.FirstName @employee.LastName — @employee.PersonnelNumber</option> }
+                        </select>
+                    </label>
+                    <label class="assignment-field-code">کد فیلد انتخاب جایگاه
+                        <input name="AssignmentFieldCode" value="@step.AssignmentFieldCode" maxlength="100" placeholder="SelectedPosition" />
+                        <small>کد فیلد «انتخاب جایگاه سازمانی فعال» در یکی از مراحل قبلی.</small>
+                    </label>
+                    <label class="assignment-hierarchy">توقف مسیر پویا در رده
+                        <select name="HierarchyStopRankType">
+                            <option value="__BeforeCEO__" selected="@(step.HierarchyStopRankType == "__BeforeCEO__")">تا آخرین جایگاه زنجیره پیش از مدیرعامل</option>
+                            @foreach (var rank in Model.RankTitles) { <option value="@rank" selected="@(step.HierarchyStopRankType == rank)">@rank</option> }
+                        </select>
+                    </label>
+                    <label>نحوه تخصیص
+                        <select name="AssignmentMode">
+                            <option value="Any" selected="@(step.AssignmentMode != "All")">هر یک از متصدیان جایگاه</option>
+                            <option value="All" selected="@(step.AssignmentMode == "All")">همه متصدیان جایگاه</option>
+                        </select>
+                    </label>
+                    <label class="check-chip"><input type="checkbox" name="IsFinalStep" value="true" checked="@step.IsFinalStep" /> مرحله نهایی</label>
+                </div>
+                <div class="actions">
+                    <label class="check-chip"><input type="checkbox" name="AllowApprove" value="true" checked="@step.AllowApprove" /> تأیید</label>
+                    <label class="check-chip"><input type="checkbox" name="AllowReject" value="true" checked="@step.AllowReject" /> رد</label>
+                    <label class="check-chip"><input type="checkbox" name="AllowReturn" value="true" checked="@step.AllowReturn" /> برگشت</label>
+                    <label class="check-chip"><input type="checkbox" name="RequireCommentOnReject" value="true" checked="@step.RequireCommentOnReject" /> توضیح رد اجباری</label>
+                    <label class="check-chip"><input type="checkbox" name="RequireCommentOnReturn" value="true" checked="@step.RequireCommentOnReturn" /> توضیح برگشت اجباری</label>
+                    <button class="btn btn-main btn-sm" type="submit">ذخیره مشخصات مرحله</button>
+                </div>
+            </form>
             <form method="post" action="/Workflow/SaveStepRules" class="form-stack workflow-stage-rules">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="id" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" />
@@ -119,23 +173,23 @@ else
                 <form method="post" action="/Workflow/SaveTransition" class="transition-form">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="stepId" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" />
-                    <label>تأیید → <select name="toStepId"><option value="">پایان</option>@foreach (var s in selected.Steps.Where(x=>x.Id!=step.Id).OrderBy(x=>x.SortOrder)){<option value="@s.Id">@(s.SortOrder + " - " + s.Title)</option>}</select></label>
+                    <label>تأیید → <select name="toStepId"><option value="" selected="@(step.OutgoingTransitions.FirstOrDefault(x => x.Action == "Approve" && string.IsNullOrWhiteSpace(x.ConditionFieldCode))?.ToStepId is null)">پایان</option>@foreach (var s in selected.Steps.Where(x=>x.Id!=step.Id).OrderBy(x=>x.SortOrder)){<option value="@s.Id" selected="@(step.OutgoingTransitions.FirstOrDefault(x => x.Action == "Approve" && string.IsNullOrWhiteSpace(x.ConditionFieldCode))?.ToStepId == s.Id)">@(s.SortOrder + " - " + s.Title)</option>}</select></label>
                     <input type="hidden" name="action" value="Approve" /><button class="btn btn-outline btn-sm" type="submit">ذخیره مسیر تأیید</button>
                 </form>
                 <form method="post" action="/Workflow/SaveTransition" class="transition-form">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="stepId" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" />
-                    <label>برگشت → <select name="toStepId"><option value="">وضعیت برگشت</option>@foreach (var s in selected.Steps.Where(x=>x.Id!=step.Id).OrderBy(x=>x.SortOrder)){<option value="@s.Id">@(s.SortOrder + " - " + s.Title)</option>}</select></label>
+                    <label>برگشت → <select name="toStepId"><option value="" selected="@(step.OutgoingTransitions.FirstOrDefault(x => x.Action == "Return" && string.IsNullOrWhiteSpace(x.ConditionFieldCode))?.ToStepId is null)">وضعیت برگشت</option>@foreach (var s in selected.Steps.Where(x=>x.Id!=step.Id).OrderBy(x=>x.SortOrder)){<option value="@s.Id" selected="@(step.OutgoingTransitions.FirstOrDefault(x => x.Action == "Return" && string.IsNullOrWhiteSpace(x.ConditionFieldCode))?.ToStepId == s.Id)">@(s.SortOrder + " - " + s.Title)</option>}</select></label>
                     <input type="hidden" name="action" value="Return" /><button class="btn btn-outline btn-sm" type="submit">ذخیره مسیر برگشت</button>
                 </form>
                 <form method="post" action="/Workflow/SaveTransition" class="transition-form">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="stepId" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" />
-                    <label>رد → <select name="toStepId"><option value="">پایان و رد</option>@foreach (var s in selected.Steps.Where(x=>x.Id!=step.Id).OrderBy(x=>x.SortOrder)){<option value="@s.Id">@(s.SortOrder + " - " + s.Title)</option>}</select></label>
+                    <label>رد → <select name="toStepId"><option value="" selected="@(step.OutgoingTransitions.FirstOrDefault(x => x.Action == "Reject" && string.IsNullOrWhiteSpace(x.ConditionFieldCode))?.ToStepId is null)">پایان و رد</option>@foreach (var s in selected.Steps.Where(x=>x.Id!=step.Id).OrderBy(x=>x.SortOrder)){<option value="@s.Id" selected="@(step.OutgoingTransitions.FirstOrDefault(x => x.Action == "Reject" && string.IsNullOrWhiteSpace(x.ConditionFieldCode))?.ToStepId == s.Id)">@(s.SortOrder + " - " + s.Title)</option>}</select></label>
                     <input type="hidden" name="action" value="Reject" /><button class="btn btn-outline btn-sm" type="submit">ذخیره مسیر رد</button>
                 </form>
-                <form method="post" action="/Workflow/DeleteStep" class="inline" onsubmit="return confirm('این مرحله حذف شود؟');">
-                    @Html.AntiForgeryToken()<input type="hidden" name="id" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" /><button class="btn btn-outline btn-sm danger" type="submit">حذف</button>
+                <form method="post" action="/Workflow/DeleteStep" class="inline" onsubmit="return confirm('مرحله انتخاب‌شده و مسیرهای ورودی/خروجی مرتبط حذف می‌شوند؛ ترتیب مراحل باقی‌مانده به‌صورت خودکار بازتنظیم می‌شود. ادامه می‌دهید؟');">
+                    @Html.AntiForgeryToken()<input type="hidden" name="id" value="@step.Id" /><input type="hidden" name="definitionId" value="@selected.Id" /><button class="btn btn-outline btn-sm danger" type="submit">حذف مرحله</button>
                 </form>
             </div>
             <div class="workflow-stage-fields">
@@ -198,18 +252,26 @@ else
     }
     <hr />
     <h3>افزودن مرحله</h3>
-    <form method="post" action="/Workflow/SaveStep" class="form-stack">
+    <form method="post" action="/Workflow/SaveStep" class="form-stack workflow-new-step-editor" data-stage-editor>
         @Html.AntiForgeryToken()
         <input type="hidden" name="WorkflowDefinitionId" value="@selected.Id" />
-        <div class="grid-2"><label>کد مرحله<input name="Code" required placeholder="Supervisor" /></label><label>عنوان مرحله<input name="Title" required placeholder="بررسی سرپرست" /></label><label>ترتیب<input name="SortOrder" type="number" value="10" /></label><label>نوع تخصیص مرحله<select name="AssignmentType" id="assignmentType"><option value="Position">جایگاه سازمانی ثابت</option><option value="Hierarchy">زنجیره جایگاه‌های بالاتر از کارمند</option><option value="Requester">درخواست‌کننده (برای بازگشت جهت اصلاح)</option><option value="FieldPosition">جایگاه انتخاب‌شده در فرم همین مرحله</option></select></label><label id="fixedPositionField">جایگاه سازمانی<select name="OrganizationNodeId"><option value="">انتخاب جایگاه</option>@foreach (var p in Model.Positions){<option value="@p.Id">@p.Title — @p.RankType</option>}</select></label><label id="assignmentFieldCode" style="display:none">کد فیلد انتخاب جایگاه<input name="AssignmentFieldCode" maxlength="100" placeholder="SelectedPosition" /><small>این کد باید با فیلد «انتخاب جایگاه سازمانی فعال» در یکی از مراحل قبلی یکسان باشد.</small></label><label id="hierarchyStopField">توقف مسیر پویا در رده
-                    <select name="HierarchyStopRankType">
-                        <option value="__BeforeCEO__" selected="@(defaultHierarchyStopRank == "__BeforeCEO__")">تا آخرین جایگاه زنجیره پیش از مدیرعامل</option>
-                        @foreach (var rank in Model.RankTitles)
-                        {
-                            <option value="@rank" selected="@(rank == defaultHierarchyStopRank)">@(rank == defaultHierarchyStopRank && rank == "معاونت" ? "معاونت (پیش‌فرض)" : rank)</option>
-                        }
-                    </select>
-                </label><label>نحوه تخصیص<select name="AssignmentMode"><option value="Any">هر یک از متصدیان جایگاه</option><option value="All">همه متصدیان جایگاه</option></select></label><label class="toggle-card compact-toggle"><span class="toggle-text"><strong>مرحله نهایی</strong></span><span class="switch-control"><input type="checkbox" name="IsFinalStep" value="true" /><span class="switch-slider"></span></span></label></div>
+        <div class="grid-2">
+            <label>کد مرحله<input name="Code" required placeholder="Supervisor" maxlength="100" /></label>
+            <label>عنوان مرحله<input name="Title" required placeholder="بررسی سرپرست" maxlength="200" /></label>
+            <label>ترتیب<input name="SortOrder" type="number" min="1" step="1" value="@(selected.Steps.Count == 0 ? 10 : selected.Steps.Max(x => x.SortOrder) + 10)" /></label>
+            <label>نوع تخصیص مرحله
+                <select name="AssignmentType" class="assignment-type">
+                    <option value="Position">جایگاه سازمانی ثابت</option><option value="Hierarchy">زنجیره جایگاه‌های بالاتر از کارمند</option>
+                    <option value="Requester">درخواست‌کننده (برای بازگشت جهت اصلاح)</option><option value="FieldPosition">جایگاه انتخاب‌شده در فرم همین مرحله</option><option value="Employee">کارمند مشخص</option>
+                </select>
+            </label>
+            <label class="assignment-position">جایگاه سازمانی<select name="OrganizationNodeId"><option value="">انتخاب جایگاه</option>@foreach (var p in Model.Positions){<option value="@p.Id">@p.Title — @p.RankType</option>}</select></label>
+            <label class="assignment-employee">کارمند مسئول<select name="AssignedEmployeeId"><option value="">انتخاب کارمند فعال</option>@foreach (var employee in Model.AvailableEmployees){<option value="@employee.Id">@employee.FirstName @employee.LastName — @employee.PersonnelNumber</option>}</select></label>
+            <label class="assignment-field-code">کد فیلد انتخاب جایگاه<input name="AssignmentFieldCode" maxlength="100" placeholder="SelectedPosition" /><small>این کد باید با فیلد «انتخاب جایگاه سازمانی فعال» در یکی از مراحل قبلی یکسان باشد.</small></label>
+            <label class="assignment-hierarchy">توقف مسیر پویا در رده<select name="HierarchyStopRankType"><option value="__BeforeCEO__">تا آخرین جایگاه زنجیره پیش از مدیرعامل</option>@foreach (var rank in Model.RankTitles){<option value="@rank" selected="@(rank == defaultHierarchyStopRank)">@rank</option>}</select></label>
+            <label>نحوه تخصیص<select name="AssignmentMode"><option value="Any">هر یک از متصدیان جایگاه</option><option value="All">همه متصدیان جایگاه</option></select></label>
+            <label class="check-chip"><input type="checkbox" name="IsFinalStep" value="true" /> مرحله نهایی</label>
+        </div>
         <div class="actions"><label class="check-chip"><input type="checkbox" name="AllowApprove" value="true" checked /> تأیید</label><label class="check-chip"><input type="checkbox" name="AllowReject" value="true" checked /> رد</label><label class="check-chip"><input type="checkbox" name="AllowReturn" value="true" checked /> برگشت</label><label class="check-chip"><input type="checkbox" name="RequireCommentOnReject" value="true" checked /> توضیح رد اجباری</label><label class="check-chip"><input type="checkbox" name="RequireCommentOnReturn" value="true" /> توضیح برگشت اجباری</label></div>
         <button class="btn btn-main" type="submit">افزودن مرحله</button>
     </form>
@@ -220,13 +282,22 @@ else
 @section Scripts {
 <script>
 (function(){
- const type=document.getElementById('assignmentType');
- if(!type)return;
- const fixed=document.getElementById('fixedPositionField');
- const stop=document.getElementById('hierarchyStopField');
- const fieldCode=document.getElementById('assignmentFieldCode');
- function sync(){const dynamic=type.value==='Hierarchy';const requester=type.value==='Requester';const fieldPosition=type.value==='FieldPosition';fixed.style.display=(dynamic||requester||fieldPosition)?'none':'';stop.style.display=dynamic?'':'none';fieldCode.style.display=fieldPosition?'':'none';}
- type.addEventListener('change',sync);sync();
+ document.querySelectorAll('[data-stage-editor]').forEach(function(form){
+   const type=form.querySelector('.assignment-type');
+   if(!type)return;
+   const position=form.querySelector('.assignment-position');
+   const employee=form.querySelector('.assignment-employee');
+   const fieldCode=form.querySelector('.assignment-field-code');
+   const hierarchy=form.querySelector('.assignment-hierarchy');
+   function sync(){
+     const value=type.value;
+     if(position)position.style.display=value==='Position'?'':'none';
+     if(employee)employee.style.display=value==='Employee'?'':'none';
+     if(fieldCode)fieldCode.style.display=value==='FieldPosition'?'':'none';
+     if(hierarchy)hierarchy.style.display=value==='Hierarchy'?'':'none';
+   }
+   type.addEventListener('change',sync);sync();
+ });
  document.querySelectorAll('.vacancy-policy').forEach(function(select){
    const step=select.dataset.step;
    const target=document.querySelector('.vacancy-substitute[data-step="'+step+'"]');

@@ -40,16 +40,15 @@ public static class WorkflowPositionAssignmentResolver
 
     public static List<int> GetAssignedEmployeeIds(string? assignedEmployeeIdsCsv, int? positionHolderEmployeeId)
     {
-        // The legacy single holder and the multi-assignee list can coexist.
-        // Treat both as authoritative assignments instead of ignoring the holder
-        // whenever the CSV already contains another employee.
+        // A valid explicit list is authoritative. Use the legacy single holder
+        // only when the CSV has no valid employee IDs.
         var ids = (assignedEmployeeIdsCsv ?? string.Empty)
             .Split([',', '،', ';', '؛'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(value => int.TryParse(value, out var id) ? id : 0)
             .Where(id => id > 0)
             .ToHashSet();
 
-        if (positionHolderEmployeeId is > 0)
+        if (ids.Count == 0 && positionHolderEmployeeId is > 0)
             ids.Add(positionHolderEmployeeId.Value);
 
         return ids.OrderBy(id => id).ToList();

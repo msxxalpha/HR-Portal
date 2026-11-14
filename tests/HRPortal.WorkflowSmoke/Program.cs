@@ -794,7 +794,7 @@ static async Task VerifyExplicitPositionTaskCreationAsync()
     db.AddRange(first, legacyHolder, revision, position, definition, step);
     await db.SaveChangesAsync();
 
-    var audit = new AuditService(db, new HttpContextAccessor());
+    var audit = new AuditService(new AuditLogQueue(), new HttpContextAccessor());
     var service = new WorkflowService(db, audit);
 
     var singleInstance = await service.StartAsync(
@@ -897,7 +897,7 @@ static async Task VerifyWorkflowTransitionLifecycleAsync()
         });
     await db.SaveChangesAsync();
 
-    var audit = new AuditService(db, new HttpContextAccessor());
+    var audit = new AuditService(new AuditLogQueue(), new HttpContextAccessor());
     var service = new WorkflowService(db, audit);
     var instance = await service.StartAsync("LIFECYCLE", "Smoke", "lifecycle", 11);
 
@@ -1073,7 +1073,7 @@ static async Task VerifyContractRenewalRuntimeFlowAsync()
         ceoPosition, securityPosition, hrPosition, approvalPosition, request, settings, question);
     await db.SaveChangesAsync();
 
-    var audit = new AuditService(db, new HttpContextAccessor());
+    var audit = new AuditService(new AuditLogQueue(), new HttpContextAccessor());
     var workflow = new WorkflowService(db, audit);
     var renewal = new ContractRenewalWorkflowService(db, workflow);
     var instance = await renewal.StartAsync(request, requesterEmployeeId: 10);

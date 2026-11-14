@@ -5,6 +5,7 @@ namespace HRPortal.Data;
 
 public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : DbContext(options)
 {
+    public DbSet<OutsourcedServiceRequest> OutsourcedServiceRequests => Set<OutsourcedServiceRequest>();
     public DbSet<Suggestion> Suggestions => Set<Suggestion>();
     public DbSet<SuggestionMember> SuggestionMembers => Set<SuggestionMember>();
     public DbSet<SuggestionAttachment> SuggestionAttachments => Set<SuggestionAttachment>();
@@ -58,6 +59,19 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<OutsourcedServiceRequest>(e =>
+        {
+            e.ToTable("OutsourcedServiceRequests");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.RequestNumber).IsUnique();
+            e.HasIndex(x => new { x.CreatedAtUtc, x.Priority, x.Status });
+            e.Property(x => x.Quantity).HasPrecision(18, 3);
+            e.Property(x => x.ServiceDescription).HasMaxLength(3000).IsRequired();
+            e.Property(x => x.UnitOfMeasure).HasMaxLength(40).IsRequired();
+            e.Property(x => x.Priority).HasMaxLength(20).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(30).IsRequired();
+            e.HasOne<Employee>().WithMany().HasForeignKey(x => x.RequesterEmployeeId).OnDelete(DeleteBehavior.Restrict);
+        });
         modelBuilder.Entity<Suggestion>(e => { e.ToTable("Suggestions"); e.HasKey(x=>x.Id); e.HasIndex(x=>x.SuggestionNumber).IsUnique(); e.HasIndex(x=>new{x.ProposerEmployeeId,x.UpdatedAtUtc}); e.HasOne<Employee>().WithMany().HasForeignKey(x=>x.ProposerEmployeeId).OnDelete(DeleteBehavior.Restrict); });
         modelBuilder.Entity<SuggestionMember>(e => { e.ToTable("SuggestionMembers"); e.HasKey(x=>x.Id); e.HasIndex(x=>new{x.SuggestionId,x.EmployeeId}).IsUnique(); e.HasOne(x=>x.Suggestion).WithMany(x=>x.Members).HasForeignKey(x=>x.SuggestionId).OnDelete(DeleteBehavior.Cascade); e.HasOne<Employee>().WithMany().HasForeignKey(x=>x.EmployeeId).OnDelete(DeleteBehavior.Restrict); });
         modelBuilder.Entity<SuggestionAttachment>(e => { e.ToTable("SuggestionAttachments"); e.HasKey(x=>x.Id); e.HasOne(x=>x.Suggestion).WithMany(x=>x.Attachments).HasForeignKey(x=>x.SuggestionId).OnDelete(DeleteBehavior.Cascade); });

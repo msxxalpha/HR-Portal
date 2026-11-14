@@ -1883,8 +1883,7 @@ static async Task VerifyWorkflowDirectReturnAndPriorStageEditingAsync()
         {
             Revision = revision,
             Code = "DIR-FIRST", Title = "جایگاه مرحله آغازین",
-            RankType = "مدیریت", IsActive = true,
-            PositionHolderEmployeeId = positionHolder.Id
+            RankType = "مدیریت", IsActive = true
         };
         var definition = new WorkflowDefinition
         {
@@ -1930,8 +1929,10 @@ static async Task VerifyWorkflowDirectReturnAndPriorStageEditingAsync()
         startStep.Fields.Add(starterField);
         reviewStep.Fields.Add(reviewField);
         nextStep.Fields.Add(nextField);
-        db.AddRange(starter, positionHolder, reviewer, nextReviewer, revision,
-            firstPosition, definition);
+        db.AddRange(starter, positionHolder, reviewer, nextReviewer, revision);
+        await db.SaveChangesAsync();
+        firstPosition.PositionHolderEmployeeId = positionHolder.Id;
+        db.AddRange(firstPosition, definition);
         await db.SaveChangesAsync();
         startStep.OrganizationNodeId = firstPosition.Id;
         reviewStep.AssignedEmployeeId = reviewer.Id;

@@ -18,7 +18,25 @@ public sealed class OutsourcedServicesReportsController(HRPortalDbContext db) : 
     };
 
     [HttpGet]
-    public async Task<IActionResult> Index(string? from, string? to, string? priority, string? status, string? unit)
+    public IActionResult Index()
+    {
+        var reportTypes = new List<ServiceRequestReportTypeItem>
+        {
+            new()
+            {
+                Code = "OutsourcedServices",
+                Title = "سفارش خدمات برونسپاری",
+                Category = "حوزه خرید و تدارکات",
+                Description = "گزارش حجم سفارش‌ها، اولویت‌ها، وضعیت گردش کار، واحدهای سنجش و روند ماهانه ثبت درخواست‌ها",
+                Url = Url.Action(nameof(Dashboard)) ?? "/OutsourcedServicesReports/Dashboard",
+                Icon = "↗"
+            }
+        };
+        return View(reportTypes);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Dashboard(string? from, string? to, string? priority, string? status, string? unit)
     {
         ViewBag.Priorities = PriorityLabels;
         ViewBag.Units = await db.OutsourcedServiceRequests.AsNoTracking()
@@ -139,7 +157,7 @@ public sealed class OutsourcedServicesReportsController(HRPortalDbContext db) : 
     [HttpGet]
     public async Task<IActionResult> Export(string? from, string? to, string? priority, string? status, string? unit)
     {
-        var redirect = await Index(from, to, priority, status, unit);
+        var redirect = await Dashboard(from, to, priority, status, unit);
         if (redirect is not ViewResult view || view.Model is not OutsourcedServiceDashboardViewModel model)
             return redirect;
         var csv = new StringBuilder();

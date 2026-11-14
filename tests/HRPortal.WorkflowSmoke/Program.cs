@@ -1881,7 +1881,7 @@ static async Task VerifyWorkflowDirectReturnAndPriorStageEditingAsync()
         };
         var firstPosition = new OrganizationNode
         {
-            Revision = revision, OrganizationStructureRevision = revision,
+            Revision = revision,
             Code = "DIR-FIRST", Title = "جایگاه مرحله آغازین",
             RankType = "مدیریت", IsActive = true,
             PositionHolderEmployeeId = positionHolder.Id

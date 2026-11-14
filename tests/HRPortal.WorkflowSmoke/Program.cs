@@ -2105,6 +2105,11 @@ static async Task VerifyWorkflowDirectReturnAndPriorStageEditingAsync()
             WorkflowStepId = priorStep.Id, Code = "priorValue", Title = "اطلاعات مرحله قبلی",
             FieldType = "Text", SortOrder = 10
         };
+        var priorCheckboxField = new WorkflowStepField
+        {
+            WorkflowStepId = priorStep.Id, Code = "priorCheckbox", Title = "وضعیت چک‌باکس مرحله قبل",
+            FieldType = "Checkbox", SortOrder = 20
+        };
         var currentField = new WorkflowStepField
         {
             WorkflowStepId = currentStep.Id, Code = "currentValue", Title = "اطلاعات مرحله جاری",
@@ -2115,7 +2120,7 @@ static async Task VerifyWorkflowDirectReturnAndPriorStageEditingAsync()
             WorkflowStepId = futureStep.Id, Code = "futureValue", Title = "اطلاعات مرحله بعدی",
             FieldType = "Text", SortOrder = 10
         };
-        db.WorkflowStepFields.AddRange(priorField, currentField, futureField);
+        db.WorkflowStepFields.AddRange(priorField, priorCheckboxField, currentField, futureField);
         var instance = new WorkflowInstance
         {
             WorkflowDefinitionId = definition.Id, WorkflowDefinition = definition,
@@ -2141,6 +2146,13 @@ static async Task VerifyWorkflowDirectReturnAndPriorStageEditingAsync()
             },
             new WorkflowFieldValue
             {
+                WorkflowInstanceId = instance.Id, WorkflowStepId = priorStep.Id,
+                WorkflowStepFieldId = priorCheckboxField.Id, FieldCode = priorCheckboxField.Code,
+                FieldTitle = priorCheckboxField.Title, FieldType = priorCheckboxField.FieldType,
+                Value = "true", UpdatedByEmployeeId = priorOwner.Id
+            },
+            new WorkflowFieldValue
+            {
                 WorkflowInstanceId = instance.Id, WorkflowStepId = futureStep.Id,
                 WorkflowStepFieldId = futureField.Id, FieldCode = futureField.Code,
                 FieldTitle = futureField.Title, FieldType = futureField.FieldType,
@@ -2151,6 +2163,7 @@ static async Task VerifyWorkflowDirectReturnAndPriorStageEditingAsync()
         var groups = await service.GetTaskFieldGroupsAsync(currentTask.Id, currentOwner.Id);
         var priorGroup = groups.SingleOrDefault(x => x.WorkflowStepId == priorStep.Id);
         Check(priorGroup is { IsCurrentStep: false, IsEditable: true } &&
+              priorGroup.Fields.Any(x => x.Code == priorCheckboxField.Code && x.Value == "true") &&
               groups.All(x => x.WorkflowStepId != futureStep.Id),
             "When AllowEditPreviousData is enabled, a current-stage assignee must see earlier populated fields as editable, but not future stages.");
 
@@ -2158,7 +2171,8 @@ static async Task VerifyWorkflowDirectReturnAndPriorStageEditingAsync()
             "اصلاح داده مرحله قبل",
             previousValues: new Dictionary<string, string?>
             {
-                [priorField.Id.ToString()] = "مقدار اصلاح‌شده قبلی"
+                [priorField.Id.ToString()] = "مقدار اصلاح‌شده قبلی",
+                [priorCheckboxField.Id.ToString()] = ""
             });
         var updatedPriorValue = await db.WorkflowFieldValues.AsNoTracking()
             .Where(x => x.WorkflowInstanceId == instance.Id && x.WorkflowStepFieldId == priorField.Id)
@@ -2166,6 +2180,25 @@ static async Task VerifyWorkflowDirectReturnAndPriorStageEditingAsync()
             .Select(x => x.Value).FirstAsync();
         Check(updatedPriorValue == "مقدار اصلاح‌شده قبلی",
             "A stage with AllowEditPreviousData enabled must persist the changed value of an earlier stage field.");
+        var unchangedPriorCheckbox = await db.WorkflowFieldValues.AsNoTracking()
+            .Where(x => x.WorkflowInstanceId == instance.Id && x.WorkflowStepFieldId == priorCheckboxField.Id)
+            .OrderByDescending(x => x.UpdatedAt).ThenByDescending(x => x.Id)
+            .Select(x => x.Value).FirstAsync();
+        Check(unchangedPriorCheckbox == "true",
+            "An empty previous-stage checkbox selection means no change and must not be converted to false.");
+
+        await service.CompleteTaskAsync(currentTask.Id, currentOwner.Id, "SaveDraft",
+            "تغییر صریح چک‌باکس قبلی",
+            previousValues: new Dictionary<string, string?>
+            {
+                [priorCheckboxField.Id.ToString()] = "false"
+            });
+        var changedPriorCheckbox = await db.WorkflowFieldValues.AsNoTracking()
+            .Where(x => x.WorkflowInstanceId == instance.Id && x.WorkflowStepFieldId == priorCheckboxField.Id)
+            .OrderByDescending(x => x.UpdatedAt).ThenByDescending(x => x.Id)
+            .Select(x => x.Value).FirstAsync();
+        Check(changedPriorCheckbox == "false",
+            "An explicit false previous-stage checkbox value must be persisted.");
     }
 
     Console.WriteLine("PASS: direct return to original form starter without a requester step; editable destination/read-only return source; workflow resubmission; and verified AllowEditPreviousData persistence.");

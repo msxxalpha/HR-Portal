@@ -49,6 +49,9 @@ public sealed class OutsourcedServiceDashboardViewModel
     public string Priority { get; set; } = "all";
     public string Status { get; set; } = "all";
     public string UnitOfMeasure { get; set; } = "all";
+    public string OrganizationalUnit { get; set; } = "all";
+    public List<string> OrganizationalUnitOptions { get; set; } = [];
+    public List<OutsourcedServiceOrganizationBucket> OrganizationalUnitBuckets { get; set; } = [];
     public int TotalCount { get; set; }
     public int PendingCount { get; set; }
     public int CompletedCount { get; set; }
@@ -60,6 +63,17 @@ public sealed class OutsourcedServiceDashboardViewModel
     public List<OutsourcedServiceBucket> MonthlyBuckets { get; set; } = [];
     public List<OutsourcedServiceBucket> UnitBuckets { get; set; } = [];
     public List<OutsourcedServiceReportRow> Rows { get; set; } = [];
+}
+
+public sealed class OutsourcedServiceOrganizationBucket
+{
+    public string Label { get; set; } = "";
+    public int InProgressCount { get; set; }
+    public int CompletedCount { get; set; }
+    public int RejectedCount { get; set; }
+    public int ReturnedCount { get; set; }
+    public int NotStartedCount { get; set; }
+    public int TotalCount => InProgressCount + CompletedCount + RejectedCount + ReturnedCount + NotStartedCount;
 }
 
 public sealed class OutsourcedServiceBucket

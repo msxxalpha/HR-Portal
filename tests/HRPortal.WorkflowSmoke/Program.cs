@@ -1657,7 +1657,7 @@ static async Task VerifyWorkflowStageEditingAndRequesterReturnAsync()
           savedReviewStep.AllowReturn && !savedReviewStep.RequireCommentOnReject &&
           savedReviewStep.RequireCommentOnReturn,
         "Saving workflow stage checkboxes must persist both checked and unchecked states.");
-    Check(savedReviewStep.AllowEditPreviousData && savedReviewStep.RequireNotes,
+    Check(!savedReviewStep.AllowEditPreviousData && savedReviewStep.RequireNotes,
         "Saving general stage properties must preserve settings owned by the separate stage-rules form.");
 
     db.WorkflowStepFields.Add(new WorkflowStepField

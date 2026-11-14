@@ -60,8 +60,6 @@ else
     <div class="section-head"><div><h3>مراحل</h3><span class="muted">تخصیص می‌تواند ثابت، زنجیره‌ای، درخواست‌کننده یا بر اساس جایگاه انتخاب‌شده در یک مرحله قبلی باشد.</span></div></div>
     @foreach (var step in selected.Steps.OrderBy(x => x.SortOrder))
     {
-            var requesterSteps = selected.Steps.Where(x => x.Id != step.Id && x.AssignmentType == "Requester")
-                .OrderBy(x => x.SortOrder).ThenBy(x => x.Id).ToList();
             var approveTransition = step.OutgoingTransitions.FirstOrDefault(x => x.Action == "Approve" && string.IsNullOrWhiteSpace(x.ConditionFieldCode));
             var returnTransition = step.OutgoingTransitions.FirstOrDefault(x => x.Action == "Return" && string.IsNullOrWhiteSpace(x.ConditionFieldCode));
             var rejectTransition = step.OutgoingTransitions.FirstOrDefault(x => x.Action == "Reject" && string.IsNullOrWhiteSpace(x.ConditionFieldCode));
@@ -151,7 +149,7 @@ else
                 <div class="actions"><label class="check-chip"><input type="checkbox" name="allowEditPreviousData" value="true" checked="@step.AllowEditPreviousData" /> اجازه ویرایش اطلاعات مراحل قبلی در این مرحله</label><label class="check-chip"><input type="checkbox" name="requireNotes" value="true" checked="@step.RequireNotes" /> ثبت ملاحظات در این مرحله اجباری باشد</label><button class="btn btn-outline btn-sm" type="submit">ذخیره تنظیمات مرحله</button></div>
             </form>
             <div class="workflow-step-actions">
-                <div class="workflow-route-heading"><h4>مسیرهای اصلی گردش کار</h4><span class="muted">مقصد هر عملیات را مشخص کنید. برای برگشت به ثبت‌کننده، یک مرحله با نوع تخصیص «درخواست‌کننده» در همین گردش‌کار تعریف کنید.</span></div>
+                <div class="workflow-route-heading"><h4>مسیرهای اصلی گردش کار</h4><span class="muted">برای برگشت مستقیم به ثبت‌کننده فرم، گزینه «شروع‌کننده فرم» را انتخاب کنید؛ نیازی به تعریف مرحله جداگانه نیست.</span></div>
                 <div class="workflow-route-grid">
                     <form method="post" action="/Workflow/SaveTransition" class="transition-form workflow-route-card route-approve">
                         @Html.AntiForgeryToken()
@@ -172,23 +170,13 @@ else
                         <input type="hidden" name="action" value="Return" />
                         <label><strong>برگشت به</strong>
                             <select name="toStepId">
-                                <option value="" selected="@(returnTransition?.ToStepId is null)">وضعیت برگشت / خاتمه برگشت</option>
-                                @if (requesterSteps.Count > 0)
-                                {
-                                    <optgroup label="بازگشت به ثبت‌کننده">
-                                        @foreach (var target in requesterSteps)
-                                        { <option value="@target.Id" selected="@(returnTransition?.ToStepId == target.Id)">برگشت به درخواست‌کننده — @target.Title</option> }
-                                    </optgroup>
-                                }
+                                <option value="" selected="@(returnTransition is null || (returnTransition.ToStepId is null && returnTransition.Title != HRPortal.Services.WorkflowService.ReturnToRequesterTransitionTitle))">وضعیت برگشت / خاتمه برگشت</option>
+                                <option value="__REQUESTER__" selected="@(returnTransition?.Title == HRPortal.Services.WorkflowService.ReturnToRequesterTransitionTitle)">برگشت مستقیم به شروع‌کننده فرم</option>
                                 <optgroup label="بازگشت به مراحل گردش کار">
-                                    @foreach (var target in selected.Steps.Where(x => x.Id != step.Id && x.AssignmentType != "Requester").OrderBy(x => x.SortOrder))
-                                    { <option value="@target.Id" selected="@(returnTransition?.ToStepId == target.Id)">@(target.SortOrder + " - " + target.Title)</option> }
+                                    @foreach (var target in selected.Steps.Where(x => x.Id != step.Id).OrderBy(x => x.SortOrder))
+                                    { <option value="@target.Id" selected="@(returnTransition?.ToStepId == target.Id && returnTransition?.Title != HRPortal.Services.WorkflowService.ReturnToRequesterTransitionTitle)">@(target.SortOrder + " - " + target.Title)</option> }
                                 </optgroup>
                             </select>
-                            @if (requesterSteps.Count == 0)
-                            {
-                                <small class="muted">برای فعال‌شدن گزینه «برگشت به درخواست‌کننده»، ابتدا یک مرحله با نوع تخصیص «درخواست‌کننده» به این گردش کار اضافه کنید.</small>
-                            }
                         </label>
                         <button class="btn btn-outline btn-sm" type="submit">ذخیره مسیر برگشت</button>
                     </form>

@@ -2,7 +2,7 @@ name: Monthly performance SQL schema smoke test
 
 on:
   push:
-    branches: [ feature/monthly-performance-1405 ]
+    branches: [ feature/monthly-performance-1405, feature/secure-ssrs-image-reports-current ]
     paths:
       - 'src/HRPortal/Data/**'
       - 'src/HRPortal/Models/**'

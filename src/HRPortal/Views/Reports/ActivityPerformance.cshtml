@@ -45,7 +45,7 @@
                 <label>نوع اصلی گردش کار
                     <select name="workflow">
                         <option value="all" selected="@(Model.Workflow == "all")">همه انواع</option>
-                        @foreach (var item in Model.WorkflowOptions) { <option value="@item.Code" selected="@(Model.Workflow == item.Code)">@item.Title</option> }
+                        @foreach (var item in Model.WorkflowOptions) { <option value="@item.Code" selected="@(Model.Workflow == item.Code)">@item.Title (@item.Count.ToString("N0"))</option> }
                     </select>
                 </label>
                 <label>رده سازمانی

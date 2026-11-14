@@ -159,9 +159,10 @@
             }
             <section class="card">
                 <div class="section-head"><h3>اقدام و توضیحات</h3></div>
-                <label>ملاحظات @(Model.WorkflowStep.RequireNotes ? "*" : "")
+                <label>ملاحظات اقدام در این مرحله @(Model.WorkflowStep.RequireNotes ? "*" : "")
                     <textarea name="comment" rows="4" required="@Model.WorkflowStep.RequireNotes" placeholder="@(Model.WorkflowStep.RequireNotes ? "ثبت ملاحظات این مرحله الزامی است." : "در صورت نیاز توضیح خود را ثبت کنید.")"></textarea>
                 </label>
+                <small>این توضیح در تاریخچه اقدام گردش کار ثبت می‌شود و جزو اطلاعات اصلی فرم درخواست نیست.</small>
                 <div class="actions">
                     <button class="btn btn-outline" name="action" value="SaveDraft" type="submit">ذخیره پیش‌نویس</button>
                     @if (Model.WorkflowStep.AllowReturn) { <button class="btn btn-outline" name="action" value="Return" type="submit">برگشت</button> }

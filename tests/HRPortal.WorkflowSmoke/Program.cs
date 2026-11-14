@@ -23,6 +23,8 @@ await VerifyImprovementActionsAsync();
 await VerifyEffectiveEmployeePermissionMatrixAsync();
 await VerifySuggestionsAnalyticsAsync();
 await VerifyWorkflowStageEditingAndRequesterReturnAsync();
+await VerifyWorkflowDirectReturnAndPriorStageEditingAsync();
+VerifyWorkflowReportFormTypeAggregation();
 
 var workflowPostedForm = new FormCollection(new Dictionary<string, StringValues>
 {
@@ -1660,7 +1662,7 @@ static async Task VerifyWorkflowStageEditingAndRequesterReturnAsync()
     Check(!savedReviewStep.AllowEditPreviousData && savedReviewStep.RequireNotes,
         "Saving general stage properties must preserve settings owned by the separate stage-rules form.");
 
-    db.WorkflowStepFields.Add(new WorkflowStepField
+    var requesterCorrectionFieldDefinition = new WorkflowStepField
     {
         WorkflowStepId = requesterStep.Id,
         Code = "requesterCorrection",
@@ -1668,7 +1670,27 @@ static async Task VerifyWorkflowStageEditingAndRequesterReturnAsync()
         FieldType = "TextArea",
         SortOrder = 10,
         IsRequired = true
-    });
+    };
+    var currentReviewFieldDefinition = new WorkflowStepField
+    {
+        WorkflowStepId = reviewStep.Id,
+        Code = "reviewCorrection",
+        Title = "اصلاح مرحله بررسی",
+        FieldType = "TextArea",
+        SortOrder = 10
+    };
+    var nextReviewFieldDefinition = new WorkflowStepField
+    {
+        WorkflowStepId = nextStep.Id,
+        Code = "nextReviewData",
+        Title = "اطلاعات مرحله بازگرداننده",
+        FieldType = "TextArea",
+        SortOrder = 10
+    };
+    db.WorkflowStepFields.AddRange(
+        requesterCorrectionFieldDefinition,
+        currentReviewFieldDefinition,
+        nextReviewFieldDefinition);
     db.WorkflowTransitions.AddRange(
         new WorkflowTransition
         {
@@ -1764,6 +1786,22 @@ static async Task VerifyWorkflowStageEditingAndRequesterReturnAsync()
           (await service.GetInboxAsync(nextReviewer.Id)).Any(x => x.TaskId == nextTask.Id),
         "The next workflow stage must be assigned to its configured employee after requester resubmission.");
 
+    db.WorkflowFieldValues.Add(new WorkflowFieldValue
+    {
+        WorkflowInstanceId = instance.Id,
+        WorkflowInstance = instance,
+        WorkflowStepId = nextStep.Id,
+        WorkflowStep = nextStep,
+        WorkflowStepFieldId = nextReviewFieldDefinition.Id,
+        WorkflowStepField = nextReviewFieldDefinition,
+        FieldCode = nextReviewFieldDefinition.Code,
+        FieldTitle = nextReviewFieldDefinition.Title,
+        FieldType = nextReviewFieldDefinition.FieldType,
+        Value = "اطلاعات ثبت‌شده در مرحله بعد",
+        UpdatedByEmployeeId = nextReviewer.Id
+    });
+    await db.SaveChangesAsync();
+
     await service.CompleteTaskAsync(nextTask.Id, nextReviewer.Id, "Return",
         "اطلاعات مرحله قبلی نیازمند اصلاح است.");
     var previousStageInbox = await service.GetInboxAsync(reviewer.Id);
@@ -1773,23 +1811,42 @@ static async Task VerifyWorkflowStageEditingAndRequesterReturnAsync()
     var previousStageTask = await service.GetTaskAsync(returnedToPreviousStage!.TaskId, reviewer.Id);
     Check(previousStageTask is not null && previousStageTask.Action == "ReturnedForEdit",
         "Tasks created by any Return route must be marked as returned-for-edit.");
-    var previousStageGroups = await service.GetTaskFieldGroupsAsync(returnedToPreviousStage.TaskId, reviewer.Id);
-    Check(previousStageGroups.Any(group => group.WorkflowStepId == requesterStep.Id &&
-          group.IsEditable && group.Fields.Any(field => field.Code == requesterCorrectionField.Code &&
-              field.Value == "شرح اصلاح ثبت‌شده")),
-        "A recipient at a previous workflow stage must be able to edit populated fields from later stages when the request is returned.");
 
-    await service.CompleteTaskAsync(returnedToPreviousStage.TaskId, reviewer.Id, "SaveDraft",
-        "اصلاح اطلاعات مرحله بعد", previousValues: new Dictionary<string, string?>
-        {
-            [requesterCorrectionField.Id.ToString()] = "شرح اصلاح‌شده توسط مسئول مرحله قبلی"
-        });
-    var correctedLaterStageValue = await db.WorkflowFieldValues.AsNoTracking()
-        .Where(x => x.WorkflowInstanceId == instance.Id && x.WorkflowStepFieldId == requesterCorrectionField.Id)
+    var previousStageGroups = await service.GetTaskFieldGroupsAsync(returnedToPreviousStage.TaskId, reviewer.Id);
+    var editableDestination = previousStageGroups.SingleOrDefault(group => group.WorkflowStepId == reviewStep.Id);
+    var readOnlyReturnSource = previousStageGroups.SingleOrDefault(group => group.WorkflowStepId == nextStep.Id);
+    Check(previousStageGroups.Count == 2 && editableDestination is { IsCurrentStep: true, IsEditable: true } &&
+          editableDestination.Fields.Any(field => field.Code == currentReviewFieldDefinition.Code),
+        "The returned-to stage must be editable for its assignee.");
+    Check(readOnlyReturnSource is { IsCurrentStep: false, IsEditable: false } &&
+          readOnlyReturnSource.Fields.Any(field => field.Code == nextReviewFieldDefinition.Code &&
+              field.Value == "اطلاعات ثبت‌شده در مرحله بعد") &&
+          previousStageGroups.All(group => group.WorkflowStepId != requesterStep.Id),
+        "Only the stage that issued the return is additionally displayed, and its data remains read-only.");
+
+    var returnedSourceEditRejected = false;
+    try
+    {
+        await service.CompleteTaskAsync(returnedToPreviousStage.TaskId, reviewer.Id, "SaveDraft",
+            "تلاش برای تغییر داده مرحله بازگرداننده",
+            previousValues: new Dictionary<string, string?>
+            {
+                [nextReviewFieldDefinition.Id.ToString()] = "نباید تغییر کند"
+            });
+    }
+    catch (InvalidOperationException)
+    {
+        returnedSourceEditRejected = true;
+    }
+    Check(returnedSourceEditRejected,
+        "A task returned to a specific step must not let its recipient edit the source step's read-only data.");
+
+    var preservedSourceValue = await db.WorkflowFieldValues.AsNoTracking()
+        .Where(x => x.WorkflowInstanceId == instance.Id && x.WorkflowStepFieldId == nextReviewFieldDefinition.Id)
         .OrderByDescending(x => x.UpdatedAt).ThenByDescending(x => x.Id)
         .Select(x => x.Value).FirstAsync();
-    Check(correctedLaterStageValue == "شرح اصلاح‌شده توسط مسئول مرحله قبلی",
-        "A returned task must be able to save changes to a previously populated field from a step with a later sort order, even when AllowEditPreviousData is disabled.");
+    Check(preservedSourceValue == "اطلاعات ثبت‌شده در مرحله بعد",
+        "The return-source stage data must remain unchanged after an unauthorized edit attempt.");
 
-    Console.WriteLine("PASS: workflow stage checkbox persistence, independent stage-rule preservation, requester correction inbox, return routing to requester and prior stage, editable returned data across stage order, and resumed routing.");
+    Console.WriteLine("PASS: stage checkbox persistence, preservation of separate stage rules, requester return, specific-stage return with editable destination and read-only source data.");
 }

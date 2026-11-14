@@ -63,8 +63,8 @@ END;
 IF OBJECT_ID(N'dbo.OutsourcedServiceRequests', N'U') IS NOT NULL
 AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.OutsourcedServiceRequests')
     AND name=N'IX_OutsourcedServiceRequests_IsDeleted_CreatedAtUtc')
-    CREATE INDEX IX_OutsourcedServiceRequests_IsDeleted_CreatedAtUtc
-        ON dbo.OutsourcedServiceRequests(IsDeleted, CreatedAtUtc DESC);
+    EXEC sys.sp_executesql N'CREATE INDEX IX_OutsourcedServiceRequests_IsDeleted_CreatedAtUtc
+        ON dbo.OutsourcedServiceRequests(IsDeleted, CreatedAtUtc DESC);';
 ";
         await db.Database.ExecuteSqlRawAsync(sql);
     }

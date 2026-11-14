@@ -177,6 +177,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
         if (string.IsNullOrWhiteSpace(model.Code) || string.IsNullOrWhiteSpace(model.Title))
             throw new InvalidOperationException("کد و عنوان مرحله الزامی است.");
+        if (model.SortOrder < 1)
+            throw new InvalidOperationException("ترتیب نمایش مرحله باید عددی مثبت باشد.");
 
         var assignmentType = model.AssignmentType is "Hierarchy" or "Employee" or "Requester" or "FieldPosition" ? model.AssignmentType : "Position";
         if (assignmentType == "Position" && !model.OrganizationNodeId.HasValue)
@@ -216,8 +218,9 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         }
         else
         {
-            entity = await db.WorkflowSteps.FindAsync(model.Id)
-                ?? throw new InvalidOperationException("مرحله یافت نشد.");
+            entity = await db.WorkflowSteps.FirstOrDefaultAsync(x =>
+                    x.Id == model.Id && x.WorkflowDefinitionId == definition.Id)
+                ?? throw new InvalidOperationException("مرحله در گردش کار انتخاب‌شده یافت نشد.");
         }
 
         entity.Code = model.Code.Trim();

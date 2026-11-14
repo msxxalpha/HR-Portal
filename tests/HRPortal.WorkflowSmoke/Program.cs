@@ -1605,18 +1605,18 @@ static async Task VerifyWorkflowStageEditingAndRequesterReturnAsync()
         AssignmentType = "Employee", AssignedEmployeeId = 0,
         AllowApprove = true, AllowReject = true, AllowReturn = true,
         RequireNotes = true, RequireCommentOnReturn = true,
-        AllowEditPreviousData = true
+        AllowEditPreviousData = false
     };
     var requesterStep = new WorkflowStep
     {
         WorkflowDefinition = definition, WorkflowDefinitionId = 1,
-        Code = "RequesterCorrection", Title = "اصلاح توسط درخواست‌کننده", SortOrder = 10,
+        Code = "RequesterCorrection", Title = "اصلاح توسط درخواست‌کننده", SortOrder = 30,
         AssignmentType = "Requester", AllowApprove = true, AllowReject = false, AllowReturn = false
     };
     var nextStep = new WorkflowStep
     {
         WorkflowDefinition = definition, WorkflowDefinitionId = 1,
-        Code = "NextReview", Title = "مرحله بعدی", SortOrder = 30,
+        Code = "NextReview", Title = "مرحله بعدی", SortOrder = 40,
         AssignmentType = "Employee", AssignedEmployeeId = 0
     };
     definition.Steps.Add(reviewStep);
@@ -1775,5 +1775,17 @@ static async Task VerifyWorkflowStageEditingAndRequesterReturnAsync()
               field.Value == "شرح اصلاح ثبت‌شده")),
         "A recipient at a previous workflow stage must be able to edit populated fields from later stages when the request is returned.");
 
-    Console.WriteLine("PASS: workflow stage checkbox persistence, independent stage-rule preservation, requester correction inbox, return routing to requester and prior stage, editability of returned form data and resumed routing.");
+    await service.CompleteTaskAsync(returnedToPreviousStage.TaskId, reviewer.Id, "SaveDraft",
+        "اصلاح اطلاعات مرحله بعد", previousValues: new Dictionary<string, string?>
+        {
+            [requesterCorrectionField.Id.ToString()] = "شرح اصلاح‌شده توسط مسئول مرحله قبلی"
+        });
+    var correctedLaterStageValue = await db.WorkflowFieldValues.AsNoTracking()
+        .Where(x => x.WorkflowInstanceId == instance.Id && x.WorkflowStepFieldId == requesterCorrectionField.Id)
+        .OrderByDescending(x => x.UpdatedAt).ThenByDescending(x => x.Id)
+        .Select(x => x.Value).FirstAsync();
+    Check(correctedLaterStageValue == "شرح اصلاح‌شده توسط مسئول مرحله قبلی",
+        "A returned task must be able to save changes to a previously populated field from a step with a later sort order, even when AllowEditPreviousData is disabled.");
+
+    Console.WriteLine("PASS: workflow stage checkbox persistence, independent stage-rule preservation, requester correction inbox, return routing to requester and prior stage, editable returned data across stage order, and resumed routing.");
 }

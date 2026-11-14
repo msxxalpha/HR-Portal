@@ -68,7 +68,7 @@ public sealed class OutsourcedServicesController(
         ViewBag.Priorities = Priorities;
         return View(new OutsourcedServiceRequestFormVm
         {
-            NeedByDateJalali = PersianDateService.Format(DateTime.Today)
+            NeedByDateJalali = PersianDateService.Format(PersianDateService.ToTehran(DateTime.UtcNow))
         });
     }
 
@@ -112,7 +112,8 @@ public sealed class OutsourcedServicesController(
         };
         db.OutsourcedServiceRequests.Add(item);
         await db.SaveChangesAsync();
-        item.RequestNumber = $"OS-{DateTime.UtcNow:yyyy}-{item.Id:000000}";
+        var jalaliYear = PersianDateService.Format(PersianDateService.ToTehran(DateTime.UtcNow))[..4];
+        item.RequestNumber = $"OS-{jalaliYear}-{item.Id:000000}";
         await db.SaveChangesAsync();
 
         try

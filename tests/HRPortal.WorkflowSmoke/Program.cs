@@ -1683,6 +1683,13 @@ static async Task VerifyWorkflowStageEditingAndRequesterReturnAsync()
             ToStepId = nextStep.Id,
             Action = "Approve",
             Title = "ادامه پس از اصلاح درخواست‌کننده"
+        },
+        new WorkflowTransition
+        {
+            WorkflowStepId = nextStep.Id,
+            ToStepId = reviewStep.Id,
+            Action = "Return",
+            Title = "برگشت به بررسی مسئول برای اصلاح"
         });
     var instance = new WorkflowInstance
     {
@@ -1707,6 +1714,24 @@ static async Task VerifyWorkflowStageEditingAndRequesterReturnAsync()
     };
     instance.Tasks.Add(initialTask);
     await db.AddRangeAsync(instance, initialTask);
+    await db.SaveChangesAsync();
+
+    var requesterCorrectionField = await db.WorkflowStepFields
+        .SingleAsync(x => x.WorkflowStepId == requesterStep.Id && x.Code == "requesterCorrection");
+    db.WorkflowFieldValues.Add(new WorkflowFieldValue
+    {
+        WorkflowInstanceId = instance.Id,
+        WorkflowInstance = instance,
+        WorkflowStepId = requesterStep.Id,
+        WorkflowStep = requesterStep,
+        WorkflowStepFieldId = requesterCorrectionField.Id,
+        WorkflowStepField = requesterCorrectionField,
+        FieldCode = requesterCorrectionField.Code,
+        FieldTitle = requesterCorrectionField.Title,
+        FieldType = requesterCorrectionField.FieldType,
+        Value = "شرح اصلاح ثبت‌شده",
+        UpdatedByEmployeeId = requester.Id
+    });
     await db.SaveChangesAsync();
 
     await service.CompleteTaskAsync(initialTask.Id, reviewer.Id, "Return",
@@ -1735,5 +1760,20 @@ static async Task VerifyWorkflowStageEditingAndRequesterReturnAsync()
           (await service.GetInboxAsync(nextReviewer.Id)).Any(x => x.TaskId == nextTask.Id),
         "The next workflow stage must be assigned to its configured employee after requester resubmission.");
 
-    Console.WriteLine("PASS: workflow stage checkbox persistence, independent stage-rule preservation, requester correction inbox, editable return form and resumed approval routing.");
+    await service.CompleteTaskAsync(nextTask.Id, nextReviewer.Id, "Return",
+        "اطلاعات مرحله قبلی نیازمند اصلاح است.");
+    var previousStageInbox = await service.GetInboxAsync(reviewer.Id);
+    var returnedToPreviousStage = previousStageInbox.SingleOrDefault(x => x.WorkflowInstanceId == instance.Id);
+    Check(returnedToPreviousStage is not null,
+        "A Return route targeting an earlier employee stage must return the request to that stage's assignee.");
+    var previousStageTask = await service.GetTaskAsync(returnedToPreviousStage!.TaskId, reviewer.Id);
+    Check(previousStageTask is not null && previousStageTask.Action == "ReturnedForEdit",
+        "Tasks created by any Return route must be marked as returned-for-edit.");
+    var previousStageGroups = await service.GetTaskFieldGroupsAsync(returnedToPreviousStage.TaskId, reviewer.Id);
+    Check(previousStageGroups.Any(group => group.WorkflowStepId == requesterStep.Id &&
+          group.IsEditable && group.Fields.Any(field => field.Code == requesterCorrectionField.Code &&
+              field.Value == "شرح اصلاح ثبت‌شده")),
+        "A recipient at a previous workflow stage must be able to edit populated fields from later stages when the request is returned.");
+
+    Console.WriteLine("PASS: workflow stage checkbox persistence, independent stage-rule preservation, requester correction inbox, return routing to requester and prior stage, editability of returned form data and resumed routing.");
 }

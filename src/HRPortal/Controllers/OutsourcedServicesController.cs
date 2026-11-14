@@ -137,8 +137,9 @@ public sealed class OutsourcedServicesController(
     [HttpGet]
     public async Task<IActionResult> Details(int id)
     {
+        if (!Has("OutsourcedServices.Create") && !Has("OutsourcedServices.ViewAll") && !Has("OutsourcedServices.Reports")) return Forbid();
         var query = db.OutsourcedServiceRequests.AsNoTracking().AsQueryable();
-        if (!Has("OutsourcedServices.ViewAll"))
+        if (!Has("OutsourcedServices.ViewAll") && !Has("OutsourcedServices.Reports"))
         {
             if (!TryEmployeeId(out var employeeId)) return Forbid();
             query = query.Where(x => x.RequesterEmployeeId == employeeId);

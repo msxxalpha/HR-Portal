@@ -6,6 +6,7 @@
     var history = ViewBag.History as List<WorkflowHistory> ?? [];
     var groups = ViewBag.FieldGroups as List<WorkflowTaskFieldGroup> ?? [];
     var suggestion = ViewBag.WorkflowSuggestion as Suggestion;
+    var outsourcedService = ViewBag.WorkflowOutsourcedServiceRequest as HRPortal.Models.OutsourcedServiceRequest;
     var workflowPositions = ViewBag.WorkflowPositions as List<OrganizationNode> ?? [];
 }
 @if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
@@ -55,6 +56,24 @@
             <dt>توضیحات منابع</dt><dd>@(suggestion.ResourceDetails ?? "—")</dd>
             <dt>اعضای گروه</dt><dd>@(suggestion.Members.Count == 0 ? "فقط پیشنهاددهنده" : string.Join("، ", suggestion.Members.Select(x => x.EmployeeNameSnapshot)))</dd>
             <dt>پیوست‌ها</dt><dd>@(suggestion.Attachments.Count == 0 ? "بدون پیوست" : string.Join("، ", suggestion.Attachments.Select(x => x.OriginalFileName)))</dd>
+        </dl>
+    </section>
+}
+
+
+@if (outsourcedService != null)
+{
+    var outsourcedPriority = outsourcedService.Priority switch { "Emergency" => "اضطراری", "Urgent" => "فوری", _ => "عادی" };
+    <section class="card form-stack" style="margin-top:1rem">
+        <div class="section-head"><div><h3>مشخصات سفارش خدمات برونسپاری</h3><span class="muted">@outsourcedService.RequestNumber</span></div>
+            <a class="btn btn-outline" href="/OutsourcedServices/Details/@outsourcedService.Id">مشاهده صفحه درخواست</a>
+        </div>
+        <dl class="detail-list">
+            <dt>شرح خدمات درخواستی</dt><dd>@outsourcedService.ServiceDescription</dd>
+            <dt>مقدار و واحد سنجش</dt><dd>@outsourcedService.Quantity.ToString("0.###") @outsourcedService.UnitOfMeasure</dd>
+            <dt>تاریخ نیازمندی</dt><dd>@HRPortal.Services.PersianDateService.Format(outsourcedService.NeedByDate)</dd>
+            <dt>اولویت</dt><dd>@outsourcedPriority</dd>
+            <dt>تاریخ ثبت</dt><dd>@HRPortal.Services.PersianDateService.FormatDateTime(HRPortal.Services.PersianDateService.ToTehran(outsourcedService.CreatedAtUtc))</dd>
         </dl>
     </section>
 }

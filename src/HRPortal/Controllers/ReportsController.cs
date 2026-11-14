@@ -225,6 +225,45 @@ public class ReportsController(HRPortalDbContext db, RoleService roles) : Contro
             .OrderByDescending(x => x.StartedAt)
             .ToListAsync(cancellationToken);
 
+        // A workflow's primary type is the operational form (FormCode), not the
+        // individual workflow definition title. Many definitions/versions can
+        // therefore share one report filter option.
+        var formCodes = instances.Select(x => x.WorkflowDefinition?.FormCode)
+            .Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var formTitles = await db.SystemFormDefinitions.AsNoTracking()
+            .Where(x => formCodes.Contains(x.Code))
+            .Select(x => new { x.Code, x.Title })
+            .ToDictionaryAsync(x => x.Code, x => x.Title, StringComparer.OrdinalIgnoreCase, cancellationToken);
+
+        string ResolveWorkflowTypeCode(WorkflowDefinition? definition) =>
+            !string.IsNullOrWhiteSpace(definition?.FormCode)
+                ? definition.FormCode.Trim()
+                : !string.IsNullOrWhiteSpace(definition?.Code) ? "workflow:" + definition.Code.Trim() : "workflow:unknown";
+
+        string ResolveWorkflowTypeTitle(WorkflowDefinition? definition)
+        {
+            if (!string.IsNullOrWhiteSpace(definition?.FormCode))
+            {
+                var formCode = definition.FormCode.Trim();
+                if (formTitles.TryGetValue(formCode, out var formTitle) && !string.IsNullOrWhiteSpace(formTitle))
+                    return formTitle;
+                return formCode;
+            }
+            return definition?.Title ?? "گردش کار";
+        }
+
+        model.WorkflowOptions = instances
+            .Select(x => x.WorkflowDefinition)
+            .GroupBy(ResolveWorkflowTypeCode, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new ExecutiveWorkflowTypeOption
+            {
+                Code = group.Key,
+                Title = ResolveWorkflowTypeTitle(group.First())
+            })
+            .OrderBy(x => x.Title, StringComparer.CurrentCulture)
+            .ToList();
+
         var allRows = instances.Select(instance =>
         {
             var relevantTasks = instance.Tasks.Where(t =>
@@ -274,6 +313,8 @@ public class ReportsController(HRPortalDbContext db, RoleService roles) : Contro
                 Id = instance.Id,
                 RequestCode = $"{instance.EntityType} · {instance.EntityId}",
                 WorkflowTitle = instance.WorkflowDefinition?.Title ?? "گردش کار",
+                WorkflowTypeCode = ResolveWorkflowTypeCode(instance.WorkflowDefinition),
+                WorkflowTypeTitle = ResolveWorkflowTypeTitle(instance.WorkflowDefinition),
                 RequesterName = $"{instance.RequesterEmployee?.FirstName} {instance.RequesterEmployee?.LastName}".Trim(),
                 RequesterPersonnelNumber = instance.RequesterEmployee?.PersonnelNumber ?? "—",
                 Direction = isIncoming && isOutgoing ? "ورودی و خروجی" : isIncoming ? "ورودی" : "خروجی",
@@ -313,7 +354,7 @@ public class ReportsController(HRPortalDbContext db, RoleService roles) : Contro
                 _ => true
             }).ToList();
         if (model.Workflow != "all")
-            allRows = allRows.Where(x => x.WorkflowTitle == model.Workflow).ToList();
+            allRows = allRows.Where(x => string.Equals(x.WorkflowTypeCode, model.Workflow, StringComparison.OrdinalIgnoreCase)).ToList();
         if (model.OrganizationalRank != "all")
         {
             var employeesInRank = model.EmployeeOptions
@@ -355,7 +396,6 @@ public class ReportsController(HRPortalDbContext db, RoleService roles) : Contro
         model.AverageCompletionDays = completedRows.Count == 0 ? 0 :
             Math.Round(completedRows.Average(x => (x.CompletedAt!.Value - x.StartedAt).TotalDays), 1);
 
-        model.WorkflowOptions = model.Rows.Select(x => x.WorkflowTitle).Distinct().OrderBy(x => x).ToList();
         model.StatusChart =
         [
             new() { Label = "در حال گردش", Count = model.InProgressCount, Color = "#2563eb" },
@@ -369,7 +409,7 @@ public class ReportsController(HRPortalDbContext db, RoleService roles) : Contro
             new() { Label = "ورودی", Count = model.IncomingCount, Color = "#0f766e" },
             new() { Label = "خروجی", Count = model.OutgoingCount, Color = "#7c3aed" }
         ];
-        model.WorkflowChart = model.Rows.GroupBy(x => x.WorkflowTitle)
+        model.WorkflowChart = model.Rows.GroupBy(x => x.WorkflowTypeTitle)
             .Select(g => new ExecutiveWorkflowChartItem { Label = g.Key, Count = g.Count(), Color = "#475569" })
             .OrderByDescending(x => x.Count).Take(8).ToList();
 

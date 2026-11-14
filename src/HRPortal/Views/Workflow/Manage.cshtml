@@ -60,13 +60,11 @@ else
     <div class="section-head"><div><h3>مراحل</h3><span class="muted">تخصیص می‌تواند ثابت، زنجیره‌ای، درخواست‌کننده یا بر اساس جایگاه انتخاب‌شده در یک مرحله قبلی باشد.</span></div></div>
     @foreach (var step in selected.Steps.OrderBy(x => x.SortOrder))
     {
-        @{
             var requesterSteps = selected.Steps.Where(x => x.Id != step.Id && x.AssignmentType == "Requester")
                 .OrderBy(x => x.SortOrder).ThenBy(x => x.Id).ToList();
             var approveTransition = step.OutgoingTransitions.FirstOrDefault(x => x.Action == "Approve" && string.IsNullOrWhiteSpace(x.ConditionFieldCode));
             var returnTransition = step.OutgoingTransitions.FirstOrDefault(x => x.Action == "Return" && string.IsNullOrWhiteSpace(x.ConditionFieldCode));
             var rejectTransition = step.OutgoingTransitions.FirstOrDefault(x => x.Action == "Reject" && string.IsNullOrWhiteSpace(x.ConditionFieldCode));
-        }
         <details class="workflow-step-card workflow-step-collapsible">
             <summary class="workflow-step-head">
                 <span class="workflow-step-summary-main">
@@ -349,7 +347,7 @@ else
 .workflow-conditional-routes > summary { cursor: pointer; font-weight: 600; color: #334155; }
 .workflow-conditional-editor { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; margin-top: .85rem; }
 .workflow-stage-footer { display: flex; justify-content: flex-end; border-top: 1px solid #e2e8f0; padding-top: .8rem; }
-@media (max-width: 950px) { .workflow-route-grid { grid-template-columns: 1fr; } .workflow-conditional-editor { grid-template-columns: 1fr; } }
+@@media (max-width: 950px) { .workflow-route-grid { grid-template-columns: 1fr; } .workflow-conditional-editor { grid-template-columns: 1fr; } }
 @media (max-width: 650px) { .workflow-step-summary-main { flex-direction: column; align-items: flex-start; gap: .25rem; } .workflow-step-toggle-label { margin-inline-start: 0; } }
 </style>
 

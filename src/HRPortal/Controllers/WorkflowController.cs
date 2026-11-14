@@ -518,10 +518,23 @@ public class WorkflowController(
     [HttpPost]
     [Authorize(Policy = "Workflow.Manage")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> SaveTransition(int stepId, int definitionId, string action, int? toStepId,
+    public async Task<IActionResult> SaveTransition(int stepId, int definitionId, string action, string? toStepId,
         string? conditionFieldCode, string conditionOperator = "Equals", string? conditionValue = null)
     {
-        try { await workflow.SaveTransitionAsync(stepId, action, toStepId, conditionFieldCode, conditionOperator, conditionValue); TempData["Success"] = "مسیر گردش کار ذخیره شد."; }
+        try
+        {
+            var returnToRequester = string.Equals(toStepId, "__REQUESTER__", StringComparison.Ordinal);
+            int? targetStepId = null;
+            if (!returnToRequester && !string.IsNullOrWhiteSpace(toStepId))
+            {
+                if (!int.TryParse(toStepId, out var parsedStepId))
+                    throw new InvalidOperationException("مقصد انتخاب‌شده برای مسیر گردش کار معتبر نیست.");
+                targetStepId = parsedStepId;
+            }
+            await workflow.SaveTransitionAsync(stepId, action, targetStepId,
+                conditionFieldCode, conditionOperator, conditionValue, returnToRequester);
+            TempData["Success"] = "مسیر گردش کار ذخیره شد.";
+        }
         catch (Exception ex) { TempData["Error"] = ex.Message; }
         return RedirectToAction(nameof(Manage), new { id = definitionId });
     }

@@ -461,27 +461,27 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .OrderByDescending(x => x.UpdatedAt).ThenByDescending(x => x.Id)
             .ToListAsync();
         var groups = new List<WorkflowTaskFieldGroup>();
+        var isReturnedForEdit = task.Action == "ReturnedForEdit";
+        var returnSourceStepId = isReturnedForEdit
+            ? await db.WorkflowHistory.AsNoTracking()
+                .Where(h => h.WorkflowInstanceId == task.WorkflowInstanceId &&
+                    h.Action == "Return" && h.WorkflowStepId.HasValue)
+                .OrderByDescending(h => h.CreatedAt).ThenByDescending(h => h.Id)
+                .Select(h => h.WorkflowStepId)
+                .FirstOrDefaultAsync()
+            : null;
+
         foreach (var step in steps)
         {
             var allStepFields = fields.Where(x => x.WorkflowStepId == step.Id).ToList();
             var isCurrent = step.Id == task.WorkflowStepId;
-            var isReturnedForEdit = task.Action == "ReturnedForEdit";
-            var returnSourceStepId = isReturnedForEdit
-                ? await db.WorkflowHistory.AsNoTracking()
-                    .Where(h => h.WorkflowInstanceId == task.WorkflowInstanceId &&
-                        h.Action == "Return" && h.WorkflowStepId.HasValue)
-                    .OrderByDescending(h => h.CreatedAt).ThenByDescending(h => h.Id)
-                    .Select(h => h.WorkflowStepId)
-                    .FirstOrDefaultAsync()
-                : null;
             var isReturnSourceStep = isReturnedForEdit && returnSourceStepId == step.Id;
+            var hasSavedValues = allStepFields.Where(f => values.Any(v => v.WorkflowStepFieldId == f.Id)).ToList();
             var stepFields = isCurrent
                 ? allStepFields
                 : isReturnedForEdit
-                    ? isReturnSourceStep
-                        ? allStepFields.Where(f => values.Any(v => v.WorkflowStepFieldId == f.Id)).ToList()
-                        : []
-                    : allStepFields.Where(f => values.Any(v => v.WorkflowStepFieldId == f.Id)).ToList();
+                    ? isReturnSourceStep ? hasSavedValues : []
+                    : step.SortOrder < task.WorkflowStep.SortOrder ? hasSavedValues : [];
             if (stepFields.Count == 0) continue;
             groups.Add(new WorkflowTaskFieldGroup
             {

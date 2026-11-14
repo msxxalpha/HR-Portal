@@ -158,8 +158,9 @@ public class SuggestionsController(HRPortalDbContext db, IWebHostEnvironment env
         var isOwner = hasCurrentEmployee && item.ProposerEmployeeId == currentEmployeeId;
         ViewBag.CanDeleteSuggestion = (item.Status == "Draft" || item.Status == "Submitted") &&
             (CanManage || isOwner);
+        var isReturnedForEdit = item.Status == "Submitted" && await CanEditSubmittedSuggestionAsync(item);
         ViewBag.CanEditSuggestion = (item.Status == "Draft" && (CanManage || isOwner)) ||
-            (IsAdmin && item.Status == "Submitted");
+            (IsAdmin && item.Status == "Submitted") || isReturnedForEdit;
         return View(item);
     }
 
@@ -274,9 +275,10 @@ public class SuggestionsController(HRPortalDbContext db, IWebHostEnvironment env
                 .Where(task => task.WorkflowInstance.EntityType == "Suggestion" &&
                     task.WorkflowInstance.EntityId == item.Id.ToString() &&
                     task.WorkflowInstance.Status == "InProgress" &&
-                    task.WorkflowStep.AssignmentType == "Requester" &&
+                    task.WorkflowInstance.CurrentStepId == task.WorkflowStepId &&
                     task.Status == "Pending" &&
-                    task.AssignedEmployeeId == item.ProposerEmployeeId)
+                    task.AssignedEmployeeId == item.ProposerEmployeeId &&
+                    task.Action == "ReturnedForEdit")
                 .Select(task => (int?)task.Id)
                 .FirstOrDefaultAsync();
             if (returnedTaskId.HasValue)
@@ -313,10 +315,11 @@ public class SuggestionsController(HRPortalDbContext db, IWebHostEnvironment env
             task.WorkflowInstance.EntityType == "Suggestion" &&
             task.WorkflowInstance.EntityId == item.Id.ToString() &&
             task.WorkflowInstance.Status == "InProgress" &&
+            task.WorkflowInstance.CurrentStepId == task.WorkflowStepId &&
             task.WorkflowInstance.RequesterEmployeeId == item.ProposerEmployeeId &&
-            task.WorkflowStep.AssignmentType == "Requester" &&
             task.Status == "Pending" &&
-            task.AssignedEmployeeId == item.ProposerEmployeeId);
+            task.AssignedEmployeeId == item.ProposerEmployeeId &&
+            task.Action == "ReturnedForEdit");
     }
 
     private async Task<List<SuggestionEmployeeOption>> Options(IEnumerable<int> ids,int proposerId)

@@ -37,6 +37,7 @@ public class ExecutiveWorkflowTypeOption
 {
     public string Code { get; set; } = "";
     public string Title { get; set; } = "";
+    public int Count { get; set; }
 }
 
 public class ExecutiveWorkflowEmployeeOption

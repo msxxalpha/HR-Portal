@@ -22,6 +22,7 @@ await VerifyRoleAdministrationAsync();
 await VerifyImprovementActionsAsync();
 await VerifyEffectiveEmployeePermissionMatrixAsync();
 await VerifySuggestionsAnalyticsAsync();
+await VerifyWorkflowStageEditingAndRequesterReturnAsync();
 
 var workflowPostedForm = new FormCollection(new Dictionary<string, StringValues>
 {
@@ -1566,4 +1567,173 @@ static async Task VerifyImprovementActionsAsync()
     Check(archivedPeriodRejected, "Improvement actions from archived evaluation periods must be read-only.");
 
     Console.WriteLine("PASS: improvement action ownership, partial-score eligibility, due dates, status transitions, personal listing and evaluator-scope filtering.");
+}
+
+
+
+static async Task VerifyWorkflowStageEditingAndRequesterReturnAsync()
+{
+    var options = new DbContextOptionsBuilder<HRPortalDbContext>()
+        .UseInMemoryDatabase("workflow-stage-editing-requester-return")
+        .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+        .Options;
+    await using var db = new HRPortalDbContext(options);
+
+    static Employee Person(string code, string firstName) => new()
+    {
+        PersonnelNumber = code,
+        NationalId = "N-" + code,
+        FirstName = firstName,
+        LastName = "آزمایشی",
+        Mobile = "09120000000",
+        Gender = "مرد",
+        Status = "فعال",
+        IsSystemUser = true
+    };
+
+    var requester = Person("RET-REQUESTER", "درخواست‌کننده");
+    var reviewer = Person("RET-REVIEWER", "بررسی‌کننده");
+    var nextReviewer = Person("RET-NEXT", "مسئول بعدی");
+    var definition = new WorkflowDefinition
+    {
+        Code = "RETURN-EDIT-SMOKE", Title = "آزمون مسیر برگشت", IsActive = true
+    };
+    var reviewStep = new WorkflowStep
+    {
+        WorkflowDefinition = definition, WorkflowDefinitionId = 1,
+        Code = "Review", Title = "بررسی مسئول", SortOrder = 20,
+        AssignmentType = "Employee", AssignedEmployeeId = 0,
+        AllowApprove = true, AllowReject = true, AllowReturn = true,
+        RequireNotes = true, RequireCommentOnReturn = true,
+        AllowEditPreviousData = true
+    };
+    var requesterStep = new WorkflowStep
+    {
+        WorkflowDefinition = definition, WorkflowDefinitionId = 1,
+        Code = "RequesterCorrection", Title = "اصلاح توسط درخواست‌کننده", SortOrder = 10,
+        AssignmentType = "Requester", AllowApprove = true, AllowReject = false, AllowReturn = false
+    };
+    var nextStep = new WorkflowStep
+    {
+        WorkflowDefinition = definition, WorkflowDefinitionId = 1,
+        Code = "NextReview", Title = "مرحله بعدی", SortOrder = 30,
+        AssignmentType = "Employee", AssignedEmployeeId = 0
+    };
+    definition.Steps.Add(reviewStep);
+    definition.Steps.Add(requesterStep);
+    definition.Steps.Add(nextStep);
+    await db.AddRangeAsync(requester, reviewer, nextReviewer, definition);
+    await db.SaveChangesAsync();
+
+    reviewStep.AssignedEmployeeId = reviewer.Id;
+    nextStep.AssignedEmployeeId = nextReviewer.Id;
+    await db.SaveChangesAsync();
+
+    var service = new WorkflowService(db,
+        new AuditService(new AuditLogQueue(), new HttpContextAccessor()));
+
+    // The workflow designer posts false explicitly for unchecked checkboxes.
+    // Saving stage properties must persist the posted flags and must not overwrite
+    // the separate previous-data/notes rules that are edited by SaveStepRulesAsync.
+    await service.SaveStepAsync(new WorkflowStepEditModel
+    {
+        Id = reviewStep.Id,
+        WorkflowDefinitionId = definition.Id,
+        Code = reviewStep.Code,
+        Title = reviewStep.Title,
+        SortOrder = reviewStep.SortOrder,
+        AssignmentType = "Employee",
+        AssignedEmployeeId = reviewer.Id,
+        AssignmentMode = "Any",
+        AllowApprove = false,
+        AllowReject = false,
+        AllowReturn = true,
+        RequireCommentOnReject = false,
+        RequireCommentOnReturn = true,
+        IsFinalStep = false
+    });
+    var savedReviewStep = await db.WorkflowSteps.SingleAsync(x => x.Id == reviewStep.Id);
+    Check(!savedReviewStep.AllowApprove && !savedReviewStep.AllowReject &&
+          savedReviewStep.AllowReturn && !savedReviewStep.RequireCommentOnReject &&
+          savedReviewStep.RequireCommentOnReturn,
+        "Saving workflow stage checkboxes must persist both checked and unchecked states.");
+    Check(savedReviewStep.AllowEditPreviousData && savedReviewStep.RequireNotes,
+        "Saving general stage properties must preserve settings owned by the separate stage-rules form.");
+
+    db.WorkflowStepFields.Add(new WorkflowStepField
+    {
+        WorkflowStepId = requesterStep.Id,
+        Code = "requesterCorrection",
+        Title = "شرح اصلاحات",
+        FieldType = "TextArea",
+        SortOrder = 10,
+        IsRequired = true
+    });
+    db.WorkflowTransitions.AddRange(
+        new WorkflowTransition
+        {
+            WorkflowStepId = reviewStep.Id,
+            ToStepId = requesterStep.Id,
+            Action = "Return",
+            Title = "برگشت به درخواست‌کننده"
+        },
+        new WorkflowTransition
+        {
+            WorkflowStepId = requesterStep.Id,
+            ToStepId = nextStep.Id,
+            Action = "Approve",
+            Title = "ادامه پس از اصلاح درخواست‌کننده"
+        });
+    var instance = new WorkflowInstance
+    {
+        WorkflowDefinitionId = definition.Id,
+        WorkflowDefinition = definition,
+        EntityType = "Smoke",
+        EntityId = "RETURN-1",
+        RequesterEmployeeId = requester.Id,
+        RequesterEmployee = requester,
+        CurrentStepId = reviewStep.Id,
+        CurrentStep = reviewStep,
+        Status = "InProgress"
+    };
+    var initialTask = new WorkflowTask
+    {
+        WorkflowInstance = instance,
+        WorkflowInstanceId = 1,
+        WorkflowStep = reviewStep,
+        WorkflowStepId = reviewStep.Id,
+        AssignedEmployeeId = reviewer.Id,
+        Status = "Pending"
+    };
+    instance.Tasks.Add(initialTask);
+    await db.AddRangeAsync(instance, initialTask);
+    await db.SaveChangesAsync();
+
+    await service.CompleteTaskAsync(initialTask.Id, reviewer.Id, "Return",
+        "اطلاعات درخواست‌کننده باید اصلاح شود.");
+
+    var requesterInbox = await service.GetInboxAsync(requester.Id);
+    var requesterTaskRow = requesterInbox.SingleOrDefault(x => x.WorkflowInstanceId == instance.Id);
+    Check(requesterTaskRow is not null,
+        "A Return route targeting an AssignmentType=Requester stage must create a task in the original requester's inbox.");
+    var requesterTask = await service.GetTaskAsync(requesterTaskRow!.TaskId, requester.Id);
+    Check(requesterTask is not null && requesterTask.WorkflowStepId == requesterStep.Id,
+        "The original requester must be able to open the returned correction task.");
+    var fieldGroups = await service.GetTaskFieldGroupsAsync(requesterTaskRow.TaskId, requester.Id);
+    Check(fieldGroups.Count == 1 && fieldGroups[0].IsCurrentStep && fieldGroups[0].IsEditable &&
+          fieldGroups[0].Fields.Any(x => x.Code == "requesterCorrection"),
+        "The requester must receive an editable form for the requester-correction step.");
+
+    await service.CompleteTaskAsync(requesterTaskRow.TaskId, requester.Id, "Approve",
+        "اصلاحات ثبت و برای ادامه گردش ارسال شد.");
+    var refreshedInstance = await db.WorkflowInstances.SingleAsync(x => x.Id == instance.Id);
+    Check(refreshedInstance.Status == "InProgress" && refreshedInstance.CurrentStepId == nextStep.Id,
+        "After requester resubmission, the workflow must continue using the requester step's configured approval route.");
+    var nextTask = await db.WorkflowTasks.SingleAsync(x =>
+        x.WorkflowInstanceId == instance.Id && x.WorkflowStepId == nextStep.Id && x.Status == "Pending");
+    Check(nextTask.AssignedEmployeeId == nextReviewer.Id &&
+          (await service.GetInboxAsync(nextReviewer.Id)).Any(x => x.TaskId == nextTask.Id),
+        "The next workflow stage must be assigned to its configured employee after requester resubmission.");
+
+    Console.WriteLine("PASS: workflow stage checkbox persistence, independent stage-rule preservation, requester correction inbox, editable return form and resumed approval routing.");
 }

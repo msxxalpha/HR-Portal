@@ -366,15 +366,15 @@ public class WorkflowController(
         if (task.WorkflowInstance.EntityType == ContractRenewalWorkflowService.WorkflowEntityType)
             return RedirectToAction("Details", "ContractRenewalTask", new { id });
 
-        // Dictionary model binding can fall back to unrelated form keys when a
-        // collection prefix is not recognized. Read only the explicitly named
-        // values[...] and previousValues[...] fields from the posted form.
-        var postedForm = await Request.ReadFormAsync(HttpContext.RequestAborted);
-        var values = ReadPrefixedFormValues(postedForm, "values");
-        var previousValues = ReadPrefixedFormValues(postedForm, "previousValues");
-
         try
         {
+            // Dictionary model binding can fall back to unrelated form keys when a
+            // collection prefix is not recognized. Read only the explicitly named
+            // values[...] and previousValues[...] fields from the posted form.
+            var postedForm = await Request.ReadFormAsync(HttpContext.RequestAborted);
+            var values = ReadPrefixedFormValues(postedForm, "values");
+            var previousValues = ReadPrefixedFormValues(postedForm, "previousValues");
+
             await workflow.CompleteTaskAsync(id, employeeId, action, comment, values, previousValues);
             TempData["Success"] = action == "SaveDraft" ? "پیش‌نویس مرحله ذخیره شد." : "اقدام گردش کار با موفقیت ثبت شد.";
         }

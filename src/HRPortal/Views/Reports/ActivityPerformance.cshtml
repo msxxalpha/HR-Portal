@@ -42,9 +42,10 @@
                         <option value="cancelled" selected="@(Model.Status == "cancelled")">لغوشده</option>
                     </select>
                 </label>
-                <label>نوع گردش کار
-                    <select name="workflow"><option value="all">همه انواع</option>
-                        @foreach (var item in Model.WorkflowOptions) { <option value="@item" selected="@(Model.Workflow == item)">@item</option> }
+                <label>نوع اصلی گردش کار
+                    <select name="workflow">
+                        <option value="all" selected="@(Model.Workflow == "all")">همه انواع</option>
+                        @foreach (var item in Model.WorkflowOptions) { <option value="@item.Code" selected="@(Model.Workflow == item.Code)">@item.Title</option> }
                     </select>
                 </label>
                 <label>رده سازمانی
@@ -99,7 +100,7 @@
                 <div class="exec-muted">یک درخواست ممکن است هم ورودی و هم خروجی محسوب شود؛ بنابراین این دو شاخص الزاماً جمعشان برابر کل نیست.</div>
             </div>
             <div class="exec-panel">
-                <h3>پرتکرارترین انواع گردش کار</h3>
+                <h3>پرتکرارترین انواع اصلی گردش کار</h3>
                 @if (Model.WorkflowChart.Count == 0) { <div class="exec-muted">داده‌ای برای نمایش وجود ندارد.</div> }
                 @foreach (var item in Model.WorkflowChart)
                 {
@@ -129,13 +130,13 @@
             {
                 <div class="exec-table-wrap">
                     <table class="exec-table" id="requestTable">
-                        <thead><tr><th>درخواست</th><th>نوع گردش کار</th><th>جهت</th><th>درخواست‌کننده</th><th>وضعیت</th><th>مرحله جاری</th><th>مالک/کارتابل جاری</th><th>تاریخ ثبت</th><th>سن گردش</th><th>آخرین اقدام</th><th>نشانگر کیفی</th><th>جزئیات</th></tr></thead>
+                        <thead><tr><th>درخواست</th><th>نوع اصلی گردش کار / تعریف</th><th>جهت</th><th>درخواست‌کننده</th><th>وضعیت</th><th>مرحله جاری</th><th>مالک/کارتابل جاری</th><th>تاریخ ثبت</th><th>سن گردش</th><th>آخرین اقدام</th><th>نشانگر کیفی</th><th>جزئیات</th></tr></thead>
                         <tbody>
                         @foreach (var row in Model.Rows)
                         {
                             <tr>
                                 <td><strong>@row.RequestCode</strong><div class="exec-muted">شناسه گردش: @row.Id</div></td>
-                                <td>@row.WorkflowTitle</td>
+                                <td>@row.WorkflowTypeTitle<div class="exec-muted">تعریف: @row.WorkflowTitle</div></td>
                                 <td><span class="exec-pill @(row.Direction.Contains("ورودی") && row.Direction.Contains("خروجی") ? "neutral" : row.Direction == "ورودی" ? "info" : "neutral")">@row.Direction</span></td>
                                 <td>@row.RequesterName<div class="exec-muted">شماره پرسنلی: @row.RequesterPersonnelNumber</div></td>
                                 <td><span class="exec-pill @(row.Status == "Approved" || row.Status == "Completed" ? "success" : row.Status == "Rejected" ? "danger" : row.Status == "Returned" ? "warning" : "info")">@row.StatusTitle</span></td>

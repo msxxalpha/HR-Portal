@@ -312,14 +312,42 @@ else
             <label class="assignment-field-code">کد فیلد انتخاب جایگاه<input name="AssignmentFieldCode" maxlength="100" placeholder="SelectedPosition" /><small>این کد باید با فیلد «انتخاب جایگاه سازمانی فعال» در یکی از مراحل قبلی یکسان باشد.</small></label>
             <label class="assignment-hierarchy">توقف مسیر پویا در رده<select name="HierarchyStopRankType"><option value="__BeforeCEO__">تا آخرین جایگاه زنجیره پیش از مدیرعامل</option>@foreach (var rank in Model.RankTitles){<option value="@rank" selected="@(rank == defaultHierarchyStopRank)">@rank</option>}</select></label>
             <label>نحوه تخصیص<select name="AssignmentMode"><option value="Any">هر یک از متصدیان جایگاه</option><option value="All">همه متصدیان جایگاه</option></select></label>
-            <label class="check-chip"><input type="checkbox" name="IsFinalStep" value="true" /> مرحله نهایی</label>
+            <label class="check-chip"><input type="checkbox" name="IsFinalStep" value="true" /> مرحله نهایی<input type="hidden" name="IsFinalStep" value="false" /></label>
         </div>
-        <div class="actions"><label class="check-chip"><input type="checkbox" name="AllowApprove" value="true" checked /> تأیید</label><label class="check-chip"><input type="checkbox" name="AllowReject" value="true" checked /> رد</label><label class="check-chip"><input type="checkbox" name="AllowReturn" value="true" checked /> برگشت</label><label class="check-chip"><input type="checkbox" name="RequireCommentOnReject" value="true" checked /> توضیح رد اجباری</label><label class="check-chip"><input type="checkbox" name="RequireCommentOnReturn" value="true" /> توضیح برگشت اجباری</label></div>
+        <div class="actions"><label class="check-chip"><input type="checkbox" name="AllowApprove" value="true" checked /> تأیید<input type="hidden" name="AllowApprove" value="false" /></label><label class="check-chip"><input type="checkbox" name="AllowReject" value="true" checked /> رد<input type="hidden" name="AllowReject" value="false" /></label><label class="check-chip"><input type="checkbox" name="AllowReturn" value="true" checked /> برگشت<input type="hidden" name="AllowReturn" value="false" /></label><label class="check-chip"><input type="checkbox" name="RequireCommentOnReject" value="true" checked /> توضیح رد اجباری<input type="hidden" name="RequireCommentOnReject" value="false" /></label><label class="check-chip"><input type="checkbox" name="RequireCommentOnReturn" value="true" /> توضیح برگشت اجباری<input type="hidden" name="RequireCommentOnReturn" value="false" /></label></div>
         <button class="btn btn-main" type="submit">افزودن مرحله</button>
     </form>
 }
 </section>
 </div>
+
+<style>
+.workflow-step-collapsible { padding: 0; overflow: hidden; }
+.workflow-step-collapsible > summary { list-style: none; cursor: pointer; user-select: none; }
+.workflow-step-collapsible > summary::-webkit-details-marker { display: none; }
+.workflow-step-summary-main { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; min-width: 0; }
+.workflow-step-toggle-label { margin-inline-start: auto; color: #64748b; font-size: .82rem; white-space: nowrap; }
+.workflow-step-toggle-label::after { content: "＋"; display: inline-flex; margin-inline-start: .55rem; font-size: 1.1rem; font-weight: 700; }
+.workflow-step-collapsible[open] > summary { border-bottom: 1px solid #e2e8f0; margin-bottom: 1rem; }
+.workflow-step-collapsible[open] .workflow-step-toggle-label::after { content: "−"; }
+.workflow-step-collapsible > :not(summary) { margin-inline: 1rem; }
+.workflow-step-collapsible > .workflow-stage-fields { margin-bottom: 1rem; }
+.workflow-step-actions { display: flex; flex-direction: column; gap: 1rem; }
+.workflow-route-heading h4 { margin: 0 0 .35rem; }
+.workflow-route-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; align-items: stretch; }
+.workflow-route-card { border: 1px solid #dbe3ee; border-radius: 12px; padding: .85rem; background: #f8fafc; display: flex; flex-direction: column; justify-content: space-between; gap: .75rem; min-width: 0; }
+.workflow-route-card label { display: flex; flex-direction: column; gap: .5rem; }
+.workflow-route-card select { width: 100%; min-width: 0; }
+.workflow-route-card.route-approve { border-top: 3px solid #64748b; }
+.workflow-route-card.route-return { border-top: 3px solid #d97706; }
+.workflow-route-card.route-reject { border-top: 3px solid #b91c1c; }
+.workflow-conditional-routes { border: 1px dashed #cbd5e1; border-radius: 10px; padding: .8rem; background: #fff; }
+.workflow-conditional-routes > summary { cursor: pointer; font-weight: 600; color: #334155; }
+.workflow-conditional-editor { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; margin-top: .85rem; }
+.workflow-stage-footer { display: flex; justify-content: flex-end; border-top: 1px solid #e2e8f0; padding-top: .8rem; }
+@media (max-width: 950px) { .workflow-route-grid { grid-template-columns: 1fr; } .workflow-conditional-editor { grid-template-columns: 1fr; } }
+@media (max-width: 650px) { .workflow-step-summary-main { flex-direction: column; align-items: flex-start; gap: .25rem; } .workflow-step-toggle-label { margin-inline-start: 0; } }
+</style>
 
 @section Scripts {
 <script>

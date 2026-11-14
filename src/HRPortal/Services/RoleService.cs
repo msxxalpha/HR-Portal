@@ -11,7 +11,7 @@ public class RoleService(HRPortalDbContext db)
     {
         "HR_MANAGER", "ORG_MANAGER", "SETTINGS_MANAGER", "PAYROLL_USER", "EMPLOYEE",
         "USER_MANAGER", "ROLE_MANAGER", "WORKFLOW_MANAGER", "SUGGESTION_MANAGER",
-        "PERFORMANCE_MANAGER", "PERFORMANCE_EVALUATOR"
+        "PERFORMANCE_MANAGER", "PERFORMANCE_EVALUATOR", "OUTSOURCED_SERVICES_MANAGER"
     };
 
     public static bool IsBuiltInRoleCode(string? code) =>
@@ -171,6 +171,8 @@ public class RoleService(HRPortalDbContext db)
             ["Workflow.Inbox", "Workflow.Manage"]);
         await EnsureRoleAsync("SUGGESTION_MANAGER", "مدیریت نظام پیشنهادات", "مشاهده و مدیریت پیشنهادها و دسترسی به ارزیابی تخصصی و گزارش‌ها",
             ["Suggestions.ViewAll", "Suggestions.Manage", "Suggestions.Evaluate", "Suggestions.Reports", "Suggestions.Export"]);
+        await EnsureRoleAsync("OUTSOURCED_SERVICES_MANAGER", "مدیریت سفارش خدمات برونسپاری", "مشاهده همه درخواست‌ها و گزارش‌های سفارش خدمات برونسپاری",
+            ["OutsourcedServices.Create", "OutsourcedServices.ViewAll", "OutsourcedServices.Reports"]);
 
         // Existing roles that already hold the legacy all-access renewal permission
         // receive the new granular capabilities too; no existing assignment is revoked.

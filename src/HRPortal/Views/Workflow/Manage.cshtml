@@ -62,14 +62,11 @@ else
     {
         <div class="workflow-step-card">
             <div class="workflow-step-head">
+                    <strong>@(step.SortOrder). @step.Title</strong>
+                    <span>@step.Code · @(step.AssignmentType == "Hierarchy" ? "زنجیره جایگاه‌های بالاتر" : step.OrganizationNode?.Title ?? "بدون جایگاه")</span>
                     @if (step.AssignmentType == "Hierarchy")
                     {
-                        <strong>سیاست برخورد با جایگاه خالی</strong>
-                    }
-                    else
-                    {
-                        <strong>@(step.SortOrder). @step.Title</strong>
-                        <span>@step.Code · @(step.OrganizationNode?.Title ?? "بدون جایگاه")</span>
+                        <span class="badge">مرحله زنجیره‌ای</span>
                     }
                 </div>
             <form method="post" action="/Workflow/SaveStepRules" class="form-stack workflow-stage-rules">

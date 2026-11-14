@@ -357,7 +357,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             throw new InvalidOperationException("کد و عنوان فیلد الزامی است.");
         if (code.Length > 100 || title.Length > 200)
             throw new InvalidOperationException("طول کد یا عنوان فیلد بیش از حد مجاز است.");
-        if (await db.WorkflowStepFields.AnyAsync(x => x.WorkflowStepId == step.Id && x.Code == code && x.Id != model.Id))
+        if (await db.WorkflowStepFields.AnyAsync(x => x.WorkflowStepId == step.Id &&
+            x.Code.Trim().ToUpper() == code.ToUpper() && x.Id != model.Id))
             throw new InvalidOperationException("کد این فیلد در مرحله تکراری است.");
         if (type == "Select" && string.IsNullOrWhiteSpace(model.Options))
             throw new InvalidOperationException("برای فیلد انتخابی، گزینه‌ها را وارد کنید.");
@@ -531,16 +532,25 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .OrderBy(x => x.SortOrder).ToListAsync(cancellationToken);
         var input = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
         if (submitted is not null)
+        {
             foreach (var pair in submitted)
-                input[pair.Key] = pair.Value;
+            {
+                var key = pair.Key?.Trim() ?? "";
+                if (key.Length == 0) continue;
+                if (!input.TryAdd(key, pair.Value))
+                    throw new InvalidOperationException($"فیلد «{key}» بیش از یک‌بار از فرم ارسال شده است.");
+            }
+        }
 
-        var allowedCodes = fields.Select(x => x.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        if (input.Keys.Any(k => !allowedCodes.Contains(k)))
-            throw new InvalidOperationException("درخواست شامل فیلدی است که متعلق به این مرحله نیست.");
+        var allowedCodes = fields.Select(x => x.Code.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var unexpectedCodes = input.Keys.Where(k => !allowedCodes.Contains(k)).ToArray();
+        if (unexpectedCodes.Length > 0)
+            throw new InvalidOperationException(
+                $"فیلد ارسالی «{string.Join("، ", unexpectedCodes)}» در مرحله «{task.WorkflowStep.Title}» تعریف نشده است. صفحه را تازه‌سازی کنید و دوباره اقدام کنید.");
 
         foreach (var field in fields)
         {
-            input.TryGetValue(field.Code, out var raw);
+            input.TryGetValue(field.Code.Trim(), out var raw);
             var value = field.FieldType == "Checkbox"
                 ? (string.Equals(raw, "true", StringComparison.OrdinalIgnoreCase) || raw == "on" ? "true" : "false")
                 : raw?.Trim();

@@ -1098,11 +1098,14 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .Include(x => x.WorkflowInstance).ThenInclude(x => x.RequesterEmployee)
             .Include(x => x.WorkflowStep).ThenInclude(x => x.OrganizationNode)
             .Include(x => x.AssignedPosition)
-            // Position-routed tasks are resolved against the current occupants, even
-            // when older rows also contain the former holder in AssignedEmployeeId.
-            // Employee-routed tasks have no AssignedPositionId and remain person-specific.
+            // Direct returns are person-owned tasks even when the reused first
+            // stage normally has a position configured. Their assigned employee
+            // is the immutable original form starter on the workflow instance.
             .Where(x => x.Status == "Pending" &&
-                        (x.AssignedPositionId.HasValue ||
+                        (x.Action == "ReturnedForEdit" &&
+                         x.AssignedEmployeeId == x.WorkflowInstance.RequesterEmployeeId &&
+                         x.AssignedEmployeeId == employeeId ||
+                         x.AssignedPositionId.HasValue ||
                          x.WorkflowStep.OrganizationNodeId.HasValue ||
                          x.AssignedEmployeeId == employeeId))
             .OrderByDescending(x => x.CreatedAt)
@@ -1111,7 +1114,15 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         var authorizedTasks = new List<WorkflowTask>();
         foreach (var task in tasks)
         {
-            if (task.AssignedPositionId.HasValue || task.WorkflowStep.OrganizationNodeId.HasValue)
+            var isDirectRequesterReturn = task.Action == "ReturnedForEdit" &&
+                task.AssignedEmployeeId == task.WorkflowInstance.RequesterEmployeeId;
+            if (isDirectRequesterReturn)
+            {
+                if (WorkflowPositionAssignmentResolver.IsExplicitEmployeeAssignee(
+                        employeeId, task.AssignedEmployeeId, isActiveEmployee: true))
+                    authorizedTasks.Add(task);
+            }
+            else if (task.AssignedPositionId.HasValue || task.WorkflowStep.OrganizationNodeId.HasValue)
             {
                 if (await IsCurrentPositionAssigneeAsync(employeeId, task))
                     authorizedTasks.Add(task);
@@ -1406,17 +1417,25 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .Include(x => x.WorkflowStep).ThenInclude(x => x.OrganizationNode)
             .Include(x => x.AssignedPosition)
             .FirstOrDefaultAsync(x => x.Id == id && x.Status == "Pending" &&
-                (x.AssignedPositionId.HasValue ||
+                (x.Action == "ReturnedForEdit" &&
+                 x.AssignedEmployeeId == x.WorkflowInstance.RequesterEmployeeId &&
+                 x.AssignedEmployeeId == employeeId ||
+                 x.AssignedPositionId.HasValue ||
                  x.WorkflowStep.OrganizationNodeId.HasValue ||
                  x.AssignedEmployeeId == employeeId));
-        if (task is not null &&
+        var isDirectRequesterReturn = task is not null &&
+            task.Action == "ReturnedForEdit" &&
+            task.AssignedEmployeeId == task.WorkflowInstance.RequesterEmployeeId;
+        if (task is not null && !isDirectRequesterReturn &&
             (task.AssignedPositionId.HasValue || task.WorkflowStep.OrganizationNodeId.HasValue) &&
             !await IsCurrentPositionAssigneeAsync(employeeId, task))
             return null;
-        if (task is not null && !task.AssignedPositionId.HasValue && !task.WorkflowStep.OrganizationNodeId.HasValue &&
+        if (task is not null && (isDirectRequesterReturn ||
+            (!task.AssignedPositionId.HasValue && !task.WorkflowStep.OrganizationNodeId.HasValue)) &&
             !await db.Employees.AnyAsync(e => e.Id == employeeId && e.Status == "فعال"))
             return null;
-        if (task is not null && !task.AssignedPositionId.HasValue && !task.WorkflowStep.OrganizationNodeId.HasValue &&
+        if (task is not null && (isDirectRequesterReturn ||
+            (!task.AssignedPositionId.HasValue && !task.WorkflowStep.OrganizationNodeId.HasValue)) &&
             !WorkflowPositionAssignmentResolver.IsExplicitEmployeeAssignee(
                 employeeId, task.AssignedEmployeeId, isActiveEmployee: true))
             return null;

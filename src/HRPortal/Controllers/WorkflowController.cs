@@ -372,8 +372,8 @@ public class WorkflowController(
             // collection prefix is not recognized. Read only the explicitly named
             // values[...] and previousValues[...] fields from the posted form.
             var postedForm = await Request.ReadFormAsync(HttpContext.RequestAborted);
-            var values = ReadPrefixedFormValues(postedForm, "values");
-            var previousValues = ReadPrefixedFormValues(postedForm, "previousValues");
+            var values = WorkflowTaskFormValueReader.Read(postedForm, "values");
+            var previousValues = WorkflowTaskFormValueReader.Read(postedForm, "previousValues");
 
             await workflow.CompleteTaskAsync(id, employeeId, action, comment, values, previousValues);
             TempData["Success"] = action == "SaveDraft" ? "پیش‌نویس مرحله ذخیره شد." : "اقدام گردش کار با موفقیت ثبت شد.";
@@ -387,32 +387,6 @@ public class WorkflowController(
         return action == "SaveDraft"
             ? RedirectToAction(nameof(Task), new { id })
             : RedirectToAction(nameof(Inbox));
-    }
-
-    private static Dictionary<string, string?> ReadPrefixedFormValues(
-        IFormCollection form, string prefix)
-    {
-        var result = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-        var keyPrefix = prefix + "[";
-
-        foreach (var postedKey in form.Keys)
-        {
-            if (!postedKey.StartsWith(keyPrefix, StringComparison.OrdinalIgnoreCase) ||
-                !postedKey.EndsWith(']'))
-                continue;
-
-            var fieldKey = postedKey[keyPrefix.Length..^1].Trim();
-            if (fieldKey.Length == 0)
-                continue;
-
-            var postedValues = form[postedKey];
-            if (postedValues.Count > 1)
-                throw new InvalidOperationException($"فیلد «{fieldKey}» بیش از یک مقدار از فرم ارسال کرده است.");
-
-            result[fieldKey] = postedValues.Count == 0 ? null : postedValues[0];
-        }
-
-        return result;
     }
 
     [HttpGet]

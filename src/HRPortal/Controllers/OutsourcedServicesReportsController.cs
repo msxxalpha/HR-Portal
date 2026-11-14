@@ -20,6 +20,9 @@ public sealed class OutsourcedServicesReportsController(HRPortalDbContext db) : 
     [HttpGet]
     public async Task<IActionResult> Index(string? from, string? to, string? priority, string? status, string? unit)
     {
+        ViewBag.Priorities = PriorityLabels;
+        ViewBag.Units = await db.OutsourcedServiceRequests.AsNoTracking()
+            .Select(x => x.UnitOfMeasure).Distinct().OrderBy(x => x).ToListAsync();
         DateTime? fromDate = null, toDate = null;
         if (!string.IsNullOrWhiteSpace(from))
         {
@@ -128,9 +131,6 @@ public sealed class OutsourcedServicesReportsController(HRPortalDbContext db) : 
             .Select(g => new OutsourcedServiceBucket { Label = g.Key, Count = g.Count() })
             .OrderByDescending(x => x.Count).ToList();
         model.MonthlyBuckets = BuildMonthlyBuckets(rows);
-        ViewBag.Units = await db.OutsourcedServiceRequests.AsNoTracking()
-            .Select(x => x.UnitOfMeasure).Distinct().OrderBy(x => x).ToListAsync();
-        ViewBag.Priorities = PriorityLabels;
         return View(model);
     }
 

@@ -1767,8 +1767,6 @@ static async Task VerifyWorkflowStageEditingAndRequesterReturnAsync()
     Check(requesterTask is not null && requesterTask.WorkflowStepId == requesterStep.Id,
         "The original requester must be able to open the returned correction task.");
     var fieldGroups = await service.GetTaskFieldGroupsAsync(requesterTaskRow.TaskId, requester.Id);
-    Console.WriteLine("DEBUG requester groups: " + string.Join(" | ", fieldGroups.Select(g =>
-        $"step={g.WorkflowStepId}/{g.StepTitle}, current={g.IsCurrentStep}, editable={g.IsEditable}, fields={string.Join(",", g.Fields.Select(f => f.Code + "=" + f.Value))}")));
     Check(fieldGroups.Count == 1 && fieldGroups[0].IsCurrentStep && fieldGroups[0].IsEditable &&
           fieldGroups[0].Fields.Any(x => x.Code == "requesterCorrection"),
         "The requester must receive an editable form for the requester-correction step.");
@@ -1819,8 +1817,6 @@ static async Task VerifyWorkflowStageEditingAndRequesterReturnAsync()
         "Tasks created by any Return route must be marked as returned-for-edit.");
 
     var previousStageGroups = await service.GetTaskFieldGroupsAsync(returnedToPreviousStage.TaskId, reviewer.Id);
-    Console.WriteLine("DEBUG previous-stage groups: " + string.Join(" | ", previousStageGroups.Select(g =>
-        $"step={g.WorkflowStepId}/{g.StepTitle}, current={g.IsCurrentStep}, editable={g.IsEditable}, fields={string.Join(",", g.Fields.Select(f => f.Code + "=" + f.Value))}")));
     var editableDestination = previousStageGroups.SingleOrDefault(group => group.WorkflowStepId == reviewStep.Id);
     var readOnlyReturnSource = previousStageGroups.SingleOrDefault(group => group.WorkflowStepId == nextStep.Id);
     Check(previousStageGroups.Count == 2 && editableDestination is { IsCurrentStep: true, IsEditable: true } &&
@@ -1967,6 +1963,8 @@ static async Task VerifyWorkflowDirectReturnAndPriorStageEditingAsync()
             AllowReturn = false, IsFinalStep = false
         });
         var savedStartStep = await db.WorkflowSteps.SingleAsync(x => x.Id == startStep.Id);
+        Check(savedStartStep.OrganizationNodeId == firstPosition.Id,
+            "The direct-return regression must reuse a first stage that is normally position-routed.");
 
         var instance = new WorkflowInstance
         {

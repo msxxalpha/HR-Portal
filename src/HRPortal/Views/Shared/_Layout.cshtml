@@ -112,7 +112,7 @@
                 </details>
             }
             @if (Can("Payroll.View") || Can("PersonnelOrder.View") || Can("OutsourcedServices.Create") || Can("OutsourcedServices.ViewAll") || Can("OutsourcedServices.Reports")) {
-                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Payroll") || Context.Request.Path.StartsWithSegments("/PersonnelOrder") || Context.Request.Path.StartsWithSegments("/OutsourcedServices") ? "open" : null)">
+                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Payroll") || Context.Request.Path.StartsWithSegments("/PersonnelOrder") || Context.Request.Path.StartsWithSegments("/OutsourcedServices") || Context.Request.Path.StartsWithSegments("/OutsourcedServicesReports") ? "open" : null)">
                     <summary><span class="nav-icon">▥</span>خدمات کارکنان</summary><div class="nav-submenu">
                         @if (Can("Payroll.View")) { <a href="/Payroll/Payslip">فیش حقوقی</a> }
                         @if (Can("PersonnelOrder.View")) { <a href="/PersonnelOrder">حکم کارگزینی</a> }

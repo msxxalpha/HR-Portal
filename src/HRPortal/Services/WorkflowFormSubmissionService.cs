@@ -43,6 +43,6 @@ public sealed class WorkflowFormSubmissionService(
             return existing;
 
         return await workflow.StartAsync(
-            definitionCode, entityType, entityId, requesterEmployeeId, cancellationToken);
+            definitionCode, entityType, entityId, requesterEmployeeId, cancellationToken, subjectEmployeeId: requesterEmployeeId);
     }
 }

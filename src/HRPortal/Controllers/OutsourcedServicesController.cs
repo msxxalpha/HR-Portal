@@ -11,6 +11,7 @@ namespace HRPortal.Controllers;
 public sealed class OutsourcedServicesController(
     HRPortalDbContext db,
     WorkflowFormSubmissionService workflowSubmission,
+    WorkflowService workflow,
     AuditService audit) : Controller
 {
     private static readonly string[] Units =
@@ -142,10 +143,16 @@ public sealed class OutsourcedServicesController(
         var item = await db.OutsourcedServiceRequests.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
         if (item is null) return NotFound();
-        if (!await CanManageRequestAsync(item)) return Forbid();
-        if (returnTaskId.HasValue &&
-            (!TryEmployeeId(out var editorId) || !await IsValidRequesterTaskAsync(item.Id, returnTaskId.Value, editorId)))
+        if (returnTaskId.HasValue)
+        {
+            if (!TryEmployeeId(out var editorId) ||
+                !await IsValidReturnedWorkflowTaskAsync(item.Id, returnTaskId.Value, editorId))
+                return Forbid();
+        }
+        else if (!await CanManageRequestAsync(item))
+        {
             return Forbid();
+        }
 
         PrepareFormView(isEdit: true, returnTaskId);
         return View("Create", new OutsourcedServiceRequestFormVm
@@ -167,10 +174,16 @@ public sealed class OutsourcedServicesController(
         var item = await db.OutsourcedServiceRequests
             .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
         if (item is null) return NotFound();
-        if (!await CanManageRequestAsync(item)) return Forbid();
-        if (returnTaskId.HasValue &&
-            (!TryEmployeeId(out var editorId) || !await IsValidRequesterTaskAsync(item.Id, returnTaskId.Value, editorId)))
+        if (returnTaskId.HasValue)
+        {
+            if (!TryEmployeeId(out var editorId) ||
+                !await IsValidReturnedWorkflowTaskAsync(item.Id, returnTaskId.Value, editorId))
+                return Forbid();
+        }
+        else if (!await CanManageRequestAsync(item))
+        {
             return Forbid();
+        }
 
         if (!ValidateForm(model, out var needByDate) || !ModelState.IsValid)
             return View("Create", model);
@@ -375,17 +388,18 @@ public sealed class OutsourcedServicesController(
         return !otherActorHasActed;
     }
 
-    private Task<bool> IsValidRequesterTaskAsync(int requestId, int taskId, int employeeId) =>
-        db.WorkflowTasks.AsNoTracking().AnyAsync(task =>
-            task.Id == taskId &&
-            task.Status == "Pending" &&
-            task.AssignedEmployeeId == employeeId &&
-            task.WorkflowStep.AssignmentType == "Requester" &&
+    private async Task<bool> IsValidReturnedWorkflowTaskAsync(int requestId, int taskId, int employeeId)
+    {
+        // GetTaskAsync validates the current assignee (including position membership)
+        // and returns only a pending task that belongs to this employee.
+        var task = await workflow.GetTaskAsync(taskId, employeeId);
+        return task is not null &&
+            task.Action == "ReturnedForEdit" &&
             task.WorkflowInstance.EntityType == "OutsourcedServiceRequest" &&
             task.WorkflowInstance.EntityId == requestId.ToString() &&
-            task.WorkflowInstance.RequesterEmployeeId == employeeId &&
             task.WorkflowInstance.Status == "InProgress" &&
-            task.WorkflowInstance.CurrentStepId == task.WorkflowStepId);
+            task.WorkflowInstance.CurrentStepId == task.WorkflowStepId;
+    }
 
     private static string SnapshotJson(OutsourcedServiceRequest item) =>
         System.Text.Json.JsonSerializer.Serialize(new

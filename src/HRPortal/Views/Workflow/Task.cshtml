@@ -8,9 +8,12 @@
     var suggestion = ViewBag.WorkflowSuggestion as Suggestion;
     var outsourcedService = ViewBag.WorkflowOutsourcedServiceRequest as HRPortal.Models.OutsourcedServiceRequest;
     var workflowPositions = ViewBag.WorkflowPositions as List<OrganizationNode> ?? [];
-    var isRequesterStage = Model.WorkflowStep.AssignmentType == "Requester" &&
-        Model.WorkflowInstance.RequesterEmployeeId == Model.AssignedEmployeeId;
     var isReturnedForEditTask = Model.Action == "ReturnedForEdit";
+    var isRequesterStage =
+        (Model.WorkflowStep.AssignmentType == "Requester" &&
+         Model.WorkflowInstance.RequesterEmployeeId == Model.AssignedEmployeeId) ||
+        (isReturnedForEditTask &&
+         Model.WorkflowInstance.RequesterEmployeeId == Model.AssignedEmployeeId);
     var canEditOutsourcedRequest = isRequesterStage || isReturnedForEditTask;
 }
 @if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }

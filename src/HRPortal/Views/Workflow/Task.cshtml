@@ -109,11 +109,11 @@
                             }
                             else if (field.FieldType == "TextArea")
                             {
-                                <textarea id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="@(group.IsCurrentStep ? $"values[{field.Code}]" : $"previousValues[{field.FieldDefinitionId}]")" rows="3" maxlength="@(field.MaxLength ?? 4000)" required="@(group.IsCurrentStep && field.IsRequired)">@field.Value</textarea>
+                                <textarea id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="@(group.IsCurrentStep ? $"values[field_{field.FieldDefinitionId}]" : $"previousValues[{field.FieldDefinitionId}]")" rows="3" maxlength="@(field.MaxLength ?? 4000)" required="@(group.IsCurrentStep && field.IsRequired)">@field.Value</textarea>
                             }
                             else if (field.FieldType == "PositionPicker")
                             {
-                                <select id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="@(group.IsCurrentStep ? $"values[{field.Code}]" : $"previousValues[{field.FieldDefinitionId}]")" required="@(group.IsCurrentStep && field.IsRequired)" disabled="@(!group.IsEditable)">
+                                <select id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="@(group.IsCurrentStep ? $"values[field_{field.FieldDefinitionId}]" : $"previousValues[{field.FieldDefinitionId}]")" required="@(group.IsCurrentStep && field.IsRequired)" disabled="@(!group.IsEditable)">
                                     <option value="">انتخاب جایگاه سازمانی</option>
                                     @foreach (var position in workflowPositions)
                                     {
@@ -123,7 +123,7 @@
                             }
                             else if (field.FieldType == "Select")
                             {
-                                <select id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="@(group.IsCurrentStep ? $"values[{field.Code}]" : $"previousValues[{field.FieldDefinitionId}]")" required="@(group.IsCurrentStep && field.IsRequired)">
+                                <select id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="@(group.IsCurrentStep ? $"values[field_{field.FieldDefinitionId}]" : $"previousValues[{field.FieldDefinitionId}]")" required="@(group.IsCurrentStep && field.IsRequired)">
                                     <option value="">انتخاب کنید</option>
                                     @foreach (var option in (field.Options ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
                                     {
@@ -133,7 +133,7 @@
                             }
                             else if (field.FieldType == "Checkbox" && group.IsCurrentStep)
                             {
-                                <input type="checkbox" id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="values[@field.Code]" value="true" checked="@(field.Value == "true")" />
+                                <input type="checkbox" id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="values[field_@field.FieldDefinitionId]" value="true" checked="@(field.Value == "true")" />
                             }
                             else if (field.FieldType == "Checkbox")
                             {
@@ -146,7 +146,7 @@
                             else
                             {
                                 var inputType = field.FieldType == "Number" ? "number" : field.FieldType == "Date" ? "date" : "text";
-                                <input id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="@(group.IsCurrentStep ? $"values[{field.Code}]" : $"previousValues[{field.FieldDefinitionId}]")" type="@inputType" value="@field.Value" maxlength="@(field.MaxLength ?? 4000)" required="@(group.IsCurrentStep && field.IsRequired)" />
+                                <input id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="@(group.IsCurrentStep ? $"values[field_{field.FieldDefinitionId}]" : $"previousValues[{field.FieldDefinitionId}]")" type="@inputType" value="@field.Value" maxlength="@(field.MaxLength ?? 4000)" required="@(group.IsCurrentStep && field.IsRequired)" />
                             }
                             @if (!string.IsNullOrWhiteSpace(field.HelpText))
                             {

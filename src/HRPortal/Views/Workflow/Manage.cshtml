@@ -146,7 +146,7 @@ else
                         </select>
                     </label>
                 </div>
-                <div class="actions"><label class="check-chip"><input type="checkbox" name="allowEditPreviousData" value="true" checked="@step.AllowEditPreviousData" /> اجازه ویرایش اطلاعات مراحل قبلی در این مرحله</label><label class="check-chip"><input type="checkbox" name="requireNotes" value="true" checked="@step.RequireNotes" /> ثبت ملاحظات در این مرحله اجباری باشد</label><button class="btn btn-outline btn-sm" type="submit">ذخیره تنظیمات مرحله</button></div>
+                <div class="actions"><label class="check-chip"><input type="checkbox" name="allowEditPreviousData" value="true" checked="@step.AllowEditPreviousData" /> اجازه ویرایش اطلاعات مراحل قبلی در این مرحله<input type="hidden" name="allowEditPreviousData" value="false" /></label><label class="check-chip"><input type="checkbox" name="requireNotes" value="true" checked="@step.RequireNotes" /> ثبت ملاحظات در این مرحله اجباری باشد<input type="hidden" name="requireNotes" value="false" /></label><button class="btn btn-outline btn-sm" type="submit">ذخیره تنظیمات مرحله</button></div>
             </form>
             <div class="workflow-step-actions">
                 <div class="workflow-route-heading"><h4>مسیرهای اصلی گردش کار</h4><span class="muted">برای برگشت مستقیم به ثبت‌کننده فرم، گزینه «شروع‌کننده فرم» را انتخاب کنید؛ نیازی به تعریف مرحله جداگانه نیست.</span></div>

@@ -1,0 +1,91 @@
+@model HRPortal.Models.OutsourcedServiceDashboardViewModel
+@{
+    ViewData["Title"] = "داشبورد سفارش خدمات برونسپاری";
+    var units = ViewBag.Units as List<string> ?? new List<string>();
+    var priorities = ViewBag.Priorities as Dictionary<string,string> ?? new Dictionary<string,string>();
+    int maxPriority = Math.Max(1, Model.PriorityBuckets.Select(x=>x.Count).DefaultIfEmpty(0).Max());
+    int maxStatus = Math.Max(1, Model.StatusBuckets.Select(x=>x.Count).DefaultIfEmpty(0).Max());
+    int maxUnit = Math.Max(1, Model.UnitBuckets.Select(x=>x.Count).DefaultIfEmpty(0).Max());
+    int maxMonth = Math.Max(1, Model.MonthlyBuckets.Select(x=>x.Count).DefaultIfEmpty(0).Max());
+    string statusLabel(string s) => s switch { "InProgress"=>"در حال گردش", "Completed"=>"تأیید نهایی", "Rejected"=>"رد یا لغو شده", "Returned"=>"برگشت داده‌شده", _=>"بدون گردش کار" };
+    string priorityLabel(string s) => priorities.GetValueOrDefault(s,s);
+}
+<div class="outsourced-page outsourced-reports">
+    <div class="outsourced-hero">
+        <div class="outsourced-hero-icon">▥</div>
+        <div><span>ماژول درخواست‌ها / حوزه خرید و تدارکات / گزارش‌ها</span><h1>داشبورد سفارش خدمات برونسپاری</h1><p>پایش حجم درخواست‌ها، اولویت انجام، وضعیت گردش کار، واحد سنجش و روند ثبت سفارش‌ها.</p></div>
+        <div class="outsourced-hero-actions"><a class="btn btn-outline" href="/OutsourcedServicesReports">همه انواع گزارش‌ها</a><a class="btn btn-outline" href="/OutsourcedServices">فهرست سفارش‌ها</a><a class="btn btn-main" href="/OutsourcedServicesReports/Export?from=@Uri.EscapeDataString(Model.FromJalali ?? "")&to=@Uri.EscapeDataString(Model.ToJalali ?? "")&priority=@Model.Priority&status=@Model.Status&unit=@Uri.EscapeDataString(Model.UnitOfMeasure)">خروجی Excel/CSV</a></div>
+    </div>
+    @if (ViewBag.Error is string error) { <div class="alert error">@error</div> }
+    <form method="get" action="/OutsourcedServicesReports/Dashboard" class="outsourced-filters">
+        <label>از تاریخ ثبت
+            <div class="jalali-date-input"><input type="text" name="from" data-jalali-date autocomplete="off" inputmode="numeric" placeholder="۱۴۰۵/۰۱/۰۱" value="@Model.FromJalali" /><button type="button" class="btn btn-outline jalali-date-open" data-jalali-trigger>تقویم</button></div>
+        </label>
+        <label>تا تاریخ ثبت
+            <div class="jalali-date-input"><input type="text" name="to" data-jalali-date autocomplete="off" inputmode="numeric" placeholder="۱۴۰۵/۱۲/۲۹" value="@Model.ToJalali" /><button type="button" class="btn btn-outline jalali-date-open" data-jalali-trigger>تقویم</button></div>
+        </label>
+        <label>اولویت
+            <select name="priority"><option value="all">همه اولویت‌ها</option>@foreach(var p in priorities){<option value="@p.Key" selected="@(Model.Priority==p.Key)">@p.Value</option>}</select>
+        </label>
+        <label>وضعیت گردش کار
+            <select name="status">
+                <option value="all" selected="@(Model.Status=="all")">همه وضعیت‌ها</option>
+                <option value="InProgress" selected="@(Model.Status=="InProgress")">در حال گردش</option>
+                <option value="Completed" selected="@(Model.Status=="Completed")">تأیید نهایی</option>
+                <option value="Rejected" selected="@(Model.Status=="Rejected")">رد یا لغو شده</option>
+                <option value="Returned" selected="@(Model.Status=="Returned")">برگشت داده‌شده</option>
+                <option value="NotStarted" selected="@(Model.Status=="NotStarted")">بدون گردش کار</option>
+            </select>
+        </label>
+        <label>واحد سنجش
+            <select name="unit"><option value="all">همه واحدها</option>@foreach(var u in units){<option value="@u" selected="@(Model.UnitOfMeasure==u)">@u</option>}</select>
+        </label>
+        <div class="outsourced-filter-actions"><button class="btn btn-main" type="submit">اعمال فیلترها</button><a class="btn btn-outline" href="/OutsourcedServicesReports/Dashboard">پاک‌کردن فیلترها</a></div>
+    </form>
+    <section class="outsourced-kpis">
+        <article><span>کل سفارش‌ها</span><strong>@Model.TotalCount</strong><small>بر اساس فیلترهای انتخاب‌شده</small></article>
+        <article><span>در حال گردش</span><strong>@Model.PendingCount</strong><small>در انتظار تکمیل تأییدیه‌ها</small></article>
+        <article><span>تأیید نهایی</span><strong>@Model.CompletedCount</strong><small>تکمیل تأییدیه‌های گردش کار</small></article>
+        <article><span>رد یا لغو شده</span><strong>@Model.RejectedCount</strong><small>درخواست‌های خاتمه‌یافته بدون تأیید</small></article>
+        <article><span>برگشت داده‌شده</span><strong>@Model.ReturnedCount</strong><small>برای اصلاح یا بازنگری</small></article>
+        <article><span>فوری و اضطراری</span><strong>@Model.UrgentCount</strong><small>نیازمند توجه ویژه</small></article>
+    </section>
+    <section class="outsourced-chart-grid">
+        <article class="outsourced-chart-card"><header><h2>توزیع سفارش‌ها بر اساس اولویت</h2><small>ترکیب درخواست‌های فیلترشده</small></header>
+            @if(Model.PriorityBuckets.Count==0){<p class="outsourced-no-data">داده‌ای برای نمایش وجود ندارد.</p>}
+            @foreach(var b in Model.PriorityBuckets){<div class="outsourced-bar-row"><div><span>@b.Label</span><b>@b.Count</b></div><div class="outsourced-bar-track"><i style="width:@(100.0*b.Count/maxPriority)%"></i></div></div>}
+        </article>
+        <article class="outsourced-chart-card"><header><h2>وضعیت گردش کار</h2><small>آخرین وضعیت هر درخواست</small></header>
+            @if(Model.StatusBuckets.Count==0){<p class="outsourced-no-data">داده‌ای برای نمایش وجود ندارد.</p>}
+            @foreach(var b in Model.StatusBuckets){<div class="outsourced-bar-row"><div><span>@b.Label</span><b>@b.Count</b></div><div class="outsourced-bar-track"><i style="width:@(100.0*b.Count/maxStatus)%"></i></div></div>}
+        </article>
+        <article class="outsourced-chart-card outsourced-month-chart"><header><h2>روند ماهانه ثبت سفارش‌ها</h2><small>۱۲ ماه اخیر بر مبنای تقویم شمسی</small></header>
+            <div class="outsourced-month-bars">@foreach(var b in Model.MonthlyBuckets){<div title="@b.Label: @b.Count"><b>@b.Count</b><div class="outsourced-month-track"><i style="height:@(b.Count==0?2:Math.Max(4,100.0*b.Count/maxMonth))%"></i></div><small>@b.Label</small></div>}</div>
+        </article>
+        <article class="outsourced-chart-card"><header><h2>توزیع بر اساس واحد سنجش</h2><small>تعداد درخواست‌ها در هر واحد</small></header>
+            @if(Model.UnitBuckets.Count==0){<p class="outsourced-no-data">داده‌ای برای نمایش وجود ندارد.</p>}
+            @foreach(var b in Model.UnitBuckets){<div class="outsourced-bar-row"><div><span>@b.Label</span><b>@b.Count</b></div><div class="outsourced-bar-track"><i style="width:@(100.0*b.Count/maxUnit)%"></i></div></div>}
+        </article>
+    </section>
+    <section class="outsourced-list-card">
+        <div class="outsourced-list-head"><div><h2>جدول جزئیات سفارش‌ها</h2><p>نمایش @Model.Rows.Count رکورد · حداکثر ۵۰۰۰ رکورد در هر گزارش</p></div><input id="outsourcedReportSearch" type="search" placeholder="جست‌وجوی شماره، شرح، درخواست‌کننده یا واحد..." /></div>
+        @if(Model.Rows.Count==0){<div class="outsourced-empty"><h3>درخواستی با فیلترهای فعلی یافت نشد.</h3></div>}
+        else{<div class="outsourced-table-wrap"><table class="outsourced-table" id="outsourcedReportTable">
+            <thead><tr><th>شماره</th><th>شرح خدمات</th><th>درخواست‌کننده</th><th>واحد سازمانی</th><th>مقدار</th><th>تاریخ نیازمندی</th><th>اولویت</th><th>وضعیت</th><th>مرحله جاری</th><th>تاریخ ثبت</th><th>جزئیات</th></tr></thead>
+            <tbody>@foreach(var row in Model.Rows){<tr>
+                <td dir="ltr"><strong>@row.RequestNumber</strong></td><td class="service-desc">@row.ServiceDescription</td><td>@row.RequesterName<small>@row.PersonnelNumber</small></td><td>@row.Organization</td><td>@row.Quantity.ToString("0.###") @row.UnitOfMeasure</td><td>@HRPortal.Services.PersianDateService.Format(row.NeedByDate)</td><td>@priorityLabel(row.Priority)</td><td>@statusLabel(row.Status=="InProgress"?"InProgress":row.Status=="Completed"||row.Status=="Approved"?"Completed":row.Status=="Rejected"||row.Status=="Cancelled"?"Rejected":row.Status=="Returned"?"Returned":"NotStarted")</td><td>@(string.IsNullOrWhiteSpace(row.CurrentStepTitle)?"—":row.CurrentStepTitle)</td><td>@HRPortal.Services.PersianDateService.Format(HRPortal.Services.PersianDateService.ToTehran(row.CreatedAtUtc))</td><td><a class="outsourced-detail-link" href="/OutsourcedServices/Details/@row.Id">مشاهده</a></td>
+            </tr>}</tbody>
+        </table></div>}
+    </section>
+</div>
+@section Scripts{
+<script>
+(() => {
+ const input=document.getElementById('outsourcedReportSearch');
+ const table=document.getElementById('outsourcedReportTable');
+ if(!input||!table)return;
+ const rows=[...table.tBodies[0].rows];
+ input.addEventListener('input',()=>{const q=input.value.trim().toLocaleLowerCase('fa');rows.forEach(row=>row.hidden=!!q&&!row.innerText.toLocaleLowerCase('fa').includes(q));});
+})();
+</script>
+}

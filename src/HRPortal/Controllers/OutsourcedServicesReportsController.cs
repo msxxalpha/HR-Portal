@@ -1,0 +1,189 @@
+using System.Globalization;
+using System.Text;
+using HRPortal.Data;
+using HRPortal.Models;
+using HRPortal.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+namespace HRPortal.Controllers;
+
+[Authorize(Policy = "OutsourcedServices.Reports")]
+public sealed class OutsourcedServicesReportsController(HRPortalDbContext db) : Controller
+{
+    private static readonly Dictionary<string, string> PriorityLabels = new()
+    {
+        ["Normal"] = "عادی", ["Urgent"] = "فوری", ["Emergency"] = "اضطراری"
+    };
+
+    [HttpGet]
+    public async Task<IActionResult> Index(string? from, string? to, string? priority, string? status, string? unit)
+    {
+        DateTime? fromDate = null, toDate = null;
+        if (!string.IsNullOrWhiteSpace(from))
+        {
+            if (!PersianDateService.TryParse(from, out var parsed))
+                ModelState.AddModelError(nameof(from), "تاریخ شروع معتبر نیست.");
+            else fromDate = parsed;
+        }
+        if (!string.IsNullOrWhiteSpace(to))
+        {
+            if (!PersianDateService.TryParse(to, out var parsed))
+                ModelState.AddModelError(nameof(to), "تاریخ پایان معتبر نیست.");
+            else toDate = parsed;
+        }
+        if (fromDate.HasValue && toDate.HasValue && fromDate.Value.Date > toDate.Value.Date)
+            ModelState.AddModelError("", "تاریخ شروع نمی‌تواند بعد از تاریخ پایان باشد.");
+
+        var model = new OutsourcedServiceDashboardViewModel
+        {
+            FromJalali = from ?? "", ToJalali = to ?? "",
+            Priority = string.IsNullOrWhiteSpace(priority) ? "all" : priority,
+            Status = string.IsNullOrWhiteSpace(status) ? "all" : status,
+            UnitOfMeasure = string.IsNullOrWhiteSpace(unit) ? "all" : unit
+        };
+        if (!ModelState.IsValid)
+        {
+            ViewBag.Error = string.Join(" ", ModelState.Values.SelectMany(x => x.Errors).Select(x => x.ErrorMessage));
+            model.Rows = [];
+            return View(model);
+        }
+
+        var query = db.OutsourcedServiceRequests.AsNoTracking();
+        if (fromDate.HasValue)
+        {
+            var startUtc = PersianDateService.ToUtcFromTehran(fromDate.Value.Date);
+            query = query.Where(x => x.CreatedAtUtc >= startUtc);
+        }
+        if (toDate.HasValue)
+        {
+            var endUtc = PersianDateService.ToUtcFromTehran(toDate.Value.Date.AddDays(1));
+            query = query.Where(x => x.CreatedAtUtc < endUtc);
+        }
+        if (model.Priority != "all" && PriorityLabels.ContainsKey(model.Priority))
+            query = query.Where(x => x.Priority == model.Priority);
+        if (model.UnitOfMeasure != "all")
+            query = query.Where(x => x.UnitOfMeasure == model.UnitOfMeasure);
+
+        var raw = await query.OrderByDescending(x => x.CreatedAtUtc)
+            .Select(x => new
+            {
+                Request = x,
+                Employee = db.Employees.Where(e => e.Id == x.RequesterEmployeeId)
+                    .Select(e => new
+                    {
+                        Name = e.FirstName + " " + e.LastName,
+                        e.PersonnelNumber,
+                        Organization = e.OrganizationSection != null ? e.OrganizationSection.Title :
+                            e.OrganizationDepartment != null ? e.OrganizationDepartment.Title :
+                            e.OrganizationUnit != null ? e.OrganizationUnit.Title : "—"
+                    }).FirstOrDefault(),
+                Workflow = db.WorkflowInstances.Where(w => w.EntityType == "OutsourcedServiceRequest" && w.EntityId == x.Id.ToString())
+                    .OrderByDescending(w => w.StartedAt)
+                    .Select(w => new { w.Status, Step = w.CurrentStep == null ? "" : w.CurrentStep.Title })
+                    .FirstOrDefault()
+            }).Take(5000).ToListAsync();
+
+        var rows = raw.Select(x => new OutsourcedServiceReportRow
+        {
+            Id = x.Request.Id,
+            RequestNumber = x.Request.RequestNumber,
+            ServiceDescription = x.Request.ServiceDescription,
+            UnitOfMeasure = x.Request.UnitOfMeasure,
+            Quantity = x.Request.Quantity,
+            NeedByDate = x.Request.NeedByDate,
+            Priority = x.Request.Priority,
+            Status = x.Workflow?.Status ?? x.Request.Status,
+            RequesterName = x.Employee?.Name ?? "—",
+            PersonnelNumber = x.Employee?.PersonnelNumber ?? "",
+            Organization = x.Employee?.Organization ?? "—",
+            CreatedAtUtc = x.Request.CreatedAtUtc,
+            CurrentStepTitle = x.Workflow?.Step ?? ""
+        }).ToList();
+
+        if (model.Status != "all")
+            rows = rows.Where(x => NormalizeStatus(x.Status) == model.Status).ToList();
+
+        model.Rows = rows;
+        model.TotalCount = rows.Count;
+        model.PendingCount = rows.Count(x => NormalizeStatus(x.Status) == "InProgress");
+        model.CompletedCount = rows.Count(x => NormalizeStatus(x.Status) == "Completed");
+        model.RejectedCount = rows.Count(x => NormalizeStatus(x.Status) == "Rejected");
+        model.UrgentCount = rows.Count(x => x.Priority is "Urgent" or "Emergency");
+        model.PriorityBuckets = rows.GroupBy(x => x.Priority)
+            .Select(g => new OutsourcedServiceBucket { Label = PriorityLabels.GetValueOrDefault(g.Key, g.Key), Count = g.Count() })
+            .OrderByDescending(x => x.Count).ToList();
+        model.StatusBuckets = rows.GroupBy(x => NormalizeStatus(x.Status))
+            .Select(g => new OutsourcedServiceBucket { Label = StatusLabel(g.Key), Count = g.Count() })
+            .OrderByDescending(x => x.Count).ToList();
+        model.UnitBuckets = rows.GroupBy(x => x.UnitOfMeasure)
+            .Select(g => new OutsourcedServiceBucket { Label = g.Key, Count = g.Count() })
+            .OrderByDescending(x => x.Count).ToList();
+        model.MonthlyBuckets = BuildMonthlyBuckets(rows);
+        ViewBag.Units = await db.OutsourcedServiceRequests.AsNoTracking()
+            .Select(x => x.UnitOfMeasure).Distinct().OrderBy(x => x).ToListAsync();
+        ViewBag.Priorities = PriorityLabels;
+        return View(model);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Export(string? from, string? to, string? priority, string? status, string? unit)
+    {
+        var redirect = await Index(from, to, priority, status, unit);
+        if (redirect is not ViewResult view || view.Model is not OutsourcedServiceDashboardViewModel model)
+            return redirect;
+        var csv = new StringBuilder();
+        csv.AppendLine("شماره درخواست,شرح خدمات,واحد سنجش,مقدار,تاریخ نیازمندی,اولویت,وضعیت گردش کار,درخواست‌کننده,شماره پرسنلی,واحد سازمانی,تاریخ ثبت,مرحله جاری");
+        foreach (var row in model.Rows)
+            csv.AppendLine(string.Join(",", new[]
+            {
+                Csv(row.RequestNumber), Csv(row.ServiceDescription), Csv(row.UnitOfMeasure),
+                row.Quantity.ToString(CultureInfo.InvariantCulture), Csv(PersianDateService.Format(row.NeedByDate)),
+                Csv(PriorityLabels.GetValueOrDefault(row.Priority, row.Priority)), Csv(StatusLabel(NormalizeStatus(row.Status))),
+                Csv(row.RequesterName), Csv(row.PersonnelNumber), Csv(row.Organization),
+                Csv(PersianDateService.Format(PersianDateService.ToTehran(row.CreatedAtUtc))), Csv(row.CurrentStepTitle)
+            }));
+        var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray();
+        return File(bytes, "text/csv; charset=utf-8", $"OutsourcedServices-{DateTime.Now:yyyyMMdd-HHmm}.csv");
+    }
+
+    private static List<OutsourcedServiceBucket> BuildMonthlyBuckets(List<OutsourcedServiceReportRow> rows)
+    {
+        var calendar = new PersianCalendar();
+        var now = PersianDateService.ToTehran(DateTime.UtcNow);
+        var currentMonth = calendar.ToDateTime(calendar.GetYear(now), calendar.GetMonth(now), 1, 0, 0, 0, 0);
+        var result = new List<OutsourcedServiceBucket>();
+        for (var i = 11; i >= 0; i--)
+        {
+            var start = calendar.AddMonths(currentMonth, -i);
+            var end = calendar.AddMonths(start, 1);
+            var label = $"{calendar.GetYear(start):0000}/{calendar.GetMonth(start):00}";
+            var count = rows.Count(x =>
+            {
+                var created = PersianDateService.ToTehran(x.CreatedAtUtc);
+                return created >= start && created < end;
+            });
+            result.Add(new OutsourcedServiceBucket { Label = label, Count = count });
+        }
+        return result;
+    }
+
+    private static string NormalizeStatus(string? status) => status switch
+    {
+        "InProgress" or "Pending" or "New" => "InProgress",
+        "Completed" or "Approved" or "Done" => "Completed",
+        "Rejected" or "Cancelled" => "Rejected",
+        _ => "NotStarted"
+    };
+
+    private static string StatusLabel(string status) => status switch
+    {
+        "InProgress" => "در حال گردش",
+        "Completed" => "تکمیل‌شده",
+        "Rejected" => "رد یا لغو شده",
+        _ => "بدون گردش کار"
+    };
+
+    private static string Csv(string? value) => "\"" + (value ?? "").Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
+}

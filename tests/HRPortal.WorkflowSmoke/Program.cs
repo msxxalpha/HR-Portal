@@ -636,7 +636,14 @@ static async Task VerifyWorkflowServiceAuthorizationAsync()
         AssignmentType = "Position", OrganizationNodeId = 9,
         OrganizationNode = oldPosition
     };
+    var employeeStep = new WorkflowStep
+    {
+        Id = 2, WorkflowDefinitionId = 1, WorkflowDefinition = definition,
+        Code = "EMPLOYEE", Title = "اقدام کارمند مشخص", SortOrder = 2,
+        AssignmentType = "Employee", AssignedEmployeeId = 2
+    };
     definition.Steps.Add(step);
+    definition.Steps.Add(employeeStep);
 
     WorkflowInstance Instance(int id) => new()
     {
@@ -648,7 +655,11 @@ static async Task VerifyWorkflowServiceAuthorizationAsync()
     var instance100 = Instance(100);
     var instance101 = Instance(101);
     var instance102 = Instance(102);
+    instance102.CurrentStepId = employeeStep.Id;
+    instance102.CurrentStep = employeeStep;
     var instance103 = Instance(103);
+    instance103.CurrentStepId = employeeStep.Id;
+    instance103.CurrentStep = employeeStep;
 
     var positionTask = new WorkflowTask
     {
@@ -667,17 +678,17 @@ static async Task VerifyWorkflowServiceAuthorizationAsync()
     var employeeTask = new WorkflowTask
     {
         Id = 1003, WorkflowInstanceId = 102, WorkflowInstance = instance102,
-        WorkflowStepId = 1, WorkflowStep = step,
+        WorkflowStepId = 2, WorkflowStep = employeeStep,
         AssignedEmployeeId = 2, Status = "Pending"
     };
     var inactiveTask = new WorkflowTask
     {
         Id = 1004, WorkflowInstanceId = 103, WorkflowInstance = instance103,
-        WorkflowStepId = 1, WorkflowStep = step,
+        WorkflowStepId = 2, WorkflowStep = employeeStep,
         AssignedEmployeeId = 6, Status = "Pending"
     };
     db.AddRange(requester, priorActor, currentHolder, formerHolder, outsider, inactiveAssignee,
-        oldRevision, currentRevision, oldPosition, currentPosition, definition, step,
+        oldRevision, currentRevision, oldPosition, currentPosition, definition, step, employeeStep,
         instance100, instance101, instance102, instance103,
         positionTask, priorActorTask, employeeTask, inactiveTask,
         new WorkflowHistory

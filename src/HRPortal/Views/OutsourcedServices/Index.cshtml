@@ -1,0 +1,34 @@
+@model List<HRPortal.Models.OutsourcedServiceRequest>
+@{
+    ViewData["Title"] = "سفارش خدمات برونسپاری";
+    var states = ViewBag.WorkflowStates as Dictionary<string,dynamic>;
+    var canCreate = (bool)(ViewBag.CanCreate ?? false);
+    string priority(string value) => value switch { "Emergency"=>"اضطراری", "Urgent"=>"فوری", _=>"عادی" };
+    string priorityClass(string value) => value switch { "Emergency"=>"emergency", "Urgent"=>"urgent", _=>"normal" };
+}
+<div class="outsourced-page">
+    <div class="outsourced-hero">
+        <div class="outsourced-hero-icon">↗</div>
+        <div><span>خدمات کارکنان</span><h1>سفارش خدمات برونسپاری</h1><p>درخواست‌های ثبت‌شده برای انجام خدمات توسط پیمانکاران برون‌سازمانی.</p></div>
+        @if(canCreate){<a class="btn btn-main" href="/OutsourcedServices/Create">＋ ثبت سفارش جدید</a>}
+    </div>
+    @if (TempData["Success"] is string success) { <div class="alert success">@success</div> }
+    @if (TempData["Warning"] is string warning) { <div class="alert warning">@warning</div> }
+    @if (TempData["Error"] is string error) { <div class="alert error">@error</div> }
+    <section class="outsourced-list-card">
+        <div class="outsourced-list-head"><div><h2>فهرست سفارش‌ها</h2><p>آخرین ۳۰۰ درخواست ثبت‌شده</p></div><strong>@Model.Count درخواست</strong></div>
+        @if(Model.Count == 0){<div class="outsourced-empty"><span>▤</span><h3>هنوز سفارشی ثبت نشده است</h3><p>با ثبت اولین سفارش خدمات، سوابق آن در این قسمت قابل پیگیری خواهد بود.</p>@if(canCreate){<a class="btn btn-main" href="/OutsourcedServices/Create">ثبت سفارش خدمات</a>}</div>}
+        else {
+        <div class="outsourced-table-wrap"><table class="outsourced-table">
+            <thead><tr><th>شماره درخواست</th><th>شرح خدمات</th><th>مقدار</th><th>تاریخ نیازمندی</th><th>اولویت</th><th>وضعیت گردش کار</th><th>تاریخ ثبت</th><th></th></tr></thead>
+            <tbody>@foreach(var item in Model){
+                var key=item.Id.ToString();
+                var workflow=ViewBag.WorkflowStates is IDictionary<string,object> map && map.TryGetValue(key,out var found) ? found : null;
+                var state=workflow?.Status?.ToString() ?? item.Status;
+                var step=workflow?.StepTitle?.ToString() ?? "";
+                var stateLabel=state switch{"InProgress"=>"در حال گردش","Completed"=>"تکمیل‌شده","Rejected"=>"رد یا لغو شده",_=>"ثبت‌شده"};
+                <tr><td><strong dir="ltr">@item.RequestNumber</strong></td><td class="service-desc">@item.ServiceDescription</td><td>@item.Quantity.ToString("0.###") @item.UnitOfMeasure</td><td>@HRPortal.Services.PersianDateService.Format(item.NeedByDate)</td><td><span class="outsourced-priority @priorityClass(item.Priority)">@priority(item.Priority)</span></td><td><span class="outsourced-state">@stateLabel</span>@if(!string.IsNullOrWhiteSpace(step)){<small class="outsourced-step">@step</small>}</td><td>@HRPortal.Services.PersianDateService.Format(HRPortal.Services.PersianDateService.ToTehran(item.CreatedAtUtc))</td><td><a class="btn btn-outline btn-sm" href="/OutsourcedServices/Details/@item.Id">جزئیات</a></td></tr>
+            }</tbody>
+        </table></div>}
+    </section>
+</div>

@@ -398,6 +398,8 @@ public class WorkflowController(
             Definitions = await workflow.GetDefinitionsAsync(),
             SelectedDefinition = id.HasValue ? await workflow.GetDefinitionAsync(id.Value) : null,
             Positions = await GetCurrentPositionsAsync(),
+            AvailableEmployees = await db.Employees.AsNoTracking().Where(x => x.Status == "فعال")
+                .OrderBy(x => x.LastName).ThenBy(x => x.FirstName).ToListAsync(),
             AvailableForms = await db.SystemFormDefinitions.AsNoTracking()
                 .Where(x => x.IsActive && x.ImplementationType == "GenericWorkflow")
                 .OrderBy(x => x.Title).ToListAsync(),

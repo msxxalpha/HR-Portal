@@ -1,15 +1,17 @@
 @model HRPortal.Models.OutsourcedServiceRequestFormVm
 @{
     var isEdit = (bool)(ViewBag.IsEdit ?? false);
+    var returnTaskId = ViewBag.ReturnTaskId as int?;
+    var isWorkflowReturnEdit = returnTaskId.HasValue;
     ViewData["Title"] = isEdit ? "ویرایش سفارش خدمات برونسپاری" : "سفارش خدمات برونسپاری";
-    var formAction = isEdit ? Url.Action("Edit", "OutsourcedServices", new { id = Context.Request.RouteValues["id"] }) : Url.Action("Create", "OutsourcedServices");
+    var formAction = isEdit ? Url.Action("Edit", "OutsourcedServices", new { id = Context.Request.RouteValues["id"], returnTaskId }) : Url.Action("Create", "OutsourcedServices");
     var units = (string[])ViewBag.Units;
     var priorities = (Dictionary<string,string>)ViewBag.Priorities;
 }
 <div class="outsourced-page">
     <div class="outsourced-hero">
         <div class="outsourced-hero-icon">↗</div>
-        <div><span>خدمات کارکنان</span><h1>@(isEdit ? "ویرایش سفارش خدمات برونسپاری" : "ثبت سفارش خدمات برونسپاری")</h1><p>@(isEdit ? "اطلاعات درخواست را اصلاح کنید؛ نسخه قبلی برای سوابق و پیگیری محفوظ می‌ماند." : "درخواست خدمات موردنیاز را ثبت کنید تا پس از طی تأییدیه‌های سازمانی، برای انجام به پیمانکار برون‌سازمانی ارجاع شود.")</p></div>
+        <div><span>خدمات کارکنان</span><h1>@(isEdit ? "ویرایش سفارش خدمات برونسپاری" : "ثبت سفارش خدمات برونسپاری")</h1><p>@(isWorkflowReturnEdit ? "درخواست برای اصلاح به شما بازگشته است. پس از ذخیره تغییرات، به کارتابل بازمی‌گردید تا درخواست را مجدداً در مسیر گردش کار ثبت کنید." : isEdit ? "اطلاعات درخواست را اصلاح کنید؛ نسخه قبلی برای سوابق و پیگیری محفوظ می‌ماند." : "درخواست خدمات موردنیاز را ثبت کنید تا پس از طی تأییدیه‌های سازمانی، برای انجام به پیمانکار برون‌سازمانی ارجاع شود.")</p></div>
         <a class="btn btn-outline" href="/OutsourcedServices">فهرست درخواست‌ها</a>
     </div>
     @if (TempData["Warning"] is string warning) { <div class="alert warning">@warning</div> }
@@ -44,7 +46,7 @@
         </div>
         <div class="outsourced-form-footer">
             <a class="btn btn-outline" href="/OutsourcedServices">انصراف</a>
-            <button class="btn btn-main" type="submit">@(isEdit ? "ذخیره تغییرات" : "ثبت درخواست و ارسال به گردش کار") <span>←</span></button>
+            <button class="btn btn-main" type="submit">@(isWorkflowReturnEdit ? "ذخیره اصلاحات و بازگشت به کارتابل" : isEdit ? "ذخیره تغییرات" : "ثبت درخواست و ارسال به گردش کار") <span>←</span></button>
         </div>
     </form>
     @if (!isEdit)

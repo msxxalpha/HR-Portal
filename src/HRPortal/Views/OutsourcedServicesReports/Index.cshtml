@@ -7,7 +7,7 @@
     int maxStatus = Math.Max(1, Model.StatusBuckets.Select(x=>x.Count).DefaultIfEmpty(0).Max());
     int maxUnit = Math.Max(1, Model.UnitBuckets.Select(x=>x.Count).DefaultIfEmpty(0).Max());
     int maxMonth = Math.Max(1, Model.MonthlyBuckets.Select(x=>x.Count).DefaultIfEmpty(0).Max());
-    string statusLabel(string s) => s switch { "InProgress"=>"در حال گردش", "Completed"=>"تکمیل‌شده", "Rejected"=>"رد یا لغو شده", "Returned"=>"برگشت داده‌شده", _=>"بدون گردش کار" };
+    string statusLabel(string s) => s switch { "InProgress"=>"در حال گردش", "Completed"=>"تأیید نهایی", "Rejected"=>"رد یا لغو شده", "Returned"=>"برگشت داده‌شده", _=>"بدون گردش کار" };
     string priorityLabel(string s) => priorities.GetValueOrDefault(s,s);
 }
 <div class="outsourced-page outsourced-reports">
@@ -31,7 +31,7 @@
             <select name="status">
                 <option value="all" selected="@(Model.Status=="all")">همه وضعیت‌ها</option>
                 <option value="InProgress" selected="@(Model.Status=="InProgress")">در حال گردش</option>
-                <option value="Completed" selected="@(Model.Status=="Completed")">تکمیل‌شده</option>
+                <option value="Completed" selected="@(Model.Status=="Completed")">تأیید نهایی</option>
                 <option value="Rejected" selected="@(Model.Status=="Rejected")">رد یا لغو شده</option>
                 <option value="Returned" selected="@(Model.Status=="Returned")">برگشت داده‌شده</option>
                 <option value="NotStarted" selected="@(Model.Status=="NotStarted")">بدون گردش کار</option>
@@ -45,7 +45,7 @@
     <section class="outsourced-kpis">
         <article><span>کل سفارش‌ها</span><strong>@Model.TotalCount</strong><small>بر اساس فیلترهای انتخاب‌شده</small></article>
         <article><span>در حال گردش</span><strong>@Model.PendingCount</strong><small>در انتظار تکمیل تأییدیه‌ها</small></article>
-        <article><span>تکمیل‌شده</span><strong>@Model.CompletedCount</strong><small>پایان‌یافته در گردش کار</small></article>
+        <article><span>تأیید نهایی</span><strong>@Model.CompletedCount</strong><small>تکمیل تأییدیه‌های گردش کار</small></article>
         <article><span>رد یا لغو شده</span><strong>@Model.RejectedCount</strong><small>درخواست‌های خاتمه‌یافته بدون تأیید</small></article>
         <article><span>برگشت داده‌شده</span><strong>@Model.ReturnedCount</strong><small>برای اصلاح یا بازنگری</small></article>
         <article><span>فوری و اضطراری</span><strong>@Model.UrgentCount</strong><small>نیازمند توجه ویژه</small></article>

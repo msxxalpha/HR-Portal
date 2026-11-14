@@ -66,6 +66,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.HasIndex(x => x.RequestNumber).IsUnique();
             e.HasIndex(x => new { x.CreatedAtUtc, x.Priority, x.Status });
             e.Property(x => x.Quantity).HasPrecision(18, 3);
+            e.Property(x => x.NeedByDate).HasColumnType("date");
             e.Property(x => x.ServiceDescription).HasMaxLength(3000).IsRequired();
             e.Property(x => x.UnitOfMeasure).HasMaxLength(40).IsRequired();
             e.Property(x => x.Priority).HasMaxLength(20).IsRequired();

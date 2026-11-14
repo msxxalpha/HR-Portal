@@ -1750,7 +1750,11 @@ static async Task VerifyWorkflowStageEditingAndRequesterReturnAsync()
         "The requester must receive an editable form for the requester-correction step.");
 
     await service.CompleteTaskAsync(requesterTaskRow.TaskId, requester.Id, "Approve",
-        "اصلاحات ثبت و برای ادامه گردش ارسال شد.");
+        "اصلاحات ثبت و برای ادامه گردش ارسال شد.",
+        values: new Dictionary<string, string?>
+        {
+            [$"field_{requesterCorrectionField.Id}"] = "شرح اصلاح ثبت‌شده"
+        });
     var refreshedInstance = await db.WorkflowInstances.SingleAsync(x => x.Id == instance.Id);
     Check(refreshedInstance.Status == "InProgress" && refreshedInstance.CurrentStepId == nextStep.Id,
         "After requester resubmission, the workflow must continue using the requester step's configured approval route.");

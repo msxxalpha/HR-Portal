@@ -500,7 +500,7 @@ public class WorkflowController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteStep(int id, int definitionId)
     {
-        try { await workflow.DeleteStepAsync(id); TempData["Success"] = "مرحله حذف شد."; }
+        try { await workflow.DeleteStepAsync(id); TempData["Success"] = "مرحله حذف شد؛ مسیرهای مرتبط پاک و ترتیب مراحل باقی‌مانده بازتنظیم شد."; }
         catch (Exception ex) { TempData["Error"] = ex.Message; }
         return RedirectToAction(nameof(Manage), new { id = definitionId });
     }

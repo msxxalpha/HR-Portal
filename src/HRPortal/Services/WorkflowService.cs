@@ -531,12 +531,28 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .Where(x => x.WorkflowStepId == task.WorkflowStepId)
             .OrderBy(x => x.SortOrder).ToListAsync(cancellationToken);
         var input = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        var fieldsById = fields.ToDictionary(x => x.Id);
+        var unexpectedKeys = new List<string>();
         if (submitted is not null)
         {
             foreach (var pair in submitted)
             {
                 var key = pair.Key?.Trim() ?? "";
                 if (key.Length == 0) continue;
+
+                // New task forms post a stable field identifier. Keep accepting
+                // legacy field-code keys while old browser tabs are still open.
+                if (key.StartsWith("field_", StringComparison.OrdinalIgnoreCase))
+                {
+                    var idPart = key["field_".Length..];
+                    if (!int.TryParse(idPart, out var fieldId) || !fieldsById.TryGetValue(fieldId, out var definition))
+                    {
+                        unexpectedKeys.Add(key);
+                        continue;
+                    }
+                    key = definition.Code.Trim();
+                }
+
                 if (!input.TryAdd(key, pair.Value))
                     throw new InvalidOperationException($"فیلد «{key}» بیش از یک‌بار از فرم ارسال شده است.");
             }
@@ -544,9 +560,12 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
         var allowedCodes = fields.Select(x => x.Code.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var unexpectedCodes = input.Keys.Where(k => !allowedCodes.Contains(k)).ToArray();
-        if (unexpectedCodes.Length > 0)
+        if (unexpectedKeys.Count > 0 || unexpectedCodes.Length > 0)
+        {
+            var unexpected = unexpectedKeys.Concat(unexpectedCodes).ToArray();
             throw new InvalidOperationException(
-                $"فیلد ارسالی «{string.Join("، ", unexpectedCodes)}» در مرحله «{task.WorkflowStep.Title}» تعریف نشده است. صفحه را تازه‌سازی کنید و دوباره اقدام کنید.");
+                $"فیلد ارسالی «{string.Join("، ", unexpected)}» در مرحله «{task.WorkflowStep.Title}» تعریف نشده است. صفحه را تازه‌سازی کنید و دوباره اقدام کنید.");
+        }
 
         foreach (var field in fields)
         {

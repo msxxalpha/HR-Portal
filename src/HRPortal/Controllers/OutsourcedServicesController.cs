@@ -369,9 +369,9 @@ public sealed class OutsourcedServicesController(
         var hasRequesterCorrectionTask = await db.WorkflowTasks.AsNoTracking().AnyAsync(task =>
             task.WorkflowInstanceId == instance.Id &&
             task.WorkflowStepId == instance.CurrentStepId.Value &&
-            task.WorkflowStep.AssignmentType == "Requester" &&
             task.Status == "Pending" &&
-            task.AssignedEmployeeId == employeeId);
+            task.AssignedEmployeeId == employeeId &&
+            (task.Action == "ReturnedForEdit" || task.WorkflowStep.AssignmentType == "Requester"));
         if (hasRequesterCorrectionTask) return true;
 
         if (!Has("OutsourcedServices.Create")) return false;

@@ -244,6 +244,13 @@ public class WorkflowController(
                 .FirstOrDefaultAsync(x => x.Id == suggestionId);
         }
 
+        if (instance.EntityType == "OutsourcedServiceRequest" &&
+            int.TryParse(instance.EntityId, out var outsourcedServiceRequestId))
+        {
+            ViewBag.WorkflowOutsourcedServiceRequest = await db.OutsourcedServiceRequests.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == outsourcedServiceRequestId);
+        }
+
         if (instance.EntityType == ContractRenewalWorkflowService.WorkflowEntityType &&
             int.TryParse(instance.EntityId, out var renewalRequestId))
         {
@@ -335,6 +342,12 @@ public class WorkflowController(
             ViewBag.WorkflowSuggestion = await db.Suggestions.AsNoTracking()
                 .Include(x => x.Members).Include(x => x.Attachments)
                 .FirstOrDefaultAsync(x => x.Id == suggestionId);
+        }
+        if (task.WorkflowInstance.EntityType == "OutsourcedServiceRequest" &&
+            int.TryParse(task.WorkflowInstance.EntityId, out var outsourcedServiceRequestId))
+        {
+            ViewBag.WorkflowOutsourcedServiceRequest = await db.OutsourcedServiceRequests.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == outsourcedServiceRequestId);
         }
         return View(task);
     }

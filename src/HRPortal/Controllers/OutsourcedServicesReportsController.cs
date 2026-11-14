@@ -36,7 +36,7 @@ public sealed class OutsourcedServicesReportsController(HRPortalDbContext db) : 
     }
 
     [HttpGet]
-    public async Task<IActionResult> Dashboard(string? from, string? to, string? priority, string? status, string? unit)
+    public async Task<IActionResult> Dashboard(string? from, string? to, string? priority, string? status, string? unit, string? organizationalUnit)
     {
         ViewBag.Priorities = PriorityLabels;
         ViewBag.Units = await db.OutsourcedServiceRequests.AsNoTracking()
@@ -63,7 +63,8 @@ public sealed class OutsourcedServicesReportsController(HRPortalDbContext db) : 
             FromJalali = from ?? "", ToJalali = to ?? "",
             Priority = string.IsNullOrWhiteSpace(priority) ? "all" : priority,
             Status = string.IsNullOrWhiteSpace(status) ? "all" : status,
-            UnitOfMeasure = string.IsNullOrWhiteSpace(unit) ? "all" : unit
+            UnitOfMeasure = string.IsNullOrWhiteSpace(unit) ? "all" : unit,
+            OrganizationalUnit = string.IsNullOrWhiteSpace(organizationalUnit) ? "all" : organizationalUnit
         };
         if (!ModelState.IsValid)
         {
@@ -89,17 +90,49 @@ public sealed class OutsourcedServicesReportsController(HRPortalDbContext db) : 
             query = query.Where(x => x.UnitOfMeasure == model.UnitOfMeasure);
 
         var requests = await query.OrderByDescending(x => x.CreatedAtUtc).Take(5000).ToListAsync();
-        var employeeIds = requests.Select(x => x.RequesterEmployeeId).Distinct().ToArray();
-        var employees = await db.Employees.AsNoTracking().Where(x => employeeIds.Contains(x.Id))
+        // Resolve every requester's reporting unit against the latest effective
+        // finalized hierarchy. A reporting unit is the nearest Management/Presidency
+        // ancestor whose direct parent is the CEO node.
+        var revisionId = await db.OrganizationStructureRevisions.AsNoTracking()
+            .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
+            .OrderByDescending(x => x.EffectiveDate).ThenByDescending(x => x.FinalizedAt).ThenByDescending(x => x.Id)
+            .Select(x => (int?)x.Id).FirstOrDefaultAsync();
+        revisionId ??= await db.OrganizationStructureRevisions.AsNoTracking()
+            .Where(x => x.IsFinalized)
+            .OrderBy(x => x.EffectiveDate).ThenByDescending(x => x.FinalizedAt).ThenByDescending(x => x.Id)
+            .Select(x => (int?)x.Id).FirstOrDefaultAsync();
+        var organizationNodes = revisionId.HasValue
+            ? await db.OrganizationNodes.AsNoTracking()
+                .Where(x => x.OrganizationStructureRevisionId == revisionId.Value && x.IsActive)
+                .ToListAsync()
+            : new List<OrganizationNode>();
+
+        var employees = await db.Employees.AsNoTracking()
             .Select(e => new
             {
                 e.Id,
                 Name = e.FirstName + " " + e.LastName,
                 e.PersonnelNumber,
-                Organization = e.OrganizationSection != null ? e.OrganizationSection.Title :
-                    e.OrganizationDepartment != null ? e.OrganizationDepartment.Title :
-                    e.OrganizationUnit != null ? e.OrganizationUnit.Title : "—"
-            }).ToDictionaryAsync(x => x.Id);
+                e.OrganizationPositionId,
+                e.OrganizationSectionId,
+                e.OrganizationDepartmentId,
+                e.OrganizationUnitId
+            }).ToListAsync();
+        var employeeById = employees.ToDictionary(e => e.Id, e => new
+        {
+            e.Name,
+            e.PersonnelNumber,
+            Organization = OutsourcedServiceOrganizationResolver.ResolveUnitTitle(
+                e.Id, organizationNodes, e.OrganizationPositionId,
+                e.OrganizationSectionId, e.OrganizationDepartmentId, e.OrganizationUnitId)
+        });
+        model.OrganizationalUnitOptions = employeeById.Values
+            .Select(x => x.Organization).Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x, StringComparer.CurrentCulture).ToList();
+        if (model.OrganizationalUnit != "all" &&
+            !model.OrganizationalUnitOptions.Contains(model.OrganizationalUnit, StringComparer.OrdinalIgnoreCase))
+            model.OrganizationalUnitOptions.Add(model.OrganizationalUnit);
+        ViewBag.OrganizationalUnits = model.OrganizationalUnitOptions;
         var requestIds = requests.Select(x => x.Id.ToString()).ToArray();
         var workflowRows = await db.WorkflowInstances.AsNoTracking()
             .Where(w => w.EntityType == "OutsourcedServiceRequest" && requestIds.Contains(w.EntityId))
@@ -111,7 +144,7 @@ public sealed class OutsourcedServicesReportsController(HRPortalDbContext db) : 
 
         var rows = requests.Select(request =>
         {
-            employees.TryGetValue(request.RequesterEmployeeId, out var employee);
+            employeeById.TryGetValue(request.RequesterEmployeeId, out var employee);
             workflows.TryGetValue(request.Id.ToString(), out var workflow);
             return new OutsourcedServiceReportRow
             {
@@ -125,7 +158,7 @@ public sealed class OutsourcedServicesReportsController(HRPortalDbContext db) : 
                 Status = workflow?.Status ?? request.Status,
                 RequesterName = employee?.Name ?? "—",
                 PersonnelNumber = employee?.PersonnelNumber ?? "",
-                Organization = employee?.Organization ?? "—",
+                Organization = employee?.Organization ?? OutsourcedServiceOrganizationResolver.UnassignedTitle,
                 CreatedAtUtc = request.CreatedAtUtc,
                 CurrentStepTitle = workflow?.Step ?? ""
             };
@@ -133,6 +166,9 @@ public sealed class OutsourcedServicesReportsController(HRPortalDbContext db) : 
 
         if (model.Status != "all")
             rows = rows.Where(x => NormalizeStatus(x.Status) == model.Status).ToList();
+        if (model.OrganizationalUnit != "all")
+            rows = rows.Where(x => string.Equals(x.Organization, model.OrganizationalUnit,
+                StringComparison.OrdinalIgnoreCase)).ToList();
 
         model.Rows = rows;
         model.TotalCount = rows.Count;
@@ -150,14 +186,27 @@ public sealed class OutsourcedServicesReportsController(HRPortalDbContext db) : 
         model.UnitBuckets = rows.GroupBy(x => x.UnitOfMeasure)
             .Select(g => new OutsourcedServiceBucket { Label = g.Key, Count = g.Count() })
             .OrderByDescending(x => x.Count).ToList();
+        model.OrganizationalUnitBuckets = rows
+            .GroupBy(x => string.IsNullOrWhiteSpace(x.Organization)
+                ? OutsourcedServiceOrganizationResolver.UnassignedTitle : x.Organization)
+            .Select(g => new OutsourcedServiceOrganizationBucket
+            {
+                Label = g.Key,
+                InProgressCount = g.Count(x => NormalizeStatus(x.Status) == "InProgress"),
+                CompletedCount = g.Count(x => NormalizeStatus(x.Status) == "Completed"),
+                RejectedCount = g.Count(x => NormalizeStatus(x.Status) == "Rejected"),
+                ReturnedCount = g.Count(x => NormalizeStatus(x.Status) == "Returned"),
+                NotStartedCount = g.Count(x => NormalizeStatus(x.Status) == "NotStarted")
+            })
+            .OrderByDescending(x => x.TotalCount).ThenBy(x => x.Label, StringComparer.CurrentCulture).ToList();
         model.MonthlyBuckets = BuildMonthlyBuckets(rows);
         return View(model);
     }
 
     [HttpGet]
-    public async Task<IActionResult> Export(string? from, string? to, string? priority, string? status, string? unit)
+    public async Task<IActionResult> Export(string? from, string? to, string? priority, string? status, string? unit, string? organizationalUnit)
     {
-        var redirect = await Dashboard(from, to, priority, status, unit);
+        var redirect = await Dashboard(from, to, priority, status, unit, organizationalUnit);
         if (redirect is not ViewResult view || view.Model is not OutsourcedServiceDashboardViewModel model)
             return redirect;
         var csv = new StringBuilder();

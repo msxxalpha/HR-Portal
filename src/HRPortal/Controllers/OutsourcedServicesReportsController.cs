@@ -189,7 +189,7 @@ public sealed class OutsourcedServicesReportsController(HRPortalDbContext db) : 
     private static string StatusLabel(string status) => status switch
     {
         "InProgress" => "در حال گردش",
-        "Completed" => "تکمیل‌شده",
+        "Completed" => "تأیید نهایی",
         "Rejected" => "رد یا لغو شده",
         "Returned" => "برگشت داده‌شده",
         _ => "بدون گردش کار"

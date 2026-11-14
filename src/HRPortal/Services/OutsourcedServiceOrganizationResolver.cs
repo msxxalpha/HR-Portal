@@ -38,7 +38,7 @@ public static class OutsourcedServiceOrganizationResolver
                 .Select(x => x.Id));
         }
 
-        foreach (var startId in starts)
+        string? WalkToReportingUnit(int startId)
         {
             var visited = new HashSet<int>();
             var currentId = startId;
@@ -53,6 +53,23 @@ public static class OutsourcedServiceOrganizationResolver
                 if (!current.ParentId.HasValue) break;
                 currentId = current.ParentId.Value;
             }
+            return null;
+        }
+
+        foreach (var startId in starts)
+        {
+            var resolved = WalkToReportingUnit(startId);
+            if (!string.IsNullOrWhiteSpace(resolved)) return resolved;
+        }
+
+        // If the employee's saved position reference is stale or absent in the
+        // selected revision, try the explicit employee assignments in the tree.
+        foreach (var assignedNode in nodes.Where(x =>
+                     WorkflowPositionAssignmentResolver.GetAssignedEmployeeIds(
+                         x.AssignedEmployeeIdsCsv, x.PositionHolderEmployeeId).Contains(employeeId)))
+        {
+            var resolved = WalkToReportingUnit(assignedNode.Id);
+            if (!string.IsNullOrWhiteSpace(resolved)) return resolved;
         }
 
         return UnassignedTitle;

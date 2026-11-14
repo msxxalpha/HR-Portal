@@ -1431,9 +1431,10 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
         if (task.WorkflowStep.AssignmentType == "Requester" && action is not ("Approve" or "SaveDraft"))
             throw new InvalidOperationException("مرحله بازگشت به درخواست‌کننده فقط امکان ذخیره پیش‌نویس یا ثبت مجدد درخواست را دارد.");
-        if (action == "Approve" && !task.WorkflowStep.AllowApprove ||
-            action == "Reject" && !task.WorkflowStep.AllowReject ||
-            action == "Return" && !task.WorkflowStep.AllowReturn)
+        if ((action == "Approve" && !task.WorkflowStep.AllowApprove &&
+             task.WorkflowStep.AssignmentType != "Requester") ||
+            (action == "Reject" && !task.WorkflowStep.AllowReject) ||
+            (action == "Return" && !task.WorkflowStep.AllowReturn))
             throw new InvalidOperationException("این عملیات برای مرحله جاری مجاز نیست.");
 
         if (action != "SaveDraft" && task.WorkflowStep.RequireNotes && string.IsNullOrWhiteSpace(comment))

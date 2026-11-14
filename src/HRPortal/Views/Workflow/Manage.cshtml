@@ -187,6 +187,10 @@ else
                                     { <option value="@target.Id" selected="@(returnTransition?.ToStepId == target.Id)">@(target.SortOrder + " - " + target.Title)</option> }
                                 </optgroup>
                             </select>
+                            @if (requesterSteps.Count == 0)
+                            {
+                                <small class="muted">برای فعال‌شدن گزینه «برگشت به درخواست‌کننده»، ابتدا یک مرحله با نوع تخصیص «درخواست‌کننده» به این گردش کار اضافه کنید.</small>
+                            }
                         </label>
                         <button class="btn btn-outline btn-sm" type="submit">ذخیره مسیر برگشت</button>
                     </form>

@@ -394,7 +394,9 @@ public sealed class OutsourcedServicesController(
         // and returns only a pending task that belongs to this employee.
         var task = await workflow.GetTaskAsync(taskId, employeeId);
         return task is not null &&
-            task.Action == "ReturnedForEdit" &&
+            (task.Action == "ReturnedForEdit" ||
+             (task.WorkflowStep.AssignmentType == "Requester" &&
+              task.WorkflowInstance.RequesterEmployeeId == employeeId)) &&
             task.WorkflowInstance.EntityType == "OutsourcedServiceRequest" &&
             task.WorkflowInstance.EntityId == requestId.ToString() &&
             task.WorkflowInstance.Status == "InProgress" &&

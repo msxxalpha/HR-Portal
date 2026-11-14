@@ -22,6 +22,7 @@ public sealed class OutsourcedServicesReportsController(HRPortalDbContext db) : 
     {
         ViewBag.Priorities = PriorityLabels;
         ViewBag.Units = await db.OutsourcedServiceRequests.AsNoTracking()
+            .Where(x => !x.IsDeleted)
             .Select(x => x.UnitOfMeasure).Distinct().OrderBy(x => x).ToListAsync();
         DateTime? fromDate = null, toDate = null;
         if (!string.IsNullOrWhiteSpace(from))
@@ -53,7 +54,7 @@ public sealed class OutsourcedServicesReportsController(HRPortalDbContext db) : 
             return View(model);
         }
 
-        var query = db.OutsourcedServiceRequests.AsNoTracking();
+        var query = db.OutsourcedServiceRequests.AsNoTracking().Where(x => !x.IsDeleted);
         if (fromDate.HasValue)
         {
             var startUtc = PersianDateService.ToUtcFromTehran(fromDate.Value.Date);

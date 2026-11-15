@@ -81,7 +81,7 @@ public class MonthlyPerformanceController(
                 CanEdit = model.CanEdit && scopedSet.Contains(employee.Id) &&
                     (ev is null || ev.LastEvaluatorId == actor || upperIds.Contains(ev.LastEvaluatorId)),
                 CanApproveExisting = model.CanEdit && scopedSet.Contains(employee.Id) &&
-                    ev is not null && ev.LastEvaluatorId != actor && upperIds.Contains(ev.LastEvaluatorId),
+                    ev is not null && ev.Scores.Count > 0 && ev.LastEvaluatorId != actor && upperIds.Contains(ev.LastEvaluatorId),
                 EvaluationVersion = ev is null ? null : Convert.ToBase64String(ev.RowVersion),
                 ImprovementActions = improvementActions.Where(x => x.EmployeeId == employee.Id).ToList()
             };
@@ -116,7 +116,7 @@ public class MonthlyPerformanceController(
         if (!isScoped && !canHistory) return Forbid();
         var canEdit = isScoped && MonthlyPerformanceService.IsOpen(period, MonthlyPerformanceService.NowIran())
             && (ev is null || ev.LastEvaluatorId == actor || await performance.IsAboveAsync(actor, ev.LastEvaluatorId));
-        var canApproveExisting = isScoped && ev is not null &&
+        var canApproveExisting = isScoped && ev is not null && ev.Scores.Count > 0 &&
             ev.LastEvaluatorId != actor &&
             MonthlyPerformanceService.IsOpen(period, MonthlyPerformanceService.NowIran()) &&
             await performance.IsAboveAsync(actor, ev.LastEvaluatorId);

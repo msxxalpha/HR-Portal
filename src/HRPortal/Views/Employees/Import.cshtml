@@ -2,14 +2,66 @@
     Layout = "~/Views/Shared/_Layout.cshtml";
     ViewData["Title"] = "ورود کارکنان از اکسل";
 }
-<div class="page-head"><div><h1>ورود کارکنان از اکسل</h1><p>ستون‌های اجباری: شماره پرسنلی، شناسه، کد ملی، نام، نام خانوادگی، موبایل و جنسیت. ستون‌های نوع استخدام و تاریخ پایان قرارداد نیز در فایل پشتیبانی می‌شوند. برای نوع استخدام مقدار «قراردادی» یا «غیرقراردادی» درج کنید؛ تاریخ قرارداد به‌صورت شمسی مانند ۱۴۰۵/۱۲/۲۹ است. اگر کارمند با شماره پرسنلی، شناسه یا کد ملی در سامانه وجود داشته باشد، اطلاعات همان کارمند به‌روزرسانی می‌شود؛ رمز عبور و سوابق سامانه تغییر نمی‌کنند. کد واحد/اداره/بخش اختیاری است.</p></div><a class="btn btn-outline" href="/Employees">بازگشت</a></div>
-@if(ViewBag.Success!=null){<div class="alert success">@ViewBag.Success</div>}
-@if(ViewBag.Errors is IEnumerable<string> es && es.Any()){<div class="alert error"><strong>خطاها:</strong><ul>@foreach(var x in es){<li>@x</li>}</ul></div>}
-<div class="card">
-    <div class="section-head"><div><h3>فایل Excel</h3><span class="muted">از قالب استاندارد استفاده کنید.</span></div><a class="btn btn-outline" href="/Employees/Template">دانلود قالب استاندارد اکسل</a></div>
-    <form method="post" enctype="multipart/form-data" class="filterbar">
-        @Html.AntiForgeryToken()
-        <input type="file" name="file" accept=".xlsx,.xls" required />
-        <button class="btn btn-main" type="submit">بارگذاری و پردازش</button>
-    </form>
+<div class="page-head employee-import-head">
+    <div>
+        <h1>ورود و به‌روزرسانی کارکنان از اکسل</h1>
+        <p>استفاده از قالب استاندارد برای ورود گروهی یا به‌روزرسانی اطلاعات کارکنان موجود</p>
+    </div>
+    <a class="btn btn-outline" href="/Employees">بازگشت به فهرست کارکنان</a>
 </div>
+@if (ViewBag.Success is string success) { <div class="alert success">@success</div> }
+@if (ViewBag.Errors is IEnumerable<string> errors && errors.Any())
+{
+    <div class="alert error"><strong>موارد نیازمند اصلاح:</strong><ul>@foreach (var error in errors) { <li>@error</li> }</ul></div>
+}
+<section class="employee-import-layout">
+    <article class="card employee-import-card">
+        <div class="employee-import-title">
+            <span>01</span><div><h2>بارگذاری فایل اطلاعات کارکنان</h2><p>فقط فایل با فرمت Excel جدید ‎(.xlsx)‎ قابل پردازش است.</p></div>
+        </div>
+        <div class="employee-import-download">
+            <div><strong>قالب استاندارد و راهنمای تکمیل</strong><small>قالب شامل شیت «کارکنان» و شیت «راهنمای تکمیل» است.</small></div>
+            <a class="btn btn-main" href="/Employees/Template">دانلود قالب اکسل</a>
+        </div>
+        <form method="post" enctype="multipart/form-data" class="employee-import-form">
+            @Html.AntiForgeryToken()
+            <label>انتخاب فایل ‎.xlsx‎
+                <input type="file" name="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required />
+            </label>
+            <button class="btn btn-main" type="submit">بارگذاری و پردازش اطلاعات</button>
+        </form>
+    </article>
+    <article class="card employee-import-guide">
+        <div class="employee-import-title">
+            <span>02</span><div><h2>راهنمای ورود و به‌روزرسانی</h2><p>نکات مهم برای جلوگیری از تغییر ناخواسته اطلاعات</p></div>
+        </div>
+        <div class="employee-import-rule"><b>ستون‌های اجباری</b><p>شماره پرسنلی، شناسه، کد ملی، نام، نام خانوادگی، موبایل و جنسیت باید مقدار معتبر داشته باشند.</p></div>
+        <div class="employee-import-rule"><b>فیلدهای تکمیلی</b><p>تاریخ استخدام، تاریخ تولد، شماره شناسنامه، محل صدور، آدرس، وضعیت نظام وظیفه، وضعیت تأهل، تعداد اولاد، شماره بیمه، مهارت و نوع شغل اختیاری هستند.</p></div>
+        <div class="employee-import-rule"><b>تقویم و مقادیر انتخابی</b><p>تاریخ‌ها را شمسی مانند ۱۴۰۰/۰۱/۰۱ وارد کنید. وضعیت نظام وظیفه: انجام داده، معاف، غیبت، در حال انجام یا خرید خدمت. وضعیت تأهل: مجرد یا متاهل.</p></div>
+        <div class="employee-import-rule employee-import-caution"><b>حفظ اطلاعات قبلی</b><p>اگر شماره پرسنلی، شناسه یا کد ملی متعلق به کارمند موجود باشد، همان رکورد به‌روزرسانی می‌شود. در ستون‌های تکمیلی جدید، خانه خالی مقدار قبلی را حفظ می‌کند. برای پاک کردن عمدی یک مقدار، عبارت دقیق <code>[پاک شود]</code> را وارد کنید.</p></div>
+        <div class="employee-import-rule"><b>سازگاری قالب‌های قدیمی</b><p>فایل‌های قالب قبلی کارکنان نیز قابل ورود هستند. نبود ستون‌های جدید در فایل قدیمی باعث حذف یا خالی شدن اطلاعات تکمیلی ذخیره‌شده نمی‌شود.</p></div>
+        <div class="employee-import-rule"><b>اطلاعات امنیتی و سوابق</b><p>ورود اکسل رمز عبور، سوابق ورود، نقش‌ها، مجوزهای کاربر و سوابق گردش کار را بازنویسی نمی‌کند. کارکنان جدید مطابق روال سامانه نقش پایه دریافت می‌کنند.</p></div>
+        <div class="employee-import-rule"><b>ساختار سازمانی</b><p>واحد، اداره و بخش را با کد گره‌های ساختار نهایی وارد کنید. اداره و بخش باید زیرمجموعه والد انتخاب‌شده باشند.</p></div>
+    </article>
+</section>
+<style>
+.employee-import-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:18px;align-items:start}
+.employee-import-card,.employee-import-guide{border:1px solid #dbe5ef;border-radius:18px;padding:22px;background:linear-gradient(145deg,#fff,#f7f9fc)}
+.employee-import-title{display:flex;gap:13px;align-items:center;margin-bottom:22px}
+.employee-import-title>span{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:#e7eff8;color:#173b60;font-weight:800}
+.employee-import-title h2{font-size:1.05rem;margin:0 0 5px;color:#17324d}
+.employee-import-title p{font-size:.82rem;color:#64748b;margin:0}
+.employee-import-download{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:17px;background:#edf3f9;border-radius:13px;margin-bottom:18px}
+.employee-import-download strong,.employee-import-download small{display:block}
+.employee-import-download small{color:#64748b;margin-top:5px;font-size:.78rem}
+.employee-import-form{display:grid;gap:15px}
+.employee-import-form label{display:grid;gap:8px;font-weight:700}
+.employee-import-form input[type=file]{width:100%;padding:14px;background:#fff;border:1px dashed #9eb4ca;border-radius:12px}
+.employee-import-form button{justify-self:start}
+.employee-import-rule{border-right:3px solid #527da5;padding:3px 13px 5px;margin:0 0 14px}
+.employee-import-rule b{color:#173b60}
+.employee-import-rule p{margin:5px 0 0;color:#596b7f;font-size:.84rem;line-height:1.9}
+.employee-import-caution{border-color:#bd8b36;background:#fbf7ee;padding:10px 13px;border-radius:8px}
+.employee-import-caution b{color:#855d1e}
+@@media(max-width:900px){.employee-import-layout{grid-template-columns:1fr}.employee-import-download{align-items:flex-start;flex-direction:column}}
+</style>

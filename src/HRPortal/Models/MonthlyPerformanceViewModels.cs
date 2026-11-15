@@ -12,6 +12,7 @@ public class MonthlyPerformanceDashboardVm
     public List<MonthlyPerformanceQuestionAverage> QuestionAverages { get; set; } = [];
     public List<MonthlyPerformanceImprovementActionVm> ImprovementActions { get; set; } = [];
     public int ImprovementActionCount => ImprovementActions.Count;
+    public int PendingApprovalCount => People.Count(x => x.CanApproveExisting);
     public int ActiveImprovementActionCount => ImprovementActions.Count(x => x.Status == MonthlyPerformanceImprovementStatuses.InProgress);
     public decimal TotalCapacity { get; set; }
     public decimal UsedScore { get; set; }
@@ -34,6 +35,8 @@ public class MonthlyPerformancePersonRow
     public string EvaluatorName { get; set; } = "";
     public DateTime? UpdatedAt { get; set; }
     public bool CanEdit { get; set; }
+    public bool CanApproveExisting { get; set; }
+    public string? EvaluationVersion { get; set; }
     public List<MonthlyPerformanceImprovementActionVm> ImprovementActions { get; set; } = [];
 }
 public class MonthlyPerformanceQuestionAverage
@@ -48,6 +51,7 @@ public class MonthlyPerformanceEvaluationVm
     public Employee Employee { get; set; } = null!;
     public string RankTitle { get; set; } = "";
     public bool CanEdit { get; set; }
+    public bool CanApproveExisting { get; set; }
     public int? EvaluationId { get; set; }
     public string? EvaluationVersion { get; set; }
     public int? OriginalEvaluatorId { get; set; }

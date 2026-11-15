@@ -108,7 +108,6 @@ public class EmployeeExcelService(HRPortalDbContext db)
         {
             string Cell(int column) => ws.Cell(row, column).GetString().Trim();
             int HeaderColumn(string title) => headerColumns.GetValueOrDefault(NormalizeHeader(title));
-            bool HasHeader(string title) => HeaderColumn(title) > 0;
             string HeaderCell(string title)
             {
                 var column = HeaderColumn(title);
@@ -239,24 +238,28 @@ public class EmployeeExcelService(HRPortalDbContext db)
             if (hireDateColumn > 0)
             {
                 var raw = ReadDateText(ws.Cell(row, hireDateColumn));
-                if (!string.IsNullOrWhiteSpace(raw) && !PersianDateService.TryParse(raw, out var parsedHire))
+                if (!string.IsNullOrWhiteSpace(raw))
                 {
-                    errors.Add($"ردیف {row}: تاریخ استخدام معتبر نیست؛ نمونه صحیح ۱۴۰۰/۰۱/۰۱ است.");
-                    continue;
-                }
-                else if (!string.IsNullOrWhiteSpace(raw))
+                    if (!PersianDateService.TryParse(raw, out var parsedHire))
+                    {
+                        errors.Add($"ردیف {row}: تاریخ استخدام معتبر نیست؛ نمونه صحیح ۱۴۰۰/۰۱/۰۱ است.");
+                        continue;
+                    }
                     hireDate = parsedHire.Date;
+                }
             }
             if (birthDateColumn > 0)
             {
                 var raw = ReadDateText(ws.Cell(row, birthDateColumn));
-                if (!string.IsNullOrWhiteSpace(raw) && !PersianDateService.TryParse(raw, out var parsedBirth))
+                if (!string.IsNullOrWhiteSpace(raw))
                 {
-                    errors.Add($"ردیف {row}: تاریخ تولد معتبر نیست؛ نمونه صحیح ۱۳۷۰/۰۱/۰۱ است.");
-                    continue;
-                }
-                else if (!string.IsNullOrWhiteSpace(raw))
+                    if (!PersianDateService.TryParse(raw, out var parsedBirth))
+                    {
+                        errors.Add($"ردیف {row}: تاریخ تولد معتبر نیست؛ نمونه صحیح ۱۳۷۰/۰۱/۰۱ است.");
+                        continue;
+                    }
                     birthDate = parsedBirth.Date;
+                }
             }
 
             var birthCertificateNumberColumn = HeaderColumn("شماره شناسنامه");

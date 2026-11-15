@@ -21,6 +21,7 @@ VerifyGranularPermissionMatrix();
 VerifyPasswordLoginLockoutPolicy();
 await VerifyRoleAdministrationAsync();
 await VerifyImprovementActionsAsync();
+await VerifyMonthlyPerformanceUpperApprovalAsync();
 await VerifyEffectiveEmployeePermissionMatrixAsync();
 await VerifySuggestionsAnalyticsAsync();
 await VerifyWorkflowStageEditingAndRequesterReturnAsync();
@@ -2235,6 +2236,216 @@ static void VerifyOutsourcedServiceOrganizationResolver()
         "Employees without a resolvable reporting unit must be grouped under the explicit unassigned label.");
 
     Console.WriteLine("PASS: outsourced services requester organization is resolved from the nearest Management/Presidency node directly below CEO or a Deputy node.");
+}
+
+static async Task VerifyMonthlyPerformanceUpperApprovalAsync()
+{
+    var options = new DbContextOptionsBuilder<HRPortalDbContext>()
+        .UseInMemoryDatabase("monthly-performance-upper-approval")
+        .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+        .Options;
+
+    await using var db = new HRPortalDbContext(options);
+    var now = MonthlyPerformanceService.NowIran();
+    var period = new MonthlyPerformancePeriod
+    {
+        Code = "MP-UPPER-APPROVAL", Title = "آزمون تأیید بالادستی",
+        Year = 1405, Month = 8, StartAt = now.AddDays(-1), EndAt = now.AddDays(5),
+        IsEnabled = true
+    };
+    var rank = new MonthlyPerformanceRank { Code = "RANK-APPROVAL-TEST", Title = "کارشناس", IsActive = true };
+    var domain = new MonthlyPerformanceDomain
+    {
+        Code = "DOMAIN-APPROVAL-TEST", Title = "انضباط و کیفیت", IsActive = true
+    };
+    var questionOne = new MonthlyPerformanceQuestion
+    {
+        Code = "APPROVAL-Q1", Title = "رعایت الزامات کاری", Domain = domain, IsActive = true, SortOrder = 1
+    };
+    var questionTwo = new MonthlyPerformanceQuestion
+    {
+        Code = "APPROVAL-Q2", Title = "کیفیت انجام وظایف", Domain = domain, IsActive = true, SortOrder = 2
+    };
+    var upperEvaluator = Person("UPPER-APPROVAL", "ارزیاب بالادست");
+    upperEvaluator.IsPerformanceEvaluator = true;
+    var lowerEvaluator = Person("LOWER-APPROVAL", "ارزیاب پایین‌دست");
+    lowerEvaluator.IsPerformanceEvaluator = true;
+    var employeeOne = Person("TARGET-APPROVAL-1", "کارمند اول");
+    var employeeTwo = Person("TARGET-APPROVAL-2", "کارمند دوم");
+    foreach (var employee in new[] { upperEvaluator, lowerEvaluator, employeeOne, employeeTwo })
+        employee.PerformanceRankId = 0; // replaced with the persisted active rank below
+
+    db.AddRange(period, rank, domain, questionOne, questionTwo,
+        upperEvaluator, lowerEvaluator, employeeOne, employeeTwo);
+    await db.SaveChangesAsync();
+
+    foreach (var employee in new[] { upperEvaluator, lowerEvaluator, employeeOne, employeeTwo })
+        employee.PerformanceRankId = rank.Id;
+
+    var revision = new OrganizationStructureRevision
+    {
+        RevisionCode = "ORG-UPPER-APPROVAL-TEST",
+        Title = "ساختار آزمون تأیید بالادستی",
+        EffectiveDate = now.Date,
+        IsFinalized = true,
+        FinalizedAt = DateTime.UtcNow,
+        CreatedAt = DateTime.UtcNow
+    };
+    db.OrganizationStructureRevisions.Add(revision);
+    await db.SaveChangesAsync();
+
+    var ceoNode = new OrganizationNode
+    {
+        OrganizationStructureRevisionId = revision.Id,
+        Code = "CEO-UPPER-APPROVAL", Title = "مدیرعامل", RankType = "مدیرعامل", IsActive = true
+    };
+    db.OrganizationNodes.Add(ceoNode);
+    await db.SaveChangesAsync();
+
+    var upperNode = new OrganizationNode
+    {
+        OrganizationStructureRevisionId = revision.Id,
+        ParentId = ceoNode.Id, Code = "UPPER-NODE-APPROVAL",
+        Title = "مدیریت ارزیابی", RankType = "مدیریت",
+        PositionHolderEmployeeId = upperEvaluator.Id, IsActive = true
+    };
+    db.OrganizationNodes.Add(upperNode);
+    await db.SaveChangesAsync();
+
+    var lowerNode = new OrganizationNode
+    {
+        OrganizationStructureRevisionId = revision.Id,
+        ParentId = upperNode.Id, Code = "LOWER-NODE-APPROVAL",
+        Title = "ریاست ارزیابی", RankType = "ریاست",
+        PositionHolderEmployeeId = lowerEvaluator.Id, IsActive = true
+    };
+    db.OrganizationNodes.Add(lowerNode);
+    await db.SaveChangesAsync();
+
+    var employeeOneNode = new OrganizationNode
+    {
+        OrganizationStructureRevisionId = revision.Id,
+        ParentId = lowerNode.Id, Code = "TARGET-ONE-NODE-APPROVAL",
+        Title = "جایگاه کارمند اول", RankType = "سرپرستی",
+        PositionHolderEmployeeId = employeeOne.Id, IsActive = true
+    };
+    var employeeTwoNode = new OrganizationNode
+    {
+        OrganizationStructureRevisionId = revision.Id,
+        ParentId = lowerNode.Id, Code = "TARGET-TWO-NODE-APPROVAL",
+        Title = "جایگاه کارمند دوم", RankType = "سرپرستی",
+        PositionHolderEmployeeId = employeeTwo.Id, IsActive = true
+    };
+    db.OrganizationNodes.AddRange(employeeOneNode, employeeTwoNode);
+    await db.SaveChangesAsync();
+
+    upperEvaluator.OrganizationPositionId = upperNode.Id;
+    lowerEvaluator.OrganizationPositionId = lowerNode.Id;
+    employeeOne.OrganizationPositionId = employeeOneNode.Id;
+    employeeTwo.OrganizationPositionId = employeeTwoNode.Id;
+    db.MonthlyPerformanceRankQuestions.AddRange(
+        new MonthlyPerformanceRankQuestion
+        {
+            RankId = rank.Id, Rank = rank, QuestionId = questionOne.Id, Question = questionOne,
+            MaxScore = 10, SortOrder = 1, IsActive = true
+        },
+        new MonthlyPerformanceRankQuestion
+        {
+            RankId = rank.Id, Rank = rank, QuestionId = questionTwo.Id, Question = questionTwo,
+            MaxScore = 10, SortOrder = 2, IsActive = true
+        });
+    await db.SaveChangesAsync();
+
+    var service = new MonthlyPerformanceService(db);
+    var initialScores = new Dictionary<int, decimal>
+    {
+        [questionOne.Id] = 7,
+        [questionTwo.Id] = 8
+    };
+    var initialNotes = new Dictionary<int, string?>
+    {
+        [questionOne.Id] = "یادداشت ارزیاب اولیه",
+        [questionTwo.Id] = "نیازمند پیگیری"
+    };
+
+    // The first subordinate result is confirmed individually from the employee form.
+    var firstEvaluation = await service.SaveAsync(
+        lowerEvaluator.Id, employeeOne.Id, period.Id, initialScores, initialNotes,
+        "ثبت ارزیابی توسط ارزیاب پایین‌دست");
+    Check(firstEvaluation.OriginalEvaluatorId == lowerEvaluator.Id &&
+          firstEvaluation.LastEvaluatorId == lowerEvaluator.Id,
+        "The first evaluation must initially be attributed to the lower-level evaluator.");
+    Check(await service.CanApproveExistingAsync(upperEvaluator.Id, employeeOne.Id, period.Id),
+        "An upper-level evaluator must be offered approval for an existing subordinate's assessment.");
+    Check(!await service.CanApproveExistingAsync(lowerEvaluator.Id, employeeOne.Id, period.Id),
+        "An evaluator must not be offered approval of their own assessment.");
+
+    var originalValues = firstEvaluation.Scores.ToDictionary(
+        x => x.QuestionId, x => (x.Score, x.Note));
+    await service.ApproveExistingAsync(upperEvaluator.Id, employeeOne.Id, period.Id);
+    var individuallyApproved = await db.MonthlyPerformanceEvaluations.AsNoTracking()
+        .Include(x => x.Scores)
+        .SingleAsync(x => x.PeriodId == period.Id && x.EmployeeId == employeeOne.Id);
+    Check(individuallyApproved.OriginalEvaluatorId == lowerEvaluator.Id &&
+          individuallyApproved.LastEvaluatorId == upperEvaluator.Id,
+        "Individual approval must preserve the original evaluator and assign the final evaluation to the approving upper-level evaluator.");
+    Check(individuallyApproved.Scores.All(x =>
+            originalValues[x.QuestionId].Score == x.Score &&
+            originalValues[x.QuestionId].Note == x.Note),
+        "Approving an existing evaluation must not change any score or note.");
+    var approvalHistory = await db.MonthlyPerformanceRevisions.AsNoTracking()
+        .Where(x => x.EvaluationId == individuallyApproved.Id &&
+            x.ChangedByEmployeeId == upperEvaluator.Id &&
+            x.Reason.Contains("تأیید امتیازهای ثبت‌شده"))
+        .ToListAsync();
+    Check(approvalHistory.Count == 2 &&
+          approvalHistory.All(x => x.PreviousEvaluatorId == lowerEvaluator.Id &&
+              x.OldScore == x.NewScore && x.OldNote == x.NewNote),
+        "Individual approval must create an audit revision for each score without changing its value or note.");
+    Check(!await service.CanApproveExistingAsync(upperEvaluator.Id, employeeOne.Id, period.Id),
+        "An evaluation already attributed to the upper evaluator must no longer appear as awaiting their approval.");
+
+    var lowerCannotReopen = false;
+    try
+    {
+        await service.SaveAsync(lowerEvaluator.Id, employeeOne.Id, period.Id,
+            new Dictionary<int, decimal> { [questionOne.Id] = 4, [questionTwo.Id] = 4 },
+            null, "تلاش برای بازنویسی پس از تأیید");
+    }
+    catch (UnauthorizedAccessException) { lowerCannotReopen = true; }
+    Check(lowerCannotReopen,
+        "After the upper evaluator confirms a result, the lower-level evaluator must not be able to overwrite it.");
+
+    // A second result remains attributed to the lower evaluator and is confirmed
+    // through the bulk action. The already-confirmed first result is skipped.
+    await service.SaveAsync(
+        lowerEvaluator.Id, employeeTwo.Id, period.Id, initialScores, initialNotes,
+        "ثبت دومین ارزیابی توسط ارزیاب پایین‌دست");
+    var (approved, skipped, errors) = await service.ApproveAllExistingAsync(upperEvaluator.Id, period.Id);
+    Check(approved == 1 && skipped == 1 && errors == 0,
+        "Bulk approval must confirm only pending results from lower-level evaluators and skip results already attributed to the current evaluator.");
+    var bulkApproved = await db.MonthlyPerformanceEvaluations.AsNoTracking()
+        .Include(x => x.Scores)
+        .SingleAsync(x => x.PeriodId == period.Id && x.EmployeeId == employeeTwo.Id);
+    Check(bulkApproved.OriginalEvaluatorId == lowerEvaluator.Id &&
+          bulkApproved.LastEvaluatorId == upperEvaluator.Id &&
+          bulkApproved.Scores.Sum(x => x.Score) == 15,
+        "Bulk approval must preserve the original assessment and the exact sum of its unchanged scores.");
+
+    var outsider = Person("OUTSIDER-APPROVAL", "ارزیاب خارج از دامنه");
+    outsider.IsPerformanceEvaluator = true;
+    db.Employees.Add(outsider);
+    await db.SaveChangesAsync();
+    var outsiderDenied = false;
+    try
+    {
+        await service.ApproveExistingAsync(outsider.Id, employeeTwo.Id, period.Id);
+    }
+    catch (UnauthorizedAccessException) { outsiderDenied = true; }
+    Check(outsiderDenied,
+        "Evaluators outside the employee's supervisory chain must not approve the result.");
+
+    Console.WriteLine("PASS: monthly performance score approval works individually and in bulk; preserves the original assessor, score values and notes; updates final evaluator ownership; and enforces upper-level scope.");
 }
 
 static async Task VerifyEmployeeExcelCompatibilityAsync()

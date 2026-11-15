@@ -2379,6 +2379,15 @@ static async Task VerifyMonthlyPerformanceUpperApprovalAsync()
 
     var originalValues = firstEvaluation.Scores.ToDictionary(
         x => x.QuestionId, x => (x.Score, x.Note));
+    var staleApprovalRejected = false;
+    try
+    {
+        await service.ApproveExistingAsync(upperEvaluator.Id, employeeOne.Id, period.Id, "stale-version");
+    }
+    catch (InvalidOperationException) { staleApprovalRejected = true; }
+    Check(staleApprovalRejected,
+        "An approval submitted from a stale evaluation form must be rejected rather than confirming a newer result.");
+
     await service.ApproveExistingAsync(upperEvaluator.Id, employeeOne.Id, period.Id);
     var individuallyApproved = await db.MonthlyPerformanceEvaluations.AsNoTracking()
         .Include(x => x.Scores)

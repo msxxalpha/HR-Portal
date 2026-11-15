@@ -20,8 +20,11 @@
     @Html.AntiForgeryToken()
     <input type="hidden" name="Id" value="@Model.Employee.Id" />
 
-    <div class="card">
-        <div class="section-head"><div><h3>اطلاعات اصلی</h3><span class="muted">موارد دارای * اجباری هستند.</span></div></div>
+    <section class="card employee-info-card employee-core-card">
+        <div class="employee-section-heading">
+            <span class="employee-section-mark">01</span>
+            <div><h3>اطلاعات هویتی و ارتباطی</h3><p>شناسه‌های اصلی و راه‌های ارتباط با کارمند · موارد دارای * اجباری هستند</p></div>
+        </div>
         <div class="grid-3">
             <label>شماره پرسنلی *<input name="PersonnelNumber" value="@Model.Employee.PersonnelNumber" required autocomplete="off" /></label>
             <label>شناسه *<input name="Identifier" value="@Model.Employee.Identifier" required autocomplete="off" /></label>
@@ -32,26 +35,69 @@
             <label>جنسیت *
                 <select name="Gender" required>
                     <option value="">انتخاب کنید</option>
-                    @if (Model.Employee.Gender == "مرد")
-                    {
-                        <option value="مرد" selected>مرد</option>
-                    }
-                    else
-                    {
-                        <option value="مرد">مرد</option>
-                    }
-                    @if (Model.Employee.Gender == "زن")
-                    {
-                        <option value="زن" selected>زن</option>
-                    }
-                    else
-                    {
-                        <option value="زن">زن</option>
-                    }
+                    <option value="مرد" selected="@(Model.Employee.Gender == "مرد")">مرد</option>
+                    <option value="زن" selected="@(Model.Employee.Gender == "زن")">زن</option>
                 </select>
             </label>
             <label>نام پدر<input name="FatherName" value="@Model.Employee.FatherName" /></label>
             <label>ایمیل<input name="Email" value="@Model.Employee.Email" type="email" /></label>
+        </div>
+    </section>
+
+    <section class="card employee-info-card employee-personal-card">
+        <div class="employee-section-heading">
+            <span class="employee-section-mark">02</span>
+            <div><h3>اطلاعات فردی و سجلی</h3><p>اطلاعات تکمیلی شناسنامه‌ای و خانوادگی · تکمیل همه فیلدها اختیاری است</p></div>
+        </div>
+        <div class="grid-3">
+            <label>تاریخ تولد
+                <div class="jalali-date-input">
+                    <input type="text" id="birthDatePersian" name="birthDatePersian" data-jalali-date value="@Model.BirthDateJalali" autocomplete="off" inputmode="numeric" placeholder="۱۳۷۰/۰۱/۰۱" />
+                    <button type="button" class="btn btn-outline jalali-date-open" data-jalali-trigger aria-label="انتخاب تاریخ تولد">تقویم</button>
+                </div>
+            </label>
+            <label>شماره شناسنامه<input name="BirthCertificateNumber" value="@Model.Employee.BirthCertificateNumber" maxlength="30" autocomplete="off" /></label>
+            <label>محل صدور<input name="BirthCertificateIssuePlace" value="@Model.Employee.BirthCertificateIssuePlace" maxlength="150" /></label>
+            <label>وضعیت تأهل
+                <select name="MaritalStatus">
+                    <option value="">انتخاب نشده</option>
+                    <option value="مجرد" selected="@(Model.Employee.MaritalStatus == "مجرد")">مجرد</option>
+                    <option value="متاهل" selected="@(Model.Employee.MaritalStatus == "متاهل")">متاهل</option>
+                </select>
+            </label>
+            <label>تعداد اولاد<input type="number" name="ChildrenCount" value="@Model.Employee.ChildrenCount" min="0" max="30" step="1" inputmode="numeric" /></label>
+            <label class="employee-wide-field">آدرس
+                <textarea name="Address" rows="2" maxlength="1000">@Model.Employee.Address</textarea>
+            </label>
+        </div>
+    </section>
+
+    <section class="card employee-info-card employee-work-card">
+        <div class="employee-section-heading">
+            <span class="employee-section-mark">03</span>
+            <div><h3>اطلاعات شغلی، استخدامی و بیمه</h3><p>اطلاعات رابطه استخدامی، مهارت‌ها و پوشش بیمه‌ای · تکمیل همه فیلدها اختیاری است</p></div>
+        </div>
+        <div class="grid-3">
+            <label>تاریخ استخدام
+                <div class="jalali-date-input">
+                    <input type="text" id="hireDatePersian" name="hireDatePersian" data-jalali-date value="@Model.HireDateJalali" autocomplete="off" inputmode="numeric" placeholder="۱۳۹۵/۰۷/۰۱" />
+                    <button type="button" class="btn btn-outline jalali-date-open" data-jalali-trigger aria-label="انتخاب تاریخ استخدام">تقویم</button>
+                </div>
+            </label>
+            <label>وضعیت نظام وظیفه
+                <select name="MilitaryServiceStatus">
+                    <option value="">انتخاب نشده</option>
+                    @foreach (var value in new[] { "انجام داده", "معاف", "غیبت", "در حال انجام", "خرید خدمت" })
+                    {
+                        <option value="@value" selected="@(Model.Employee.MilitaryServiceStatus == value)">@value</option>
+                    }
+                </select>
+            </label>
+            <label>شماره بیمه<input name="InsuranceNumber" value="@Model.Employee.InsuranceNumber" maxlength="50" autocomplete="off" /></label>
+            <label>نوع شغل<input name="JobType" value="@Model.Employee.JobType" maxlength="100" placeholder="مانند اداری، تولیدی، فنی، خدماتی" /></label>
+            <label class="employee-wide-field">مهارت
+                <textarea name="Skill" rows="2" maxlength="1000" placeholder="مهارت‌ها، تخصص‌ها و گواهینامه‌های مرتبط">@Model.Employee.Skill</textarea>
+            </label>
             <label>سمت / پست سازمانی
                 <input type="search" id="positionFilter" placeholder="جست‌وجوی کد یا عنوان پست..." autocomplete="off" />
                 <select name="PositionTitle" id="positionSelect">
@@ -70,7 +116,7 @@
             <label>رده پستی برای ارزیابی عملکرد
                 <select name="PerformanceRankId">
                     <option value="">تعیین خودکار از سمت، پایه شغلی یا ساختار سازمانی</option>
-                    @foreach(var rank in Model.PerformanceRanks)
+                    @foreach (var rank in Model.PerformanceRanks)
                     {
                         <option value="@rank.Id" selected="@(Model.Employee.PerformanceRankId == rank.Id)">@rank.Title (@rank.Code)</option>
                     }
@@ -95,28 +141,33 @@
                             disabled="@(Model.Employee.EmploymentType == "غیرقراردادی")">تقویم</button>
                 </div>
             </label>
-            <label>وضعیت
+            <label>وضعیت استخدام
                 <select name="Status">
-                    @if (Model.Employee.Status != "غیرفعال")
-                    {
-                        <option value="فعال" selected>فعال</option>
-                    }
-                    else
-                    {
-                        <option value="فعال">فعال</option>
-                    }
-                    @if (Model.Employee.Status == "غیرفعال")
-                    {
-                        <option value="غیرفعال" selected>غیرفعال</option>
-                    }
-                    else
-                    {
-                        <option value="غیرفعال">غیرفعال</option>
-                    }
+                    <option value="فعال" selected="@(Model.Employee.Status != "غیرفعال")">فعال</option>
+                    <option value="غیرفعال" selected="@(Model.Employee.Status == "غیرفعال")">غیرفعال</option>
                 </select>
             </label>
         </div>
-    </div>
+    </section>
+
+    <style>
+        .employee-info-card{position:relative;overflow:hidden;border:1px solid #dbe5ef;border-radius:18px;margin-bottom:18px;padding:22px 24px}
+        .employee-info-card:before{content:"";position:absolute;inset:0 0 auto;height:4px;background:var(--employee-accent)}
+        .employee-core-card{--employee-accent:linear-gradient(90deg,#183a5b,#3976a8);background:linear-gradient(145deg,#fff,#f5f9fd)}
+        .employee-personal-card{--employee-accent:linear-gradient(90deg,#5550a5,#8a78c9);background:linear-gradient(145deg,#fff,#f8f7fd)}
+        .employee-work-card{--employee-accent:linear-gradient(90deg,#9a6a23,#d2a34f);background:linear-gradient(145deg,#fff,#fcf9f2)}
+        .employee-section-heading{display:flex;align-items:center;gap:13px;margin-bottom:20px}
+        .employee-section-heading h3{margin:0 0 5px;color:#17324d;font-size:1.05rem}
+        .employee-section-heading p{margin:0;color:#64748b;font-size:.82rem}
+        .employee-section-mark{width:42px;height:42px;display:grid;place-items:center;border-radius:12px;background:#e7eff8;color:#173b60;font-weight:800}
+        .employee-personal-card .employee-section-mark{background:#eeebfa;color:#5d56a2}
+        .employee-work-card .employee-section-mark{background:#f8efd9;color:#96651c}
+        .employee-info-card label{min-width:0}
+        .employee-info-card input,.employee-info-card select,.employee-info-card textarea{box-sizing:border-box;width:100%}
+        .employee-wide-field{grid-column:span 2}
+        .employee-info-card textarea{resize:vertical;min-height:68px}
+        @@media(max-width:700px){.employee-wide-field{grid-column:span 1}.employee-info-card{padding:17px}}
+    </style>
 
     <div class="card">
         <div class="section-head"><div><h3>ساختار سازمانی</h3><span class="muted">اداره و بخش متناسب با انتخاب والد فیلتر می‌شوند.</span></div></div>

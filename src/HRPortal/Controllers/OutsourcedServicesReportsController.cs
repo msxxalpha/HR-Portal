@@ -93,7 +93,10 @@ public sealed class OutsourcedServicesReportsController(HRPortalDbContext db) : 
         // Employee organization references can legitimately point to an earlier
         // finalized revision. Keep those historical nodes available so a staff
         // member's saved position is not lost merely because a newer revision exists.
-        var organizationNodes = await db.OrganizationNodes.AsNoTracking().ToListAsync();
+        var organizationNodes = await db.OrganizationNodes.AsNoTracking()
+            .OrderByDescending(x => x.OrganizationStructureRevisionId)
+            .ThenByDescending(x => x.Id)
+            .ToListAsync();
 
         var employees = await db.Employees.AsNoTracking()
             .Where(e => db.OutsourcedServiceRequests.Any(request =>

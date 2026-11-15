@@ -84,7 +84,7 @@ else
 @foreach (var p in Model.People) {
 <tr><td><strong>@p.FullName</strong></td><td>@p.PersonnelNumber</td><td>@p.Rank</td><td>@p.Unit</td>
 <td>@p.Score.ToString("N2")</td><td>@p.MaxScore.ToString("N2")</td><td>@p.Deducted.ToString("N2")</td><td>@p.Percent٪</td><td>@p.EvaluatorName</td>
-<td><span class="mp-tag @(p.EvaluationId.HasValue ? "good" : "warn")">@(p.EvaluationId.HasValue ? "ثبت‌شده" : "ثبت‌نشده")</span></td>
+<td><span class="mp-tag @(p.CanApproveExisting ? "warn" : p.EvaluationId.HasValue ? "good" : "warn")">@(p.CanApproveExisting ? "در انتظار تأیید شما" : p.EvaluationId.HasValue ? "ثبت‌شده" : "ثبت‌نشده")</span></td>
 <td>
 <div class="mp-row-actions">
 @if (p.CanEdit || p.EvaluationId.HasValue)

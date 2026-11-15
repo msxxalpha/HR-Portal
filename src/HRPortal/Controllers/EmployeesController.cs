@@ -37,6 +37,14 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
                 x.Mobile.Contains(search) ||
                 x.Gender.Contains(search) ||
                 x.Status.Contains(search) ||
+                (x.BirthCertificateNumber != null && x.BirthCertificateNumber.Contains(search)) ||
+                (x.BirthCertificateIssuePlace != null && x.BirthCertificateIssuePlace.Contains(search)) ||
+                (x.Address != null && x.Address.Contains(search)) ||
+                (x.MilitaryServiceStatus != null && x.MilitaryServiceStatus.Contains(search)) ||
+                (x.MaritalStatus != null && x.MaritalStatus.Contains(search)) ||
+                (x.InsuranceNumber != null && x.InsuranceNumber.Contains(search)) ||
+                (x.Skill != null && x.Skill.Contains(search)) ||
+                (x.JobType != null && x.JobType.Contains(search)) ||
                 (x.EmploymentType != null && x.EmploymentType.Contains(search)) ||
                 (x.OrganizationUnit != null && x.OrganizationUnit.Title.Contains(search)) ||
                 (x.OrganizationDepartment != null && x.OrganizationDepartment.Title.Contains(search)) ||
@@ -371,6 +379,14 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
                 x.Mobile.Contains(q) ||
                 x.Gender.Contains(q) ||
                 x.Status.Contains(q) ||
+                (x.BirthCertificateNumber != null && x.BirthCertificateNumber.Contains(q)) ||
+                (x.BirthCertificateIssuePlace != null && x.BirthCertificateIssuePlace.Contains(q)) ||
+                (x.Address != null && x.Address.Contains(q)) ||
+                (x.MilitaryServiceStatus != null && x.MilitaryServiceStatus.Contains(q)) ||
+                (x.MaritalStatus != null && x.MaritalStatus.Contains(q)) ||
+                (x.InsuranceNumber != null && x.InsuranceNumber.Contains(q)) ||
+                (x.Skill != null && x.Skill.Contains(q)) ||
+                (x.JobType != null && x.JobType.Contains(q)) ||
                 (x.OrganizationUnit != null && x.OrganizationUnit.Title.Contains(q)) ||
                 (x.OrganizationDepartment != null && x.OrganizationDepartment.Title.Contains(q)) ||
                 (x.OrganizationSection != null && x.OrganizationSection.Title.Contains(q)));
@@ -405,6 +421,11 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         if (file is null || file.Length == 0)
         {
             ModelState.AddModelError("", "فایل Excel را انتخاب کنید.");
+            return View();
+        }
+        if (!string.Equals(System.IO.Path.GetExtension(file.FileName), ".xlsx", StringComparison.OrdinalIgnoreCase))
+        {
+            ModelState.AddModelError("", "فقط فایل Excel با فرمت ‎.xlsx‎ پشتیبانی می‌شود. قالب استاندارد سامانه را دریافت کنید.");
             return View();
         }
 

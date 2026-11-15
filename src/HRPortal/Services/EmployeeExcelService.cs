@@ -113,6 +113,11 @@ public class EmployeeExcelService(HRPortalDbContext db)
                 var column = HeaderColumn(title);
                 return column > 0 ? Cell(column) : "";
             }
+            bool HasOptionalValue(string value) =>
+                !string.IsNullOrWhiteSpace(value) ||
+                string.Equals(value, "[پاک شود]", StringComparison.Ordinal);
+            string? OptionalTextValue(string value) =>
+                string.Equals(value, "[پاک شود]", StringComparison.Ordinal) ? null : EmptyToNull(value);
             var personnelNumber = Cell(1);
             if (string.IsNullOrWhiteSpace(personnelNumber))
             {
@@ -235,12 +240,15 @@ public class EmployeeExcelService(HRPortalDbContext db)
             var hireDateColumn = HeaderColumn("تاریخ استخدام");
             var birthDateColumn = HeaderColumn("تاریخ تولد");
             DateTime? hireDate = null, birthDate = null;
-            if (hireDateColumn > 0)
+            var hireDateRaw = hireDateColumn > 0 ? ReadDateText(ws.Cell(row, hireDateColumn)) : "";
+            var birthDateRaw = birthDateColumn > 0 ? ReadDateText(ws.Cell(row, birthDateColumn)) : "";
+            var clearHireDate = hireDateRaw == "[پاک شود]";
+            var clearBirthDate = birthDateRaw == "[پاک شود]";
+            if (hireDateColumn > 0 && HasOptionalValue(hireDateRaw) && !clearHireDate)
             {
-                var raw = ReadDateText(ws.Cell(row, hireDateColumn));
-                if (!string.IsNullOrWhiteSpace(raw))
+                if (!string.IsNullOrWhiteSpace(hireDateRaw))
                 {
-                    if (!PersianDateService.TryParse(raw, out var parsedHire))
+                    if (!PersianDateService.TryParse(hireDateRaw, out var parsedHire))
                     {
                         errors.Add($"ردیف {row}: تاریخ استخدام معتبر نیست؛ نمونه صحیح ۱۴۰۰/۰۱/۰۱ است.");
                         continue;
@@ -248,12 +256,11 @@ public class EmployeeExcelService(HRPortalDbContext db)
                     hireDate = parsedHire.Date;
                 }
             }
-            if (birthDateColumn > 0)
+            if (birthDateColumn > 0 && HasOptionalValue(birthDateRaw) && !clearBirthDate)
             {
-                var raw = ReadDateText(ws.Cell(row, birthDateColumn));
-                if (!string.IsNullOrWhiteSpace(raw))
+                if (!string.IsNullOrWhiteSpace(birthDateRaw))
                 {
-                    if (!PersianDateService.TryParse(raw, out var parsedBirth))
+                    if (!PersianDateService.TryParse(birthDateRaw, out var parsedBirth))
                     {
                         errors.Add($"ردیف {row}: تاریخ تولد معتبر نیست؛ نمونه صحیح ۱۳۷۰/۰۱/۰۱ است.");
                         continue;
@@ -290,14 +297,15 @@ public class EmployeeExcelService(HRPortalDbContext db)
                 !ValidateOptionalText(jobType, 100, "نوع شغل", row, errors))
                 continue;
 
-            if (militaryStatusColumn > 0 && !string.IsNullOrWhiteSpace(militaryStatus) &&
+            if (militaryStatusColumn > 0 && HasOptionalValue(militaryStatus) &&
+                militaryStatus != "[پاک شود]" &&
                 militaryStatus is not ("انجام داده" or "معاف" or "غیبت" or "در حال انجام" or "خرید خدمت"))
             {
                 errors.Add($"ردیف {row}: وضعیت نظام وظیفه باید یکی از گزینه‌های انجام داده، معاف، غیبت، در حال انجام یا خرید خدمت باشد.");
                 continue;
             }
 
-            if (maritalStatusColumn > 0 && !string.IsNullOrWhiteSpace(maritalStatus))
+            if (maritalStatusColumn > 0 && HasOptionalValue(maritalStatus) && maritalStatus != "[پاک شود]")
             {
                 maritalStatus = maritalStatus.Replace("متأهل", "متاهل", StringComparison.Ordinal);
                 if (maritalStatus is not ("مجرد" or "متاهل"))
@@ -308,7 +316,7 @@ public class EmployeeExcelService(HRPortalDbContext db)
             }
 
             int? childrenCount = null;
-            if (childrenCountColumn > 0 && !string.IsNullOrWhiteSpace(childrenRaw))
+            if (childrenCountColumn > 0 && HasOptionalValue(childrenRaw) && childrenRaw != "[پاک شود]")
             {
                 if (!int.TryParse(NormalizeDigits(childrenRaw), out var parsedChildren) ||
                     parsedChildren is < 0 or > 30)
@@ -344,17 +352,17 @@ public class EmployeeExcelService(HRPortalDbContext db)
             target.Email = EmptyToNull(Cell(13));
             target.FatherName = EmptyToNull(Cell(14));
             target.Status = string.IsNullOrWhiteSpace(Cell(15)) ? (isNew ? "فعال" : target.Status) : Cell(15);
-            if (hireDateColumn > 0) target.HireDate = hireDate;
-            if (birthDateColumn > 0) target.BirthDate = birthDate;
-            if (birthCertificateNumberColumn > 0) target.BirthCertificateNumber = EmptyToNull(birthCertificateNumber);
-            if (birthCertificateIssuePlaceColumn > 0) target.BirthCertificateIssuePlace = EmptyToNull(birthCertificateIssuePlace);
-            if (addressColumn > 0) target.Address = EmptyToNull(address);
-            if (militaryStatusColumn > 0) target.MilitaryServiceStatus = EmptyToNull(militaryStatus);
-            if (maritalStatusColumn > 0) target.MaritalStatus = EmptyToNull(maritalStatus);
-            if (childrenCountColumn > 0) target.ChildrenCount = childrenCount;
-            if (insuranceNumberColumn > 0) target.InsuranceNumber = EmptyToNull(insuranceNumber);
-            if (skillColumn > 0) target.Skill = EmptyToNull(skill);
-            if (jobTypeColumn > 0) target.JobType = EmptyToNull(jobType);
+            if (hireDateColumn > 0 && HasOptionalValue(hireDateRaw)) target.HireDate = clearHireDate ? null : hireDate;
+            if (birthDateColumn > 0 && HasOptionalValue(birthDateRaw)) target.BirthDate = clearBirthDate ? null : birthDate;
+            if (birthCertificateNumberColumn > 0 && HasOptionalValue(birthCertificateNumber)) target.BirthCertificateNumber = OptionalTextValue(birthCertificateNumber);
+            if (birthCertificateIssuePlaceColumn > 0 && HasOptionalValue(birthCertificateIssuePlace)) target.BirthCertificateIssuePlace = OptionalTextValue(birthCertificateIssuePlace);
+            if (addressColumn > 0 && HasOptionalValue(address)) target.Address = OptionalTextValue(address);
+            if (militaryStatusColumn > 0 && HasOptionalValue(militaryStatus)) target.MilitaryServiceStatus = OptionalTextValue(militaryStatus);
+            if (maritalStatusColumn > 0 && HasOptionalValue(maritalStatus)) target.MaritalStatus = OptionalTextValue(maritalStatus);
+            if (childrenCountColumn > 0 && HasOptionalValue(childrenRaw)) target.ChildrenCount = childrenRaw == "[پاک شود]" ? null : childrenCount;
+            if (insuranceNumberColumn > 0 && HasOptionalValue(insuranceNumber)) target.InsuranceNumber = OptionalTextValue(insuranceNumber);
+            if (skillColumn > 0 && HasOptionalValue(skill)) target.Skill = OptionalTextValue(skill);
+            if (jobTypeColumn > 0 && HasOptionalValue(jobType)) target.JobType = OptionalTextValue(jobType);
             var rankCell = Cell(18);
             if (!string.IsNullOrWhiteSpace(rankCell))
             {
@@ -428,7 +436,8 @@ public class EmployeeExcelService(HRPortalDbContext db)
             ("واحد سازمانی، اداره، بخش", "اختیاری", "کد گره‌های نسخه نهایی ساختار سازمانی را وارد کنید؛ کد اداره و بخش باید با والد خود سازگار باشد."),
             ("نوع استخدام", "در قالب فعلی لازم", "قراردادی یا غیرقراردادی؛ برای کارمند غیرقراردادی تاریخ پایان قرارداد خالی می‌ماند."),
             ("تاریخ پایان قرارداد، تاریخ استخدام، تاریخ تولد", "اختیاری / وابسته به نوع استخدام", "تاریخ را به شمسی و با قالب yyyy/MM/dd مانند ۱۴۰۵/۱۲/۲۹ وارد کنید. تاریخ پایان قرارداد برای استخدام قراردادی در صورت خالی بودن مقدار پیش‌فرض سامانه را می‌گیرد."),
-            ("شماره شناسنامه، محل صدور، آدرس", "اختیاری", "در صورت نبود اطلاعات خالی بگذارید."),
+            ("فیلدهای تکمیلی اختیاری در به‌روزرسانی", "مهم", "در ستون‌های جدید، خانه خالی مقدار قبلی کارمند را حفظ می‌کند. برای پاک‌کردن عمدی مقدار قبلی، دقیقاً عبارت [پاک شود] را وارد کنید."),
+            ("شماره شناسنامه، محل صدور، آدرس", "اختیاری", "در صورت نبود اطلاعات، خانه را خالی بگذارید؛ برای پاک کردن مقدار ثبت‌شده از [پاک شود] استفاده کنید."),
             ("وضعیت نظام وظیفه", "اختیاری", "یکی از مقادیر: انجام داده، معاف، غیبت، در حال انجام، خرید خدمت."),
             ("وضعیت تأهل", "اختیاری", "یکی از مقادیر: مجرد، متاهل."),
             ("تعداد اولاد", "اختیاری", "عدد صحیح بین صفر تا ۳۰."),

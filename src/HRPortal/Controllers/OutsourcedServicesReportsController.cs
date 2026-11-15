@@ -90,22 +90,10 @@ public sealed class OutsourcedServicesReportsController(HRPortalDbContext db) : 
             query = query.Where(x => x.UnitOfMeasure == model.UnitOfMeasure);
 
         var requests = await query.OrderByDescending(x => x.CreatedAtUtc).Take(5000).ToListAsync();
-        // Resolve every requester's reporting unit against the latest effective
-        // finalized hierarchy. A reporting unit is the nearest Management/Presidency
-        // ancestor whose direct parent is the CEO node.
-        var revisionId = await db.OrganizationStructureRevisions.AsNoTracking()
-            .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
-            .OrderByDescending(x => x.EffectiveDate).ThenByDescending(x => x.FinalizedAt).ThenByDescending(x => x.Id)
-            .Select(x => (int?)x.Id).FirstOrDefaultAsync();
-        revisionId ??= await db.OrganizationStructureRevisions.AsNoTracking()
-            .Where(x => x.IsFinalized)
-            .OrderBy(x => x.EffectiveDate).ThenByDescending(x => x.FinalizedAt).ThenByDescending(x => x.Id)
-            .Select(x => (int?)x.Id).FirstOrDefaultAsync();
-        var organizationNodes = revisionId.HasValue
-            ? await db.OrganizationNodes.AsNoTracking()
-                .Where(x => x.OrganizationStructureRevisionId == revisionId.Value && x.IsActive)
-                .ToListAsync()
-            : new List<OrganizationNode>();
+        // Employee organization references can legitimately point to an earlier
+        // finalized revision. Keep those historical nodes available so a staff
+        // member's saved position is not lost merely because a newer revision exists.
+        var organizationNodes = await db.OrganizationNodes.AsNoTracking().ToListAsync();
 
         var employees = await db.Employees.AsNoTracking()
             .Where(e => db.OutsourcedServiceRequests.Any(request =>

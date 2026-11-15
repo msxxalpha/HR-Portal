@@ -10,6 +10,15 @@
     <a class="btn btn-outline" href="/Employees">بازگشت به فهرست کارکنان</a>
 </div>
 @if (ViewBag.Success is string success) { <div class="alert success">@success</div> }
+@if (!ViewData.ModelState.IsValid)
+{
+    <div class="alert error">
+        @foreach (var message in ViewData.ModelState.Values.SelectMany(x => x.Errors))
+        {
+            <div>@message.ErrorMessage</div>
+        }
+    </div>
+}
 @if (ViewBag.Errors is IEnumerable<string> errors && errors.Any())
 {
     <div class="alert error"><strong>موارد نیازمند اصلاح:</strong><ul>@foreach (var error in errors) { <li>@error</li> }</ul></div>

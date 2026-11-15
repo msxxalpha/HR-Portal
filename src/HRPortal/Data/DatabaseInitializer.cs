@@ -622,6 +622,18 @@ IF COL_LENGTH(N'dbo.Employees', N'Identifier') IS NULL ALTER TABLE [dbo].[Employ
 IF COL_LENGTH(N'dbo.Employees', N'PersonalPasswordHash') IS NULL ALTER TABLE [dbo].[Employees] ADD [PersonalPasswordHash] nvarchar(1000) NULL;
 IF OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.Employees', N'ContractEndDate') IS NULL ALTER TABLE [dbo].[Employees] ADD [ContractEndDate] date NULL CONSTRAINT [DF_Employees_ContractEndDate] DEFAULT ('2027-03-20');
 IF OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.Employees', N'OrganizationPositionId') IS NULL ALTER TABLE [dbo].[Employees] ADD [OrganizationPositionId] int NULL;
+-- Additive, nullable employee profile columns. Existing production records are left untouched.
+IF OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.Employees', N'HireDate') IS NULL ALTER TABLE [dbo].[Employees] ADD [HireDate] date NULL;
+IF OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.Employees', N'BirthDate') IS NULL ALTER TABLE [dbo].[Employees] ADD [BirthDate] date NULL;
+IF OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.Employees', N'BirthCertificateNumber') IS NULL ALTER TABLE [dbo].[Employees] ADD [BirthCertificateNumber] nvarchar(30) NULL;
+IF OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.Employees', N'BirthCertificateIssuePlace') IS NULL ALTER TABLE [dbo].[Employees] ADD [BirthCertificateIssuePlace] nvarchar(150) NULL;
+IF OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.Employees', N'Address') IS NULL ALTER TABLE [dbo].[Employees] ADD [Address] nvarchar(1000) NULL;
+IF OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.Employees', N'MilitaryServiceStatus') IS NULL ALTER TABLE [dbo].[Employees] ADD [MilitaryServiceStatus] nvarchar(30) NULL;
+IF OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.Employees', N'MaritalStatus') IS NULL ALTER TABLE [dbo].[Employees] ADD [MaritalStatus] nvarchar(20) NULL;
+IF OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.Employees', N'ChildrenCount') IS NULL ALTER TABLE [dbo].[Employees] ADD [ChildrenCount] int NULL;
+IF OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.Employees', N'InsuranceNumber') IS NULL ALTER TABLE [dbo].[Employees] ADD [InsuranceNumber] nvarchar(50) NULL;
+IF OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.Employees', N'Skill') IS NULL ALTER TABLE [dbo].[Employees] ADD [Skill] nvarchar(1000) NULL;
+IF OBJECT_ID(N'dbo.Employees', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.Employees', N'JobType') IS NULL ALTER TABLE [dbo].[Employees] ADD [JobType] nvarchar(100) NULL;
 
 IF COL_LENGTH(N'PayrollReportSettings', N'Enabled') IS NULL ALTER TABLE [PayrollReportSettings] ADD [Enabled] bit NOT NULL CONSTRAINT [DF_PayrollReportSettings_Enabled] DEFAULT 1;
 IF COL_LENGTH(N'PayrollReportSettings', N'ReportUrl') IS NULL ALTER TABLE [PayrollReportSettings] ADD [ReportUrl] nvarchar(2000) NOT NULL CONSTRAINT [DF_PayrollReportSettings_ReportUrl] DEFAULT N'';
@@ -727,6 +739,17 @@ BEGIN
         [PositionTitle] nvarchar(300) NULL,
         [EmploymentType] nvarchar(100) NULL,
         [ContractEndDate] date NULL CONSTRAINT [DF_Employees_ContractEndDate] DEFAULT ('2027-03-20'),
+        [HireDate] date NULL,
+        [BirthDate] date NULL,
+        [BirthCertificateNumber] nvarchar(30) NULL,
+        [BirthCertificateIssuePlace] nvarchar(150) NULL,
+        [Address] nvarchar(1000) NULL,
+        [MilitaryServiceStatus] nvarchar(30) NULL,
+        [MaritalStatus] nvarchar(20) NULL,
+        [ChildrenCount] int NULL,
+        [InsuranceNumber] nvarchar(50) NULL,
+        [Skill] nvarchar(1000) NULL,
+        [JobType] nvarchar(100) NULL,
         [Email] nvarchar(200) NULL,
         [FatherName] nvarchar(100) NULL,
         [Status] nvarchar(50) NOT NULL CONSTRAINT [DF_Employees_Status] DEFAULT N'فعال',

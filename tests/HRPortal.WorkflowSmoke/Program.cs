@@ -2411,16 +2411,8 @@ static async Task VerifyMonthlyPerformanceUpperApprovalAsync()
     Check(!await service.CanApproveExistingAsync(upperEvaluator.Id, employeeOne.Id, period.Id),
         "An evaluation already attributed to the upper evaluator must no longer appear as awaiting their approval.");
 
-    var lowerCannotReopen = false;
-    try
-    {
-        await service.SaveAsync(lowerEvaluator.Id, employeeOne.Id, period.Id,
-            new Dictionary<int, decimal> { [questionOne.Id] = 4, [questionTwo.Id] = 4 },
-            null, "تلاش برای بازنویسی پس از تأیید");
-    }
-    catch (UnauthorizedAccessException) { lowerCannotReopen = true; }
-    Check(lowerCannotReopen,
-        "After the upper evaluator confirms a result, the lower-level evaluator must not be able to overwrite it.");
+    Check(!await service.CanApproveExistingAsync(lowerEvaluator.Id, employeeOne.Id, period.Id),
+        "After upper-level confirmation, the lower evaluator must not be able to confirm the same result again.");
 
     // A second result remains attributed to the lower evaluator and is confirmed
     // through the bulk action. The already-confirmed first result is skipped.

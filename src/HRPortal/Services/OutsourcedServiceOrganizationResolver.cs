@@ -22,7 +22,9 @@ public static class OutsourcedServiceOrganizationResolver
     {
         if (nodes.Count == 0) return UnassignedTitle;
 
-        var byId = nodes.Where(x => x.IsActive).ToDictionary(x => x.Id);
+        // Historical node identities remain authoritative for employees still assigned
+        // to them, even when the node is no longer active in the newest revision.
+        var byId = nodes.ToDictionary(x => x.Id);
         var starts = new List<int>();
         foreach (var id in new[] { positionNodeId, sectionNodeId, departmentNodeId, unitNodeId })
             if (id.HasValue && byId.ContainsKey(id.Value) && !starts.Contains(id.Value))

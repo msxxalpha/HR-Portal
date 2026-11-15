@@ -4,9 +4,9 @@ namespace HRPortal.Services;
 
 /// <summary>
 /// Resolves the reporting unit for an employee by walking upward from the
-/// employee's position in the currently selected finalized organization tree.
-/// The reporting unit is the nearest Management/Presidency node directly below
-/// the CEO node.
+/// employee's saved organization position, including historical structure nodes.
+/// The reporting unit is the nearest Management/Presidency node whose direct
+/// parent is the CEO or a node ranked Deputy (معاونت).
 /// </summary>
 public static class OutsourcedServiceOrganizationResolver
 {

@@ -349,7 +349,7 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
 
         var existing = await db.MonthlyPerformanceEvaluations.AsNoTracking()
             .Where(x => x.PeriodId == periodId && scopeIds.Contains(x.EmployeeId))
-            .Select(x => new { x.EmployeeId, x.LastEvaluatorId })
+            .Select(x => new { x.EmployeeId, x.LastEvaluatorId, HasScores = x.Scores.Any() })
             .ToListAsync();
 
         var subordinateEvaluatorIds = new HashSet<int>();
@@ -358,7 +358,7 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
             if (await IsAboveAsync(actorId, evaluatorId))
                 subordinateEvaluatorIds.Add(evaluatorId);
 
-        var eligible = existing.Where(x => x.LastEvaluatorId != actorId &&
+        var eligible = existing.Where(x => x.HasScores && x.LastEvaluatorId != actorId &&
             subordinateEvaluatorIds.Contains(x.LastEvaluatorId)).ToList();
         var skipped = existing.Count - eligible.Count;
         var approved = 0;

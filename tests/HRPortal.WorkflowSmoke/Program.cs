@@ -1,4 +1,5 @@
 using HRPortal.Services;
+using ClosedXML.Excel;
 using HRPortal.Controllers;
 using HRPortal.Data;
 using HRPortal.Models;
@@ -26,6 +27,7 @@ await VerifyWorkflowStageEditingAndRequesterReturnAsync();
 await VerifyWorkflowDirectReturnAndPriorStageEditingAsync();
 VerifyWorkflowReportFormTypeAggregation();
 VerifyOutsourcedServiceOrganizationResolver();
+await VerifyEmployeeExcelCompatibilityAsync();
 
 var workflowPostedForm = new FormCollection(new Dictionary<string, StringValues>
 {
@@ -2233,6 +2235,132 @@ static void VerifyOutsourcedServiceOrganizationResolver()
         "Employees without a resolvable reporting unit must be grouped under the explicit unassigned label.");
 
     Console.WriteLine("PASS: outsourced services requester organization is resolved from the nearest Management/Presidency node directly below CEO or a Deputy node.");
+}
+
+static async Task VerifyEmployeeExcelCompatibilityAsync()
+{
+    var options = new DbContextOptionsBuilder<HRPortalDbContext>()
+        .UseInMemoryDatabase("employee-excel-backward-compatibility")
+        .Options;
+    await using var db = new HRPortalDbContext(options);
+    var originalHireDate = new System.Globalization.PersianCalendar().ToDateTime(1390, 4, 1, 0, 0, 0, 0);
+    var originalBirthDate = new System.Globalization.PersianCalendar().ToDateTime(1368, 8, 10, 0, 0, 0, 0);
+    var employee = new Employee
+    {
+        PersonnelNumber = "EX-100",
+        Identifier = "EX-ID-100",
+        NationalId = "EX-NID-100",
+        FirstName = "کارمند",
+        LastName = "آزمایشی",
+        Mobile = "09120000000",
+        Gender = "مرد",
+        Status = "فعال",
+        IsSystemUser = true,
+        EmploymentType = "قراردادی",
+        HireDate = originalHireDate,
+        BirthDate = originalBirthDate,
+        BirthCertificateNumber = "98765",
+        BirthCertificateIssuePlace = "اصفهان",
+        Address = "آدرس ثبت‌شده",
+        MilitaryServiceStatus = "معاف",
+        MaritalStatus = "متاهل",
+        ChildrenCount = 2,
+        InsuranceNumber = "INS-OLD",
+        Skill = "مهارت قدیمی",
+        JobType = "اداری"
+    };
+    db.Employees.Add(employee);
+    await db.SaveChangesAsync();
+
+    var service = new EmployeeExcelService(db);
+    var legacyHeaders = new[]
+    {
+        "شماره پرسنلی", "شناسه", "کد ملی", "نام", "نام خانوادگی", "موبایل", "جنسیت",
+        "واحد سازمانی", "اداره", "بخش", "سمت", "نوع استخدام", "ایمیل", "نام پدر",
+        "وضعیت", "تاریخ پایان قرارداد", "ارزیاب عملکرد", "رده ارزیابی عملکرد"
+    };
+    var allHeaders = legacyHeaders.Concat(new[]
+    {
+        "تاریخ استخدام", "تاریخ تولد", "شماره شناسنامه", "محل صدور", "آدرس",
+        "وضعیت نظام وظیفه", "وضعیت تأهل", "تعداد اولاد", "شماره بیمه", "مهارت", "نوع شغل"
+    }).ToArray();
+
+    byte[] BuildWorkbook(string[] headers, Dictionary<int, string> values)
+    {
+        using var workbook = new XLWorkbook();
+        var sheet = workbook.Worksheets.Add("کارکنان");
+        for (var column = 0; column < headers.Length; column++)
+            sheet.Cell(1, column + 1).Value = headers[column];
+        foreach (var item in values)
+            sheet.Cell(2, item.Key).Value = item.Value;
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return stream.ToArray();
+    }
+
+    Dictionary<int, string> BaseValues() => new()
+    {
+        [1] = "EX-100", [2] = "EX-ID-100", [3] = "EX-NID-100",
+        [4] = "کارمند", [5] = "آزمایشی", [6] = "09120000000", [7] = "مرد",
+        [12] = "قراردادی", [15] = "فعال", [16] = "۱۴۰۵/۱۲/۲۹", [17] = "خیر"
+    };
+
+    // Legacy files without the newly-added headers must not erase existing fields.
+    var legacyErrors = await service.ImportAsync(new MemoryStream(BuildWorkbook(legacyHeaders, BaseValues())));
+    Check(legacyErrors.Count == 0, "Legacy employee Excel imports must remain accepted.");
+    var afterLegacy = await db.Employees.AsNoTracking().SingleAsync(x => x.Id == employee.Id);
+    Check(afterLegacy.HireDate == originalHireDate && afterLegacy.BirthDate == originalBirthDate &&
+          afterLegacy.BirthCertificateNumber == "98765" && afterLegacy.Address == "آدرس ثبت‌شده" &&
+          afterLegacy.ChildrenCount == 2,
+        "Importing a legacy workbook must preserve all newly-added optional profile fields.");
+
+    // The new template writes the optional values and the Jalali dates into the existing employee.
+    var fullValues = BaseValues();
+    fullValues[19] = "۱۴۰۲/۰۵/۰۱";
+    fullValues[20] = "۱۳۷۵/۰۲/۱۵";
+    fullValues[21] = "123456";
+    fullValues[22] = "تهران";
+    fullValues[23] = "نشانی جدید";
+    fullValues[24] = "انجام داده";
+    fullValues[25] = "متاهل";
+    fullValues[26] = "3";
+    fullValues[27] = "INS-NEW";
+    fullValues[28] = "جوشکاری تخصصی";
+    fullValues[29] = "فنی";
+    var newErrors = await service.ImportAsync(new MemoryStream(BuildWorkbook(allHeaders, fullValues)));
+    Check(newErrors.Count == 0, "The expanded employee Excel template must import all optional fields.");
+    var afterNewImport = await db.Employees.AsNoTracking().SingleAsync(x => x.Id == employee.Id);
+    Check(afterNewImport.HireDate == new System.Globalization.PersianCalendar().ToDateTime(1402, 5, 1, 0, 0, 0, 0) &&
+          afterNewImport.BirthDate == new System.Globalization.PersianCalendar().ToDateTime(1375, 2, 15, 0, 0, 0, 0) &&
+          afterNewImport.BirthCertificateNumber == "123456" &&
+          afterNewImport.BirthCertificateIssuePlace == "تهران" &&
+          afterNewImport.MilitaryServiceStatus == "انجام داده" &&
+          afterNewImport.MaritalStatus == "متاهل" &&
+          afterNewImport.ChildrenCount == 3 &&
+          afterNewImport.InsuranceNumber == "INS-NEW" &&
+          afterNewImport.Skill == "جوشکاری تخصصی" &&
+          afterNewImport.JobType == "فنی",
+        "The expanded employee Excel import must correctly persist Persian dates and optional personal/employment data.");
+
+    // Empty optional cells preserve existing values; [پاک شود] is the explicit clear command.
+    var preserveAndClearValues = BaseValues();
+    preserveAndClearValues[23] = "[پاک شود]";
+    var clearErrors = await service.ImportAsync(new MemoryStream(BuildWorkbook(allHeaders, preserveAndClearValues)));
+    Check(clearErrors.Count == 0, "Explicit clearing markers should be accepted for optional columns.");
+    var afterClear = await db.Employees.AsNoTracking().SingleAsync(x => x.Id == employee.Id);
+    Check(afterClear.HireDate == new System.Globalization.PersianCalendar().ToDateTime(1402, 5, 1, 0, 0, 0, 0) &&
+          afterClear.BirthCertificateNumber == "123456" && afterClear.Address is null &&
+          afterClear.MilitaryServiceStatus == "انجام داده" && afterClear.ChildrenCount == 3,
+        "Blank optional cells must preserve values, while [پاک شود] clears only the explicitly selected field.");
+
+    var exported = await service.ExportAsync(db.Employees.AsNoTracking());
+    using var exportedWorkbook = new XLWorkbook(new MemoryStream(exported));
+    Check(exportedWorkbook.Worksheets.Any(x => x.Name == "کارکنان") &&
+          exportedWorkbook.Worksheets.Any(x => x.Name == "راهنمای تکمیل") &&
+          exportedWorkbook.Worksheet("کارکنان").Cell(1, 29).GetString() == "نوع شغل",
+        "Employee Excel exports and templates must include the expanded columns and a completion guide.");
+
+    Console.WriteLine("PASS: employee Excel import remains backward-compatible; new optional fields and Jalali dates round-trip; blank cells preserve existing values; explicit clear marker works.");
 }
 
 static void VerifyWorkflowReportFormTypeAggregation()

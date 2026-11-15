@@ -100,17 +100,18 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         View("Form", await BuildFormVmAsync(new Employee()));
 
     [HttpPost, Authorize(Policy = "Employees.Create"), ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(Employee employee, bool isNonContractual = false, string? contractEndDatePersian = null)
+    public async Task<IActionResult> Create(Employee employee, bool isNonContractual = false, string? contractEndDatePersian = null, string? hireDatePersian = null, string? birthDatePersian = null)
     {
         ClearGeneratedRequiredErrors();
         NormalizeEmployee(employee);
         ApplyEmploymentDetails(employee, isNonContractual, contractEndDatePersian);
+        ApplyOptionalProfileDetails(employee, hireDatePersian, birthDatePersian);
         ValidateEmployee(employee);
         await ValidatePositionTitleAsync(employee);
         await ValidateOrganizationAssignmentsAsync(employee);
 
         if (!ModelState.IsValid)
-            return View("Form", await BuildFormVmAsync(employee));
+            return View("Form", await BuildFormVmAsync(employee, hireDatePersian, birthDatePersian));
 
         employee.IsSystemUser = true;
         employee.Status = "فعال";
@@ -149,11 +150,12 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
     }
 
     [HttpPost, Authorize(Policy = "Employees.Edit"), ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(Employee employee, bool isNonContractual = false, string? contractEndDatePersian = null)
+    public async Task<IActionResult> Edit(Employee employee, bool isNonContractual = false, string? contractEndDatePersian = null, string? hireDatePersian = null, string? birthDatePersian = null)
     {
         ClearGeneratedRequiredErrors();
         NormalizeEmployee(employee);
         ApplyEmploymentDetails(employee, isNonContractual, contractEndDatePersian);
+        ApplyOptionalProfileDetails(employee, hireDatePersian, birthDatePersian);
         ValidateEmployee(employee);
         await ValidatePositionTitleAsync(employee);
         await ValidateOrganizationAssignmentsAsync(employee);
@@ -444,6 +446,42 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         employee.PositionTitle = employee.PositionTitle?.Trim();
         employee.EmploymentType = employee.EmploymentType?.Trim();
         employee.Email = employee.Email?.Trim();
+        employee.BirthCertificateNumber = employee.BirthCertificateNumber?.Trim();
+        employee.BirthCertificateIssuePlace = employee.BirthCertificateIssuePlace?.Trim();
+        employee.Address = employee.Address?.Trim();
+        employee.MilitaryServiceStatus = employee.MilitaryServiceStatus?.Trim();
+        employee.MaritalStatus = employee.MaritalStatus?.Trim();
+        employee.InsuranceNumber = employee.InsuranceNumber?.Trim();
+        employee.Skill = employee.Skill?.Trim();
+        employee.JobType = employee.JobType?.Trim();
+    }
+
+    private void ApplyOptionalProfileDetails(Employee employee, string? hireDatePersian, string? birthDatePersian)
+    {
+        employee.HireDate = ParseOptionalPersianDate(hireDatePersian, "hireDatePersian", "تاریخ استخدام");
+        employee.BirthDate = ParseOptionalPersianDate(birthDatePersian, "birthDatePersian", "تاریخ تولد");
+        if (employee.MilitaryServiceStatus is not (null or "" or "انجام داده" or "معاف" or "غیبت" or "در حال انجام" or "خرید خدمت"))
+            ModelState.AddModelError(nameof(Employee.MilitaryServiceStatus), "وضعیت نظام وظیفه را از فهرست انتخاب کنید.");
+        if (employee.MaritalStatus is not (null or "" or "مجرد" or "متاهل"))
+            ModelState.AddModelError(nameof(Employee.MaritalStatus), "وضعیت تأهل را از فهرست انتخاب کنید.");
+        if (employee.ChildrenCount is < 0 or > 30)
+            ModelState.AddModelError(nameof(Employee.ChildrenCount), "تعداد اولاد باید عددی بین صفر تا ۳۰ باشد.");
+    }
+
+    private DateTime? ParseOptionalPersianDate(string? value, string modelKey, string title)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            ModelState.Remove(modelKey);
+            return null;
+        }
+        if (PersianDateService.TryParse(value, out var parsed))
+        {
+            ModelState.Remove(modelKey);
+            return parsed.Date;
+        }
+        ModelState.AddModelError(modelKey, title + " را با تقویم شمسی و به‌صورت معتبر وارد کنید.");
+        return null;
     }
 
     private void ApplyEmploymentDetails(Employee employee, bool isNonContractual, string? contractEndDatePersian)
@@ -562,7 +600,7 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
             ModelState.AddModelError("Gender", "جنسیت را انتخاب کنید.");
     }
 
-    private async Task<FormVm> BuildFormVmAsync(Employee employee)
+    private async Task<FormVm> BuildFormVmAsync(Employee employee, string? hireDatePersian = null, string? birthDatePersian = null)
     {
         var revision = await db.OrganizationStructureRevisions
             .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
@@ -622,6 +660,8 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
         return new FormVm
         {
             Employee = employee,
+            HireDateJalali = hireDatePersian ?? (employee.HireDate.HasValue ? PersianDateService.Format(employee.HireDate.Value) : ""),
+            BirthDateJalali = birthDatePersian ?? (employee.BirthDate.HasValue ? PersianDateService.Format(employee.BirthDate.Value) : ""),
             Positions = positions.OrderBy(x => x.SortOrder).ThenBy(x => x.Title).ToList(),
             Units = nodes.Where(x => x.RankType == "مدیریت").ToList(),
             Departments = nodes.Where(x => x.RankType == "ریاست").ToList(),
@@ -636,6 +676,8 @@ public class EmployeesController(HRPortalDbContext db, EmployeeExcelService exce
     public class FormVm
     {
         public Employee Employee { get; set; } = new();
+        public string HireDateJalali { get; set; } = "";
+        public string BirthDateJalali { get; set; } = "";
         public List<OrganizationNode> Units { get; set; } = [];
         public List<OrganizationNode> Departments { get; set; } = [];
         public List<OrganizationNode> Sections { get; set; } = [];

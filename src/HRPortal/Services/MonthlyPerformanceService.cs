@@ -259,7 +259,7 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
         if (!scope.Any(x => x.EmployeeId == employeeId)) return false;
 
         var evaluation = await db.MonthlyPerformanceEvaluations.AsNoTracking()
-            .Where(x => x.PeriodId == periodId && x.EmployeeId == employeeId)
+            .Where(x => x.PeriodId == periodId && x.EmployeeId == employeeId && x.Scores.Any())
             .Select(x => new { x.LastEvaluatorId })
             .FirstOrDefaultAsync();
         if (evaluation is null || evaluation.LastEvaluatorId == actorId) return false;

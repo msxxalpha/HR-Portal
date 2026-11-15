@@ -80,6 +80,9 @@ public class MonthlyPerformanceController(
                 EvaluatorName = ev is null ? "ثبت نشده" : names.GetValueOrDefault(ev.LastEvaluatorId, "—"),
                 CanEdit = model.CanEdit && scopedSet.Contains(employee.Id) &&
                     (ev is null || ev.LastEvaluatorId == actor || upperIds.Contains(ev.LastEvaluatorId)),
+                CanApproveExisting = model.CanEdit && scopedSet.Contains(employee.Id) &&
+                    ev is not null && ev.LastEvaluatorId != actor && upperIds.Contains(ev.LastEvaluatorId),
+                EvaluationVersion = ev is null ? null : Convert.ToBase64String(ev.RowVersion),
                 ImprovementActions = improvementActions.Where(x => x.EmployeeId == employee.Id).ToList()
             };
         }).ToList();
@@ -113,10 +116,16 @@ public class MonthlyPerformanceController(
         if (!isScoped && !canHistory) return Forbid();
         var canEdit = isScoped && MonthlyPerformanceService.IsOpen(period, MonthlyPerformanceService.NowIran())
             && (ev is null || ev.LastEvaluatorId == actor || await performance.IsAboveAsync(actor, ev.LastEvaluatorId));
+        var canApproveExisting = isScoped && ev is not null &&
+            ev.LastEvaluatorId != actor &&
+            MonthlyPerformanceService.IsOpen(period, MonthlyPerformanceService.NowIran()) &&
+            await performance.IsAboveAsync(actor, ev.LastEvaluatorId);
         var rank = ev?.RankTitleSnapshot ?? scope.FirstOrDefault(x => x.EmployeeId == employeeId)?.RankTitle ?? "";
         var model = new MonthlyPerformanceEvaluationVm
         {
-            Period = period, Employee = employee, CanEdit = canEdit, EvaluationId = ev?.Id,
+            Period = period, Employee = employee, CanEdit = canEdit,
+            CanApproveExisting = canApproveExisting,
+            EvaluationId = ev?.Id,
             RankTitle = rank, EvaluationVersion = ev is null ? null : Convert.ToBase64String(ev.RowVersion),
             OriginalEvaluatorId = ev?.OriginalEvaluatorId, LastEvaluatorId = ev?.LastEvaluatorId
         };
@@ -185,6 +194,45 @@ public class MonthlyPerformanceController(
         }
         catch (InvalidOperationException e) { TempData["Error"] = e.Message; }
         return RedirectToAction(nameof(Evaluate), new { employeeId, periodId });
+    }
+
+    [HttpPost, Authorize(Policy = "MonthlyPerformance.Evaluate"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> ApproveExisting(
+        int employeeId, int periodId, string? expectedVersion)
+    {
+        if (!TryEmployee(out var actor) || !await performance.IsEvaluatorAsync(actor)) return Forbid();
+        try
+        {
+            await performance.ApproveExistingAsync(actor, employeeId, periodId, expectedVersion);
+            TempData["Success"] = "امتیازهای ثبت‌شده بدون تغییر تأیید شد و ارزیابی به نام شما ثبت گردید.";
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (DbUpdateConcurrencyException)
+        {
+            TempData["Error"] = "این ارزیابی هم‌زمان تغییر کرده است؛ صفحه را بازخوانی و دوباره بررسی کنید.";
+        }
+        catch (DbUpdateException)
+        {
+            TempData["Error"] = "ثبت تأیید با تغییر هم‌زمان مواجه شد؛ برای مشاهده آخرین وضعیت صفحه را بازخوانی کنید.";
+        }
+        catch (InvalidOperationException e) { TempData["Error"] = e.Message; }
+
+        return RedirectToAction(nameof(Evaluate), new { employeeId, periodId });
+    }
+
+    [HttpPost, Authorize(Policy = "MonthlyPerformance.Evaluate"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> ApproveAllExisting(int periodId)
+    {
+        if (!TryEmployee(out var actor) || !await performance.IsEvaluatorAsync(actor)) return Forbid();
+        try
+        {
+            var (approved, skipped, errors) = await performance.ApproveAllExistingAsync(actor, periodId);
+            TempData["Success"] = $"تأیید گروهی انجام شد: {approved} نفر تأیید شدند؛ {skipped} مورد خارج از دامنه تأیید بالادستی یا قبلاً به نام شما ثبت شده بود و {errors} مورد به دلیل تغییر هم‌زمان یا خطا تأیید نشد.";
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (InvalidOperationException e) { TempData["Error"] = e.Message; }
+
+        return RedirectToAction(nameof(Dashboard), new { periodId });
     }
 
     [HttpPost, Authorize(Policy = "MonthlyPerformance.Evaluate"), ValidateAntiForgeryToken]

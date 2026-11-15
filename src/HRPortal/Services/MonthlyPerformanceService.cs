@@ -243,6 +243,154 @@ public class MonthlyPerformanceService(HRPortalDbContext db)
         return evaluation;
     }
 
+    /// <summary>
+    /// Determines whether an upper-level evaluator can confirm an existing
+    /// subordinate evaluation without changing any score or note.
+    /// </summary>
+    public async Task<bool> CanApproveExistingAsync(int actorId, int employeeId, int periodId)
+    {
+        if (!await IsEvaluatorAsync(actorId)) return false;
+
+        var period = await db.MonthlyPerformancePeriods.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == periodId && !x.IsDeleted);
+        if (period is null || !IsOpen(period, NowIran())) return false;
+
+        var scope = await ScopeAsync(actorId);
+        if (!scope.Any(x => x.EmployeeId == employeeId)) return false;
+
+        var evaluation = await db.MonthlyPerformanceEvaluations.AsNoTracking()
+            .Where(x => x.PeriodId == periodId && x.EmployeeId == employeeId)
+            .Select(x => new { x.LastEvaluatorId })
+            .FirstOrDefaultAsync();
+        if (evaluation is null || evaluation.LastEvaluatorId == actorId) return false;
+
+        return await IsAboveAsync(actorId, evaluation.LastEvaluatorId);
+    }
+
+    /// <summary>
+    /// Confirms an existing subordinate's scores as the current evaluator's
+    /// own approval. Scores and notes are intentionally left unchanged.
+    /// </summary>
+    public async Task<MonthlyPerformanceEvaluation> ApproveExistingAsync(
+        int actorId, int employeeId, int periodId, string? expectedVersion = null)
+    {
+        if (!await IsEvaluatorAsync(actorId))
+            throw new UnauthorizedAccessException("فقط ارزیاب فعال مجاز به تأیید ارزیابی است.");
+
+        var period = await db.MonthlyPerformancePeriods.FirstOrDefaultAsync(x => x.Id == periodId && !x.IsDeleted)
+            ?? throw new InvalidOperationException("دوره موردنظر یافت نشد.");
+        if (!IsOpen(period, NowIran()))
+            throw new InvalidOperationException("تأیید ارزیابی فقط در بازه فعال دوره امکان‌پذیر است.");
+
+        var scope = await ScopeAsync(actorId);
+        if (!scope.Any(x => x.EmployeeId == employeeId))
+            throw new UnauthorizedAccessException("این کارمند در دامنه ارزیابی شما قرار ندارد.");
+
+        var evaluation = await GetEvaluationAsync(periodId, employeeId);
+        if (evaluation is null)
+            throw new InvalidOperationException("برای این کارمند هنوز امتیازی ثبت نشده است.");
+        if (evaluation.LastEvaluatorId == actorId)
+            throw new InvalidOperationException("این ارزیابی قبلاً به نام شما ثبت شده است.");
+        if (!await IsAboveAsync(actorId, evaluation.LastEvaluatorId))
+            throw new UnauthorizedAccessException("تأیید امتیاز فقط برای ارزیاب بالادستِ ارزیاب ثبت‌کننده مجاز است.");
+        if (evaluation.Scores.Count == 0)
+            throw new InvalidOperationException("ارزیابی فاقد ریزامتیاز معتبر است و قابل تأیید نیست.");
+        if (!string.IsNullOrWhiteSpace(expectedVersion) &&
+            expectedVersion != Convert.ToBase64String(evaluation.RowVersion))
+            throw new InvalidOperationException("این ارزیابی پس از بازکردن فرم تغییر کرده است؛ صفحه را بازخوانی و دوباره بررسی کنید.");
+
+        var previousEvaluatorId = evaluation.LastEvaluatorId;
+        var reason = "تأیید امتیازهای ثبت‌شده توسط ارزیاب بالادست بدون تغییر امتیاز";
+        var revisions = evaluation.Scores.Select(score => new MonthlyPerformanceRevision
+        {
+            EvaluationId = evaluation.Id,
+            QuestionId = score.QuestionId,
+            ChangedByEmployeeId = actorId,
+            PreviousEvaluatorId = previousEvaluatorId,
+            OldScore = score.Score,
+            NewScore = score.Score,
+            OldNote = score.Note,
+            NewNote = score.Note,
+            Reason = reason
+        }).ToList();
+
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        await db.MonthlyPerformanceRevisions.AddRangeAsync(revisions);
+        // Keep OriginalEvaluatorId intact for attribution of the initial assessment.
+        // LastEvaluatorId becomes the approving manager, which is the active owner
+        // for subsequent evaluator-level edits and the dashboard's "last evaluator".
+        evaluation.LastEvaluatorId = actorId;
+        evaluation.TotalScore = evaluation.Scores.Sum(x => x.Score);
+        evaluation.MaxScore = evaluation.Scores.Sum(x => x.MaxScore);
+        evaluation.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        await transaction.CommitAsync();
+        return evaluation;
+    }
+
+    /// <summary>
+    /// Confirms all already-assessed employees in the current evaluator's scope
+    /// whose latest assessor is a lower-level evaluator. Each approval is saved
+    /// independently so one concurrency conflict does not roll back other rows.
+    /// </summary>
+    public async Task<(int approved, int skipped, int errors)> ApproveAllExistingAsync(int actorId, int periodId)
+    {
+        if (!await IsEvaluatorAsync(actorId))
+            throw new UnauthorizedAccessException("فقط ارزیاب فعال مجاز به تأیید گروهی است.");
+
+        var period = await db.MonthlyPerformancePeriods.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == periodId && !x.IsDeleted)
+            ?? throw new InvalidOperationException("دوره موردنظر یافت نشد.");
+        if (!IsOpen(period, NowIran()))
+            throw new InvalidOperationException("تأیید گروهی فقط در بازه فعال دوره امکان‌پذیر است.");
+
+        var scopeIds = (await ScopeAsync(actorId)).Select(x => x.EmployeeId).Distinct().ToArray();
+        if (scopeIds.Length == 0) return (0, 0, 0);
+
+        var existing = await db.MonthlyPerformanceEvaluations.AsNoTracking()
+            .Where(x => x.PeriodId == periodId && scopeIds.Contains(x.EmployeeId))
+            .Select(x => new { x.EmployeeId, x.LastEvaluatorId })
+            .ToListAsync();
+
+        var subordinateEvaluatorIds = new HashSet<int>();
+        foreach (var evaluatorId in existing.Select(x => x.LastEvaluatorId)
+                     .Where(x => x != actorId).Distinct())
+            if (await IsAboveAsync(actorId, evaluatorId))
+                subordinateEvaluatorIds.Add(evaluatorId);
+
+        var eligible = existing.Where(x => x.LastEvaluatorId != actorId &&
+            subordinateEvaluatorIds.Contains(x.LastEvaluatorId)).ToList();
+        var skipped = existing.Count - eligible.Count;
+        var approved = 0;
+        var errors = 0;
+
+        foreach (var item in eligible)
+        {
+            try
+            {
+                await ApproveExistingAsync(actorId, item.EmployeeId, periodId);
+                approved++;
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                errors++;
+                db.ChangeTracker.Clear();
+            }
+            catch (DbUpdateException)
+            {
+                errors++;
+                db.ChangeTracker.Clear();
+            }
+            catch (InvalidOperationException)
+            {
+                errors++;
+                db.ChangeTracker.Clear();
+            }
+        }
+
+        return (approved, skipped, errors);
+    }
+
     public async Task<(int created, int skipped, int errors)> QuickAllAsync(int actorId, int periodId)
     {
         if (!await IsEvaluatorAsync(actorId)) throw new UnauthorizedAccessException("فقط ارزیاب مجاز است.");

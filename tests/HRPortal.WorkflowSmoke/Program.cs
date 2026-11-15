@@ -2211,26 +2211,28 @@ static void VerifyOutsourcedServiceOrganizationResolver()
         new() { Id = 2, ParentId = 1, Title = "مدیریت منابع انسانی", RankType = "مدیریت" },
         new() { Id = 3, ParentId = 2, Title = "ریاست امور کارکنان", RankType = "ریاست" },
         new() { Id = 4, ParentId = 3, Title = "سرپرستی خدمات", RankType = "سرپرستی" },
-        new() { Id = 5, ParentId = 1, Title = "معاونت مالی", RankType = "ریاست" },
-        new() { Id = 6, ParentId = 5, Title = "سرپرستی حسابداری", RankType = "سرپرستی", AssignedEmployeeIdsCsv = "7001" }
+        new() { Id = 5, ParentId = 1, Title = "معاونت مالی", RankType = "معاونت" },
+        new() { Id = 6, ParentId = 5, Title = "مدیریت مالی", RankType = "مدیریت" },
+        new() { Id = 7, ParentId = 6, Title = "ریاست حسابداری", RankType = "ریاست" },
+        new() { Id = 8, ParentId = 7, Title = "سرپرستی حسابداری", RankType = "سرپرستی", AssignedEmployeeIdsCsv = "7001" }
     };
 
-    var fromPosition = OutsourcedServiceOrganizationResolver.ResolveUnitTitle(
+    var fromCeoBranch = OutsourcedServiceOrganizationResolver.ResolveUnitTitle(
         7000, nodes, positionNodeId: 4);
-    Check(fromPosition == "مدیریت منابع انسانی",
-        "The reporting unit must be the nearest Management/Presidency node directly below CEO, not a lower Presidency node.");
+    Check(fromCeoBranch == "مدیریت منابع انسانی",
+        "The reporting unit must be the nearest Management/Presidency node directly below CEO.");
 
-    var fromExplicitAssignment = OutsourcedServiceOrganizationResolver.ResolveUnitTitle(
-        7001, nodes, positionNodeId: null);
-    Check(fromExplicitAssignment == "معاونت مالی",
-        "When the employee's saved position is missing, reporting unit resolution must fall back to explicit position assignments.");
+    var fromDeputyBranch = OutsourcedServiceOrganizationResolver.ResolveUnitTitle(
+        7001, nodes, positionNodeId: 8);
+    Check(fromDeputyBranch == "مدیریت مالی",
+        "The reporting unit must also resolve to the nearest Management/Presidency node directly below a Deputy node.");
 
     var unassigned = OutsourcedServiceOrganizationResolver.ResolveUnitTitle(
         7999, nodes, positionNodeId: null);
     Check(unassigned == OutsourcedServiceOrganizationResolver.UnassignedTitle,
         "Employees without a resolvable reporting unit must be grouped under the explicit unassigned label.");
 
-    Console.WriteLine("PASS: outsourced services requester organization is resolved from the nearest Management/Presidency node directly below CEO.");
+    Console.WriteLine("PASS: outsourced services requester organization is resolved from the nearest Management/Presidency node directly below CEO or a Deputy node.");
 }
 
 static void VerifyWorkflowReportFormTypeAggregation()

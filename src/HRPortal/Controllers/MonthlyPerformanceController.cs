@@ -227,7 +227,7 @@ public class MonthlyPerformanceController(
         try
         {
             var (approved, skipped, errors) = await performance.ApproveAllExistingAsync(actor, periodId);
-            TempData["Success"] = $"تأیید گروهی انجام شد: {approved} نفر تأیید شدند؛ {skipped} مورد خارج از دامنه تأیید بالادستی یا قبلاً به نام شما ثبت شده بود و {errors} مورد به دلیل تغییر هم‌زمان یا خطا تأیید نشد.";
+            TempData["Success"] = $"تأیید گروهی انجام شد: {approved} نفر تأیید شدند؛ {skipped} مورد قبلاً به نام شما ثبت شده، فاقد ریزامتیاز یا خارج از دامنه تأیید بالادستی بود و {errors} مورد به دلیل تغییر هم‌زمان یا خطا تأیید نشد.";
         }
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (InvalidOperationException e) { TempData["Error"] = e.Message; }

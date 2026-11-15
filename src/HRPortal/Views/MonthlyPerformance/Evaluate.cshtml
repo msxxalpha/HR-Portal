@@ -13,6 +13,7 @@
 @if (TempData["Success"] != null) { <div class="mp-success">@TempData["Success"]</div> }
 @if (TempData["Error"] != null) { <div class="mp-error">@TempData["Error"]</div> }
 @if(!Model.CanEdit){<div class="alert warning">این ارزیابی صرفاً برای مشاهده است؛ دوره بسته شده یا ویرایش در اختیار ارزیاب بالادست قرار گرفته است.</div>}
+@if(Model.CanApproveExisting){<div class="alert info">امتیازهای این کارمند توسط ارزیاب زیرمجموعه ثبت شده‌اند. می‌توانید همان امتیازها و توضیحات را بدون تغییر تأیید کنید تا ارزیاب نهایی این ارزیابی به نام شما ثبت شود؛ سابقه ارزیاب اولیه نیز حفظ خواهد شد.</div>}
 <section class="mp-kpis">
 <div class="mp-kpi" style="--mp-color:#1d4ed8"><div class="caption">تعداد شاخص‌ها</div><strong>@Model.Scores.Count</strong></div>
 <div class="mp-kpi" style="--mp-color:#16a34a"><div class="caption">امتیاز کسب‌شده</div><strong id="mp-total">@Model.TotalScore.ToString("N0")</strong></div>
@@ -53,6 +54,19 @@ else {<span>@(s.Note ?? "—")</span>}</td>
 }
 </form>
 }
+@if(Model.CanApproveExisting)
+{
+<form method="post" action="/MonthlyPerformance/ApproveExisting" class="mp-controls mp-approval-form"
+      onsubmit="return confirm('امتیازها و توضیحات فعلی بدون تغییر تأیید و ارزیابی به نام شما ثبت شود؟');">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="employeeId" value="@Model.Employee.Id" />
+    <input type="hidden" name="periodId" value="@Model.Period.Id" />
+    <input type="hidden" name="expectedVersion" value="@Model.EvaluationVersion" />
+    <div class="mp-note">در این عملیات هیچ امتیاز یا توضیحی تغییر نمی‌کند؛ فقط تأیید شما در تاریخچه ثبت و مسئول نهایی ارزیابی به‌روزرسانی می‌شود.</div>
+    <button class="btn btn-main" type="submit">✓ تأیید همین امتیازها و ثبت به نام من</button>
+</form>
+}
+}
 </section>
 <section class="mp-card">
 <h2>تاریخچه تغییر امتیازها و نام ارزیابان</h2>
@@ -68,6 +82,10 @@ else {
 </section>
 </div>
 <script src="~/js/monthly-performance-table.js" asp-append-version="true"></script>
+<style>
+.mp-approval-form{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-top:15px;padding:14px 16px;border:1px solid #bfd4e8;border-radius:12px;background:#f3f8fc}
+.mp-approval-form .mp-note{flex:1;min-width:240px}
+</style>
 <script>
 document.querySelectorAll('#mp-score-table .mp-score-input').forEach(el=>el.addEventListener('input',()=>{
 let used=0,max=0;

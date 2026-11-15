@@ -173,6 +173,16 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.HasIndex(x => x.PersonnelNumber).IsUnique();
             e.Property(x => x.PersonalPasswordHash).HasMaxLength(1000);
             e.Property(x => x.ContractEndDate).HasColumnType("date");
+            e.Property(x => x.HireDate).HasColumnType("date");
+            e.Property(x => x.BirthDate).HasColumnType("date");
+            e.Property(x => x.BirthCertificateNumber).HasMaxLength(30);
+            e.Property(x => x.BirthCertificateIssuePlace).HasMaxLength(150);
+            e.Property(x => x.Address).HasMaxLength(1000);
+            e.Property(x => x.MilitaryServiceStatus).HasMaxLength(30);
+            e.Property(x => x.MaritalStatus).HasMaxLength(20);
+            e.Property(x => x.InsuranceNumber).HasMaxLength(50);
+            e.Property(x => x.Skill).HasMaxLength(1000);
+            e.Property(x => x.JobType).HasMaxLength(100);
             e.HasIndex(x => x.NationalId).IsUnique();
             e.HasIndex(x => x.Identifier)
                 .IsUnique()

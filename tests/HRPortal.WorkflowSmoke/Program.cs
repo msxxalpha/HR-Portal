@@ -2272,9 +2272,6 @@ static async Task VerifyMonthlyPerformanceUpperApprovalAsync()
     lowerEvaluator.IsPerformanceEvaluator = true;
     var employeeOne = Person("TARGET-APPROVAL-1", "کارمند اول");
     var employeeTwo = Person("TARGET-APPROVAL-2", "کارمند دوم");
-    foreach (var employee in new[] { upperEvaluator, lowerEvaluator, employeeOne, employeeTwo })
-        employee.PerformanceRankId = 0; // replaced with the persisted active rank below
-
     db.AddRange(period, rank, domain, questionOne, questionTwo,
         upperEvaluator, lowerEvaluator, employeeOne, employeeTwo);
     await db.SaveChangesAsync();

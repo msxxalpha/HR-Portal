@@ -18,6 +18,19 @@ public class Employee
     public string? PositionTitle { get; set; }
     public string? EmploymentType { get; set; } = "قراردادی";
     public DateTime? ContractEndDate { get; set; } = new System.Globalization.PersianCalendar().ToDateTime(1405, 12, 29, 0, 0, 0, 0);
+    // Optional personal and employment details. Nullable by design to preserve
+    // compatibility with employees already stored before these fields existed.
+    public DateTime? HireDate { get; set; }
+    public DateTime? BirthDate { get; set; }
+    [MaxLength(30)] public string? BirthCertificateNumber { get; set; }
+    [MaxLength(150)] public string? BirthCertificateIssuePlace { get; set; }
+    [MaxLength(1000)] public string? Address { get; set; }
+    [MaxLength(30)] public string? MilitaryServiceStatus { get; set; }
+    [MaxLength(20)] public string? MaritalStatus { get; set; }
+    public int? ChildrenCount { get; set; }
+    [MaxLength(50)] public string? InsuranceNumber { get; set; }
+    [MaxLength(1000)] public string? Skill { get; set; }
+    [MaxLength(100)] public string? JobType { get; set; }
     public string? Email { get; set; }
     public string? FatherName { get; set; }
     public string Status { get; set; } = "فعال"; public bool IsSystemUser { get; set; } = true; [MaxLength(1000)] public string? PersonalPasswordHash { get; set; } public bool IsSystemAdministrator { get; set; } public bool IsPerformanceEvaluator { get; set; } public int? PerformanceRankId { get; set; } public bool MustChangeInitialPassword { get; set; }

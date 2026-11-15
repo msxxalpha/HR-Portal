@@ -47,7 +47,7 @@ public static class OutsourcedServiceOrganizationResolver
                 if (IsReportingUnitRank(current.RankType) &&
                     current.ParentId.HasValue &&
                     byId.TryGetValue(current.ParentId.Value, out var parent) &&
-                    NormalizeRank(parent.RankType) == NormalizeRank("مدیرعامل"))
+                    IsEligibleUnitParent(parent.RankType))
                     return current.Title;
 
                 if (!current.ParentId.HasValue) break;
@@ -79,6 +79,14 @@ public static class OutsourcedServiceOrganizationResolver
     {
         var normalized = NormalizeRank(rank);
         return normalized == NormalizeRank("مدیریت") || normalized == NormalizeRank("ریاست");
+    }
+
+    private static bool IsEligibleUnitParent(string? rank)
+    {
+        var normalized = NormalizeRank(rank);
+        return normalized == NormalizeRank("مدیرعامل") ||
+               normalized == NormalizeRank("معاونت") ||
+               normalized == NormalizeRank("معاون");
     }
 
     private static string NormalizeRank(string? value) =>

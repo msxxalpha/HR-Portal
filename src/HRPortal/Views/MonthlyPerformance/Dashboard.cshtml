@@ -58,13 +58,20 @@ else
 </section>
 <section class="mp-card">
 <div class="mp-toolbar">
- <div><h2>نفرات قابل ارزیابی و نتایج دوره</h2><div class="mp-note">فقط کارکنان واقع در زیرشاخه‌های سازمانی شما و اعضای مستقیم زیر نظر متصدی جایگاه نمایش داده می‌شوند؛ گره‌های هم‌سطح و همکاران هم‌جایگاه در فهرست نیستند.</div><div class="mp-note">ارزیابی گروهی فقط برای افراد فاقد ارزیابی انجام می‌شود و هیچ امتیاز قبلی را بازنویسی نمی‌کند.</div><div class="mp-note mp-improvement-summary">برنامه‌های اقدام بهبود قابل مشاهده در این دوره: <strong>@Model.ImprovementActionCount</strong> مورد · براساس نفرات تحت پوشش ساختار سازمانی شما</div></div>
+ <div><h2>نفرات قابل ارزیابی و نتایج دوره</h2><div class="mp-note">فقط کارکنان واقع در زیرشاخه‌های سازمانی شما و اعضای مستقیم زیر نظر متصدی جایگاه نمایش داده می‌شوند؛ گره‌های هم‌سطح و همکاران هم‌جایگاه در فهرست نیستند.</div><div class="mp-note">ارزیابی گروهی فقط برای افراد فاقد ارزیابی انجام می‌شود و هیچ امتیاز قبلی را بازنویسی نمی‌کند.</div><div class="mp-note">برای ارزیابی‌های ثبت‌شده توسط ارزیابان زیرمجموعه، می‌توانید امتیازها را بدون تغییر به‌صورت ردیفی یا گروهی تأیید و به نام خود ثبت کنید.</div><div class="mp-note mp-improvement-summary">برنامه‌های اقدام بهبود قابل مشاهده در این دوره: <strong>@Model.ImprovementActionCount</strong> مورد · براساس نفرات تحت پوشش ساختار سازمانی شما</div></div>
  <div class="mp-controls">
  @if(Model.CanEdit) {
  <form method="post" action="/MonthlyPerformance/QuickAll" onsubmit="return confirm('فقط برای نفرات فاقد امتیاز، ارزیابی با سقف کامل سؤال‌ها ثبت شود؟');">
  @Html.AntiForgeryToken()<input type="hidden" name="periodId" value="@Model.PeriodId" />
  <button class="btn btn-main" type="submit">✓ ثبت گروهی امتیاز کامل</button>
  </form>
+ @if (Model.PendingApprovalCount > 0)
+ {
+ <form method="post" action="/MonthlyPerformance/ApproveAllExisting" onsubmit="return confirm('امتیازهای ثبت‌شده توسط ارزیابان زیرمجموعه برای @Model.PendingApprovalCount نفر، بدون تغییر تأیید و به نام شما ثبت شوند؟');">
+ @Html.AntiForgeryToken()<input type="hidden" name="periodId" value="@Model.PeriodId" />
+ <button class="btn btn-outline" type="submit">✓ تأیید گروهی امتیازهای ثبت‌شده (@Model.PendingApprovalCount)</button>
+ </form>
+ }
  }
  <input type="search" class="mp-search" placeholder="جستجو و فیلتر در جدول..." aria-label="فیلتر جدول" />
  <button type="button" class="btn btn-outline" onclick="window.print()">چاپ</button>
@@ -78,9 +85,25 @@ else
 <tr><td><strong>@p.FullName</strong></td><td>@p.PersonnelNumber</td><td>@p.Rank</td><td>@p.Unit</td>
 <td>@p.Score.ToString("N2")</td><td>@p.MaxScore.ToString("N2")</td><td>@p.Deducted.ToString("N2")</td><td>@p.Percent٪</td><td>@p.EvaluatorName</td>
 <td><span class="mp-tag @(p.EvaluationId.HasValue ? "good" : "warn")">@(p.EvaluationId.HasValue ? "ثبت‌شده" : "ثبت‌نشده")</span></td>
-<td>@if (p.CanEdit || p.EvaluationId.HasValue) {
+<td>
+<div class="mp-row-actions">
+@if (p.CanEdit || p.EvaluationId.HasValue)
+{
 <a href="/MonthlyPerformance/Evaluate?employeeId=@p.EmployeeId&periodId=@Model.PeriodId" class="btn btn-outline btn-sm">@(p.CanEdit ? "مشاهده/ویرایش" : "مشاهده جزئیات")</a>
-} else {<span class="mp-muted">بدون دسترسی</span>}</td>
+}
+else { <span class="mp-muted">بدون دسترسی</span> }
+@if (p.CanApproveExisting)
+{
+<form method="post" action="/MonthlyPerformance/ApproveExisting" onsubmit="return confirm('امتیازهای فعلی این کارمند بدون تغییر تأیید و به نام شما ثبت شوند؟');">
+ @Html.AntiForgeryToken()
+ <input type="hidden" name="employeeId" value="@p.EmployeeId" />
+ <input type="hidden" name="periodId" value="@Model.PeriodId" />
+ <input type="hidden" name="expectedVersion" value="@p.EvaluationVersion" />
+ <button class="btn btn-main btn-sm" type="submit">تأیید امتیاز</button>
+</form>
+}
+</div>
+</td>
 <td data-label="اقدامات بهبود">
 @if (p.ImprovementActions.Count == 0)
 {
@@ -114,4 +137,9 @@ else
 </section>
 }
 </div>
+<style>
+.mp-row-actions{display:flex;flex-direction:column;align-items:stretch;gap:6px;min-width:110px}
+.mp-row-actions form{margin:0}
+.mp-row-actions .btn{white-space:nowrap}
+</style>
 <script src="~/js/monthly-performance-table.js" asp-append-version="true"></script>

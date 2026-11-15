@@ -2266,12 +2266,12 @@ static async Task VerifyMonthlyPerformanceUpperApprovalAsync()
     {
         Code = "APPROVAL-Q2", Title = "کیفیت انجام وظایف", Domain = domain, IsActive = true, SortOrder = 2
     };
-    var upperEvaluator = Person("UPPER-APPROVAL", "ارزیاب بالادست");
+    var upperEvaluator = Person(8001);
     upperEvaluator.IsPerformanceEvaluator = true;
-    var lowerEvaluator = Person("LOWER-APPROVAL", "ارزیاب پایین‌دست");
+    var lowerEvaluator = Person(8002);
     lowerEvaluator.IsPerformanceEvaluator = true;
-    var employeeOne = Person("TARGET-APPROVAL-1", "کارمند اول");
-    var employeeTwo = Person("TARGET-APPROVAL-2", "کارمند دوم");
+    var employeeOne = Person(8003);
+    var employeeTwo = Person(8004);
     db.AddRange(period, rank, domain, questionOne, questionTwo,
         upperEvaluator, lowerEvaluator, employeeOne, employeeTwo);
     await db.SaveChangesAsync();
@@ -2429,7 +2429,7 @@ static async Task VerifyMonthlyPerformanceUpperApprovalAsync()
           bulkApproved.Scores.Sum(x => x.Score) == 15,
         "Bulk approval must preserve the original assessment and the exact sum of its unchanged scores.");
 
-    var outsider = Person("OUTSIDER-APPROVAL", "ارزیاب خارج از دامنه");
+    var outsider = Person(9001);
     outsider.IsPerformanceEvaluator = true;
     db.Employees.Add(outsider);
     await db.SaveChangesAsync();

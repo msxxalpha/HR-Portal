@@ -1618,6 +1618,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 RequesterPersonnelNumber = x.WorkflowInstance.RequesterEmployee.PersonnelNumber,
                 StepTitle = x.WorkflowStep!.Title,
                 PositionTitle = x.ActorPosition == null ? "" : x.ActorPosition.Title,
+                CurrentStepTitle = x.WorkflowInstance.CurrentStep == null ? "پایان گردش" : x.WorkflowInstance.CurrentStep.Title,
+                LatestWorkflowStatus = x.WorkflowInstance.Status,
                 Status = x.ToStatus,
                 CreatedAt = x.CreatedAt,
                 Comment = x.Comment,
@@ -1733,7 +1735,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
     public async Task<List<WorkflowInboxRow>> GetMyRequestsAsync(int employeeId) =>
         await BuildRequestsQuery(employeeId).ToListAsync();
 
-    public async Task<WorkflowInstance?> GetInstanceAsync(int id, int employeeId)
+    public async Task<WorkflowInstance?> GetInstanceAsync(int id, int employeeId, bool allowUpcomingPreview = false)
     {
         var instance = await db.WorkflowInstances
             .AsNoTracking()
@@ -1778,7 +1780,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             // A future assignee may inspect the request in read-only mode before
             // their stage becomes current. They do not receive a task ID and the
             // action endpoints still require a real, currently-pending task.
-            if (!hasCurrentPendingAssignment && instance.Status == "InProgress")
+            if (!hasCurrentPendingAssignment && allowUpcomingPreview && instance.Status == "InProgress")
             {
                 var upcomingSteps = await GetReachableFutureStepsAsync(instance);
                 foreach (var step in upcomingSteps)
@@ -1799,6 +1801,51 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
         return WorkflowPositionAssignmentResolver.CanViewInstance(
             isRequester, hasActed, hasCurrentPendingAssignment) ? instance : null;
+    }
+
+    public async Task<int?> GetUpcomingViewBoundarySortOrderAsync(int id, int employeeId)
+    {
+        var instance = await db.WorkflowInstances.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == id && x.Status == "InProgress");
+        if (instance is null || instance.RequesterEmployeeId == employeeId || !instance.CurrentStepId.HasValue)
+            return null;
+
+        var hasActed = await db.WorkflowHistory.AsNoTracking().AnyAsync(x =>
+            x.WorkflowInstanceId == id && x.ActorEmployeeId == employeeId &&
+            x.Action != "Created" && x.Action != "Submitted" && x.Action != "Submit");
+        if (hasActed) return null;
+
+        var pendingTasks = await db.WorkflowTasks.AsNoTracking()
+            .Include(x => x.AssignedPosition)
+            .Include(x => x.WorkflowStep).ThenInclude(x => x.OrganizationNode)
+            .Where(x => x.WorkflowInstanceId == id && x.Status == "Pending")
+            .ToListAsync();
+
+        foreach (var task in pendingTasks)
+        {
+            if (task.AssignedPositionId.HasValue || task.WorkflowStep.OrganizationNodeId.HasValue)
+            {
+                if (await IsCurrentPositionAssigneeAsync(employeeId, task))
+                    return null;
+            }
+            else if (await db.Employees.AnyAsync(x => x.Id == employeeId && x.Status == "فعال") &&
+                     WorkflowPositionAssignmentResolver.IsExplicitEmployeeAssignee(
+                         employeeId, task.AssignedEmployeeId, isActiveEmployee: true))
+            {
+                return null;
+            }
+        }
+
+        var upcomingSteps = await GetReachableFutureStepsAsync(instance);
+        foreach (var step in upcomingSteps.OrderBy(x => x.SortOrder).ThenBy(x => x.Id))
+        {
+            var potentialPosition = await ResolvePotentialPositionAsync(instance, step);
+            if (step.AssignmentType is not ("Employee" or "Requester") && potentialPosition is null)
+                continue;
+            if (await IsPotentialFutureAssigneeAsync(employeeId, instance, step, potentialPosition))
+                return step.SortOrder;
+        }
+        return null;
     }
 
     private async Task<bool> IsCurrentPositionAssigneeAsync(int employeeId, WorkflowTask task)

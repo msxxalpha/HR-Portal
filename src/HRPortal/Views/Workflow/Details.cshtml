@@ -27,7 +27,7 @@
         {
             <a class="btn btn-main" href="/Workflow/DownloadContractRenewalPdf/@Model.Id">دریافت گزارش نهایی PDF</a>
         }
-        <a class="btn btn-outline" href="/Workflow/MyRequests">بازگشت به درخواست‌های من</a>
+        <a class="btn btn-outline" href="/Workflow/MyRequests">@(User.HasClaim("IsAdmin", "1") ? "بازگشت به مدیریت درخواست‌ها" : User.HasClaim("Permission", "Workflow.SkipStep") ? "بازگشت به گردش‌های فعال" : "بازگشت به درخواست‌های من")</a>
     </div>
 </div>
 <section class="workflow-detail-grid">

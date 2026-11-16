@@ -1,8 +1,15 @@
 @inject HRPortal.Services.EnvironmentSettingsService SettingsService
+@inject HRPortal.Services.WorkflowService WorkflowService
 @{
     var cfg = await SettingsService.GetAsync();
     var company = cfg.System;
     var isAdmin = User.HasClaim("IsAdmin", "1");
+    var headerHasPendingWorkflow = false;
+    if (User.Identity?.IsAuthenticated == true &&
+        int.TryParse(User.FindFirst("EmployeeId")?.Value, out var headerEmployeeId))
+    {
+        headerHasPendingWorkflow = (await WorkflowService.GetInboxAsync(headerEmployeeId)).Count > 0;
+    }
     bool Can(string permission) =>
         isAdmin ||
         User.HasClaim("Permission", permission) ||
@@ -26,6 +33,21 @@
     <link rel="stylesheet" href="@Url.Content("~/css/site.css")" asp-append-version="true" />
     <link rel="stylesheet" href="@Url.Content("~/css/suggestions.css")" asp-append-version="true" />
     <link rel="stylesheet" href="@Url.Content("~/css/outsourced-services.css")" asp-append-version="true" />
+    <style>
+        .workflow-attention-indicator {
+            display:inline-flex; align-items:center; justify-content:center;
+            width:30px; height:30px; margin-inline-start:8px; border-radius:50%;
+            border:1px solid currentColor; flex:0 0 auto; vertical-align:middle;
+        }
+        .workflow-attention-indicator svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+        .workflow-attention-indicator.is-pending { color:#c26b08; background:#fff7ed; animation:workflow-attention-blink 1.1s ease-in-out infinite; }
+        .workflow-attention-indicator.is-clear { color:#15803d; background:#f0fdf4; }
+        @keyframes workflow-attention-blink {
+            0%,100% { opacity:1; box-shadow:0 0 0 0 rgba(217,119,6,.12); }
+            50% { opacity:.35; box-shadow:0 0 0 5px rgba(217,119,6,.12); }
+        }
+        @media (prefers-reduced-motion: reduce) { .workflow-attention-indicator.is-pending { animation:none; } }
+    </style>
 </head>
 <body style="--navy:@company.PrimaryColor;--navy2:@company.SecondaryColor;">
 <div class="app-shell">
@@ -190,6 +212,15 @@
                 @if (User.Identity?.IsAuthenticated == true)
                 {
                     <span style="font-weight:800;font-size:1.08rem">@User.Identity.Name</span>
+                    <span class="workflow-attention-indicator @(headerHasPendingWorkflow ? "is-pending" : "is-clear")"
+                          role="img"
+                          aria-label="@(headerHasPendingWorkflow ? "وظیفه در انتظار اقدام در کارتابل شما وجود دارد" : "وظیفه در انتظار اقدام ندارید")"
+                          title="@(headerHasPendingWorkflow ? "در کارتابل شما وظیفه انجام‌نشده وجود دارد" : "کارتابل شما فاقد وظیفه انجام‌نشده است")">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M4 5.5h16v13H4z" />
+                            <path d="M4 12h4.2l2.1 3h3.4l2.1-3H20" />
+                        </svg>
+                    </span>
                     <form method="post" action="/Account/Logout">
                         @Html.AntiForgeryToken()
                         <button class="link" type="submit">خروج</button>

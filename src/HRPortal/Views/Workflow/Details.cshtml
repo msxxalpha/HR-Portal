@@ -16,6 +16,8 @@
         "Returned" => "برگشت داده شده",
         _ => "در حال گردش"
     };
+    var canSkipCurrentStep = Model.Status == "InProgress" && Model.CurrentStepId.HasValue &&
+        (User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Workflow.SkipStep"));
 }
 <div class="page-head">
     <div><h1>@Model.WorkflowDefinition.Title</h1><p>@Model.EntityType #@Model.EntityId</p></div>
@@ -46,13 +48,31 @@
         @foreach (var item in history)
         {
             <div class="workflow-history-item">
-                <div><strong>@item.Action</strong><span>@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span></div>
-                <p>@(item.ActorEmployee == null ? "سیستم" : item.ActorEmployee.FirstName + " " + item.ActorEmployee.LastName) — @(item.Comment ?? "بدون توضیح")</p>
+                <div><strong>@(item.Action switch { "SkipStep" => "عبور از مرحله جاری", "RouteCorrected" => "اصلاح خودکار مسیر ارزشیابی", "Approve" => "تأیید", "Reject" => "رد", "Return" => "برگشت", "SaveDraft" => "ذخیره پیش‌نویس", _ => item.Action })</strong><span>@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span></div>
+                <p>@(item.ActorEmployee == null ? (item.Action == "SkipStep" ? "مدیر سامانه / کاربر دارای مجوز" : "سیستم") : item.ActorEmployee.FirstName + " " + item.ActorEmployee.LastName) — @(item.Comment ?? "بدون توضیح")</p>
             </div>
         }
         </div>
     </div>
 </section>
+
+@if (canSkipCurrentStep)
+{
+    <section class="card workflow-skip-card" style="margin-top:1rem;border:1px solid #fed7aa;background:#fffaf3">
+        <div class="section-head">
+            <div><h3>عبور از مرحله جاری</h3><span class="muted">این عملیات همه وظایف باز مرحله جاری را بدون حذف سوابق خاتمه می‌دهد و گردش را به مرحله بعد می‌برد.</span></div>
+        </div>
+        <form method="post" action="/Workflow/SkipCurrentStep" class="form-stack"
+              onsubmit="return confirm('از مرحله جاری عبور شود؟ همه وظایف باز این مرحله تعیین تکلیف و سابقه عبور ثبت می‌شود.');">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="workflowInstanceId" value="@Model.Id" />
+            <label>علت عبور از مرحله جاری *
+                <textarea name="reason" rows="3" maxlength="1000" required placeholder="علت عبور، توضیح وضعیت یا مجوز تصمیم را ثبت کنید."></textarea>
+            </label>
+            <div class="actions"><button class="btn btn-warning" type="submit">عبور از مرحله جاری و ادامه گردش</button></div>
+        </form>
+    </section>
+}
 
 @if (suggestion != null)
 {
@@ -121,10 +141,11 @@
             var stepTasks = renewalTasks.Where(t => t.WorkflowStepId == step.Id).ToList();
             var stepScores = renewalScores.Where(s => s.WorkflowStepId == step.Id).ToList();
             var completed = stepTasks.Any(t => t.Status == "Completed");
+            var bypassed = stepTasks.Any(t => t.Action == "SkipStep" || t.Action == "RouteCorrected" || t.Status == "Superseded");
             <article class="workflow-history-item" style="padding:1rem;margin-bottom:.8rem;border:1px solid var(--border-color,#ddd);border-radius:10px">
                 <div>
                     <strong>@step.Title</strong>
-                    <span class="badge">@(completed ? "انجام‌شده" : stepTasks.Any(t => t.Status == "Pending") ? "در انتظار اقدام" : "بدون اقدام ثبت‌شده")</span>
+                    <span class="badge">@(bypassed ? "عبور / اصلاح مسیر" : completed ? "انجام‌شده" : stepTasks.Any(t => t.Status == "Pending") ? "در انتظار اقدام" : "بدون اقدام ثبت‌شده")</span>
                 </div>
                 <p class="muted">جایگاه: @(step.OrganizationNode?.Title ?? (step.AssignedEmployeeId.HasValue ? "کارمند مشخص" : step.AssignmentType == "Hierarchy" ? "مسیر سلسله‌مراتبی" : "—"))</p>
                 @if (renewal is not null && step.Code == "Security")

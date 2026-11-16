@@ -480,41 +480,41 @@
 
 <script>
 (function () {
-    const inputs = [...document.querySelectorAll(".contract-score-input:not(:disabled)")];
+    const allInputs = [...document.querySelectorAll(".contract-score-input")];
+    const editableInputs = allInputs.filter(input => !input.disabled);
     const topTotal = document.getElementById("contractScoreTotalTop");
     const bottomTotal = document.getElementById("contractScoreTotalBottom");
-    if (!topTotal || !bottomTotal) return;
+    if (!topTotal || !bottomTotal || allInputs.length === 0) return;
 
     function refreshTotal() {
         let total = 0;
-        inputs.forEach(input => {
+        allInputs.forEach(input => {
             const raw = input.value.trim();
             const value = raw === "" ? 0 : Number(raw);
             const max = Number(input.dataset.maxScore);
             let error = "";
-            if (raw !== "" && !Number.isInteger(value)) {
+            if (!input.disabled && raw !== "" && !Number.isInteger(value)) {
                 error = "امتیاز این پرسش باید عدد صحیح و بدون اعشار باشد.";
-            } else if (raw !== "" && (value < 0 || value > max)) {
+            } else if (!input.disabled && raw !== "" && (value < 0 || value > max)) {
                 error = "امتیاز باید بین صفر و سقف تعیین‌شده برای همین پرسش باشد.";
             }
-            input.setCustomValidity(error);
-            if (!error && Number.isInteger(value)) total += value;
+            if (!input.disabled) input.setCustomValidity(error);
+            if (Number.isFinite(value) && (input.disabled || !error)) total += value;
         });
-        const formatted = total.toLocaleString("fa-IR", { maximumFractionDigits: 0 });
+        const formatted = total.toLocaleString("fa-IR", { maximumFractionDigits: 2 });
         topTotal.textContent = formatted;
         bottomTotal.textContent = formatted;
     }
 
-    inputs.forEach(input => {
+    editableInputs.forEach(input => {
         input.addEventListener("input", refreshTotal);
         input.addEventListener("change", refreshTotal);
         input.addEventListener("keydown", event => {
             if (event.key !== "ArrowDown") return;
-            const next = inputs[inputs.indexOf(input) + 1];
+            const next = editableInputs[editableInputs.indexOf(input) + 1];
             if (!next) return;
             event.preventDefault();
             next.focus();
-            next.select();
         });
     });
 

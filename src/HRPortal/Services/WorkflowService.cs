@@ -1429,20 +1429,29 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 employeeIdsByInstance[task.WorkflowInstanceId] = ids = [];
 
             var sourcePosition = task.AssignedPosition ?? task.WorkflowStep.OrganizationNode;
+            var isDirectEmployeeAssignment = task.WorkflowStep.AssignmentType is "Employee" or "Requester" ||
+                sourcePosition is null;
+            if (isDirectEmployeeAssignment)
+            {
+                if (task.AssignedEmployeeId.HasValue)
+                    ids.Add(task.AssignedEmployeeId.Value);
+                continue;
+            }
+
             if (sourcePosition is not null && !string.IsNullOrWhiteSpace(sourcePosition.Code))
             {
                 var currentPosition = WorkflowPositionAssignmentResolver.FindByStableCode(
                     currentPositions, sourcePosition.Code, x => x.Code);
                 if (currentPosition is not null)
                 {
-                    foreach (var holderId in WorkflowPositionAssignmentResolver.GetAssignedEmployeeIds(
-                                 currentPosition.AssignedEmployeeIdsCsv, currentPosition.PositionHolderEmployeeId))
-                        ids.Add(holderId);
+                    var currentHolderIds = WorkflowPositionAssignmentResolver.GetAssignedEmployeeIds(
+                        currentPosition.AssignedEmployeeIdsCsv, currentPosition.PositionHolderEmployeeId);
+                    if (task.AssignedEmployeeId.HasValue && currentHolderIds.Contains(task.AssignedEmployeeId.Value))
+                        ids.Add(task.AssignedEmployeeId.Value);
+                    else
+                        foreach (var holderId in currentHolderIds)
+                            ids.Add(holderId);
                 }
-            }
-            else if (task.AssignedEmployeeId.HasValue)
-            {
-                ids.Add(task.AssignedEmployeeId.Value);
             }
         }
 
@@ -1852,7 +1861,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 return step.SortOrder;
         }
 
-        return instance.RequesterEmployeeId == employeeId ? null : null;
+        return null;
     }
 
     private async Task<bool> IsCurrentPositionAssigneeAsync(int employeeId, WorkflowTask task)

@@ -894,6 +894,144 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         await GetHierarchyRoutePreviewAsync(subjectEmployeeId, stopRankType, null, cancellationToken);
     }
 
+    /// <summary>
+    /// Repairs in-flight contract-renewal runtime routes created by the old
+    /// rank-SortOrder filter. The stage chain remains immutable except for
+    /// rerouting the initial evaluation entry to the first supervisor stage.
+    /// </summary>
+    public async Task<int> RepairInFlightContractRenewalEvaluationRoutesAsync(CancellationToken cancellationToken = default)
+    {
+        var instanceIds = await db.WorkflowInstances.AsNoTracking()
+            .Where(x => x.EntityType == ContractRenewalWorkflowService.WorkflowEntityType &&
+                        x.Status == "InProgress")
+            .Select(x => x.Id)
+            .ToListAsync(cancellationToken);
+
+        var repaired = 0;
+        foreach (var instanceId in instanceIds)
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync(
+                System.Data.IsolationLevel.Serializable, cancellationToken);
+
+            var instance = await db.WorkflowInstances
+                .Include(x => x.WorkflowDefinition).ThenInclude(x => x.Steps).ThenInclude(x => x.OrganizationNode)
+                .Include(x => x.Tasks)
+                .FirstOrDefaultAsync(x => x.Id == instanceId &&
+                    x.EntityType == ContractRenewalWorkflowService.WorkflowEntityType &&
+                    x.Status == "InProgress", cancellationToken);
+            if (instance is null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                continue;
+            }
+
+            var evaluationSteps = instance.WorkflowDefinition.Steps
+                .Where(x => x.Code.StartsWith("Evaluation_H", StringComparison.Ordinal))
+                .OrderBy(x => x.SortOrder).ThenBy(x => x.Id).ToList();
+            if (evaluationSteps.Count < 2)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                continue;
+            }
+
+            var supervisorIndex = evaluationSteps.FindIndex(x => IsSupervisorRankType(x.OrganizationNode?.RankType));
+            if (supervisorIndex <= 0)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                continue;
+            }
+
+            var firstOldStep = evaluationSteps[0];
+            var firstSupervisorStep = evaluationSteps[supervisorIndex];
+            var evaluationStepIds = evaluationSteps.Select(x => x.Id).ToArray();
+
+            // The initial approval transition must also bypass the outdated
+            // lower-rank clone for requests that have not reached evaluation yet.
+            var incomingTransitions = await db.WorkflowTransitions
+                .Where(x => x.ToStepId == firstOldStep.Id &&
+                    !evaluationStepIds.Contains(x.WorkflowStepId))
+                .ToListAsync(cancellationToken);
+            foreach (var transition in incomingTransitions)
+                transition.ToStepId = firstSupervisorStep.Id;
+
+            var currentEvaluationIndex = instance.CurrentStepId.HasValue
+                ? evaluationSteps.FindIndex(x => x.Id == instance.CurrentStepId.Value)
+                : -1;
+            var movedCurrentStage = false;
+            if (currentEvaluationIndex >= 0 && currentEvaluationIndex < supervisorIndex)
+            {
+                var pendingTasks = instance.Tasks
+                    .Where(x => x.WorkflowStepId == instance.CurrentStepId && x.Status == "Pending")
+                    .ToList();
+                if (pendingTasks.Count > 0)
+                {
+                    var oldStep = evaluationSteps[currentEvaluationIndex];
+                    var now = DateTime.UtcNow;
+                    foreach (var pendingTask in pendingTasks)
+                    {
+                        pendingTask.Status = "Superseded";
+                        pendingTask.Action = "RouteCorrected";
+                        pendingTask.Comment = $"اصلاح خودکار مسیر ارزشیابی؛ مرحله «{oldStep.Title}» به دلیل پایین‌تر بودن از رده سرپرستی از مسیر آغاز حذف شد.";
+                        pendingTask.CompletedAt = now;
+                    }
+
+                    instance.CurrentStepId = firstSupervisorStep.Id;
+                    await CreateTasksAsync(instance, firstSupervisorStep, cancellationToken);
+                    movedCurrentStage = true;
+                }
+            }
+
+            if (incomingTransitions.Count == 0 && !movedCurrentStage)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                continue;
+            }
+
+            var previousStepId = currentEvaluationIndex >= 0
+                ? evaluationSteps[currentEvaluationIndex].Id
+                : instance.CurrentStepId ?? firstOldStep.Id;
+            db.WorkflowHistory.Add(new WorkflowHistory
+            {
+                WorkflowInstanceId = instance.Id,
+                WorkflowStepId = previousStepId,
+                FromStatus = "InProgress",
+                ToStatus = "InProgress",
+                Action = "RouteCorrected",
+                Comment = movedCurrentStage
+                    ? $"اصلاح خودکار مسیر درخواست #{instance.Id}: مرحله ارزشیابی به نخستین جایگاه سرپرستی «{firstSupervisorStep.OrganizationNode?.Title ?? firstSupervisorStep.Title}» منتقل شد؛ وظایف مرحله قبلی بدون حذف سوابق خاتمه یافتند."
+                    : $"اصلاح خودکار مسیر درخواست #{instance.Id}: مسیر ورود ارزشیابی از این پس مستقیماً به نخستین جایگاه سرپرستی «{firstSupervisorStep.OrganizationNode?.Title ?? firstSupervisorStep.Title}» می‌رود."
+            });
+
+            await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            repaired++;
+            await audit.WriteAsync(
+                "اصلاح خودکار مسیر ارزشیابی تمدید قرارداد",
+                nameof(WorkflowInstance),
+                instance.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                movedCurrentStage
+                    ? $"مرحله جاری به {firstSupervisorStep.OrganizationNode?.Title ?? firstSupervisorStep.Title} منتقل شد؛ وظایف قبلی با حفظ تاریخچه خاتمه یافتند."
+                    : $"مسیر ورود درخواست به {firstSupervisorStep.OrganizationNode?.Title ?? firstSupervisorStep.Title} اصلاح شد.");
+        }
+
+        return repaired;
+    }
+
+    private static bool SameRankType(string? left, string? right)
+    {
+        var normalizedLeft = RoleService.NormalizeRankType(left);
+        var normalizedRight = RoleService.NormalizeRankType(right);
+        if (string.Equals(normalizedLeft, normalizedRight, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // Accept the common short/long Persian labels for the supervisor rank.
+        return normalizedLeft is "سرپرست" or "سرپرستی" &&
+               normalizedRight is "سرپرست" or "سرپرستی";
+    }
+
+    private static bool IsSupervisorRankType(string? rankType) =>
+        SameRankType(rankType, "سرپرستی");
+
     public async Task<(List<OrganizationNode> Route, List<OrganizationNode> SkippedPositions)> GetHierarchyRoutePreviewAsync(
         int subjectEmployeeId, string stopRankType, string? minimumRankType, CancellationToken cancellationToken = default)
     {
@@ -1016,18 +1154,23 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         if (!stopFound)
             throw new InvalidOperationException($"در زنجیره بالادستی کارمند، رده توقف «{stopRankType}» پیدا نشد؛ ساختار سازمانی یا تنظیم مرحله را بررسی کنید.");
 
-        // Rank SortOrder is top-down (CEO=10 ... supervisor=50). For the
-        // contract-renewal route, exclude the subject's lower ranks and begin at
-        // the first supervisor-level node while preserving the actual parent chain.
+        // The contract-renewal path must begin at the first ancestor whose
+        // rank type is exactly the supervisor rank. Rank SortOrder is only a
+        // display/order attribute and may place ranks such as مسئول above the
+        // supervisor threshold; using it here can incorrectly add them before
+        // the first supervisor stage.
         if (!string.IsNullOrWhiteSpace(minimumRankType))
         {
             var rankDefinitions = await db.OrganizationRankDefinitions.AsNoTracking().ToListAsync(cancellationToken);
-            var minimumRank = rankDefinitions.FirstOrDefault(x => x.Title == minimumRankType)
-                ?? throw new InvalidOperationException($"رده حداقل «{minimumRankType}» در اطلاعات پایه رده‌های سازمانی تعریف نشده است.");
-            var rankOrder = rankDefinitions.ToDictionary(x => x.Title, x => x.SortOrder, StringComparer.Ordinal);
-            route = route.Where(position =>
-                rankOrder.TryGetValue(position.RankType, out var order) && order <= minimumRank.SortOrder)
-                .ToList();
+            if (!rankDefinitions.Any(x => SameRankType(x.Title, minimumRankType)))
+                throw new InvalidOperationException($"رده حداقل «{minimumRankType}» در اطلاعات پایه رده‌های سازمانی تعریف نشده است.");
+
+            var firstMinimumRankIndex = route.FindIndex(position =>
+                SameRankType(position.RankType, minimumRankType));
+            if (firstMinimumRankIndex < 0)
+                throw new InvalidOperationException($"در زنجیره بالادستی کارمند، هیچ جایگاه با رده «{minimumRankType}» پیدا نشد؛ مسیر ارزشیابی تمدید قرارداد باید از نخستین جایگاه سرپرستی آغاز شود.");
+
+            route = route.Skip(firstMinimumRankIndex).ToList();
         }
 
         if (route.Count == 0)

@@ -529,3 +529,23 @@
     refreshTotal();
 })();
 </script>
+
+<style>
+.contract-score-live-summary {
+    display:flex; align-items:center; justify-content:space-between; gap:14px;
+    flex-wrap:wrap; margin:12px 0 15px; padding:14px 18px;
+    border:1px solid #c9d9ec; border-radius:12px; background:#f3f7fc;
+}
+.contract-score-live-summary > div { display:flex; align-items:center; gap:14px; }
+.contract-score-live-summary span { color:#28445f; font-weight:800; }
+.contract-score-live-summary strong {
+    color:#102b49; font-size:1.65rem; line-height:1.2; font-weight:900;
+    font-variant-numeric:tabular-nums;
+}
+.contract-score-live-summary small { color:#64748b; font-size:.82rem; }
+#contractScoreTotalBottom { color:#102b49; font-size:1.22rem; font-weight:900; font-variant-numeric:tabular-nums; }
+@media(max-width:620px) {
+    .contract-score-live-summary { align-items:flex-start; flex-direction:column; }
+    .contract-score-live-summary strong { font-size:1.45rem; }
+}
+</style>

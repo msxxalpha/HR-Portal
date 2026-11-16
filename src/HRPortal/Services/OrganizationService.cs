@@ -212,6 +212,7 @@ public class OrganizationService(HRPortalDbContext db, AuditService audit)
         await SyncEmployeeOrganizationAssignmentsAsync(id);
 
         await db.SaveChangesAsync();
+        await EmployeePositionAssignmentHistoryService.CaptureRevisionAsync(db, id);
 
         await audit.WriteAsync(
             "نهایی‌سازی ساختار",

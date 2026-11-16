@@ -11,7 +11,7 @@ namespace HRPortal.Controllers;
 public class HumanResourcesReportsController(HRPortalDbContext db) : Controller
 {
     private sealed record PositionSnapshot(string Code, string Title, string RankType);
-    private sealed record RevisionSnapshot(int Id, string Code, string Title, DateTime EffectiveDate);
+    private sealed record EmployeeSnapshot(string PersonnelNumber, string FullName);
 
     [HttpGet]
     [Authorize(Policy = "Reports.EmployeePositionHistory.View")]
@@ -68,58 +68,57 @@ public class HumanResourcesReportsController(HRPortalDbContext db) : Controller
             FullName = x.FullName
         }).ToList();
 
-        var revisionData = await db.OrganizationStructureRevisions.AsNoTracking()
-            .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
-            .OrderBy(x => x.EffectiveDate).ThenBy(x => x.FinalizedAt).ThenBy(x => x.Id)
-            .Select(x => new { x.Id, x.RevisionCode, x.Title, x.EffectiveDate })
+        var assignmentSnapshots = await db.EmployeePositionAssignmentSnapshots.AsNoTracking()
+            .OrderBy(x => x.EffectiveDate)
+            .ThenBy(x => x.FinalizedAtSnapshot)
+            .ThenBy(x => x.RevisionId)
+            .ThenBy(x => x.EmployeeId)
+            .ThenBy(x => x.PositionCode)
             .ToListAsync(cancellationToken);
-        var revisions = revisionData.Select(x =>
-            new RevisionSnapshot(x.Id, x.RevisionCode, x.Title, x.EffectiveDate)).ToList();
 
-        if (revisions.Count == 0)
+        var revisionGroups = assignmentSnapshots
+            .GroupBy(x => x.RevisionId)
+            .Select(group => new
+            {
+                RevisionId = group.Key,
+                Revision = group.First(),
+                Assignments = group.Where(x => x.EmployeeId.HasValue &&
+                    !string.IsNullOrWhiteSpace(x.PositionCode)).ToList()
+            })
+            .OrderBy(x => x.Revision.EffectiveDate)
+            .ThenBy(x => x.Revision.FinalizedAtSnapshot)
+            .ThenBy(x => x.RevisionId)
+            .ToList();
+
+        if (revisionGroups.Count == 0)
         {
             ViewBag.NoFinalizedStructure = true;
             return View(model);
         }
 
-        var revisionIds = revisions.Select(x => x.Id).ToArray();
-        var nodes = await db.OrganizationNodes.AsNoTracking()
-            .Where(x => revisionIds.Contains(x.OrganizationStructureRevisionId))
-            .Select(x => new
-            {
-                x.OrganizationStructureRevisionId,
-                x.Code,
-                x.Title,
-                x.RankType,
-                x.IsActive,
-                x.PositionHolderEmployeeId,
-                x.AssignedEmployeeIdsCsv
-            })
-            .ToListAsync(cancellationToken);
-
         var previousAssignments = new Dictionary<int, Dictionary<string, PositionSnapshot>>();
+        var previousEmployees = new Dictionary<int, EmployeeSnapshot>();
         var history = new List<EmployeePositionHistoryRow>();
 
-        foreach (var revision in revisions)
+        foreach (var revisionGroup in revisionGroups)
         {
+            var revision = revisionGroup.Revision;
             var currentAssignments = new Dictionary<int, Dictionary<string, PositionSnapshot>>();
-            foreach (var node in nodes.Where(x =>
-                         x.OrganizationStructureRevisionId == revision.Id && x.IsActive))
-            {
-                var holders = WorkflowPositionAssignmentResolver.GetAssignedEmployeeIds(
-                    node.AssignedEmployeeIdsCsv, node.PositionHolderEmployeeId);
-                if (holders.Count == 0) continue;
+            var currentEmployees = new Dictionary<int, EmployeeSnapshot>();
 
-                var snapshot = new PositionSnapshot(node.Code, node.Title, node.RankType);
-                foreach (var holderId in holders)
+            foreach (var snapshot in revisionGroup.Assignments)
+            {
+                var employeeIdValue = snapshot.EmployeeId!.Value;
+                if (!currentAssignments.TryGetValue(employeeIdValue, out var positions))
                 {
-                    if (!currentAssignments.TryGetValue(holderId, out var positions))
-                    {
-                        positions = new Dictionary<string, PositionSnapshot>(StringComparer.OrdinalIgnoreCase);
-                        currentAssignments[holderId] = positions;
-                    }
-                    positions[node.Code] = snapshot;
+                    positions = new Dictionary<string, PositionSnapshot>(StringComparer.OrdinalIgnoreCase);
+                    currentAssignments[employeeIdValue] = positions;
                 }
+
+                positions[snapshot.PositionCode] = new PositionSnapshot(
+                    snapshot.PositionCode, snapshot.PositionTitle, snapshot.RankType);
+                currentEmployees[employeeIdValue] = new EmployeeSnapshot(
+                    snapshot.PersonnelNumberSnapshot, snapshot.EmployeeNameSnapshot);
             }
 
             var changedEmployeeIds = previousAssignments.Keys
@@ -139,14 +138,15 @@ public class HumanResourcesReportsController(HRPortalDbContext db) : Controller
 
                 void AddHistory(string type, PositionSnapshot? oldPosition, PositionSnapshot? newPosition)
                 {
-                    if (!employeeById.TryGetValue(changedEmployeeId, out var employee))
-                        return;
+                    var person = currentEmployees.GetValueOrDefault(changedEmployeeId)
+                        ?? previousEmployees.GetValueOrDefault(changedEmployeeId);
+                    if (person is null) return;
 
                     history.Add(new EmployeePositionHistoryRow
                     {
                         EmployeeId = changedEmployeeId,
-                        PersonnelNumber = employee.PersonnelNumber,
-                        EmployeeName = employee.FullName,
+                        PersonnelNumber = person.PersonnelNumber,
+                        EmployeeName = person.FullName,
                         EffectiveDate = revision.EffectiveDate,
                         ChangeType = type,
                         FromPositionCode = oldPosition?.Code ?? "",
@@ -154,8 +154,8 @@ public class HumanResourcesReportsController(HRPortalDbContext db) : Controller
                         ToPositionCode = newPosition?.Code ?? "",
                         ToPositionTitle = newPosition?.Title ?? "",
                         RankType = newPosition?.RankType ?? oldPosition?.RankType ?? "",
-                        RevisionCode = revision.Code,
-                        RevisionTitle = revision.Title
+                        RevisionCode = revision.RevisionCodeSnapshot,
+                        RevisionTitle = revision.RevisionTitleSnapshot
                     });
                 }
 
@@ -172,6 +172,7 @@ public class HumanResourcesReportsController(HRPortalDbContext db) : Controller
             }
 
             previousAssignments = currentAssignments;
+            previousEmployees = currentEmployees;
         }
 
         IEnumerable<EmployeePositionHistoryRow> filtered = history;

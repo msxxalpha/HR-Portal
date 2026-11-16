@@ -12,6 +12,7 @@
     <div class="stat"><span>کل درخواست‌ها</span><strong>@Model.Count</strong></div>
     <div class="stat"><span>در حال گردش</span><strong>@Model.Count(x => x.Status == "InProgress")</strong></div>
     <div class="stat"><span>تأیید نهایی</span><strong>@Model.Count(x => x.Status == "Approved" || x.Status == "Completed")</strong></div>
+    <div class="stat"><span>پایان با عبور</span><strong>@Model.Count(x => x.Status == "CompletedBySkip")</strong></div>
     <div class="stat"><span>رد یا برگشت</span><strong>@Model.Count(x => x.Status == "Rejected" || x.Status == "Returned")</strong></div>
 </div>
 <section class="card request-list-card">
@@ -33,6 +34,7 @@
                     {
                         "Approved" => "تأیید نهایی",
                         "Completed" => "پایان‌یافته",
+                        "CompletedBySkip" => "پایان با عبور از مرحله",
                         "Rejected" => "رد شده",
                         "Returned" => "برگشت داده شده",
                         _ => "در حال گردش"
@@ -41,8 +43,10 @@
                         ? "workflow-result-row-rejected"
                         : item.Status == "Returned"
                             ? "workflow-result-row-returned"
-                            : item.Status == "Approved" || item.Status == "Completed"
-                                ? "workflow-result-row-completed" : "";
+                            : item.Status == "CompletedBySkip"
+                                ? "workflow-result-row-skipped"
+                                : item.Status == "Approved" || item.Status == "Completed"
+                                    ? "workflow-result-row-completed" : "";
                     <tr class="@requestRowClass">
                         <td><strong>@item.WorkflowTitle</strong></td>
                         <td>@item.EntityType #@item.EntityId</td>
@@ -82,4 +86,10 @@
 .workflow-result-row-rejected:hover > td { background:#ffe4e6 !important; }
 .workflow-result-row-returned:hover > td { background:#ffedd5 !important; }
 .workflow-result-row-completed:hover > td { background:#dcfce7 !important; }
+</style>
+
+<style>
+.workflow-result-row-skipped > td { background:#f1f5f9 !important; border-bottom-color:#cbd5e1 !important; }
+.workflow-result-row-skipped:hover > td { background:#e2e8f0 !important; }
+.workflow-status.skipped { background:#e2e8f0;color:#334155; }
 </style>

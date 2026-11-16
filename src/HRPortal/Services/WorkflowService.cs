@@ -1807,13 +1807,19 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
     {
         var instance = await db.WorkflowInstances.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == id && x.Status == "InProgress");
-        if (instance is null || instance.RequesterEmployeeId == employeeId || !instance.CurrentStepId.HasValue)
+        if (instance is null || !instance.CurrentStepId.HasValue)
             return null;
 
-        var hasActed = await db.WorkflowHistory.AsNoTracking().AnyAsync(x =>
-            x.WorkflowInstanceId == id && x.ActorEmployeeId == employeeId &&
-            x.Action != "Created" && x.Action != "Submitted" && x.Action != "Submit");
-        if (hasActed) return null;
+        // A participant who has already acted may only see steps before their
+        // own first stage. The same boundary applies to the current assignee.
+        var actedStepSortOrder = await db.WorkflowHistory.AsNoTracking()
+            .Where(x => x.WorkflowInstanceId == id && x.ActorEmployeeId == employeeId &&
+                        x.WorkflowStepId != null &&
+                        x.Action != "Created" && x.Action != "Submitted" && x.Action != "Submit")
+            .Select(x => (int?)x.WorkflowStep!.SortOrder)
+            .MinAsync();
+        if (actedStepSortOrder.HasValue)
+            return actedStepSortOrder;
 
         var pendingTasks = await db.WorkflowTasks.AsNoTracking()
             .Include(x => x.AssignedPosition)
@@ -1826,13 +1832,13 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             if (task.AssignedPositionId.HasValue || task.WorkflowStep.OrganizationNodeId.HasValue)
             {
                 if (await IsCurrentPositionAssigneeAsync(employeeId, task))
-                    return null;
+                    return task.WorkflowStep.SortOrder;
             }
             else if (await db.Employees.AnyAsync(x => x.Id == employeeId && x.Status == "فعال") &&
                      WorkflowPositionAssignmentResolver.IsExplicitEmployeeAssignee(
                          employeeId, task.AssignedEmployeeId, isActiveEmployee: true))
             {
-                return null;
+                return task.WorkflowStep.SortOrder;
             }
         }
 
@@ -1845,7 +1851,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             if (await IsPotentialFutureAssigneeAsync(employeeId, instance, step, potentialPosition))
                 return step.SortOrder;
         }
-        return null;
+
+        return instance.RequesterEmployeeId == employeeId ? null : null;
     }
 
     private async Task<bool> IsCurrentPositionAssigneeAsync(int employeeId, WorkflowTask task)

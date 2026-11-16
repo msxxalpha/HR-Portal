@@ -31,10 +31,12 @@ AND COL_LENGTH(N'dbo.SystemSettings', N'EnableHrDisciplinaryScoreDeduction') IS 
         await ContractRenewalRequestRevisionSchemaInitializer.InitializeAsync(db);
         await OrganizationRankSchemaInitializer.InitializeAsync(db);
         await OrganizationPositionSchemaInitializer.InitializeAsync(db);
+        await EmployeePositionAssignmentHistorySchemaInitializer.InitializeAsync(db);
         await MonthlyPerformanceSchemaInitializer.InitializeAsync(db);
         await SuggestionSchemaInitializer.InitializeAsync(db);
         await OutsourcedServiceSchemaInitializer.InitializeAsync(db);
         await SeedLegacyOrganizationPositionsAsync(db);
+        await HRPortal.Services.EmployeePositionAssignmentHistoryService.BackfillMissingRevisionsAsync(db);
 
         if (!await db.ContractRenewalWorkflowSettings.AnyAsync())
             db.ContractRenewalWorkflowSettings.Add(new ContractRenewalWorkflowSettings { Id = 1 });

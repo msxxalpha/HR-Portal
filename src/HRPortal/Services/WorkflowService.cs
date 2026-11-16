@@ -1701,6 +1701,27 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                     break;
                 }
             }
+
+            // A future assignee may inspect the request in read-only mode before
+            // their stage becomes current. They do not receive a task ID and the
+            // action endpoints still require a real, currently-pending task.
+            if (!hasCurrentPendingAssignment && instance.Status == "InProgress")
+            {
+                var upcomingSteps = await GetReachableFutureStepsAsync(instance);
+                foreach (var step in upcomingSteps)
+                {
+                    var potentialPosition = await ResolvePotentialPositionAsync(instance, step);
+                    if (step.AssignmentType is not ("Employee" or "Requester") && potentialPosition is null)
+                        continue;
+
+                    if (await IsPotentialFutureAssigneeAsync(
+                            employeeId, instance, step, potentialPosition))
+                    {
+                        hasCurrentPendingAssignment = true;
+                        break;
+                    }
+                }
+            }
         }
 
         return WorkflowPositionAssignmentResolver.CanViewInstance(

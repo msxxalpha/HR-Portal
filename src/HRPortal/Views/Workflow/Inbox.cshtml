@@ -19,7 +19,7 @@
 <div class="workflow-stats">
     <div class="stat"><span>آماده اقدام</span><strong>@Model.Count(x => x.CanAct && !x.IsUpcomingPreview)</strong></div>
     <div class="stat"><span>در انتظار نوبت</span><strong>@Model.Count(x => x.IsUpcomingPreview)</strong></div>
-    <div class="stat"><span>درخواست‌های امروز</span><strong>@Model.Where(x => !x.IsUpcomingPreview).Select(x => x.WorkflowInstanceId).Distinct().Count(x => Model.Any(r => r.WorkflowInstanceId == x && !r.IsUpcomingPreview && r.CreatedAt.Date == DateTime.UtcNow.Date))</strong></div>
+    <div class="stat"><span>وظایف امروز</span><strong>@Model.Count(x => !x.IsUpcomingPreview && x.CreatedAt.Date == DateTime.UtcNow.Date)</strong></div>
     <div class="stat"><span>انواع گردش کار</span><strong>@Model.Select(x => x.WorkflowTitle).Distinct().Count()</strong></div>
     <div class="stat"><span>سوابق اقدام‌های من</span><strong>@((ViewBag.ActionHistory as List<HRPortal.Models.WorkflowInboxRow> ?? []).Count)</strong></div>
 </div>

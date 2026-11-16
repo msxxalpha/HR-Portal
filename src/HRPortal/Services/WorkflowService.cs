@@ -1427,10 +1427,9 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 .ToList();
 
             var targetIds = outgoing
-                .Where(x => x.ToStepId.HasValue &&
-                            byId.TryGetValue(x.ToStepId.Value, out var target) &&
-                            target.SortOrder > source.SortOrder)
+                .Where(x => x.ToStepId.HasValue && byId.ContainsKey(x.ToStepId.Value))
                 .Select(x => x.ToStepId!.Value)
+                .Where(x => x != source.Id)
                 .ToHashSet();
 
             // ResolveTransitionAsync falls back to the next SortOrder step when

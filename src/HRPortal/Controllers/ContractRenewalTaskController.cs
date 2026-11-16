@@ -104,8 +104,8 @@ public class ContractRenewalTaskController(
                         throw new InvalidOperationException($"برای پرسش «{row.QuestionTextSnapshot}» امتیاز وارد کنید.");
                     if (value.Value < 0 || value.Value > row.MaxScoreSnapshot)
                         throw new InvalidOperationException($"امتیاز پرسش «{row.QuestionTextSnapshot}» باید بین صفر و سقف {row.MaxScoreSnapshot:0.##} باشد.");
-                    if (value.Value != decimal.Round(value.Value, 2))
-                        throw new InvalidOperationException("امتیازها حداکثر دو رقم اعشار دارند.");
+                    if (decimal.Truncate(value.Value) != value.Value)
+                        throw new InvalidOperationException("امتیاز هر پرسش باید عدد صحیح باشد؛ وارد کردن اعشار مجاز نیست.");
 
                     row.Score = value.Value;
                     row.EvaluatorEmployeeId = employeeId;

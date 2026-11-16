@@ -250,8 +250,11 @@ public class WorkflowController(
         ViewBag.IsWorkflowPreviewOnly = previewBoundarySortOrder.HasValue;
         var historyItems = await workflow.GetHistoryAsync(id);
         ViewBag.History = previewBoundarySortOrder.HasValue
-            ? historyItems.Where(x => x.WorkflowStepId == null ||
-                x.WorkflowStep != null && x.WorkflowStep.SortOrder < previewBoundarySortOrder.Value).ToList()
+            ? historyItems.Where(x =>
+                x.WorkflowStepId.HasValue && x.WorkflowStep != null &&
+                x.WorkflowStep.SortOrder < previewBoundarySortOrder.Value ||
+                !x.WorkflowStepId.HasValue &&
+                (x.Action == "Created" || x.Action == "Submitted" || x.Action == "Submit")).ToList()
             : historyItems;
 
         IQueryable<WorkflowFieldValue> formFieldValuesQuery = db.WorkflowFieldValues.AsNoTracking()

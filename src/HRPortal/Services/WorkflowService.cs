@@ -1268,6 +1268,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         var tasks = await db.WorkflowTasks.AsNoTracking()
             .Include(x => x.WorkflowInstance).ThenInclude(x => x.WorkflowDefinition)
             .Include(x => x.WorkflowInstance).ThenInclude(x => x.RequesterEmployee)
+            .Include(x => x.WorkflowInstance).ThenInclude(x => x.CurrentStep)
             .Include(x => x.WorkflowStep).ThenInclude(x => x.OrganizationNode)
             .Include(x => x.AssignedPosition)
             // Direct returns are person-owned tasks even when the reused first
@@ -1321,6 +1322,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             RequesterPersonnelNumber = x.WorkflowInstance.RequesterEmployee.PersonnelNumber,
             StepTitle = x.WorkflowStep.Title,
             PositionTitle = x.AssignedPosition?.Title ?? x.WorkflowStep.OrganizationNode?.Title ?? "",
+            CurrentStepTitle = x.WorkflowInstance.CurrentStep?.Title ?? "پایان گردش",
             Status = x.Status,
             CreatedAt = x.CreatedAt,
             Comment = x.Comment,
@@ -1335,6 +1337,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             var activeInstances = await db.WorkflowInstances.AsNoTracking()
                 .Include(x => x.WorkflowDefinition)
                 .Include(x => x.RequesterEmployee)
+                .Include(x => x.CurrentStep)
                 .Where(x => x.Status == "InProgress" && x.CurrentStepId.HasValue)
                 .OrderByDescending(x => x.StartedAt)
                 .ToListAsync();
@@ -1368,6 +1371,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                         RequesterPersonnelNumber = instance.RequesterEmployee.PersonnelNumber,
                         StepTitle = step.Title,
                         PositionTitle = potentialPosition?.Title ?? "",
+                        CurrentStepTitle = instance.CurrentStep?.Title ?? "پایان گردش",
                         Status = "Upcoming",
                         CreatedAt = instance.StartedAt,
                         Comment = "این مرحله هنوز به نوبت شما نرسیده است. اطلاعات درخواست فقط برای مشاهده است و امکان ثبت اقدام تا فعال‌شدن مرحله وجود ندارد.",
@@ -1377,6 +1381,11 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             }
         }
 
+        var relevantInstanceIds = rows.Select(x => x.WorkflowInstanceId).Distinct().ToArray();
+        var currentAssignees = await GetCurrentStepAssigneeNamesAsync(relevantInstanceIds);
+        foreach (var row in rows)
+            row.CurrentAssigneeName = currentAssignees.GetValueOrDefault(row.WorkflowInstanceId, "تعیین نشده");
+
         if (!string.IsNullOrWhiteSpace(status))
             rows = rows.Where(x => x.Status == status).ToList();
 
@@ -1385,6 +1394,71 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .ThenBy(x => x.IsUpcomingPreview)
             .ThenBy(x => x.StepSortOrder)
             .ToList();
+    }
+
+    private async Task<Dictionary<int, string>> GetCurrentStepAssigneeNamesAsync(int[] instanceIds)
+    {
+        var result = new Dictionary<int, string>();
+        if (instanceIds.Length == 0) return result;
+
+        var pending = await db.WorkflowTasks.AsNoTracking()
+            .Include(x => x.AssignedPosition)
+            .Include(x => x.WorkflowStep).ThenInclude(x => x.OrganizationNode)
+            .Where(x => instanceIds.Contains(x.WorkflowInstanceId) &&
+                        x.Status == "Pending" &&
+                        x.WorkflowStepId == x.WorkflowInstance.CurrentStepId)
+            .ToListAsync();
+        if (pending.Count == 0) return result;
+
+        var revisions = await db.OrganizationStructureRevisions.AsNoTracking()
+            .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
+            .Select(x => new { x.Id, x.EffectiveDate, x.IsFinalized })
+            .ToListAsync();
+        var revisionId = WorkflowPositionAssignmentResolver.SelectCurrentRevisionId(
+            revisions.Select(x => (x.Id, x.EffectiveDate, x.IsFinalized)), DateTime.Today);
+        var currentPositions = revisionId.HasValue
+            ? await db.OrganizationNodes.AsNoTracking()
+                .Where(x => x.OrganizationStructureRevisionId == revisionId.Value && x.IsActive)
+                .OrderByDescending(x => x.Id).ToListAsync()
+            : new List<OrganizationNode>();
+
+        var employeeIdsByInstance = new Dictionary<int, HashSet<int>>();
+        foreach (var task in pending)
+        {
+            if (!employeeIdsByInstance.TryGetValue(task.WorkflowInstanceId, out var ids))
+                employeeIdsByInstance[task.WorkflowInstanceId] = ids = [];
+
+            var sourcePosition = task.AssignedPosition ?? task.WorkflowStep.OrganizationNode;
+            if (sourcePosition is not null && !string.IsNullOrWhiteSpace(sourcePosition.Code))
+            {
+                var currentPosition = WorkflowPositionAssignmentResolver.FindByStableCode(
+                    currentPositions, sourcePosition.Code, x => x.Code);
+                if (currentPosition is not null)
+                {
+                    foreach (var holderId in WorkflowPositionAssignmentResolver.GetAssignedEmployeeIds(
+                                 currentPosition.AssignedEmployeeIdsCsv, currentPosition.PositionHolderEmployeeId))
+                        ids.Add(holderId);
+                }
+            }
+            else if (task.AssignedEmployeeId.HasValue)
+            {
+                ids.Add(task.AssignedEmployeeId.Value);
+            }
+        }
+
+        var allIds = employeeIdsByInstance.Values.SelectMany(x => x).Distinct().ToArray();
+        if (allIds.Length == 0) return result;
+        var names = await db.Employees.AsNoTracking()
+            .Where(x => allIds.Contains(x.Id) && x.Status == "فعال")
+            .Select(x => new { x.Id, Name = x.FirstName + " " + x.LastName })
+            .ToDictionaryAsync(x => x.Id, x => x.Name);
+
+        foreach (var pair in employeeIdsByInstance)
+        {
+            var holders = pair.Value.Where(names.ContainsKey).Select(id => names[id]).Distinct().OrderBy(x => x).ToList();
+            if (holders.Count > 0) result[pair.Key] = string.Join("، ", holders);
+        }
+        return result;
     }
 
     /// <summary>

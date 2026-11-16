@@ -6,7 +6,7 @@
 <div class="page-head">
     <div>
         <h1>کارتابل من</h1>
-        <p>درخواست‌هایی که بر اساس جایگاه سازمانی شما برای اقدام در اختیار شما قرار گرفته‌اند.</p>
+        <p>در این کارتابل هم وظایف آماده اقدام و هم مراحل آتیِ قابل‌تشخیص گردش‌هایی که در آنها مسئولیت دارید نمایش داده می‌شوند. مراحل آتی تا زمان رسیدن نوبت، فقط برای مشاهده هستند.</p>
     </div>
     @if (User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Workflow.Manage"))
     {
@@ -17,19 +17,20 @@
 @if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
 
 <div class="workflow-stats">
-    <div class="stat"><span>در انتظار اقدام</span><strong>@Model.Count(x => x.Status == "Pending")</strong></div>
-    <div class="stat"><span>درخواست‌های امروز</span><strong>@Model.Count(x => x.CreatedAt.Date == DateTime.UtcNow.Date)</strong></div>
+    <div class="stat"><span>آماده اقدام</span><strong>@Model.Count(x => x.CanAct && !x.IsUpcomingPreview)</strong></div>
+    <div class="stat"><span>در انتظار نوبت</span><strong>@Model.Count(x => x.IsUpcomingPreview)</strong></div>
+    <div class="stat"><span>درخواست‌های امروز</span><strong>@Model.Where(x => !x.IsUpcomingPreview).Select(x => x.WorkflowInstanceId).Distinct().Count(x => Model.Any(r => r.WorkflowInstanceId == x && !r.IsUpcomingPreview && r.CreatedAt.Date == DateTime.UtcNow.Date))</strong></div>
     <div class="stat"><span>انواع گردش کار</span><strong>@Model.Select(x => x.WorkflowTitle).Distinct().Count()</strong></div>
     <div class="stat"><span>سوابق اقدام‌های من</span><strong>@((ViewBag.ActionHistory as List<HRPortal.Models.WorkflowInboxRow> ?? []).Count)</strong></div>
 </div>
 
 <section class="card workflow-inbox-card">
     <div class="section-head">
-        <div><h3>درخواست‌های منتظر اقدام</h3><span class="muted">@Model.Count مورد در کارتابل شماست.</span></div>
+        <div><h3>وظایف جاری و مراحل آتی</h3><span class="muted">@Model.Count مورد؛ شامل @Model.Count(x => x.CanAct && !x.IsUpcomingPreview) وظیفه آماده اقدام و @Model.Count(x => x.IsUpcomingPreview) مرحله فقط‌نمایشی.</span></div>
     </div>
     @if (Model.Count == 0)
     {
-        <div class="empty">در حال حاضر موردی برای اقدام وجود ندارد.</div>
+        <div class="empty">در حال حاضر نه وظیفه آماده اقدامی دارید و نه مرحله آتیِ قابل‌شناسایی در گردش‌های فعال.</div>
     }
     else
     {
@@ -39,13 +40,28 @@
                 <tbody>
                 @foreach (var item in Model)
                 {
-                    <tr>
+                    <tr class="@(item.IsUpcomingPreview ? "workflow-upcoming-preview-row" : "workflow-actionable-row")">
                         <td><strong>@item.WorkflowTitle</strong><div class="muted">@item.EntityType #@item.EntityId</div></td>
                         <td>@item.RequesterName<div class="muted">@item.RequesterPersonnelNumber</div></td>
-                        <td><span class="badge badge-info">@item.StepTitle</span></td>
-                        <td>@item.PositionTitle</td>
+                        <td>
+                            <span class="badge @(item.IsUpcomingPreview ? "badge-warning" : "badge-info")">@item.StepTitle</span>
+                            @if (item.IsUpcomingPreview)
+                            {
+                                <div class="workflow-preview-note">مرحله آتی — فقط نمایشی</div>
+                            }
+                        </td>
+                        <td>@(string.IsNullOrWhiteSpace(item.PositionTitle) ? "—" : item.PositionTitle)</td>
                         <td>@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
-                        <td><a class="btn btn-main btn-sm" href="/Workflow/Task/@item.TaskId">مشاهده و اقدام</a></td>
+                        <td>
+                            @if (item.IsUpcomingPreview || !item.CanAct)
+                            {
+                                <a class="btn btn-outline btn-sm" href="/Workflow/Details/@item.WorkflowInstanceId">مشاهده فقط</a>
+                            }
+                            else
+                            {
+                                <a class="btn btn-main btn-sm" href="/Workflow/Task/@item.TaskId">مشاهده و اقدام</a>
+                            }
+                        </td>
                     </tr>
                 }
                 </tbody>
@@ -104,4 +120,11 @@
 .workflow-result-row-rejected:hover > td { background:#ffe4e6 !important; }
 .workflow-result-row-returned:hover > td { background:#ffedd5 !important; }
 .workflow-result-row-completed:hover > td { background:#dcfce7 !important; }
+</style>
+
+<style>
+.workflow-upcoming-preview-row > td { background:#f8fafc !important; }
+.workflow-upcoming-preview-row:hover > td { background:#f1f5f9 !important; }
+.workflow-upcoming-preview-row .badge-warning { background:#fff7ed;color:#9a3412;border:1px solid #fed7aa; }
+.workflow-preview-note { font-size:.78rem;color:#9a3412;margin-top:.35rem; }
 </style>

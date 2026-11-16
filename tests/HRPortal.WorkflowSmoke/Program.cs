@@ -26,6 +26,7 @@ await VerifyEffectiveEmployeePermissionMatrixAsync();
 await VerifySuggestionsAnalyticsAsync();
 await VerifyWorkflowStageEditingAndRequesterReturnAsync();
 await VerifyWorkflowDirectReturnAndPriorStageEditingAsync();
+await VerifyWorkflowSkipCurrentStepAsync();
 VerifyWorkflowReportFormTypeAggregation();
 VerifyOutsourcedServiceOrganizationResolver();
 await VerifyEmployeeExcelCompatibilityAsync();
@@ -299,11 +300,14 @@ static void VerifyGranularPermissionMatrix()
     var expectedCodes = new[]
     {
         "ContractRenewal.Track", "ContractRenewal.List", "ContractRenewal.Reports",
-        "ContractRenewal.Evaluation.Manage", "Suggestions.Reports", "Suggestions.Export"
+        "ContractRenewal.Evaluation.Manage", "Workflow.SkipStep", "Suggestions.Reports", "Suggestions.Export"
     };
     foreach (var code in expectedCodes)
         Check(RoleService.DefaultPermissions.Count(x => x.Code == code) == 1,
             $"Permission catalogue must seed exactly one '{code}' permission.");
+    Check(PermissionAuthorization.HasPermission(User("Workflow.SkipStep"), "Workflow.SkipStep") &&
+          !PermissionAuthorization.HasPermission(User("Workflow.Inbox"), "Workflow.SkipStep"),
+        "Skipping a workflow step must require its own grant and must not be implied by ordinary inbox access.");
 
     Console.WriteLine("PASS: granular contract-renewal list/report/evaluation permissions, legacy Manage compatibility, suggestion report/export separation, and administrator access.");
 }
@@ -1025,6 +1029,7 @@ static async Task VerifyContractRenewalRuntimeFlowAsync()
     var ceo = Person(7);
     var requester = Person(10);
     var initialApprover = Person(8);
+    var responsible = Person(9);
 
     var revision = new OrganizationStructureRevision
     {
@@ -1035,7 +1040,13 @@ static async Task VerifyContractRenewalRuntimeFlowAsync()
     {
         Id = 101, OrganizationStructureRevisionId = 1, Revision = revision,
         Code = "SUBJECT", Title = "بخش کارمند", RankType = "بخش",
-        IsActive = true, AssignedEmployeeIdsCsv = "1", ParentId = 102
+        IsActive = true, AssignedEmployeeIdsCsv = "1", ParentId = 109
+    };
+    var responsiblePosition = new OrganizationNode
+    {
+        Id = 109, OrganizationStructureRevisionId = 1, Revision = revision,
+        Code = "RESPONSIBLE", Title = "مسئول", RankType = "مسئول",
+        IsActive = true, AssignedEmployeeIdsCsv = "9", PositionHolderEmployeeId = 9, ParentId = 102
     };
     var supervisorPosition = new OrganizationNode
     {
@@ -1080,6 +1091,7 @@ static async Task VerifyContractRenewalRuntimeFlowAsync()
         IsActive = true, AssignedEmployeeIdsCsv = "8", PositionHolderEmployeeId = 8
     };
     revision.Nodes.Add(subjectPosition);
+    revision.Nodes.Add(responsiblePosition);
     revision.Nodes.Add(supervisorPosition);
     revision.Nodes.Add(managerPosition);
     revision.Nodes.Add(deputyPosition);
@@ -1120,10 +1132,11 @@ static async Task VerifyContractRenewalRuntimeFlowAsync()
         new OrganizationRankDefinition { Id = 3, Title = "مدیریت", SortOrder = 30 },
         new OrganizationRankDefinition { Id = 4, Title = "ریاست", SortOrder = 40 },
         new OrganizationRankDefinition { Id = 5, Title = "سرپرستی", SortOrder = 50 },
-        new OrganizationRankDefinition { Id = 6, Title = "بخش", SortOrder = 60 }
+        new OrganizationRankDefinition { Id = 6, Title = "بخش", SortOrder = 60 },
+        new OrganizationRankDefinition { Id = 7, Title = "مسئول", SortOrder = 45 }
     };
-    db.AddRange(subject, supervisor, manager, deputy, security, hr, ceo, requester, initialApprover,
-        revision, subjectPosition, supervisorPosition, managerPosition, deputyPosition,
+    db.AddRange(subject, supervisor, manager, deputy, security, hr, ceo, requester, initialApprover, responsible,
+        revision, subjectPosition, responsiblePosition, supervisorPosition, managerPosition, deputyPosition,
         ceoPosition, securityPosition, hrPosition, approvalPosition, request, settings, question);
     db.OrganizationRankDefinitions.AddRange(rankDefinitions);
     await db.SaveChangesAsync();
@@ -1138,6 +1151,9 @@ static async Task VerifyContractRenewalRuntimeFlowAsync()
         .OrderBy(x => x.SortOrder).ToListAsync();
     Check(evaluationSteps.Count == 3,
         "The contract renewal route must include every intermediate supervisor/manager/deputy position.");
+    Check(evaluationSteps[0].OrganizationNodeId == supervisorPosition.Id &&
+          evaluationSteps.All(x => x.OrganizationNodeId != responsiblePosition.Id),
+        "Contract-renewal evaluation must begin at the first exact supervisor rank and exclude an intervening مسئول rank even when its SortOrder is above the supervisor threshold.");
     Check(await db.EmployeePerformanceEvaluationScores.CountAsync(x => x.WorkflowInstanceId == instance.Id) == 3,
         "Each evaluation stage must receive a question score snapshot.");
     var firstApproval = await db.WorkflowTasks.Include(x => x.WorkflowStep)
@@ -2456,6 +2472,113 @@ static async Task VerifyMonthlyPerformanceUpperApprovalAsync()
         "Evaluators outside the employee's supervisory chain must not approve the result.");
 
     Console.WriteLine("PASS: monthly performance score approval works individually and in bulk; preserves the original assessor, score values and notes; updates final evaluator ownership; and enforces upper-level scope.");
+}
+
+
+static async Task VerifyWorkflowSkipCurrentStepAsync()
+{
+    var options = new DbContextOptionsBuilder<HRPortalDbContext>()
+        .UseInMemoryDatabase("workflow-skip-current-step-smoke")
+        .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+        .Options;
+    await using var db = new HRPortalDbContext(options);
+
+    static Employee Person(int id) => new()
+    {
+        Id = id,
+        PersonnelNumber = $"SK{id}",
+        NationalId = $"SKN{id}",
+        FirstName = $"کاربر{id}",
+        LastName = "آزمایشی",
+        Mobile = "09120000000",
+        Gender = "مرد",
+        Status = "فعال"
+    };
+
+    var requester = Person(700);
+    var firstAssignee = Person(701);
+    var nextAssignee = Person(702);
+    var definition = new WorkflowDefinition
+    {
+        Code = "SKIP-CURRENT-STEP-SMOKE",
+        Title = "آزمون عبور از مرحله",
+        Version = 1,
+        IsActive = true
+    };
+    var firstStep = new WorkflowStep
+    {
+        WorkflowDefinition = definition,
+        Code = "ReviewOne",
+        Title = "بررسی اول",
+        SortOrder = 10,
+        AssignmentType = "Employee",
+        AssignedEmployeeId = firstAssignee.Id,
+        AllowApprove = true
+    };
+    var nextStep = new WorkflowStep
+    {
+        WorkflowDefinition = definition,
+        Code = "ReviewTwo",
+        Title = "بررسی دوم",
+        SortOrder = 20,
+        AssignmentType = "Employee",
+        AssignedEmployeeId = nextAssignee.Id,
+        AllowApprove = true,
+        IsFinalStep = true
+    };
+    definition.Steps.Add(firstStep);
+    definition.Steps.Add(nextStep);
+
+    db.AddRange(requester, firstAssignee, nextAssignee, definition);
+    db.WorkflowTransitions.Add(new WorkflowTransition
+    {
+        WorkflowStep = firstStep,
+        ToStep = nextStep,
+        Action = "Approve",
+        Title = "ادامه به بررسی دوم"
+    });
+    await db.SaveChangesAsync();
+
+    var audit = new AuditService(new AuditLogQueue(), new HttpContextAccessor());
+    var workflow = new WorkflowService(db, audit);
+    var instance = await workflow.StartAsync(
+        definition.Code, "SmokeTest", "SKIP-001", requester.Id);
+
+    var firstTask = await db.WorkflowTasks
+        .Include(x => x.WorkflowStep)
+        .SingleAsync(x => x.WorkflowInstanceId == instance.Id && x.Status == "Pending");
+    Check(firstTask.WorkflowStepId == firstStep.Id &&
+          firstTask.AssignedEmployeeId == firstAssignee.Id,
+        "The generic smoke workflow must start at the first employee-assigned step.");
+
+    await workflow.SkipCurrentStepAsync(
+        instance.Id, requester.Id, "عبور آزمایشی با مجوز", "کاربر آزمون");
+
+    var refreshedInstance = await db.WorkflowInstances.SingleAsync(x => x.Id == instance.Id);
+    var refreshedFirstTask = await db.WorkflowTasks.SingleAsync(x => x.Id == firstTask.Id);
+    var nextTask = await db.WorkflowTasks
+        .Include(x => x.WorkflowStep)
+        .SingleAsync(x => x.WorkflowInstanceId == instance.Id && x.Status == "Pending");
+    var skipHistory = await db.WorkflowHistory
+        .Where(x => x.WorkflowInstanceId == instance.Id && x.Action == "SkipStep")
+        .ToListAsync();
+
+    Check(refreshedInstance.Status == "InProgress" &&
+          refreshedInstance.CurrentStepId == nextStep.Id,
+        "Skipping an active workflow stage must advance the current step without ending the workflow.");
+    Check(refreshedFirstTask.Status == "Superseded" &&
+          refreshedFirstTask.Action == "SkipStep" &&
+          refreshedFirstTask.CompletedAt.HasValue,
+        "A skipped task must be retained as a superseded task with an explicit skip action.");
+    Check(nextTask.WorkflowStepId == nextStep.Id &&
+          nextTask.AssignedEmployeeId == nextAssignee.Id,
+        "Skipping a stage must create the next stage's normal assignment.");
+    Check(skipHistory.Count == 1 &&
+          skipHistory[0].ActorEmployeeId == requester.Id &&
+          skipHistory[0].Comment!.Contains("عبور آزمایشی با مجوز", StringComparison.Ordinal),
+        "Skipping a stage must create an auditable workflow-history entry with actor and reason.");
+
+    Console.WriteLine("PASS: generic workflow stage skipping advances the next task, preserves superseded task history and records actor/reason.");
 }
 
 static async Task VerifyEmployeeExcelCompatibilityAsync()

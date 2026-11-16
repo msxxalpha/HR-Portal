@@ -15,6 +15,9 @@ public class WorkflowInboxRow
     public string RequesterPersonnelNumber { get; set; } = "";
     public string StepTitle { get; set; } = "";
     public string PositionTitle { get; set; } = "";
+    public string CurrentStepTitle { get; set; } = "";
+    public string CurrentAssigneeName { get; set; } = "";
+    public string LatestWorkflowStatus { get; set; } = "";
     public string Status { get; set; } = "";
     public DateTime CreatedAt { get; set; }
     public string? Comment { get; set; }

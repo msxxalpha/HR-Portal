@@ -237,17 +237,31 @@ public class WorkflowController(
             return Forbid();
 
         var canSkipWorkflowSteps = User.HasClaim("Permission", "Workflow.SkipStep");
+        var canViewOnlyWorkflowDetails = User.HasClaim("Permission", "Workflow.ViewOnly");
+        var previewBoundarySortOrder = !isAdmin && !canSkipWorkflowSteps && hasEmployeeId && canViewOnlyWorkflowDetails
+            ? await workflow.GetUpcomingViewBoundarySortOrderAsync(id, employeeId)
+            : null;
+
         var instance = isAdmin || canSkipWorkflowSteps
             ? await workflow.GetInstanceForAdminAsync(id)
-            : await workflow.GetInstanceAsync(id, employeeId);
+            : await workflow.GetInstanceAsync(id, employeeId, canViewOnlyWorkflowDetails);
         if (instance is null) return NotFound();
 
-        ViewBag.History = await workflow.GetHistoryAsync(id);
-        ViewBag.WorkflowFormFieldValues = await db.WorkflowFieldValues.AsNoTracking()
+        ViewBag.IsWorkflowPreviewOnly = previewBoundarySortOrder.HasValue;
+        var historyItems = await workflow.GetHistoryAsync(id);
+        ViewBag.History = previewBoundarySortOrder.HasValue
+            ? historyItems.Where(x => x.WorkflowStepId == null ||
+                x.WorkflowStep != null && x.WorkflowStep.SortOrder < previewBoundarySortOrder.Value).ToList()
+            : historyItems;
+
+        var formFieldValuesQuery = db.WorkflowFieldValues.AsNoTracking()
             .Include(x => x.WorkflowStep)
             .Include(x => x.WorkflowStepField)
-            .Where(x => x.WorkflowInstanceId == id &&
-                        x.Value != null && x.Value != "")
+            .Where(x => x.WorkflowInstanceId == id && x.Value != null && x.Value != "");
+        if (previewBoundarySortOrder.HasValue)
+            formFieldValuesQuery = formFieldValuesQuery
+                .Where(x => x.WorkflowStep.SortOrder < previewBoundarySortOrder.Value);
+        ViewBag.WorkflowFormFieldValues = await formFieldValuesQuery
             .OrderBy(x => x.WorkflowStep.SortOrder)
             .ThenBy(x => x.WorkflowStepField.SortOrder)
             .ThenBy(x => x.Id)
@@ -276,17 +290,25 @@ public class WorkflowController(
             if (renewalRequest is not null)
             {
                 ViewBag.ContractRenewalRequest = renewalRequest;
-                ViewBag.ContractRenewalSteps = await db.WorkflowSteps.AsNoTracking()
+                var visibleRenewalStepsQuery = db.WorkflowSteps.AsNoTracking()
                     .Include(x => x.OrganizationNode)
-                    .Where(x => x.WorkflowDefinitionId == instance.WorkflowDefinitionId)
+                    .Where(x => x.WorkflowDefinitionId == instance.WorkflowDefinitionId);
+                if (previewBoundarySortOrder.HasValue)
+                    visibleRenewalStepsQuery = visibleRenewalStepsQuery
+                        .Where(x => x.SortOrder < previewBoundarySortOrder.Value);
+                var visibleRenewalSteps = await visibleRenewalStepsQuery
                     .OrderBy(x => x.SortOrder).ThenBy(x => x.Id).ToListAsync();
+                var visibleRenewalStepIds = visibleRenewalSteps.Select(x => x.Id).ToArray();
+                ViewBag.ContractRenewalSteps = visibleRenewalSteps;
                 ViewBag.ContractRenewalTasks = await db.WorkflowTasks.AsNoTracking()
                     .Include(x => x.AssignedEmployee).Include(x => x.AssignedPosition)
-                    .Where(x => x.WorkflowInstanceId == instance.Id)
+                    .Where(x => x.WorkflowInstanceId == instance.Id &&
+                                visibleRenewalStepIds.Contains(x.WorkflowStepId))
                     .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync();
                 ViewBag.ContractRenewalScores = await db.EmployeePerformanceEvaluationScores.AsNoTracking()
                     .Include(x => x.EvaluatorEmployee)
-                    .Where(x => x.WorkflowInstanceId == instance.Id)
+                    .Where(x => x.WorkflowInstanceId == instance.Id &&
+                                visibleRenewalStepIds.Contains(x.WorkflowStepId))
                     .OrderBy(x => x.WorkflowStep.SortOrder).ThenBy(x => x.Id).ToListAsync();
             }
         }

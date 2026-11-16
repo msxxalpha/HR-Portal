@@ -1306,25 +1306,219 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(status))
-            authorizedTasks = authorizedTasks.Where(x => x.Status == status).ToList();
-
-        return authorizedTasks.Select(x => new WorkflowInboxRow
+        var rows = authorizedTasks.Select(x => new WorkflowInboxRow
         {
             TaskId = x.Id,
             WorkflowInstanceId = x.WorkflowInstanceId,
+            WorkflowStepId = x.WorkflowStepId,
+            StepSortOrder = x.WorkflowStep.SortOrder,
+            IsUpcomingPreview = false,
+            CanAct = true,
             WorkflowTitle = x.WorkflowInstance.WorkflowDefinition.Title,
             EntityType = x.WorkflowInstance.EntityType,
             EntityId = x.WorkflowInstance.EntityId,
             RequesterName = x.WorkflowInstance.RequesterEmployee.FirstName + " " + x.WorkflowInstance.RequesterEmployee.LastName,
             RequesterPersonnelNumber = x.WorkflowInstance.RequesterEmployee.PersonnelNumber,
             StepTitle = x.WorkflowStep.Title,
-            PositionTitle = x.AssignedPosition == null ? "" : x.AssignedPosition.Title,
+            PositionTitle = x.AssignedPosition?.Title ?? x.WorkflowStep.OrganizationNode?.Title ?? "",
             Status = x.Status,
             CreatedAt = x.CreatedAt,
             Comment = x.Comment,
             Action = x.Action ?? ""
         }).ToList();
+
+        // Upcoming steps are previews only. No WorkflowTask is created and no
+        // action endpoint is exposed until the workflow engine actually advances
+        // to that step and creates the real pending assignment.
+        if (string.IsNullOrWhiteSpace(status) || status == "Upcoming")
+        {
+            var activeInstances = await db.WorkflowInstances.AsNoTracking()
+                .Include(x => x.WorkflowDefinition)
+                .Include(x => x.RequesterEmployee)
+                .Where(x => x.Status == "InProgress" && x.CurrentStepId.HasValue)
+                .OrderByDescending(x => x.StartedAt)
+                .ToListAsync();
+
+            foreach (var instance in activeInstances)
+            {
+                var upcomingSteps = await GetReachableFutureStepsAsync(instance);
+                foreach (var step in upcomingSteps)
+                {
+                    var potentialPosition = await ResolvePotentialPositionAsync(instance, step);
+                    if (step.AssignmentType is not ("Employee" or "Requester") && potentialPosition is null)
+                        continue;
+
+                    var isPotentialAssignee = await IsPotentialFutureAssigneeAsync(
+                        employeeId, instance, step, potentialPosition);
+                    if (!isPotentialAssignee)
+                        continue;
+
+                    rows.Add(new WorkflowInboxRow
+                    {
+                        TaskId = 0,
+                        WorkflowInstanceId = instance.Id,
+                        WorkflowStepId = step.Id,
+                        StepSortOrder = step.SortOrder,
+                        IsUpcomingPreview = true,
+                        CanAct = false,
+                        WorkflowTitle = instance.WorkflowDefinition.Title,
+                        EntityType = instance.EntityType,
+                        EntityId = instance.EntityId,
+                        RequesterName = instance.RequesterEmployee.FirstName + " " + instance.RequesterEmployee.LastName,
+                        RequesterPersonnelNumber = instance.RequesterEmployee.PersonnelNumber,
+                        StepTitle = step.Title,
+                        PositionTitle = potentialPosition?.Title ?? "",
+                        Status = "Upcoming",
+                        CreatedAt = instance.StartedAt,
+                        Comment = "این مرحله هنوز به نوبت شما نرسیده است. اطلاعات درخواست فقط برای مشاهده است و امکان ثبت اقدام تا فعال‌شدن مرحله وجود ندارد.",
+                        Action = "UpcomingPreview"
+                    });
+                }
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(status))
+            rows = rows.Where(x => x.Status == status).ToList();
+
+        return rows
+            .OrderByDescending(x => x.CreatedAt)
+            .ThenBy(x => x.IsUpcomingPreview)
+            .ThenBy(x => x.StepSortOrder)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Returns every forward step that may be reached from the current step.
+    /// Conditional branches are treated as possible until their field values
+    /// are known; backward return routes are intentionally excluded.
+    /// </summary>
+    private async Task<List<WorkflowStep>> GetReachableFutureStepsAsync(WorkflowInstance instance)
+    {
+        if (!instance.CurrentStepId.HasValue)
+            return [];
+
+        var steps = await db.WorkflowSteps.AsNoTracking()
+            .Include(x => x.OrganizationNode)
+            .Where(x => x.WorkflowDefinitionId == instance.WorkflowDefinitionId)
+            .OrderBy(x => x.SortOrder).ThenBy(x => x.Id)
+            .ToListAsync();
+        var byId = steps.ToDictionary(x => x.Id);
+        if (!byId.TryGetValue(instance.CurrentStepId.Value, out var current))
+            return [];
+
+        var stepIds = steps.Select(x => x.Id).ToArray();
+        var transitions = await db.WorkflowTransitions.AsNoTracking()
+            .Where(x => stepIds.Contains(x.WorkflowStepId))
+            .OrderBy(x => x.Id)
+            .ToListAsync();
+
+        var visited = new HashSet<int> { current.Id };
+        var queue = new Queue<WorkflowStep>();
+        queue.Enqueue(current);
+        while (queue.Count > 0)
+        {
+            var source = queue.Dequeue();
+            if (source.IsFinalStep)
+                continue;
+
+            var outgoing = transitions
+                .Where(x => x.WorkflowStepId == source.Id &&
+                            (x.Action == "Approve" || x.Action == "Reject"))
+                .ToList();
+
+            var targetIds = outgoing
+                .Where(x => x.ToStepId.HasValue &&
+                            byId.TryGetValue(x.ToStepId.Value, out var target) &&
+                            target.SortOrder > source.SortOrder)
+                .Select(x => x.ToStepId!.Value)
+                .ToHashSet();
+
+            // ResolveTransitionAsync falls back to the next SortOrder step when
+            // no conditionless Approve transition matches, including definitions
+            // that contain only conditional Approve branches.
+            var hasDefaultApprove = outgoing.Any(x =>
+                x.Action == "Approve" && string.IsNullOrWhiteSpace(x.ConditionFieldCode));
+            if (!hasDefaultApprove)
+            {
+                var implicitNext = steps.FirstOrDefault(x => x.SortOrder > source.SortOrder);
+                if (implicitNext is not null)
+                    targetIds.Add(implicitNext.Id);
+            }
+
+            foreach (var targetId in targetIds)
+            {
+                if (!visited.Add(targetId))
+                    continue;
+                if (byId.TryGetValue(targetId, out var target))
+                    queue.Enqueue(target);
+            }
+        }
+
+        return visited
+            .Where(x => x != current.Id && byId.ContainsKey(x))
+            .Select(x => byId[x])
+            .OrderBy(x => x.SortOrder).ThenBy(x => x.Id)
+            .ToList();
+    }
+
+    private async Task<OrganizationNode?> ResolvePotentialPositionAsync(
+        WorkflowInstance instance, WorkflowStep step)
+    {
+        int? positionId = step.OrganizationNodeId;
+        if (step.AssignmentType == "FieldPosition")
+        {
+            if (string.IsNullOrWhiteSpace(step.AssignmentFieldCode))
+                return null;
+
+            var selectedValue = await db.WorkflowFieldValues.AsNoTracking()
+                .Where(x => x.WorkflowInstanceId == instance.Id &&
+                            x.FieldCode == step.AssignmentFieldCode &&
+                            x.WorkflowStepField.FieldType == "PositionPicker")
+                .OrderByDescending(x => x.UpdatedAt).ThenByDescending(x => x.Id)
+                .Select(x => x.Value)
+                .FirstOrDefaultAsync();
+            if (!int.TryParse(selectedValue, out var selectedPositionId))
+                return null;
+            positionId = selectedPositionId;
+        }
+
+        if (!positionId.HasValue)
+            return null;
+
+        return await db.OrganizationNodes.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == positionId.Value && x.IsActive);
+    }
+
+    private async Task<bool> IsPotentialFutureAssigneeAsync(
+        int employeeId, WorkflowInstance instance, WorkflowStep step, OrganizationNode? potentialPosition)
+    {
+        if (!await db.Employees.AnyAsync(x =>
+                x.Id == employeeId && x.Status == "فعال" && x.IsSystemUser))
+            return false;
+
+        if (step.AssignmentType == "Requester")
+            return instance.RequesterEmployeeId == employeeId;
+
+        if (step.AssignmentType == "Employee")
+            return step.AssignedEmployeeId == employeeId &&
+                   await db.Employees.AnyAsync(x => x.Id == employeeId && x.Status == "فعال");
+
+        if (potentialPosition is null)
+            return false;
+
+        // Reuse the same current-position resolver as real pending tasks so
+        // previews follow the effective organization revision and never leak
+        // a position to subordinate unit members.
+        var previewTask = new WorkflowTask
+        {
+            WorkflowInstanceId = instance.Id,
+            WorkflowStepId = step.Id,
+            WorkflowStep = step,
+            WorkflowInstance = instance,
+            AssignedPosition = potentialPosition,
+            Status = "Pending"
+        };
+        return await IsCurrentPositionAssigneeAsync(employeeId, previewTask);
     }
 
     public async Task<List<WorkflowInboxRow>> GetMyActionHistoryAsync(int employeeId)

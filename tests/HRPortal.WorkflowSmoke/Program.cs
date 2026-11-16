@@ -2767,8 +2767,10 @@ static async Task VerifyWorkflowUpcomingReadOnlyPreviewsAsync()
     Check(unrelatedInbox.Count == 0,
         "An employee who is not assigned to a current or reachable future step must not see the workflow.");
 
-    Check(await workflow.GetInstanceAsync(instance.Id, upcomingPositionAssignee.Id) is not null,
-        "A future assignee must be allowed to open the workflow details in read-only mode.");
+    Check(await workflow.GetInstanceAsync(instance.Id, upcomingPositionAssignee.Id) is null,
+        "A future assignee without the view-only permission must not open workflow details.");
+    Check(await workflow.GetInstanceAsync(instance.Id, upcomingPositionAssignee.Id, allowUpcomingPreview: true) is not null,
+        "A future assignee with the view-only permission must be allowed to open workflow details in read-only mode.");
     Check(await workflow.GetInstanceAsync(instance.Id, unrelatedEmployee.Id) is null,
         "A non-assignee must not be able to open workflow details by guessing its ID.");
     var currentTask = await db.WorkflowTasks.SingleAsync(x => x.WorkflowInstanceId == instance.Id);

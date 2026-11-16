@@ -354,6 +354,31 @@ public class WorkflowController(
     }
 
     [HttpPost]
+    [Authorize(Policy = "Workflow.SkipStep")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SkipCurrentStep(int workflowInstanceId, string? reason)
+    {
+        int? actorEmployeeId = int.TryParse(User.FindFirst("EmployeeId")?.Value, out var parsedEmployeeId)
+            ? parsedEmployeeId
+            : null;
+        try
+        {
+            await workflow.SkipCurrentStepAsync(
+                workflowInstanceId,
+                actorEmployeeId,
+                reason,
+                User.Identity?.Name);
+            TempData["Success"] = "مرحله جاری با ثبت سابقه عبور تعیین تکلیف شد و گردش کار به مرحله بعد منتقل گردید.";
+        }
+        catch (Exception ex)
+        {
+            TempData["Error"] = ex.Message;
+        }
+
+        return RedirectToAction(nameof(Details), new { id = workflowInstanceId });
+    }
+
+    [HttpPost]
     [Authorize(Policy = "Workflow.Inbox")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Act(int id, string action, string? comment)

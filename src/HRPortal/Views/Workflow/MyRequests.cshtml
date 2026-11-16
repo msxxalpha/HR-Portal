@@ -32,11 +32,18 @@
                     var statusTitle = item.Status switch
                     {
                         "Approved" => "تأیید نهایی",
+                        "Completed" => "پایان‌یافته",
                         "Rejected" => "رد شده",
                         "Returned" => "برگشت داده شده",
                         _ => "در حال گردش"
                     };
-                    <tr>
+                    var requestRowClass = item.Status == "Rejected"
+                        ? "workflow-result-row-rejected"
+                        : item.Status == "Returned"
+                            ? "workflow-result-row-returned"
+                            : item.Status == "Approved" || item.Status == "Completed"
+                                ? "workflow-result-row-completed" : "";
+                    <tr class="@requestRowClass">
                         <td><strong>@item.WorkflowTitle</strong></td>
                         <td>@item.EntityType #@item.EntityId</td>
                         <td>@item.StepTitle</td>
@@ -66,3 +73,13 @@
         </div>
     }
 </section>
+
+
+<style>
+.workflow-result-row-rejected > td { background:#fff1f2 !important; border-bottom-color:#fecdd3 !important; }
+.workflow-result-row-returned > td { background:#fff7ed !important; border-bottom-color:#fed7aa !important; }
+.workflow-result-row-completed > td { background:#ecfdf5 !important; border-bottom-color:#bbf7d0 !important; }
+.workflow-result-row-rejected:hover > td { background:#ffe4e6 !important; }
+.workflow-result-row-returned:hover > td { background:#ffedd5 !important; }
+.workflow-result-row-completed:hover > td { background:#dcfce7 !important; }
+</style>

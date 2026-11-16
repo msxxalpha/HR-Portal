@@ -1,0 +1,204 @@
+using HRPortal.Data;
+using HRPortal.Models;
+using HRPortal.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+namespace HRPortal.Controllers;
+
+[Authorize]
+public class HumanResourcesReportsController(HRPortalDbContext db) : Controller
+{
+    private sealed record PositionSnapshot(string Code, string Title, string RankType);
+    private sealed record RevisionSnapshot(int Id, string Code, string Title, DateTime EffectiveDate);
+
+    [HttpGet]
+    [Authorize(Policy = "Reports.EmployeePositionHistory.View")]
+    public async Task<IActionResult> EmployeePositionHistory(
+        int? employeeId,
+        string? position,
+        string? changeType,
+        string? fromJalali,
+        string? toJalali,
+        CancellationToken cancellationToken)
+    {
+        DateTime? from = null;
+        DateTime? to = null;
+        if (!string.IsNullOrWhiteSpace(fromJalali))
+        {
+            if (PersianDateService.TryParse(fromJalali, out var parsedFrom))
+                from = parsedFrom.Date;
+            else
+                ModelState.AddModelError(nameof(fromJalali), "تاریخ شروع شمسی معتبر نیست.");
+        }
+        if (!string.IsNullOrWhiteSpace(toJalali))
+        {
+            if (PersianDateService.TryParse(toJalali, out var parsedTo))
+                to = parsedTo.Date;
+            else
+                ModelState.AddModelError(nameof(toJalali), "تاریخ پایان شمسی معتبر نیست.");
+        }
+        if (from.HasValue && to.HasValue && from.Value > to.Value)
+            ModelState.AddModelError(nameof(toJalali), "تاریخ پایان نباید پیش از تاریخ شروع باشد.");
+
+        var model = new EmployeePositionHistoryReportViewModel
+        {
+            EmployeeId = employeeId,
+            Position = position?.Trim() ?? "",
+            ChangeType = string.IsNullOrWhiteSpace(changeType) ? "all" : changeType,
+            From = from,
+            To = to
+        };
+
+        var employees = await db.Employees.AsNoTracking()
+            .OrderBy(x => x.LastName).ThenBy(x => x.FirstName)
+            .Select(x => new
+            {
+                x.Id,
+                x.PersonnelNumber,
+                FullName = x.FirstName + " " + x.LastName
+            })
+            .ToListAsync(cancellationToken);
+        var employeeById = employees.ToDictionary(x => x.Id);
+        model.EmployeeOptions = employees.Select(x => new EmployeePositionHistoryEmployeeOption
+        {
+            Id = x.Id,
+            PersonnelNumber = x.PersonnelNumber,
+            FullName = x.FullName
+        }).ToList();
+
+        var revisionData = await db.OrganizationStructureRevisions.AsNoTracking()
+            .Where(x => x.IsFinalized && x.EffectiveDate <= DateTime.Today)
+            .OrderBy(x => x.EffectiveDate).ThenBy(x => x.FinalizedAt).ThenBy(x => x.Id)
+            .Select(x => new { x.Id, x.RevisionCode, x.Title, x.EffectiveDate })
+            .ToListAsync(cancellationToken);
+        var revisions = revisionData.Select(x =>
+            new RevisionSnapshot(x.Id, x.RevisionCode, x.Title, x.EffectiveDate)).ToList();
+
+        if (revisions.Count == 0)
+        {
+            ViewBag.NoFinalizedStructure = true;
+            return View(model);
+        }
+
+        var revisionIds = revisions.Select(x => x.Id).ToArray();
+        var nodes = await db.OrganizationNodes.AsNoTracking()
+            .Where(x => revisionIds.Contains(x.OrganizationStructureRevisionId))
+            .Select(x => new
+            {
+                x.OrganizationStructureRevisionId,
+                x.Code,
+                x.Title,
+                x.RankType,
+                x.IsActive,
+                x.PositionHolderEmployeeId,
+                x.AssignedEmployeeIdsCsv
+            })
+            .ToListAsync(cancellationToken);
+
+        var previousAssignments = new Dictionary<int, Dictionary<string, PositionSnapshot>>();
+        var history = new List<EmployeePositionHistoryRow>();
+
+        foreach (var revision in revisions)
+        {
+            var currentAssignments = new Dictionary<int, Dictionary<string, PositionSnapshot>>();
+            foreach (var node in nodes.Where(x =>
+                         x.OrganizationStructureRevisionId == revision.Id && x.IsActive))
+            {
+                var holders = WorkflowPositionAssignmentResolver.GetAssignedEmployeeIds(
+                    node.AssignedEmployeeIdsCsv, node.PositionHolderEmployeeId);
+                if (holders.Count == 0) continue;
+
+                var snapshot = new PositionSnapshot(node.Code, node.Title, node.RankType);
+                foreach (var holderId in holders)
+                {
+                    if (!currentAssignments.TryGetValue(holderId, out var positions))
+                    {
+                        positions = new Dictionary<string, PositionSnapshot>(StringComparer.OrdinalIgnoreCase);
+                        currentAssignments[holderId] = positions;
+                    }
+                    positions[node.Code] = snapshot;
+                }
+            }
+
+            var changedEmployeeIds = previousAssignments.Keys
+                .Union(currentAssignments.Keys).Distinct().ToArray();
+
+            foreach (var changedEmployeeId in changedEmployeeIds)
+            {
+                var previous = previousAssignments.GetValueOrDefault(changedEmployeeId)
+                    ?? new Dictionary<string, PositionSnapshot>(StringComparer.OrdinalIgnoreCase);
+                var current = currentAssignments.GetValueOrDefault(changedEmployeeId)
+                    ?? new Dictionary<string, PositionSnapshot>(StringComparer.OrdinalIgnoreCase);
+
+                var removed = previous.Where(x => !current.ContainsKey(x.Key))
+                    .Select(x => x.Value).OrderBy(x => x.Code).ToList();
+                var added = current.Where(x => !previous.ContainsKey(x.Key))
+                    .Select(x => x.Value).OrderBy(x => x.Code).ToList();
+
+                void AddHistory(string type, PositionSnapshot? oldPosition, PositionSnapshot? newPosition)
+                {
+                    if (!employeeById.TryGetValue(changedEmployeeId, out var employee))
+                        return;
+
+                    history.Add(new EmployeePositionHistoryRow
+                    {
+                        EmployeeId = changedEmployeeId,
+                        PersonnelNumber = employee.PersonnelNumber,
+                        EmployeeName = employee.FullName,
+                        EffectiveDate = revision.EffectiveDate,
+                        ChangeType = type,
+                        FromPositionCode = oldPosition?.Code ?? "",
+                        FromPositionTitle = oldPosition?.Title ?? "",
+                        ToPositionCode = newPosition?.Code ?? "",
+                        ToPositionTitle = newPosition?.Title ?? "",
+                        RankType = newPosition?.RankType ?? oldPosition?.RankType ?? "",
+                        RevisionCode = revision.Code,
+                        RevisionTitle = revision.Title
+                    });
+                }
+
+                // Pair removals and additions as one transfer where possible.
+                var transferCount = Math.Min(removed.Count, added.Count);
+                for (var index = 0; index < transferCount; index++)
+                    AddHistory("Transfer", removed[index], added[index]);
+
+                for (var index = transferCount; index < added.Count; index++)
+                    AddHistory("Assigned", null, added[index]);
+
+                for (var index = transferCount; index < removed.Count; index++)
+                    AddHistory("Unassigned", removed[index], null);
+            }
+
+            previousAssignments = currentAssignments;
+        }
+
+        IEnumerable<EmployeePositionHistoryRow> filtered = history;
+        if (employeeId.HasValue)
+            filtered = filtered.Where(x => x.EmployeeId == employeeId.Value);
+        if (!string.IsNullOrWhiteSpace(model.Position))
+        {
+            var term = model.Position;
+            filtered = filtered.Where(x =>
+                x.FromPositionTitle.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                x.ToPositionTitle.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                x.FromPositionCode.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                x.ToPositionCode.Contains(term, StringComparison.OrdinalIgnoreCase));
+        }
+        if (model.ChangeType is "Transfer" or "Assigned" or "Unassigned")
+            filtered = filtered.Where(x => x.ChangeType == model.ChangeType);
+        if (from.HasValue)
+            filtered = filtered.Where(x => x.EffectiveDate.Date >= from.Value);
+        if (to.HasValue)
+            filtered = filtered.Where(x => x.EffectiveDate.Date <= to.Value);
+
+        model.Rows = filtered
+            .OrderByDescending(x => x.EffectiveDate)
+            .ThenBy(x => x.EmployeeName)
+            .ThenBy(x => x.PersonnelNumber)
+            .ToList();
+
+        return View(model);
+    }
+}

@@ -1851,7 +1851,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         var next = resolution.NextStep;
         if (next is null || currentStep.IsFinalStep)
         {
-            instance.Status = "Approved";
+            instance.Status = "CompletedBySkip";
             instance.CurrentStepId = null;
             instance.CompletedAt = now;
         }

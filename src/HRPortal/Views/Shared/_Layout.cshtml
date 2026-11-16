@@ -66,7 +66,7 @@
                  User.HasClaim("UserType", "Employee")) {
                 <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Workflow") ? "open" : null)">
                     <summary><span class="nav-icon">▤</span>درخواست‌ها</summary><div class="nav-submenu">
-                        <a href="/Workflow/MyRequests">درخواست‌های من</a><a href="/Workflow/Inbox">کارتابل</a>
+                        <a href="/Workflow/MyRequests">@(isAdmin ? "مدیریت درخواست‌ها" : User.HasClaim("Permission", "Workflow.SkipStep") ? "گردش‌های فعال" : "درخواست‌های من")</a><a href="/Workflow/Inbox">کارتابل</a>
                     </div>
                 </details>
             }

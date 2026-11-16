@@ -27,6 +27,7 @@ await VerifySuggestionsAnalyticsAsync();
 await VerifyWorkflowStageEditingAndRequesterReturnAsync();
 await VerifyWorkflowDirectReturnAndPriorStageEditingAsync();
 await VerifyWorkflowSkipCurrentStepAsync();
+await VerifyWorkflowUpcomingReadOnlyPreviewsAsync();
 VerifyWorkflowReportFormTypeAggregation();
 VerifyOutsourcedServiceOrganizationResolver();
 await VerifyEmployeeExcelCompatibilityAsync();
@@ -2579,6 +2580,204 @@ static async Task VerifyWorkflowSkipCurrentStepAsync()
         "Skipping a stage must create an auditable workflow-history entry with actor and reason.");
 
     Console.WriteLine("PASS: generic workflow stage skipping advances the next task, preserves superseded task history and records actor/reason.");
+}
+
+
+static async Task VerifyWorkflowUpcomingReadOnlyPreviewsAsync()
+{
+    var options = new DbContextOptionsBuilder<HRPortalDbContext>()
+        .UseInMemoryDatabase("workflow-upcoming-readonly-previews")
+        .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+        .Options;
+    await using var db = new HRPortalDbContext(options);
+
+    static Employee Person(int id) => new()
+    {
+        Id = id,
+        PersonnelNumber = $"UP{id}",
+        NationalId = $"UPN{id}",
+        FirstName = $"کاربر{id}",
+        LastName = "آزمایشی",
+        Mobile = "09120000000",
+        Gender = "مرد",
+        Status = "فعال",
+        IsSystemUser = true
+    };
+
+    var requester = Person(800);
+    var currentAssignee = Person(801);
+    var upcomingPositionAssignee = Person(802);
+    var upcomingEmployeeAssignee = Person(803);
+    var unrelatedEmployee = Person(804);
+
+    var revision = new OrganizationStructureRevision
+    {
+        Id = 80,
+        RevisionCode = "UPCOMING-PREVIEW",
+        Title = "ساختار آزمون پیش‌نمایش",
+        EffectiveDate = DateTime.Today.AddDays(-5),
+        IsFinalized = true
+    };
+    var currentPosition = new OrganizationNode
+    {
+        Id = 810,
+        OrganizationStructureRevisionId = revision.Id,
+        Revision = revision,
+        Code = "CURRENT-REVIEWER",
+        Title = "جایگاه ارزیاب جاری",
+        RankType = "سرپرستی",
+        IsActive = true,
+        PositionHolderEmployeeId = currentAssignee.Id,
+        AssignedEmployeeIdsCsv = currentAssignee.Id.ToString()
+    };
+    var upcomingPosition = new OrganizationNode
+    {
+        Id = 811,
+        OrganizationStructureRevisionId = revision.Id,
+        Revision = revision,
+        Code = "UPCOMING-REVIEWER",
+        Title = "جایگاه ارزیاب آتی",
+        RankType = "ریاست",
+        IsActive = true,
+        PositionHolderEmployeeId = upcomingPositionAssignee.Id,
+        AssignedEmployeeIdsCsv = upcomingPositionAssignee.Id.ToString()
+    };
+    revision.Nodes.Add(currentPosition);
+    revision.Nodes.Add(upcomingPosition);
+
+    var definition = new WorkflowDefinition
+    {
+        Code = "UPCOMING-PREVIEW-SMOKE",
+        Title = "آزمون مشاهده مراحل آتی",
+        Version = 1,
+        IsActive = true
+    };
+    var currentStep = new WorkflowStep
+    {
+        WorkflowDefinition = definition,
+        Code = "CurrentReview",
+        Title = "بررسی جاری",
+        SortOrder = 10,
+        AssignmentType = "Position",
+        OrganizationNode = currentPosition,
+        OrganizationNodeId = currentPosition.Id,
+        AssignmentMode = "Any",
+        AllowApprove = true
+    };
+    var upcomingPositionStep = new WorkflowStep
+    {
+        WorkflowDefinition = definition,
+        Code = "UpcomingPositionReview",
+        Title = "بررسی جایگاه آتی",
+        SortOrder = 20,
+        AssignmentType = "Position",
+        OrganizationNode = upcomingPosition,
+        OrganizationNodeId = upcomingPosition.Id,
+        AssignmentMode = "Any",
+        AllowApprove = true
+    };
+    var upcomingEmployeeStep = new WorkflowStep
+    {
+        WorkflowDefinition = definition,
+        Code = "UpcomingEmployeeReview",
+        Title = "بررسی کارمند مشخص آتی",
+        SortOrder = 30,
+        AssignmentType = "Employee",
+        AssignedEmployeeId = upcomingEmployeeAssignee.Id,
+        AllowApprove = true,
+        IsFinalStep = true
+    };
+    definition.Steps.Add(currentStep);
+    definition.Steps.Add(upcomingPositionStep);
+    definition.Steps.Add(upcomingEmployeeStep);
+
+    var instance = new WorkflowInstance
+    {
+        Id = 80,
+        WorkflowDefinition = definition,
+        WorkflowDefinitionId = 0,
+        EntityType = "SmokeTest",
+        EntityId = "UPCOMING-001",
+        RequesterEmployee = requester,
+        RequesterEmployeeId = requester.Id,
+        CurrentStep = currentStep,
+        CurrentStepId = 0,
+        Status = "InProgress",
+        StartedAt = DateTime.UtcNow.AddMinutes(-10)
+    };
+
+    db.AddRange(requester, currentAssignee, upcomingPositionAssignee,
+        upcomingEmployeeAssignee, unrelatedEmployee, revision, currentPosition,
+        upcomingPosition, definition);
+    await db.SaveChangesAsync();
+
+    instance.WorkflowDefinitionId = definition.Id;
+    instance.CurrentStepId = currentStep.Id;
+    db.WorkflowInstances.Add(instance);
+    await db.SaveChangesAsync();
+
+    currentStep.WorkflowDefinitionId = definition.Id;
+    upcomingPositionStep.WorkflowDefinitionId = definition.Id;
+    upcomingEmployeeStep.WorkflowDefinitionId = definition.Id;
+    db.WorkflowTransitions.AddRange(
+        new WorkflowTransition
+        {
+            WorkflowStepId = currentStep.Id,
+            ToStepId = upcomingPositionStep.Id,
+            Action = "Approve",
+            Title = "ارجاع به ارزیاب جایگاه"
+        },
+        new WorkflowTransition
+        {
+            WorkflowStepId = upcomingPositionStep.Id,
+            ToStepId = upcomingEmployeeStep.Id,
+            Action = "Approve",
+            Title = "ارجاع به کارمند مشخص"
+        });
+    db.WorkflowTasks.Add(new WorkflowTask
+    {
+        WorkflowInstanceId = instance.Id,
+        WorkflowStepId = currentStep.Id,
+        AssignedPositionId = currentPosition.Id,
+        AssignedEmployeeId = currentAssignee.Id,
+        Status = "Pending"
+    });
+    await db.SaveChangesAsync();
+
+    var audit = new AuditService(new AuditLogQueue(), new HttpContextAccessor());
+    var workflow = new WorkflowService(db, audit);
+
+    var positionPreviewInbox = await workflow.GetInboxAsync(upcomingPositionAssignee.Id);
+    Check(positionPreviewInbox.Count == 1 &&
+          positionPreviewInbox[0].IsUpcomingPreview &&
+          !positionPreviewInbox[0].CanAct &&
+          positionPreviewInbox[0].TaskId == 0 &&
+          positionPreviewInbox[0].WorkflowStepId == upcomingPositionStep.Id &&
+          positionPreviewInbox[0].Status == "Upcoming",
+        "A future position assignee must see the workflow as a read-only upcoming preview, without a real task ID.");
+
+    var employeePreviewInbox = await workflow.GetInboxAsync(upcomingEmployeeAssignee.Id);
+    Check(employeePreviewInbox.Count == 1 &&
+          employeePreviewInbox[0].IsUpcomingPreview &&
+          !employeePreviewInbox[0].CanAct &&
+          employeePreviewInbox[0].WorkflowStepId == upcomingEmployeeStep.Id,
+        "A future explicitly assigned employee must see their later stage as a read-only preview.");
+
+    var unrelatedInbox = await workflow.GetInboxAsync(unrelatedEmployee.Id);
+    Check(unrelatedInbox.Count == 0,
+        "An employee who is not assigned to a current or reachable future step must not see the workflow.");
+
+    Check(await workflow.GetInstanceAsync(instance.Id, upcomingPositionAssignee.Id) is not null,
+        "A future assignee must be allowed to open the workflow details in read-only mode.");
+    Check(await workflow.GetInstanceAsync(instance.Id, unrelatedEmployee.Id) is null,
+        "A non-assignee must not be able to open workflow details by guessing its ID.");
+    var currentTask = await db.WorkflowTasks.SingleAsync(x => x.WorkflowInstanceId == instance.Id);
+    Check(await workflow.GetTaskAsync(currentTask.Id, upcomingPositionAssignee.Id) is null,
+        "A future assignee must not be able to open or act on the current stage task.");
+    Check(await db.WorkflowTasks.CountAsync(x => x.WorkflowInstanceId == instance.Id) == 1,
+        "Upcoming previews must not create pending workflow tasks prematurely.");
+
+    Console.WriteLine("PASS: future position and employee assignees see read-only inbox previews; unrelated employees cannot view or act early.");
 }
 
 static async Task VerifyEmployeeExcelCompatibilityAsync()

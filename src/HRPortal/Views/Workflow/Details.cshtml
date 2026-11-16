@@ -44,8 +44,8 @@
             <dt>نوع فرم</dt><dd>@Model.EntityType</dd>
             <dt>شناسه</dt><dd>@Model.EntityId</dd>
             <dt>وضعیت</dt><dd><span class="badge">@statusTitle</span></dd>
-            <dt>مرحله جاری</dt><dd>@(Model.CurrentStep?.Title ?? "پایان گردش")</dd>
-            <dt>جایگاه مرحله</dt><dd>@(Model.CurrentStep?.OrganizationNode?.Title ?? "—")</dd>
+            <dt>مرحله جاری</dt><dd>@(isWorkflowPreviewOnly ? "اطلاعات مرحله محدود شده" : Model.CurrentStep?.Title ?? "پایان گردش")</dd>
+            <dt>جایگاه مرحله</dt><dd>@(isWorkflowPreviewOnly ? "—" : Model.CurrentStep?.OrganizationNode?.Title ?? "—")</dd>
             <dt>شروع</dt><dd>@Model.StartedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</dd>
         </dl>
     </div>

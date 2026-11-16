@@ -254,7 +254,7 @@ public class WorkflowController(
                 x.WorkflowStep != null && x.WorkflowStep.SortOrder < previewBoundarySortOrder.Value).ToList()
             : historyItems;
 
-        var formFieldValuesQuery = db.WorkflowFieldValues.AsNoTracking()
+        IQueryable<WorkflowFieldValue> formFieldValuesQuery = db.WorkflowFieldValues.AsNoTracking()
             .Include(x => x.WorkflowStep)
             .Include(x => x.WorkflowStepField)
             .Where(x => x.WorkflowInstanceId == id && x.Value != null && x.Value != "");
@@ -290,7 +290,7 @@ public class WorkflowController(
             if (renewalRequest is not null)
             {
                 ViewBag.ContractRenewalRequest = renewalRequest;
-                var visibleRenewalStepsQuery = db.WorkflowSteps.AsNoTracking()
+                IQueryable<WorkflowStep> visibleRenewalStepsQuery = db.WorkflowSteps.AsNoTracking()
                     .Include(x => x.OrganizationNode)
                     .Where(x => x.WorkflowDefinitionId == instance.WorkflowDefinitionId);
                 if (previewBoundarySortOrder.HasValue)

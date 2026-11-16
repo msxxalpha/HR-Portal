@@ -369,18 +369,29 @@ public class ContractRenewalTaskController(
             .OrderBy(x => x.SortOrder).ToList();
         var currentScores = allScores.Where(x => x.WorkflowStepId == task.WorkflowStepId)
             .OrderBy(x => x.Id).ToList();
-        var previousStep = evaluationSteps.Where(x => x.SortOrder < task.WorkflowStep.SortOrder)
-            .OrderByDescending(x => x.SortOrder).FirstOrDefault();
-        var previousScores = previousStep is null
-            ? new List<EmployeePerformanceEvaluationScore>()
-            : allScores.Where(x => x.WorkflowStepId == previousStep.Id).OrderBy(x => x.Id).ToList();
 
         var completedStageTasks = await db.WorkflowTasks.AsNoTracking()
             .Where(x => x.WorkflowInstanceId == task.WorkflowInstanceId && x.Status == "Completed")
             .OrderByDescending(x => x.CompletedAt).ThenByDescending(x => x.Id)
             .ToListAsync();
+        // A stage closed by an explicit bypass or by automatic route repair is
+        // retained in workflow history, but it is not a completed evaluation and
+        // must not appear as the previous assessor's score.
+        var approvedEvaluationStepIds = completedStageTasks
+            .Where(x => x.Action == "Approve")
+            .Select(x => x.WorkflowStepId)
+            .ToHashSet();
+        var previousStep = evaluationSteps
+            .Where(x => x.SortOrder < task.WorkflowStep.SortOrder &&
+                        approvedEvaluationStepIds.Contains(x.Id))
+            .OrderByDescending(x => x.SortOrder).ThenByDescending(x => x.Id)
+            .FirstOrDefault();
+        var previousScores = previousStep is null
+            ? new List<EmployeePerformanceEvaluationScore>()
+            : allScores.Where(x => x.WorkflowStepId == previousStep.Id).OrderBy(x => x.Id).ToList();
+
         var groups = new List<ContractRenewalScoreStageGroup>();
-        foreach (var stage in evaluationSteps)
+        foreach (var stage in evaluationSteps.Where(x => approvedEvaluationStepIds.Contains(x.Id)))
         {
             var rows = allScores.Where(x => x.WorkflowStepId == stage.Id).OrderBy(x => x.Id).ToList();
             if (rows.Count == 0) continue;
@@ -389,7 +400,7 @@ public class ContractRenewalTaskController(
                 StageTitle = stage.Title,
                 PositionTitle = stage.OrganizationNode?.Title ?? stage.Title,
                 ScoreTotal = rows.Sum(x => x.Score ?? 0m),
-                Comment = completedStageTasks.FirstOrDefault(x => x.WorkflowStepId == stage.Id)?.Comment,
+                Comment = completedStageTasks.FirstOrDefault(x => x.WorkflowStepId == stage.Id && x.Action == "Approve")?.Comment,
                 Scores = rows
             });
         }

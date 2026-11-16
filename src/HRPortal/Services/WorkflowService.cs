@@ -1025,8 +1025,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             return true;
 
         // Accept the common short/long Persian labels for the supervisor rank.
-        return normalizedLeft is "سرپرست" or "سرپرستی" &&
-               normalizedRight is "سرپرست" or "سرپرستی";
+        return (normalizedLeft is "سرپرست" or "سرپرستی") &&
+               (normalizedRight is "سرپرست" or "سرپرستی");
     }
 
     private static bool IsSupervisorRankType(string? rankType) =>
@@ -1788,6 +1788,172 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
         await audit.WriteAsync("اقدام در گردش کار", nameof(WorkflowTask), task.Id.ToString(), action);
+    }
+
+    public async Task SkipCurrentStepAsync(
+        int workflowInstanceId, int? actorEmployeeId, string? reason, string? actorName = null,
+        CancellationToken cancellationToken = default)
+    {
+        var note = reason?.Trim();
+        if (string.IsNullOrWhiteSpace(note))
+            throw new InvalidOperationException("برای عبور از مرحله جاری، ثبت علت الزامی است.");
+        if (note.Length > 1000)
+            throw new InvalidOperationException("علت عبور از مرحله حداکثر می‌تواند ۱۰۰۰ نویسه باشد.");
+
+        await using var transaction = await db.Database.BeginTransactionAsync(
+            System.Data.IsolationLevel.Serializable, cancellationToken);
+
+        var instance = await db.WorkflowInstances
+            .Include(x => x.WorkflowDefinition).ThenInclude(x => x.Steps)
+            .FirstOrDefaultAsync(x => x.Id == workflowInstanceId, cancellationToken)
+            ?? throw new InvalidOperationException("گردش کار موردنظر یافت نشد.");
+
+        if (instance.Status != "InProgress" || !instance.CurrentStepId.HasValue)
+            throw new InvalidOperationException("فقط گردش کارهای در حال اجرا و دارای مرحله جاری قابل عبور هستند.");
+
+        var currentStep = instance.WorkflowDefinition.Steps
+            .FirstOrDefault(x => x.Id == instance.CurrentStepId.Value)
+            ?? throw new InvalidOperationException("مرحله جاری گردش کار پیدا نشد.");
+
+        var pendingTasks = await db.WorkflowTasks
+            .Where(x => x.WorkflowInstanceId == instance.Id &&
+                        x.WorkflowStepId == currentStep.Id &&
+                        x.Status == "Pending")
+            .OrderBy(x => x.Id)
+            .ToListAsync(cancellationToken);
+        if (pendingTasks.Count == 0)
+            throw new InvalidOperationException("برای مرحله جاری وظیفه در انتظار وجود ندارد؛ احتمالاً درخواست هم‌زمان توسط کاربر دیگری تعیین تکلیف شده است.");
+
+        // Atomically reserve every pending assignment for this stage. A stage
+        // is skipped as a whole, including all pending siblings in AssignmentMode=All.
+        var reserved = db.Database.IsRelational()
+            ? await db.WorkflowTasks
+                .Where(x => x.WorkflowInstanceId == instance.Id &&
+                            x.WorkflowStepId == currentStep.Id &&
+                            x.Status == "Pending")
+                .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.Status, "Processing"), cancellationToken)
+            : pendingTasks.Count;
+        if (reserved != pendingTasks.Count)
+            throw new InvalidOperationException("مرحله جاری هم‌زمان توسط کاربر دیگری تغییر کرده است؛ صفحه را تازه‌سازی و دوباره بررسی کنید.");
+
+        var previousStatus = instance.Status;
+        var now = DateTime.UtcNow;
+        foreach (var task in pendingTasks)
+        {
+            task.Status = "Superseded";
+            task.Action = "SkipStep";
+            task.Comment = note;
+            task.CompletedAt = now;
+        }
+
+        var resolution = await ResolveTransitionAsync(
+            currentStep.Id, "Approve", instance.Id, instance.WorkflowDefinition.Steps);
+        var next = resolution.NextStep;
+        if (next is null || currentStep.IsFinalStep)
+        {
+            instance.Status = "Approved";
+            instance.CurrentStepId = null;
+            instance.CompletedAt = now;
+        }
+        else
+        {
+            instance.CurrentStepId = next.Id;
+            instance.Status = "InProgress";
+            instance.CompletedAt = null;
+            await CreateTasksAsync(instance, next, cancellationToken);
+        }
+
+        var actorPositionId = actorEmployeeId.HasValue
+            ? ResolveEmployeePosition(actorEmployeeId.Value, pendingTasks[0].AssignedPositionId)
+            : null;
+        var actorLabel = string.IsNullOrWhiteSpace(actorName) ? "کاربر دارای مجوز" : actorName.Trim();
+        var destination = next is null || currentStep.IsFinalStep
+            ? "پایان گردش کار"
+            : next.Title;
+        var historyComment = $"عبور از مرحله «{currentStep.Title}» توسط {actorLabel}. مقصد: {destination}. علت: {note}";
+        db.WorkflowHistory.Add(new WorkflowHistory
+        {
+            WorkflowInstanceId = instance.Id,
+            WorkflowStepId = currentStep.Id,
+            FromStatus = previousStatus,
+            ToStatus = instance.Status,
+            Action = "SkipStep",
+            ActorEmployeeId = actorEmployeeId,
+            ActorPositionId = actorPositionId,
+            Comment = historyComment
+        });
+
+        await UpdateContractRenewalStatusAfterSkipAsync(instance, currentStep, next, cancellationToken);
+        await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        await audit.WriteAsync(
+            "عبور از مرحله جاری گردش کار",
+            nameof(WorkflowInstance),
+            instance.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            historyComment,
+            actorEmployeeId);
+    }
+
+    private async Task UpdateContractRenewalStatusAfterSkipAsync(
+        WorkflowInstance instance, WorkflowStep skippedStep, WorkflowStep? nextStep,
+        CancellationToken cancellationToken)
+    {
+        if (instance.EntityType != ContractRenewalWorkflowService.WorkflowEntityType ||
+            !int.TryParse(instance.EntityId, out var requestId))
+            return;
+
+        var request = await db.ContractRenewalRequests
+            .FirstOrDefaultAsync(x => x.Id == requestId && x.WorkflowInstanceId == instance.Id, cancellationToken);
+        if (request is null) return;
+
+        if (nextStep is null || skippedStep.IsFinalStep)
+        {
+            // A bypassed final decision must not be represented as a formally
+            // approved contract extension or unlock the normal final report.
+            request.Status = "خاتمه با عبور از مرحله نهایی";
+            request.CompletedAt = DateTime.UtcNow;
+            return;
+        }
+
+        if (nextStep.Code.StartsWith("Evaluation_H", StringComparison.Ordinal))
+        {
+            request.Status = "در حال ارزیابی سازمانی";
+            return;
+        }
+
+        switch (nextStep.Code)
+        {
+            case "Security":
+                var latestCompletedEvaluationStep = await db.WorkflowTasks.AsNoTracking()
+                    .Where(x => x.WorkflowInstanceId == instance.Id &&
+                                x.Status == "Completed" &&
+                                x.Action == "Approve" &&
+                                x.WorkflowStep.Code.StartsWith("Evaluation_H"))
+                    .OrderByDescending(x => x.WorkflowStep.SortOrder)
+                    .Select(x => (int?)x.WorkflowStepId)
+                    .FirstOrDefaultAsync(cancellationToken);
+                if (latestCompletedEvaluationStep.HasValue)
+                {
+                    var latestScore = await db.EmployeePerformanceEvaluationScores.AsNoTracking()
+                        .Where(x => x.WorkflowInstanceId == instance.Id &&
+                                    x.WorkflowStepId == latestCompletedEvaluationStep.Value)
+                        .SumAsync(x => x.Score ?? 0m, cancellationToken);
+                    request.OriginalEvaluationScore = latestScore;
+                    request.FinalEvaluationScore = latestScore;
+                }
+                request.HrDisciplinaryDeductionPercent = 0m;
+                request.Status = "در انتظار اظهارنظر حراست";
+                break;
+
+            case "HumanResources":
+                request.Status = "در انتظار مدیر منابع انسانی و خدمات پشتیبانی";
+                break;
+
+            case "CEO":
+                request.Status = "در انتظار تأیید نهایی مدیرعامل";
+                break;
+        }
     }
 
     private async Task CreateTasksAsync(WorkflowInstance instance, WorkflowStep step, CancellationToken cancellationToken,

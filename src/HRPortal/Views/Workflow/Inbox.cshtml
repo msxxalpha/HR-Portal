@@ -36,7 +36,7 @@
     {
         <div class="table-wrap">
             <table>
-                <thead><tr><th>عنوان/نوع درخواست</th><th>درخواست‌کننده</th><th>مرحله</th><th>جایگاه مسئول</th><th>تاریخ</th><th>عملیات</th></tr></thead>
+                <thead><tr><th>عنوان/نوع درخواست</th><th>درخواست‌کننده</th><th>مرحله مسئولیت من</th><th>جایگاه مسئول این مرحله</th><th>مرحله فعلی گردش</th><th>کاربر جایگاهی مرحله فعلی</th><th>تاریخ</th><th>عملیات</th></tr></thead>
                 <tbody>
                 @foreach (var item in Model)
                 {
@@ -51,11 +51,20 @@
                             }
                         </td>
                         <td>@(string.IsNullOrWhiteSpace(item.PositionTitle) ? "—" : item.PositionTitle)</td>
+                        <td>@(string.IsNullOrWhiteSpace(item.CurrentStepTitle) ? "—" : item.CurrentStepTitle)</td>
+                        <td>@(string.IsNullOrWhiteSpace(item.CurrentAssigneeName) ? "تعیین نشده" : item.CurrentAssigneeName)</td>
                         <td>@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
                         <td>
                             @if (item.IsUpcomingPreview || !item.CanAct)
                             {
-                                <a class="btn btn-outline btn-sm" href="/Workflow/Details/@item.WorkflowInstanceId">مشاهده فقط</a>
+                                @if (User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Workflow.ViewOnly"))
+                                {
+                                    <a class="btn btn-outline btn-sm" href="/Workflow/Details/@item.WorkflowInstanceId">مشاهده فقط</a>
+                                }
+                                else
+                                {
+                                    <span class="muted">—</span>
+                                }
                             }
                             else
                             {
@@ -86,7 +95,7 @@
     {
         <div class="table-wrap">
             <table>
-                <thead><tr><th>درخواست</th><th>درخواست‌کننده</th><th>مرحله‌ای که اقدام شد</th><th>نتیجه</th><th>تاریخ اقدام</th><th>توضیحات ثبت‌شده</th><th>جزئیات</th></tr></thead>
+                <thead><tr><th>درخواست</th><th>درخواست‌کننده</th><th>مرحله‌ای که اقدام شد</th><th>نتیجه اقدام من</th><th>آخرین وضعیت گردش کار</th><th>تاریخ اقدام</th><th>توضیحات ثبت‌شده</th><th>جزئیات</th></tr></thead>
                 <tbody>
                 @foreach (var item in actionHistory)
                 {
@@ -101,6 +110,7 @@
                         <td>@item.RequesterName<div class="muted">@item.RequesterPersonnelNumber</div></td>
                         <td>@item.StepTitle<div class="muted">@item.PositionTitle</div></td>
                         <td>@(item.Action switch { "Approve" => "تأیید", "Reject" => "رد", "Return" => "برگشت", "SkipStep" => "عبور از مرحله جاری", "RouteCorrected" => "اصلاح خودکار مسیر", "SaveDraft" => "ذخیره پیش‌نویس", _ => item.Action })</td>
+                        <td><span class="badge workflow-latest-state">@ (item.LatestWorkflowStatus switch { "InProgress" => "در حال گردش", "Approved" => "تأیید نهایی", "CompletedBySkip" => "تکمیل با عبور از مرحله", "Rejected" => "رد شده", "Returned" => "برگشت‌خورده", "Cancelled" => "لغوشده", _ => item.LatestWorkflowStatus })</span></td>
                         <td>@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
                         <td>@(string.IsNullOrWhiteSpace(item.Comment) ? "—" : item.Comment)</td>
                         <td>@if (item.EntityType == HRPortal.Services.ContractRenewalWorkflowService.WorkflowEntityType && item.TaskId > 0) { <a class="btn btn-outline btn-sm" href="/ContractRenewalTask/Details?id=@item.TaskId">مشاهده فرم و سوابق</a> } else if (item.EntityType == "Suggestion" && item.TaskId > 0) { <a class="btn btn-outline btn-sm" href="/Workflow/Details/@item.WorkflowInstanceId">مشاهده فرم و سوابق</a> } else { <span class="muted">—</span> }</td>
@@ -116,6 +126,7 @@
 <style>
 .workflow-result-row-rejected > td { background:#fff1f2 !important; border-bottom-color:#fecdd3 !important; }
 .workflow-result-row-returned > td { background:#fff7ed !important; border-bottom-color:#fed7aa !important; }
+.workflow-latest-state { white-space:nowrap; }
 .workflow-result-row-completed > td { background:#ecfdf5 !important; border-bottom-color:#bbf7d0 !important; }
 .workflow-result-row-rejected:hover > td { background:#ffe4e6 !important; }
 .workflow-result-row-returned:hover > td { background:#ffedd5 !important; }

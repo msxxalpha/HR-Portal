@@ -2240,6 +2240,18 @@ static void VerifyOutsourcedServiceOrganizationResolver()
 
 static async Task VerifyMonthlyPerformanceUpperApprovalAsync()
 {
+    static Employee Person(int id) => new()
+    {
+        Id = id,
+        PersonnelNumber = $"P{id}",
+        NationalId = $"N{id}",
+        FirstName = $"کارمند{id}",
+        LastName = "آزمایشی",
+        Mobile = "09120000000",
+        Gender = "مرد",
+        Status = "فعال"
+    };
+
     var options = new DbContextOptionsBuilder<HRPortalDbContext>()
         .UseInMemoryDatabase("monthly-performance-upper-approval")
         .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))

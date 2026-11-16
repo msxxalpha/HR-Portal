@@ -1,0 +1,149 @@
+@model HRPortal.Models.EmployeePositionHistoryReportViewModel
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "تاریخچه انتساب کارکنان به جایگاه‌ها";
+    var noStructure = (bool?)ViewBag.NoFinalizedStructure ?? false;
+    var transferCount = Model.Rows.Count(x => x.ChangeType == "Transfer");
+    var assignedCount = Model.Rows.Count(x => x.ChangeType == "Assigned");
+    var unassignedCount = Model.Rows.Count(x => x.ChangeType == "Unassigned");
+    string changeTitle(string value) => value switch
+    {
+        "Transfer" => "تغییر / انتقال جایگاه",
+        "Assigned" => "شروع انتساب",
+        "Unassigned" => "پایان انتساب",
+        _ => value
+    };
+}
+<div class="page-head">
+    <div>
+        <h1>تاریخچه تغییرات انتساب کارکنان به جایگاه‌ها</h1>
+        <p>ردیابی جابه‌جایی کارکنان میان جایگاه‌های سازمانی بر اساس نسخه‌های نهایی‌شده ساختار و تاریخ مؤثر هر نسخه.</p>
+    </div>
+    <a class="btn btn-outline" href="/">بازگشت به داشبورد</a>
+</div>
+
+@if (noStructure)
+{
+    <div class="alert warning">هنوز نسخه نهایی‌شده‌ای از ساختار سازمانی وجود ندارد؛ پس از نهایی‌سازی ساختار، تاریخچه انتساب‌ها در این گزارش قابل مشاهده خواهد بود.</div>
+}
+
+<section class="hr-history-kpis">
+    <div class="hr-history-kpi"><span>کل تغییرات</span><strong>@Model.Rows.Count.ToString("N0")</strong><small>پس از اعمال فیلترها</small></div>
+    <div class="hr-history-kpi"><span>انتقال / تغییر جایگاه</span><strong>@transferCount.ToString("N0")</strong><small>جایگاه قبلی به جایگاه جدید</small></div>
+    <div class="hr-history-kpi"><span>شروع انتساب</span><strong>@assignedCount.ToString("N0")</strong><small>انتساب جدید به جایگاه</small></div>
+    <div class="hr-history-kpi"><span>پایان انتساب</span><strong>@unassignedCount.ToString("N0")</strong><small>خروج از جایگاه قبلی</small></div>
+</section>
+
+<section class="card hr-history-filter-card">
+    <div class="section-head">
+        <div><h3>فیلترهای گزارش</h3><span class="muted">فیلترها بر روی همه سوابق نسخه‌های نهایی‌شده اعمال می‌شوند.</span></div>
+    </div>
+    <form method="get" action="/HumanResourcesReports/EmployeePositionHistory" class="hr-history-filters">
+        <label>کارمند
+            <select name="employeeId">
+                <option value="">همه کارکنان</option>
+                @foreach (var employee in Model.EmployeeOptions)
+                {
+                    <option value="@employee.Id" selected="@(Model.EmployeeId == employee.Id)">@employee.FullName — @employee.PersonnelNumber</option>
+                }
+            </select>
+        </label>
+        <label>عنوان یا کد جایگاه
+            <input type="text" name="position" value="@Model.Position" maxlength="150" placeholder="جستجو در جایگاه قبلی یا جدید" />
+        </label>
+        <label>نوع تغییر
+            <select name="changeType">
+                <option value="all" selected="@(Model.ChangeType == "all")">همه تغییرات</option>
+                <option value="Transfer" selected="@(Model.ChangeType == "Transfer")">انتقال / تغییر جایگاه</option>
+                <option value="Assigned" selected="@(Model.ChangeType == "Assigned")">شروع انتساب</option>
+                <option value="Unassigned" selected="@(Model.ChangeType == "Unassigned")">پایان انتساب</option>
+            </select>
+        </label>
+        <label>از تاریخ مؤثر
+            <div class="jalali-date-input">
+                <input type="text" name="fromJalali" data-jalali-date autocomplete="off" inputmode="numeric" placeholder="۱۴۰۵/۰۱/۰۱" value="@(Model.From.HasValue ? HRPortal.Services.PersianDateService.Format(Model.From.Value) : "")" />
+                <button type="button" class="btn btn-outline jalali-date-open" data-jalali-trigger aria-label="انتخاب تاریخ شروع">تقویم</button>
+            </div>
+        </label>
+        <label>تا تاریخ مؤثر
+            <div class="jalali-date-input">
+                <input type="text" name="toJalali" data-jalali-date autocomplete="off" inputmode="numeric" placeholder="۱۴۰۵/۱۲/۲۹" value="@(Model.To.HasValue ? HRPortal.Services.PersianDateService.Format(Model.To.Value) : "")" />
+                <button type="button" class="btn btn-outline jalali-date-open" data-jalali-trigger aria-label="انتخاب تاریخ پایان">تقویم</button>
+            </div>
+        </label>
+        <div class="hr-history-filter-actions">
+            <button class="btn btn-main" type="submit">اعمال فیلترها</button>
+            <a class="btn btn-outline" href="/HumanResourcesReports/EmployeePositionHistory">پاک‌کردن فیلترها</a>
+        </div>
+    </form>
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="alert warning">تاریخ واردشده معتبر نیست؛ فرمت تاریخ شمسی و ترتیب بازه را بررسی کنید.</div>
+    }
+    <div class="hr-history-method-note">مبنای گزارش: مقایسه فهرست متصدیان جایگاه‌ها در نسخه‌های نهایی‌شده ساختار سازمانی. تاریخ هر تغییر، تاریخ مؤثر نسخه‌ای است که تغییر در آن ثبت شده است. تغییر عنوان یا مشخصات یک جایگاه با کد ثابت، به‌عنوان جابه‌جایی متصدی محسوب نمی‌شود.</div>
+</section>
+
+<section class="card hr-history-table-card">
+    <div class="section-head">
+        <div><h3>سوابق تغییر انتساب</h3><span class="muted">جدیدترین تغییرات در ابتدای فهرست نمایش داده می‌شوند.</span></div>
+        <span class="badge">@Model.Rows.Count.ToString("N0") رکورد</span>
+    </div>
+    @if (Model.Rows.Count == 0)
+    {
+        <div class="empty">با فیلترهای انتخاب‌شده سابقه‌ای برای نمایش پیدا نشد.</div>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>تاریخ مؤثر تغییر</th>
+                        <th>کارمند</th>
+                        <th>نوع تغییر</th>
+                        <th>جایگاه قبلی</th>
+                        <th>جایگاه جدید</th>
+                        <th>رده سازمانی</th>
+                        <th>نسخه ساختار</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.Rows)
+                    {
+                        <tr>
+                            <td class="hr-history-date">@HRPortal.Services.PersianDateService.Format(row.EffectiveDate)</td>
+                            <td><strong>@row.EmployeeName</strong><div class="muted">شماره پرسنلی: @row.PersonnelNumber</div></td>
+                            <td><span class="hr-history-change hr-history-change-@row.ChangeType.ToLowerInvariant()">@changeTitle(row.ChangeType)</span></td>
+                            <td>@(string.IsNullOrWhiteSpace(row.FromPositionTitle) ? "—" : row.FromPositionTitle)<div class="muted">@(string.IsNullOrWhiteSpace(row.FromPositionCode) ? "" : row.FromPositionCode)</div></td>
+                            <td>@(string.IsNullOrWhiteSpace(row.ToPositionTitle) ? "—" : row.ToPositionTitle)<div class="muted">@(string.IsNullOrWhiteSpace(row.ToPositionCode) ? "" : row.ToPositionCode)</div></td>
+                            <td>@(string.IsNullOrWhiteSpace(row.RankType) ? "—" : row.RankType)</td>
+                            <td><strong>@row.RevisionTitle</strong><div class="muted">@row.RevisionCode</div></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+<style>
+.hr-history-kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:0 0 1rem; }
+.hr-history-kpi { min-width:0; padding:16px 18px; border:1px solid #d9e2ec; border-radius:13px; background:linear-gradient(145deg,#fff,#f5f8fc); }
+.hr-history-kpi span,.hr-history-kpi small { display:block; color:#64748b; font-size:.82rem; }
+.hr-history-kpi strong { display:block; margin:7px 0 3px; color:#163451; font-size:1.65rem; font-weight:900; font-variant-numeric:tabular-nums; }
+.hr-history-filter-card,.hr-history-table-card { margin-top:1rem; }
+.hr-history-filters { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; align-items:end; }
+.hr-history-filters label { display:flex; flex-direction:column; gap:7px; color:#334155; font-weight:700; font-size:.86rem; }
+.hr-history-filters input,.hr-history-filters select { width:100%; min-width:0; }
+.hr-history-filters .jalali-date-input { display:flex; gap:6px; }
+.hr-history-filters .jalali-date-input input { flex:1; }
+.hr-history-filter-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.hr-history-method-note { margin-top:14px; padding:10px 12px; border:1px solid #d8e2ed; border-radius:9px; background:#f7f9fc; color:#52657a; font-size:.8rem; line-height:1.8; }
+.hr-history-date { white-space:nowrap; font-variant-numeric:tabular-nums; font-weight:800; color:#183b5c; }
+.hr-history-change { display:inline-flex; align-items:center; padding:5px 9px; border-radius:999px; font-size:.78rem; font-weight:800; white-space:nowrap; }
+.hr-history-change-transfer { color:#17466d; background:#eaf2f9; border:1px solid #c9d9e8; }
+.hr-history-change-assigned { color:#315b80; background:#eff5fa; border:1px solid #d5e1ed; }
+.hr-history-change-unassigned { color:#77552c; background:#faf4e9; border:1px solid #eadcc5; }
+@@media(max-width:980px) { .hr-history-filters { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@@media(max-width:650px) { .hr-history-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } .hr-history-filters { grid-template-columns:1fr; } }
+</style>

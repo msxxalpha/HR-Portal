@@ -190,9 +190,14 @@ public class WorkflowController(
     public async Task<IActionResult> MyRequests()
     {
         var isAdmin = User.HasClaim("IsAdmin", "1");
+        var canSkipWorkflowSteps = User.HasClaim("Permission", "Workflow.SkipStep");
         ViewBag.IsAdminRequests = isAdmin;
+        ViewBag.IsSkipRequests = !isAdmin && canSkipWorkflowSteps;
         if (isAdmin)
             return View(await workflow.GetAllRequestsAsync());
+
+        if (canSkipWorkflowSteps)
+            return View(await workflow.GetActiveRequestsForSkipAsync());
 
         if (!int.TryParse(User.FindFirst("EmployeeId")?.Value, out var employeeId))
             return Forbid();
@@ -231,7 +236,8 @@ public class WorkflowController(
         if (!hasEmployeeId && !isAdmin)
             return Forbid();
 
-        var instance = isAdmin
+        var canSkipWorkflowSteps = User.HasClaim("Permission", "Workflow.SkipStep");
+        var instance = isAdmin || canSkipWorkflowSteps
             ? await workflow.GetInstanceForAdminAsync(id)
             : await workflow.GetInstanceAsync(id, employeeId);
         if (instance is null) return NotFound();

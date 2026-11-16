@@ -4,6 +4,7 @@
     Layout = "~/Views/Shared/_Layout.cshtml";
     ViewData["Title"] = "اقدام در تمدید قرارداد";
     var r = Model.Request;
+    var currentScoreTotal = Model.CurrentScores.Sum(x => x.Score ?? 0m);
     var editingScores = Model.StageKind == "Evaluation";
     var viewingAllScores = Model.StageKind is "Security" or "HumanResources" or "CEO";
     var suggested = Model.SuggestedContractMonths ?? 0;
@@ -212,9 +213,13 @@
 
     <section class="card">
         <div class="section-head"><div><h3>@(Model.IsReadOnly ? "امتیازهای ثبت‌شده این مرحله" : "امتیازدهی شما")</h3><span class="muted">برای هر پرسش امتیازی بین صفر و سقف امتیاز ثبت شده است. مجموع سقف پرسش‌ها ۱۰۰ است.</span></div><span class="badge">@(Model.IsReadOnly ? "سابقه ثبت‌شده" : "مرحله جاری")</span></div>
-        <form method="post" action="/ContractRenewalTask/Submit" class="form-stack">
+        <form method="post" action="/ContractRenewalTask/Submit" class="form-stack" id="contractEvaluationScoreForm">
             @Html.AntiForgeryToken()
             <input type="hidden" name="id" value="@Model.Task.Id" />
+            <div class="contract-score-live-summary" aria-live="polite">
+                <div><span>امتیاز نهایی (جمع امتیازهای این مرحله)</span><strong id="contractScoreTotalTop">@score(currentScoreTotal)</strong></div>
+                <small>جمع امتیاز پرسش‌ها به‌صورت لحظه‌ای محاسبه می‌شود.</small>
+            </div>
             <div class="table-wrap"><table>
                 <thead><tr><th>پرسش</th><th>راهنمای امتیازدهی</th><th>سقف امتیاز</th><th>امتیاز شما</th></tr></thead>
                 <tbody>
@@ -224,11 +229,11 @@
                         <td>@s.QuestionTextSnapshot</td>
                         <td class="contract-score-guidance">@s.ScoringGuidanceSnapshot</td>
                         <td>@score(s.MaxScoreSnapshot)</td>
-                        <td><input class="contract-score-input" type="number" name="scores[@s.Id]" min="0" max="@score(s.MaxScoreSnapshot)" step="0.01" required value="@(s.Score.HasValue ? score(s.Score) : "")" disabled="@(Model.IsReadOnly)" /></td>
+                        <td><input class="contract-score-input" type="number" inputmode="numeric" name="scores[@s.Id]" min="0" max="@score(s.MaxScoreSnapshot)" data-max-score="@score(s.MaxScoreSnapshot)" step="1" required value="@(s.Score.HasValue ? score(s.Score) : "")" disabled="@(Model.IsReadOnly)" /></td>
                     </tr>
                 }
                 </tbody>
-                <tfoot><tr><th colspan="2">مجموع سقف امتیاز</th><th>@score(Model.CurrentQuestionCeilingTotal)</th><th>مجموع کسب‌شده توسط شما</th></tr></tfoot>
+                <tfoot><tr><th colspan="2">مجموع سقف امتیاز</th><th>@score(Model.CurrentQuestionCeilingTotal)</th><th><span>امتیاز نهایی:</span> <strong id="contractScoreTotalBottom">@score(currentScoreTotal)</strong></th></tr></tfoot>
             </table></div>
             <label>توضیحات کلی این مرحله (مستقل از پرسش‌ها)
                 <textarea name="comment" rows="4" maxlength="2000" disabled="@(Model.IsReadOnly)" placeholder="توضیح کلی درباره عملکرد کارمند، مستندات یا ملاحظات مرتبط با امتیازدهی">@Model.Task.Comment</textarea>
@@ -472,3 +477,55 @@
 })();
 </script>
 }
+
+<script>
+(function () {
+    const inputs = [...document.querySelectorAll(".contract-score-input:not(:disabled)")];
+    const topTotal = document.getElementById("contractScoreTotalTop");
+    const bottomTotal = document.getElementById("contractScoreTotalBottom");
+    if (!topTotal || !bottomTotal) return;
+
+    function refreshTotal() {
+        let total = 0;
+        inputs.forEach(input => {
+            const raw = input.value.trim();
+            const value = raw === "" ? 0 : Number(raw);
+            const max = Number(input.dataset.maxScore);
+            let error = "";
+            if (raw !== "" && !Number.isInteger(value)) {
+                error = "امتیاز این پرسش باید عدد صحیح و بدون اعشار باشد.";
+            } else if (raw !== "" && (value < 0 || value > max)) {
+                error = "امتیاز باید بین صفر و سقف تعیین‌شده برای همین پرسش باشد.";
+            }
+            input.setCustomValidity(error);
+            if (!error && Number.isInteger(value)) total += value;
+        });
+        const formatted = total.toLocaleString("fa-IR", { maximumFractionDigits: 0 });
+        topTotal.textContent = formatted;
+        bottomTotal.textContent = formatted;
+    }
+
+    inputs.forEach(input => {
+        input.addEventListener("input", refreshTotal);
+        input.addEventListener("change", refreshTotal);
+        input.addEventListener("keydown", event => {
+            if (event.key !== "ArrowDown") return;
+            const next = inputs[inputs.indexOf(input) + 1];
+            if (!next) return;
+            event.preventDefault();
+            next.focus();
+            next.select();
+        });
+    });
+
+    const form = document.getElementById("contractEvaluationScoreForm");
+    form?.addEventListener("submit", event => {
+        refreshTotal();
+        if (!form.checkValidity()) {
+            event.preventDefault();
+            form.reportValidity();
+        }
+    });
+    refreshTotal();
+})();
+</script>

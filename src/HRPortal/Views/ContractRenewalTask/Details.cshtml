@@ -50,6 +50,23 @@
     }
 </section>
 
+@if (Model.Task.WorkflowInstance.Status == "InProgress" &&
+    (User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Workflow.SkipStep")))
+{
+    <section class="card" style="margin-top:1rem;border:1px solid #fed7aa;background:#fffaf3">
+        <div class="section-head"><div><h3>عبور از مرحله جاری</h3><span class="muted">این عملیات مرحله جاری را بدون حذف سوابق خاتمه می‌دهد و گردش کار را به مرحله بعد منتقل می‌کند.</span></div></div>
+        <form method="post" action="/Workflow/SkipCurrentStep" class="form-stack"
+              onsubmit="return confirm('از این مرحله ارزشیابی/تمدید قرارداد عبور شود؟ سابقه و علت عبور ثبت خواهد شد.');">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="workflowInstanceId" value="@Model.Task.WorkflowInstanceId" />
+            <label>علت عبور از مرحله جاری *
+                <textarea name="reason" rows="3" maxlength="1000" required placeholder="علت عبور و مستند تصمیم را ثبت کنید."></textarea>
+            </label>
+            <div class="actions"><button class="btn btn-warning" type="submit">عبور از مرحله جاری و ادامه گردش</button></div>
+        </form>
+    </section>
+}
+
 <section class="card">
     <div class="section-head"><div><h3>اطلاعات اولیه کارمند</h3><span class="muted">اطلاعات ثبت‌شده توسط کارگزینی؛ این مرحله فقط خواندنی است.</span></div></div>
     <div class="contract-preview-grid">

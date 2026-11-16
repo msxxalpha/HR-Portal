@@ -910,8 +910,10 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         var repaired = 0;
         foreach (var instanceId in instanceIds)
         {
-            await using var transaction = await db.Database.BeginTransactionAsync(
-                System.Data.IsolationLevel.Serializable, cancellationToken);
+            try
+            {
+                await using var transaction = await db.Database.BeginTransactionAsync(
+                    System.Data.IsolationLevel.Serializable, cancellationToken);
 
             var instance = await db.WorkflowInstances
                 .Include(x => x.WorkflowDefinition).ThenInclude(x => x.Steps).ThenInclude(x => x.OrganizationNode)
@@ -1012,6 +1014,23 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 movedCurrentStage
                     ? $"مرحله جاری به {firstSupervisorStep.OrganizationNode?.Title ?? firstSupervisorStep.Title} منتقل شد؛ وظایف قبلی با حفظ تاریخچه خاتمه یافتند."
                     : $"مسیر ورود درخواست به {firstSupervisorStep.OrganizationNode?.Title ?? firstSupervisorStep.Title} اصلاح شد.");
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // One legacy request with a damaged/deactivated assignment must
+                // not prevent the entire HR Portal from starting. The next
+                // startup can retry after the assignment issue is corrected.
+                db.ChangeTracker.Clear();
+                await audit.WriteAsync(
+                    "عدم موفقیت اصلاح خودکار مسیر ارزشیابی تمدید قرارداد",
+                    nameof(WorkflowInstance),
+                    instanceId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ex.Message);
+            }
         }
 
         return repaired;

@@ -246,7 +246,10 @@
                         <td>@s.QuestionTextSnapshot</td>
                         <td class="contract-score-guidance">@s.ScoringGuidanceSnapshot</td>
                         <td>@score(s.MaxScoreSnapshot)</td>
-                        <td><input class="contract-score-input" type="number" inputmode="numeric" name="scores[@s.Id]" min="0" max="@score(s.MaxScoreSnapshot)" data-max-score="@score(s.MaxScoreSnapshot)" step="1" required value="@(s.Score.HasValue ? score(s.Score) : "")" disabled="@(Model.IsReadOnly)" /></td>
+                        <td>
+                            <input class="contract-score-input" type="number" inputmode="numeric" autocomplete="off" name="scores[@s.Id]" min="0" max="@score(s.MaxScoreSnapshot)" data-max-score="@score(s.MaxScoreSnapshot)" data-score-id="@s.Id" step="1" required value="@(s.Score.HasValue ? score(s.Score) : "")" aria-describedby="scoreError-@s.Id" disabled="@(Model.IsReadOnly)" />
+                            <small class="contract-score-error" id="scoreError-@s.Id" aria-live="polite"></small>
+                        </td>
                     </tr>
                 }
                 </tbody>
@@ -501,48 +504,153 @@
     const editableInputs = allInputs.filter(input => !input.disabled);
     const topTotal = document.getElementById("contractScoreTotalTop");
     const bottomTotal = document.getElementById("contractScoreTotalBottom");
-    if (!topTotal || !bottomTotal || allInputs.length === 0) return;
+    if (allInputs.length === 0) return;
+
+    function messageNode(input) {
+        return document.getElementById("scoreError-" + input.dataset.scoreId);
+    }
+
+    function validateInput(input, showEmptyError) {
+        const raw = input.value.trim();
+        const value = raw === "" ? null : Number(raw);
+        const max = Number(input.dataset.maxScore);
+        let error = "";
+        if (raw === "" && showEmptyError) {
+            error = "برای این پرسش امتیاز وارد کنید.";
+        } else if (raw !== "" && (!Number.isFinite(value) || !Number.isInteger(value))) {
+            error = "امتیاز این پرسش باید عدد صحیح و بدون اعشار باشد.";
+        } else if (raw !== "" && (value < 0 || value > max)) {
+            error = "امتیاز باید بین صفر و سقف " + max + " باشد.";
+        }
+
+        input.setCustomValidity(error);
+        input.classList.toggle("is-invalid", Boolean(error));
+        input.dataset.invalid = error ? "true" : "false";
+        input.setAttribute("aria-invalid", error ? "true" : "false");
+
+        const message = messageNode(input);
+        if (message && !message.classList.contains("is-hint")) {
+            message.textContent = error;
+        } else if (message && error) {
+            message.classList.remove("is-hint");
+            message.textContent = error;
+        }
+        return !error;
+    }
+
+    function showRejectedCharacterHint(input) {
+        const message = messageNode(input);
+        if (message && input.dataset.invalid !== "true") {
+            message.textContent = "ورود اعشار و نویسه‌های غیرعددی مجاز نیست؛ فقط عدد صحیح وارد کنید.";
+            message.classList.add("is-hint");
+        }
+    }
 
     function refreshTotal() {
         let total = 0;
         allInputs.forEach(input => {
             const raw = input.value.trim();
+            if (!input.disabled && input.dataset.touched === "true")
+                validateInput(input, false);
             const value = raw === "" ? 0 : Number(raw);
-            const max = Number(input.dataset.maxScore);
-            let error = "";
-            if (!input.disabled && raw !== "" && !Number.isInteger(value)) {
-                error = "امتیاز این پرسش باید عدد صحیح و بدون اعشار باشد.";
-            } else if (!input.disabled && raw !== "" && (value < 0 || value > max)) {
-                error = "امتیاز باید بین صفر و سقف تعیین‌شده برای همین پرسش باشد.";
-            }
-            if (!input.disabled) input.setCustomValidity(error);
-            if (Number.isFinite(value) && (input.disabled || !error)) total += value;
+            if (Number.isFinite(value) && (input.disabled || input.dataset.invalid !== "true"))
+                total += value;
         });
-        const formatted = total.toLocaleString("fa-IR", { maximumFractionDigits: 2 });
-        topTotal.textContent = formatted;
-        bottomTotal.textContent = formatted;
+        const formatted = total.toLocaleString("fa-IR", { maximumFractionDigits: 0 });
+        if (topTotal) topTotal.textContent = formatted;
+        if (bottomTotal) bottomTotal.textContent = formatted;
     }
 
+    function rejectExitFromInvalid(input, event) {
+        if (input.dataset.invalid !== "true") return false;
+        event?.preventDefault();
+        input.focus();
+        return true;
+    }
+
+    const blockedKeys = new Set([".", ",", "٫", "٬", "e", "E", "+", "-", "Decimal", "NumpadDecimal"]);
     editableInputs.forEach(input => {
-        input.addEventListener("input", refreshTotal);
-        input.addEventListener("change", refreshTotal);
+        input.dataset.touched = "false";
         input.addEventListener("keydown", event => {
-            if (event.key !== "ArrowDown") return;
-            const next = editableInputs[editableInputs.indexOf(input) + 1];
-            if (!next) return;
-            event.preventDefault();
-            next.focus();
+            if (blockedKeys.has(event.key)) {
+                event.preventDefault();
+                showRejectedCharacterHint(input);
+                return;
+            }
+
+            if (event.key === "Tab" || event.key === "ArrowDown" || event.key === "Enter") {
+                input.dataset.touched = "true";
+                if (!validateInput(input, true)) {
+                    rejectExitFromInvalid(input, event);
+                    return;
+                }
+                if (event.key === "ArrowDown") {
+                    const next = editableInputs[editableInputs.indexOf(input) + 1];
+                    if (next) {
+                        event.preventDefault();
+                        next.focus();
+                    }
+                }
+            }
+        });
+
+        input.addEventListener("beforeinput", event => {
+            if (event.data && /[.,٫٬eE+-]/.test(event.data)) {
+                event.preventDefault();
+                showRejectedCharacterHint(input);
+            }
+        });
+
+        input.addEventListener("paste", event => {
+            const pasted = (event.clipboardData?.getData("text") || "").trim();
+            if (pasted && !/^[0-9۰-۹٠-٩]+$/.test(pasted)) {
+                event.preventDefault();
+                showRejectedCharacterHint(input);
+            }
+        });
+
+        input.addEventListener("input", () => {
+            input.dataset.touched = "true";
+            validateInput(input, false);
+            refreshTotal();
+        });
+        input.addEventListener("change", () => {
+            input.dataset.touched = "true";
+            validateInput(input, true);
+            refreshTotal();
+        });
+        input.addEventListener("blur", () => {
+            input.dataset.touched = "true";
+            validateInput(input, true);
+            refreshTotal();
         });
     });
+
+    document.addEventListener("focusin", event => {
+        const firstInvalid = editableInputs.find(input =>
+            input !== event.target && input.dataset.touched === "true" &&
+            !validateInput(input, true));
+        if (firstInvalid) {
+            event.stopImmediatePropagation();
+            firstInvalid.focus();
+        }
+    }, true);
 
     const form = document.getElementById("contractEvaluationScoreForm");
     form?.addEventListener("submit", event => {
+        editableInputs.forEach(input => {
+            input.dataset.touched = "true";
+            validateInput(input, true);
+        });
         refreshTotal();
         if (!form.checkValidity()) {
             event.preventDefault();
+            const firstInvalid = editableInputs.find(input => input.dataset.invalid === "true");
+            firstInvalid?.focus();
             form.reportValidity();
         }
     });
+
     refreshTotal();
 })();
 </script>
@@ -561,6 +669,10 @@
 }
 .contract-score-live-summary small { color:#64748b; font-size:.82rem; }
 #contractScoreTotalBottom { color:#102b49; font-size:1.22rem; font-weight:900; font-variant-numeric:tabular-nums; }
+.contract-score-input.is-invalid { border:1.5px solid #d36b6b !important; box-shadow:0 0 0 2px rgba(211,107,107,.16); background:#fffafa !important; }
+.contract-score-error { display:block; min-height:1.2em; margin-top:4px; color:#b45353; font-size:.78rem; line-height:1.5; }
+.contract-score-error:empty { display:none; }
+.contract-score-error.is-hint { color:#64748b; }
 @@media(max-width:620px) {
     .contract-score-live-summary { align-items:flex-start; flex-direction:column; }
     .contract-score-live-summary strong { font-size:1.45rem; }

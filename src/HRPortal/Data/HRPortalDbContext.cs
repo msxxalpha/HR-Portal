@@ -31,6 +31,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
     public DbSet<OrganizationRankDefinition> OrganizationRankDefinitions => Set<OrganizationRankDefinition>();
     public DbSet<OrganizationPositionDefinition> OrganizationPositionDefinitions => Set<OrganizationPositionDefinition>();
     public DbSet<OrganizationChange> OrganizationChanges => Set<OrganizationChange>();
+    public DbSet<EmployeePositionAssignmentSnapshot> EmployeePositionAssignmentSnapshots => Set<EmployeePositionAssignmentSnapshot>();
     public DbSet<OtpChallenge> OtpChallenges => Set<OtpChallenge>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<AdminUser> AdminUsers => Set<AdminUser>();
@@ -60,6 +61,25 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<EmployeePositionAssignmentSnapshot>(e =>
+        {
+            e.ToTable("EmployeePositionAssignmentSnapshots");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.RevisionCodeSnapshot).HasMaxLength(100).IsRequired();
+            e.Property(x => x.RevisionTitleSnapshot).HasMaxLength(250).IsRequired();
+            e.Property(x => x.EffectiveDate).HasColumnType("date");
+            e.Property(x => x.PersonnelNumberSnapshot).HasMaxLength(50).IsRequired();
+            e.Property(x => x.EmployeeNameSnapshot).HasMaxLength(250).IsRequired();
+            e.Property(x => x.PositionCode).HasMaxLength(50).IsRequired();
+            e.Property(x => x.PositionTitle).HasMaxLength(150).IsRequired();
+            e.Property(x => x.RankType).HasMaxLength(100).IsRequired();
+            e.HasIndex(x => new { x.RevisionId, x.EmployeeId, x.PositionCode })
+                .IsUnique()
+                .HasDatabaseName("UX_EmployeePositionAssignmentSnapshots_Revision_Employee_Position");
+            e.HasIndex(x => new { x.EmployeeId, x.EffectiveDate })
+                .HasDatabaseName("IX_EmployeePositionAssignmentSnapshots_Employee_EffectiveDate");
+        });
+
         modelBuilder.Entity<OutsourcedServiceRequest>(e =>
         {
             e.ToTable("OutsourcedServiceRequests");

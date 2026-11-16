@@ -53,6 +53,7 @@ public class RoleService(HRPortalDbContext db)
         ("Suggestions.Export", "دریافت خروجی گزارش‌های نظام پیشنهادات", "نظام پیشنهادات"),
         ("Workflow.Inbox", "کارتابل گردش کار", "گردش کار"),
         ("Workflow.Manage", "مدیریت گردش کار", "گردش کار"),
+        ("Workflow.SkipStep", "عبور از مرحله جاری گردش کار", "گردش کار"),
         ("ContractRenewal.View", "مشاهده جزئیات و سوابق درخواست تمدید", "تمدید قرارداد"),
         ("ContractRenewal.Track", "ثبت و پیگیری تمدید قرارداد", "تمدید قرارداد"),
         ("ContractRenewal.List", "مشاهده فهرست و سوابق درخواست‌ها", "تمدید قرارداد"),

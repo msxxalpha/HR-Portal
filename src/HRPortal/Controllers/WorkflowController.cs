@@ -243,6 +243,15 @@ public class WorkflowController(
         if (instance is null) return NotFound();
 
         ViewBag.History = await workflow.GetHistoryAsync(id);
+        ViewBag.WorkflowFormFieldValues = await db.WorkflowFieldValues.AsNoTracking()
+            .Include(x => x.WorkflowStep)
+            .Include(x => x.WorkflowStepField)
+            .Where(x => x.WorkflowInstanceId == id &&
+                        x.Value != null && x.Value != "")
+            .OrderBy(x => x.WorkflowStep.SortOrder)
+            .ThenBy(x => x.WorkflowStepField.SortOrder)
+            .ThenBy(x => x.Id)
+            .ToListAsync();
 
         if (instance.EntityType == "Suggestion" && int.TryParse(instance.EntityId, out var suggestionId))
         {

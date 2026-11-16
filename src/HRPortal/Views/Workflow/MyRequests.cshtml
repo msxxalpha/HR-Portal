@@ -2,25 +2,37 @@
 @{
     Layout = "~/Views/Shared/_Layout.cshtml";
     var isAdminRequests = (bool?)ViewBag.IsAdminRequests ?? false;
-    ViewData["Title"] = isAdminRequests ? "مدیریت درخواست‌ها" : "درخواست‌های من";
+    var isSkipRequests = (bool?)ViewBag.IsSkipRequests ?? false;
+    var pageTitle = isAdminRequests ? "مدیریت درخواست‌ها" : isSkipRequests ? "گردش‌های فعال" : "درخواست‌های من";
+    ViewData["Title"] = pageTitle;
 }
 <div class="page-head">
-    <div><h1>@(isAdminRequests ? "مدیریت درخواست‌ها" : "درخواست‌های من")</h1><p>@(isAdminRequests ? "مشاهده و حذف کامل درخواست‌ها همراه با سوابق و تاریخچه گردش کار." : "پیگیری وضعیت درخواست‌های ثبت‌شده توسط شما؛ حذف فقط تا پیش از مشاهده مرحله بعد امکان‌پذیر است.")</p></div>
+    <div><h1>@pageTitle</h1><p>@(isAdminRequests ? "مشاهده و حذف کامل درخواست‌ها همراه با سوابق و تاریخچه گردش کار." : isSkipRequests ? "همه گردش‌های در حال اجرا که با مجوز عبور از مرحله جاری می‌توانید بررسی و تعیین تکلیف کنید." : "پیگیری وضعیت درخواست‌های ثبت‌شده توسط شما؛ حذف فقط تا پیش از مشاهده مرحله بعد امکان‌پذیر است.")</p></div>
     <div class="actions"><a class="btn btn-outline" href="/Workflow/Inbox">کارتابل</a><a class="btn btn-main" href="/">بازگشت به داشبورد</a></div>
 </div>
 <div class="workflow-stats">
-    <div class="stat"><span>کل درخواست‌ها</span><strong>@Model.Count</strong></div>
-    <div class="stat"><span>در حال گردش</span><strong>@Model.Count(x => x.Status == "InProgress")</strong></div>
-    <div class="stat"><span>تأیید نهایی</span><strong>@Model.Count(x => x.Status == "Approved" || x.Status == "Completed")</strong></div>
-    <div class="stat"><span>پایان با عبور</span><strong>@Model.Count(x => x.Status == "CompletedBySkip")</strong></div>
-    <div class="stat"><span>رد یا برگشت</span><strong>@Model.Count(x => x.Status == "Rejected" || x.Status == "Returned")</strong></div>
+    @if (isSkipRequests)
+    {
+        <div class="stat"><span>گردش‌های فعال قابل بررسی</span><strong>@Model.Count</strong></div>
+        <div class="stat"><span>انواع گردش کار</span><strong>@Model.Select(x => x.WorkflowTitle).Distinct().Count()</strong></div>
+        <div class="stat"><span>مراحل جاری متمایز</span><strong>@Model.Select(x => x.StepTitle).Distinct().Count()</strong></div>
+    }
+    else
+    {
+        <div class="stat"><span>کل درخواست‌ها</span><strong>@Model.Count</strong></div>
+        <div class="stat"><span>در حال گردش</span><strong>@Model.Count(x => x.Status == "InProgress")</strong></div>
+        <div class="stat"><span>تأیید نهایی</span><strong>@Model.Count(x => x.Status == "Approved" || x.Status == "Completed")</strong></div>
+        <div class="stat"><span>پایان با عبور</span><strong>@Model.Count(x => x.Status == "CompletedBySkip")</strong></div>
+        <div class="stat"><span>رد یا برگشت</span><strong>@Model.Count(x => x.Status == "Rejected" || x.Status == "Returned")</strong></div>
+    }
 </div>
 <section class="card request-list-card">
-    <div class="section-head"><div><h3>@(isAdminRequests ? "همه درخواست‌های سامانه" : "فهرست درخواست‌ها")</h3><span class="muted">نمایش @Model.Count درخواست؛ تفکیک بر اساس وضعیت در آمار بالای صفحه</span></div><span class="request-count-pill">@Model.Count</span></div>
+    <div class="section-head"><div><h3>@(isAdminRequests ? "همه درخواست‌های سامانه" : isSkipRequests ? "گردش‌های فعال قابل بررسی" : "فهرست درخواست‌ها")</h3><span class="muted">نمایش @Model.Count مورد @(isSkipRequests ? "در حال اجرا" : "؛ تفکیک بر اساس وضعیت در آمار بالای صفحه")</span></div><span class="request-count-pill">@Model.Count</span></div>
     @if (isAdminRequests) { <div class="alert warning">حذف مدیر سامانه غیرقابل‌بازگشت است و اطلاعات درخواست، مراحل، امتیازها و تاریخچه مرتبط را حذف می‌کند.</div> }
+    @if (isSkipRequests) { <div class="alert info">برای عبور از یک مرحله، جزئیات گردش را باز کنید، علت عبور را ثبت کنید و عملیات «عبور از مرحله جاری» را انجام دهید. این مجوز جایگزین تأیید محتوایی فرم نیست و عبور در تاریخچه ثبت می‌شود.</div> }
     @if (Model.Count == 0)
     {
-        <div class="empty">هنوز درخواستی از طرف شما در گردش کار ثبت نشده است.</div>
+        <div class="empty">@(isSkipRequests ? "در حال حاضر گردش کار فعالی برای بررسی وجود ندارد." : "هنوز درخواستی از طرف شما در گردش کار ثبت نشده است.")</div>
     }
     else
     {
@@ -56,7 +68,7 @@
                         <td>
                             <div class="actions request-row-actions">
                                 <a class="btn btn-outline btn-sm" href="/Workflow/Details/@item.WorkflowInstanceId">جزئیات و تاریخچه</a>
-                                @if (isAdminRequests || item.CanDelete)
+                                @if (isAdminRequests || (!isSkipRequests && item.CanDelete))
                                 {
                                     <form method="post" action="/Workflow/DeleteRequest" onsubmit="return confirm('این درخواست و تمام سوابق و تاریخچه آن به‌طور کامل حذف می‌شود. ادامه می‌دهید؟');">
                                         @Html.AntiForgeryToken()
@@ -64,7 +76,7 @@
                                         <button class="btn btn-danger btn-sm" type="submit">حذف کامل</button>
                                     </form>
                                 }
-                                else if (item.Status == "InProgress")
+                                else if (!isSkipRequests && item.Status == "InProgress")
                                 {
                                     <span class="request-locked-note">مرحله بعد مشاهده کرده یا روی درخواست اقدام شده است.</span>
                                 }

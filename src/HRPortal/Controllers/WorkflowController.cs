@@ -238,7 +238,7 @@ public class WorkflowController(
 
         var canSkipWorkflowSteps = User.HasClaim("Permission", "Workflow.SkipStep");
         var canViewOnlyWorkflowDetails = User.HasClaim("Permission", "Workflow.ViewOnly");
-        var previewBoundarySortOrder = !isAdmin && !canSkipWorkflowSteps && hasEmployeeId && canViewOnlyWorkflowDetails
+        var previewBoundarySortOrder = !isAdmin && !canSkipWorkflowSteps && hasEmployeeId
             ? await workflow.GetUpcomingViewBoundarySortOrderAsync(id, employeeId)
             : null;
 

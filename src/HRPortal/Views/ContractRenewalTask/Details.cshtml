@@ -529,9 +529,7 @@
         input.setAttribute("aria-invalid", error ? "true" : "false");
 
         const message = messageNode(input);
-        if (message && !message.classList.contains("is-hint")) {
-            message.textContent = error;
-        } else if (message && error) {
+        if (message) {
             message.classList.remove("is-hint");
             message.textContent = error;
         }

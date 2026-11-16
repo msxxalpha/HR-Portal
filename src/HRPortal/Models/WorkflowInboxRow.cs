@@ -4,6 +4,10 @@ public class WorkflowInboxRow
 {
     public int TaskId { get; set; }
     public int WorkflowInstanceId { get; set; }
+    public int WorkflowStepId { get; set; }
+    public int StepSortOrder { get; set; }
+    public bool IsUpcomingPreview { get; set; }
+    public bool CanAct { get; set; }
     public string WorkflowTitle { get; set; } = "";
     public string EntityType { get; set; } = "";
     public string EntityId { get; set; } = "";

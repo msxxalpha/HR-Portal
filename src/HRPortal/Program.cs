@@ -127,6 +127,7 @@ builder.Services.AddAuthorization(options =>
             (context.User.HasClaim("UserType", "Employee") &&
              context.User.HasClaim(c => c.Type == "EmployeeId" && !string.IsNullOrWhiteSpace(c.Value))) ||
             PermissionAuthorization.HasPermission(context.User, "Workflow.Inbox") ||
+            PermissionAuthorization.HasPermission(context.User, "Workflow.SkipStep") ||
             context.User.HasClaim("Permission", "ContractRenewal.Manage")));
 
     options.AddPolicy("MonthlyPerformance.ReadEvaluation", policy =>

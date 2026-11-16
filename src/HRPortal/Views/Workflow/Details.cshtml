@@ -10,6 +10,7 @@
     var renewalSteps = ViewBag.ContractRenewalSteps as List<HRPortal.Models.WorkflowStep> ?? [];
     var renewalTasks = ViewBag.ContractRenewalTasks as List<HRPortal.Models.WorkflowTask> ?? [];
     var renewalScores = ViewBag.ContractRenewalScores as List<HRPortal.Models.EmployeePerformanceEvaluationScore> ?? [];
+    var isWorkflowPreviewOnly = (bool?)ViewBag.IsWorkflowPreviewOnly ?? false;
     var statusTitle = Model.Status switch
     {
         "Approved" => "تأیید نهایی",
@@ -31,6 +32,10 @@
         <a class="btn btn-outline" href="/Workflow/MyRequests">@(User.HasClaim("IsAdmin", "1") ? "بازگشت به مدیریت درخواست‌ها" : User.HasClaim("Permission", "Workflow.SkipStep") ? "بازگشت به گردش‌های فعال" : "بازگشت به درخواست‌های من")</a>
     </div>
 </div>
+@if (isWorkflowPreviewOnly)
+{
+    <div class="alert info">این صفحه در حالت مشاهده فقط است؛ فقط مراحل پیش از نوبت شما نمایش داده می‌شوند و اطلاعات مرحله شما و مراحل بعدی در دسترس نیست.</div>
+}
 <section class="workflow-detail-grid">
     <div class="card">
         <div class="section-head"><h3>وضعیت درخواست</h3></div>
@@ -169,7 +174,7 @@
     </section>
 
     <section class="card" style="margin-top:1rem">
-        <div class="section-head"><div><h3>جزئیات همه مراحل</h3><span class="muted">مراحل به ترتیب واقعی گردش کار نمایش داده می‌شوند؛ از ارزشیابی عملکرد تا تصمیم مدیرعامل</span></div></div>
+        <div class="section-head"><div><h3>@(isWorkflowPreviewOnly ? "جزئیات مراحل پیش از نوبت شما" : "جزئیات همه مراحل")</h3><span class="muted">مراحل به ترتیب واقعی گردش کار نمایش داده می‌شوند.</span></div></div>
         <div class="workflow-history">
         @foreach (var step in renewalSteps)
         {
@@ -225,6 +230,8 @@
         </div>
     </section>
 
+    @if (!isWorkflowPreviewOnly)
+    {
     <section class="card" style="margin-top:1rem">
         <div class="section-head"><h3>جمع‌بندی تصمیم‌های نهایی</h3></div>
         <dl class="detail-list">
@@ -246,4 +253,4 @@
             <dt>تقدیرنامه</dt><dd>@(renewal.HasCommendations ? renewal.CommendationCount.ToString() : "۰")</dd>
         </dl>
     </section>
-}
+    }

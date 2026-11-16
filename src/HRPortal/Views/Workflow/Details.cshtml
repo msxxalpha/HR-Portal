@@ -3,6 +3,7 @@
     Layout = "~/Views/Shared/_Layout.cshtml";
     ViewData["Title"] = "جزئیات گردش کار";
     var history = ViewBag.History as List<HRPortal.Models.WorkflowHistory> ?? [];
+    var workflowFormFieldValues = ViewBag.WorkflowFormFieldValues as List<HRPortal.Models.WorkflowFieldValue> ?? [];
     var renewal = ViewBag.ContractRenewalRequest as HRPortal.Models.ContractRenewalRequest;
     var suggestion = ViewBag.WorkflowSuggestion as HRPortal.Models.Suggestion;
     var outsourcedService = ViewBag.WorkflowOutsourcedServiceRequest as HRPortal.Models.OutsourcedServiceRequest;
@@ -56,6 +57,39 @@
         </div>
     </div>
 </section>
+
+@if (workflowFormFieldValues.Count > 0)
+{
+    <section class="card" style="margin-top:1rem">
+        <div class="section-head">
+            <div><h3>اطلاعات ثبت‌شده فرم</h3><span class="muted">این اطلاعات برای مشاهده است؛ تا زمانی که مرحله مربوطه به نوبت شما نرسیده باشد هیچ امکان ویرایشی در دسترس نیست.</span></div>
+            <span class="badge">فقط نمایشی</span>
+        </div>
+        @foreach (var group in workflowFormFieldValues.GroupBy(x => x.WorkflowStepId))
+        {
+            var stepFields = group.ToList();
+            <section class="form-stack" style="margin-top:1rem">
+                <h4>@stepFields[0].WorkflowStep.Title</h4>
+                <dl class="detail-list">
+                    @foreach (var field in stepFields)
+                    {
+                        <dt>@field.FieldTitle</dt>
+                        <dd>
+                            @if (field.FieldType == "Checkbox")
+                            {
+                                @(field.Value == "true" ? "بله" : field.Value == "false" ? "خیر" : "—")
+                            }
+                            else
+                            {
+                                @(string.IsNullOrWhiteSpace(field.Value) ? "—" : field.Value)
+                            }
+                        </dd>
+                    }
+                </dl>
+            </section>
+        }
+    </section>
+}
 
 @if (canSkipCurrentStep)
 {

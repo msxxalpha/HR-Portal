@@ -150,6 +150,14 @@ using (var scope = app.Services.CreateScope())
     await DatabaseInitializer.InitializeAsync(db);
     var formRegistration = scope.ServiceProvider.GetRequiredService<SystemFormRegistrationService>();
     await formRegistration.SyncAsync();
+
+    // Repair active contract-renewal runtime routes created before the
+    // supervisor-rank entry rule was corrected. The operation is idempotent
+    // and writes an explicit workflow-history/audit event for every repair.
+    var workflowService = scope.ServiceProvider.GetRequiredService<WorkflowService>();
+    var repairedRenewalRoutes = await workflowService.RepairInFlightContractRenewalEvaluationRoutesAsync();
+    if (repairedRenewalRoutes > 0)
+        app.Logger.LogInformation("Repaired {Count} active contract-renewal evaluation routes to start at the first supervisor position.", repairedRenewalRoutes);
 }
 
 if (!app.Environment.IsDevelopment())

@@ -1815,12 +1815,13 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
     public async Task<int?> GetUpcomingViewBoundarySortOrderAsync(int id, int employeeId)
     {
         var instance = await db.WorkflowInstances.AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Id == id && x.Status == "InProgress");
-        if (instance is null || !instance.CurrentStepId.HasValue)
+            .FirstOrDefaultAsync(x => x.Id == id);
+        if (instance is null)
             return null;
 
-        // A participant who has already acted may only see steps before their
-        // own first stage. The same boundary applies to the current assignee.
+        // Keep the participant's visibility boundary even after the workflow is
+        // finalized. A completed instance has no current step, but its history
+        // still identifies the earliest stage the participant personally handled.
         var actedStepSortOrder = await db.WorkflowHistory.AsNoTracking()
             .Where(x => x.WorkflowInstanceId == id && x.ActorEmployeeId == employeeId &&
                         x.WorkflowStepId != null &&
@@ -1829,6 +1830,9 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .MinAsync();
         if (actedStepSortOrder.HasValue)
             return actedStepSortOrder;
+
+        if (instance.Status != "InProgress" || !instance.CurrentStepId.HasValue)
+            return null;
 
         var pendingTasks = await db.WorkflowTasks.AsNoTracking()
             .Include(x => x.AssignedPosition)

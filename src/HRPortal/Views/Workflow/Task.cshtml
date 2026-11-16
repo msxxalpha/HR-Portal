@@ -210,6 +210,23 @@ else
         </form>
     </section>
 }
+@if (Model.WorkflowInstance.Status == "InProgress" &&
+     (User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Workflow.SkipStep")))
+{
+    <section class="card" style="margin-top:1rem;border:1px solid #fed7aa;background:#fffaf3">
+        <div class="section-head"><div><h3>عبور از مرحله جاری</h3><span class="muted">با این عملیات، تمام وظایف باز این مرحله بدون حذف سوابق بسته و گردش به مرحله بعد منتقل می‌شود.</span></div></div>
+        <form method="post" action="/Workflow/SkipCurrentStep" class="form-stack"
+              onsubmit="return confirm('از مرحله جاری عبور شود؟');">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="workflowInstanceId" value="@Model.WorkflowInstanceId" />
+            <label>علت عبور از مرحله جاری *
+                <textarea name="reason" rows="3" maxlength="1000" required placeholder="علت عبور یا مجوز تصمیم را ثبت کنید."></textarea>
+            </label>
+            <div class="actions"><button class="btn btn-warning" type="submit">عبور از مرحله جاری و ادامه گردش</button></div>
+        </form>
+    </section>
+}
+
 <section class="card">
     <div class="section-head"><h3>تاریخچه گردش کار</h3></div>
     <div class="workflow-history">

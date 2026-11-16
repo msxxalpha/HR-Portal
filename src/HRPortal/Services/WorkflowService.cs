@@ -1345,6 +1345,13 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         return await BuildRequestsQuery(null).ToListAsync();
     }
 
+    public async Task<List<WorkflowInboxRow>> GetActiveRequestsForSkipAsync()
+    {
+        return await BuildRequestsQuery(null)
+            .Where(x => x.Status == "InProgress")
+            .ToListAsync();
+    }
+
     private IQueryable<WorkflowInboxRow> BuildRequestsQuery(int? requesterEmployeeId)
     {
         var query = db.WorkflowInstances

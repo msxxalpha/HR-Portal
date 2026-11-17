@@ -6,6 +6,7 @@ namespace HRPortal.Data;
 public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : DbContext(options)
 {
     public DbSet<OutsourcedServiceRequest> OutsourcedServiceRequests => Set<OutsourcedServiceRequest>();
+    public DbSet<OutsourcedServiceRequestAttachment> OutsourcedServiceRequestAttachments => Set<OutsourcedServiceRequestAttachment>();
     public DbSet<OutsourcedServiceRequestRevision> OutsourcedServiceRequestRevisions => Set<OutsourcedServiceRequestRevision>();
     public DbSet<Suggestion> Suggestions => Set<Suggestion>();
     public DbSet<SuggestionMember> SuggestionMembers => Set<SuggestionMember>();
@@ -94,6 +95,21 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.Property(x => x.Status).HasMaxLength(30).IsRequired();
             e.HasIndex(x => new { x.IsDeleted, x.CreatedAtUtc });
             e.HasOne<Employee>().WithMany().HasForeignKey(x => x.RequesterEmployeeId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<OutsourcedServiceRequestAttachment>(e =>
+        {
+            e.ToTable("OutsourcedServiceRequestAttachments");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.OriginalFileName).HasMaxLength(255).IsRequired();
+            e.Property(x => x.StoredFileName).HasMaxLength(120).IsRequired();
+            e.Property(x => x.ContentType).HasMaxLength(100).IsRequired();
+            e.HasIndex(x => new { x.RequestId, x.UploadedAtUtc })
+                .HasDatabaseName("IX_OutsourcedServiceRequestAttachments_Request_Uploaded");
+            e.HasIndex(x => new { x.RequestId, x.StoredFileName })
+                .IsUnique()
+                .HasDatabaseName("UX_OutsourcedServiceRequestAttachments_Request_File");
+            e.HasOne(x => x.Request).WithMany(x => x.Attachments)
+                .HasForeignKey(x => x.RequestId).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<OutsourcedServiceRequestRevision>(e =>
         {

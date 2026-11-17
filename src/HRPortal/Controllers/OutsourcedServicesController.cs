@@ -474,8 +474,21 @@ public sealed class OutsourcedServicesController(
 
         var request = await db.OutsourcedServiceRequests.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == attachment.RequestId);
-        if (request is null || !await CanViewRequestAsync(request))
+        if (request is null || request.IsDeleted && !IsAdmin)
             return NotFound();
+
+        var canDownload = await CanViewRequestAsync(request);
+        if (!canDownload && TryEmployeeId(out var employeeId))
+        {
+            var workflowInstanceId = await db.WorkflowInstances.AsNoTracking()
+                .Where(x => x.EntityType == "OutsourcedServiceRequest" && x.EntityId == request.Id.ToString())
+                .OrderByDescending(x => x.StartedAt).ThenByDescending(x => x.Id)
+                .Select(x => (int?)x.Id).FirstOrDefaultAsync();
+            if (workflowInstanceId.HasValue)
+                canDownload = await workflow.GetInstanceAsync(
+                    workflowInstanceId.Value, employeeId, allowUpcomingPreview: true) is not null;
+        }
+        if (!canDownload) return NotFound();
 
         var path = Path.Combine(GetAttachmentFolder(request.Id), attachment.StoredFileName);
         if (!System.IO.File.Exists(path)) return NotFound();

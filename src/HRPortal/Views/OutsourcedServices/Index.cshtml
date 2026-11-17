@@ -2,7 +2,6 @@
 @{
     ViewData["Title"] = "سفارش خدمات برونسپاری";
     var canCreate = (bool)(ViewBag.CanCreate ?? false);
-    var canViewAll = (bool)(ViewBag.CanViewAll ?? false);
     var canArchiveFilter = (bool)(ViewBag.CanArchiveFilter ?? false);
     string priority(string value) => value switch { "Emergency" => "اضطراری", "Urgent" => "فوری", _ => "عادی" };
     string priorityClass(string value) => value switch { "Emergency" => "emergency", "Urgent" => "urgent", _ => "normal" };
@@ -10,6 +9,7 @@
     {
         "InProgress" => "در حال گردش",
         "Completed" => "تکمیل‌شده",
+        "CompletedBySkip" => "تکمیل با عبور از مرحله",
         "Approved" => "تأیید نهایی",
         "Rejected" => "رد شده",
         "Returned" => "برگشت داده‌شده",
@@ -68,6 +68,7 @@
                     <option value="InProgress" selected="@(Model.Status == "InProgress")">در حال گردش</option>
                     <option value="Approved" selected="@(Model.Status == "Approved")">تأیید نهایی</option>
                     <option value="Completed" selected="@(Model.Status == "Completed")">تکمیل‌شده</option>
+                    <option value="CompletedBySkip" selected="@(Model.Status == "CompletedBySkip")">تکمیل با عبور از مرحله</option>
                     <option value="Returned" selected="@(Model.Status == "Returned")">برگشت داده‌شده</option>
                     <option value="Rejected" selected="@(Model.Status == "Rejected")">رد شده</option>
                     <option value="Cancelled" selected="@(Model.Status == "Cancelled")">لغوشده</option>

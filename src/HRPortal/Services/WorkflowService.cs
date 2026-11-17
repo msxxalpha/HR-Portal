@@ -1396,6 +1396,39 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             .ToList();
     }
 
+    /// <summary>
+    /// Counts distinct workflows currently represented in the employee's inbox.
+    /// A workflow is excluded when the employee has already performed a workflow
+    /// action on it; the separate action-history list is never counted as inbox work.
+    /// Multiple upcoming/current rows for the same workflow count only once.
+    /// </summary>
+    public async Task<int> GetInboxWorkflowCountAsync(int employeeId)
+    {
+        var inboxRows = await GetInboxAsync(employeeId);
+        var workflowIds = inboxRows
+            .Select(x => x.WorkflowInstanceId)
+            .Distinct()
+            .ToArray();
+        if (workflowIds.Length == 0)
+            return 0;
+
+        var actedWorkflowIds = await db.WorkflowHistory.AsNoTracking()
+            .Where(x => x.ActorEmployeeId == employeeId &&
+                        x.WorkflowInstanceId != 0 &&
+                        workflowIds.Contains(x.WorkflowInstanceId) &&
+                        x.WorkflowStepId.HasValue &&
+                        x.Action != "Created" &&
+                        x.Action != "Submitted" &&
+                        x.Action != "Submit" &&
+                        x.Action != "SaveDraft")
+            .Select(x => x.WorkflowInstanceId)
+            .Distinct()
+            .ToListAsync();
+
+        var acted = actedWorkflowIds.ToHashSet();
+        return workflowIds.Count(id => !acted.Contains(id));
+    }
+
     private async Task<Dictionary<int, string>> GetCurrentStepAssigneeNamesAsync(int[] instanceIds)
     {
         var result = new Dictionary<int, string>();

@@ -119,7 +119,7 @@ public sealed class OutsourcedServicesController(
         else
             model.Priority = "all";
 
-        var allowedStatuses = new[] { "Submitted", "InProgress", "Completed", "Approved", "Rejected", "Returned", "Cancelled" };
+        var allowedStatuses = new[] { "Submitted", "InProgress", "Completed", "CompletedBySkip", "Approved", "Rejected", "Returned", "Cancelled" };
         if (allowedStatuses.Contains(model.Status, StringComparer.Ordinal))
             rowsQuery = rowsQuery.Where(x => x.WorkflowStatus == model.Status);
         else

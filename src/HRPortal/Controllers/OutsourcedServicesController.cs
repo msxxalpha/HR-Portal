@@ -180,7 +180,7 @@ public sealed class OutsourcedServicesController(
         });
     }
 
-    [HttpPost, ValidateAntiForgeryToken, RequestSizeLimit(55_000_000)]
+    [HttpPost, ValidateAntiForgeryToken, RequestSizeLimit(28_000_000)]
     public async Task<IActionResult> Create(OutsourcedServiceRequestFormVm model, List<IFormFile>? files)
     {
         if (!Has("OutsourcedServices.Create")) return Forbid();
@@ -293,7 +293,6 @@ public sealed class OutsourcedServicesController(
             return Forbid();
         }
 
-        PrepareFormView(isEdit: true, returnTaskId);
         var existingAttachments = await db.OutsourcedServiceRequestAttachments.AsNoTracking()
             .Where(x => x.RequestId == item.Id)
             .OrderByDescending(x => x.UploadedAtUtc).ToListAsync();
@@ -309,7 +308,7 @@ public sealed class OutsourcedServicesController(
         });
     }
 
-    [HttpPost, ValidateAntiForgeryToken, RequestSizeLimit(55_000_000)]
+    [HttpPost, ValidateAntiForgeryToken, RequestSizeLimit(28_000_000)]
     public async Task<IActionResult> Edit(int id, OutsourcedServiceRequestFormVm model, int? returnTaskId, List<IFormFile>? files)
     {
         PrepareFormView(isEdit: true, returnTaskId);
@@ -370,7 +369,7 @@ public sealed class OutsourcedServicesController(
         catch (IOException)
         {
             await transaction.RollbackAsync();
-            TryDeleteAttachmentFolder(item.Id, deleteAll: false);
+            TryDeleteAttachmentFolder(item.Id, deleteAll: false, existingAttachments.Select(x => x.StoredFileName));
             ModelState.AddModelError("Attachments", "ذخیره یکی از فایل‌های پیوست با خطا مواجه شد. لطفاً دوباره تلاش کنید.");
             ViewBag.ExistingAttachments = existingAttachments;
             return View("Create", model);
@@ -547,7 +546,7 @@ public sealed class OutsourcedServicesController(
     }
 
     private const long MaxAttachmentBytes = 10 * 1024 * 1024;
-    private const long MaxTotalAttachmentBytes = 50 * 1024 * 1024;
+    private const long MaxTotalAttachmentBytes = 25 * 1024 * 1024;
     private const int MaxAttachmentCount = 10;
     private static readonly HashSet<string> AllowedAttachmentExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -628,24 +627,29 @@ public sealed class OutsourcedServicesController(
     private string GetAttachmentFolder(int requestId) =>
         Path.Combine(environment.ContentRootPath, "App_Data", "Uploads", "OutsourcedServices", requestId.ToString());
 
-    private void TryDeleteAttachmentFolder(int requestId, bool deleteAll = true)
+    private void TryDeleteAttachmentFolder(
+        int requestId,
+        bool deleteAll = true,
+        IEnumerable<string>? retainedFileNames = null)
     {
         if (requestId <= 0) return;
         var folder = GetAttachmentFolder(requestId);
         try
         {
-            if (Directory.Exists(folder))
+            if (!Directory.Exists(folder)) return;
+            if (deleteAll)
             {
-                if (deleteAll) Directory.Delete(folder, recursive: true);
-                else
-                {
-                    var referencedNames = db.OutsourcedServiceRequestAttachments.AsNoTracking()
-                        .Where(x => x.RequestId == requestId).Select(x => x.StoredFileName).ToHashSet();
-                    foreach (var path in Directory.EnumerateFiles(folder))
-                        if (!referencedNames.Contains(Path.GetFileName(path)))
-                            System.IO.File.Delete(path);
-                }
+                Directory.Delete(folder, recursive: true);
+                return;
             }
+
+            var retainedNames = (retainedFileNames ?? Enumerable.Empty<string>())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var path in Directory.EnumerateFiles(folder))
+                if (!retainedNames.Contains(Path.GetFileName(path)))
+                    System.IO.File.Delete(path);
+            if (!Directory.EnumerateFileSystemEntries(folder).Any())
+                Directory.Delete(folder);
         }
         catch
         {

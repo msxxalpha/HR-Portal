@@ -1,32 +1,178 @@
-@model List<HRPortal.Models.OutsourcedServiceRequestListItem>
+@model HRPortal.Models.OutsourcedServiceRequestListViewModel
 @{
     ViewData["Title"] = "سفارش خدمات برونسپاری";
     var canCreate = (bool)(ViewBag.CanCreate ?? false);
-    string priority(string value) => value switch { "Emergency"=>"اضطراری", "Urgent"=>"فوری", _=>"عادی" };
-    string priorityClass(string value) => value switch { "Emergency"=>"emergency", "Urgent"=>"urgent", _=>"normal" };
+    var canViewAll = (bool)(ViewBag.CanViewAll ?? false);
+    string priority(string value) => value switch { "Emergency" => "اضطراری", "Urgent" => "فوری", _ => "عادی" };
+    string priorityClass(string value) => value switch { "Emergency" => "emergency", "Urgent" => "urgent", _ => "normal" };
+    string stateTitle(string value) => value switch
+    {
+        "InProgress" => "در حال گردش",
+        "Completed" => "تکمیل‌شده",
+        "Approved" => "تأیید نهایی",
+        "Rejected" => "رد شده",
+        "Returned" => "برگشت داده‌شده",
+        "Cancelled" => "لغوشده",
+        "Submitted" => "ثبت‌شده",
+        _ => value
+    };
+    string PageUrl(int targetPage) => Url.Action("Index", "OutsourcedServices", new
+    {
+        q = Model.Search, status = Model.Status, priority = Model.Priority,
+        fromJalali = Model.FromJalali, toJalali = Model.ToJalali,
+        archived = Model.ArchiveFilter, sortBy = Model.SortBy,
+        sortDirection = Model.SortDirection, page = targetPage, pageSize = Model.PageSize
+    }) ?? "#";
+    string SortUrl(string column)
+    {
+        var direction = Model.SortBy == column && Model.SortDirection == "asc" ? "desc" : "asc";
+        return Url.Action("Index", "OutsourcedServices", new
+        {
+            q = Model.Search, status = Model.Status, priority = Model.Priority,
+            fromJalali = Model.FromJalali, toJalali = Model.ToJalali,
+            archived = Model.ArchiveFilter, sortBy = column,
+            sortDirection = direction, page = 1, pageSize = Model.PageSize
+        }) ?? "#";
+    }
+    string SortMark(string column) => Model.SortBy != column ? "↕" : Model.SortDirection == "asc" ? "↑" : "↓";
 }
 <div class="outsourced-page">
     <div class="outsourced-hero">
         <div class="outsourced-hero-icon">↗</div>
         <div><span>خدمات کارکنان</span><h1>سفارش خدمات برونسپاری</h1><p>درخواست‌های ثبت‌شده برای انجام خدمات توسط پیمانکاران برون‌سازمانی.</p></div>
-        @if(canCreate){<a class="btn btn-main" href="/OutsourcedServices/Create">＋ ثبت سفارش جدید</a>}
+        @if (canCreate) { <a class="btn btn-main" href="/OutsourcedServices/Create">＋ ثبت سفارش جدید</a> }
     </div>
     @if (TempData["Success"] is string success) { <div class="alert success">@success</div> }
     @if (TempData["Warning"] is string warning) { <div class="alert warning">@warning</div> }
     @if (TempData["Error"] is string error) { <div class="alert error">@error</div> }
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="alert error">یکی از فیلترهای تاریخ معتبر نیست؛ لطفاً بازه تاریخ را بررسی کنید.</div>
+    }
+
     <section class="outsourced-list-card">
-        <div class="outsourced-list-head"><div><h2>فهرست سفارش‌ها</h2><p>آخرین ۳۰۰ درخواست ثبت‌شده</p></div><strong>@Model.Count درخواست</strong></div>
-        @if(Model.Count == 0){<div class="outsourced-empty"><span>▤</span><h3>هنوز سفارشی ثبت نشده است</h3><p>با ثبت اولین سفارش خدمات، سوابق آن در این قسمت قابل پیگیری خواهد بود.</p>@if(canCreate){<a class="btn btn-main" href="/OutsourcedServices/Create">ثبت سفارش خدمات</a>}</div>}
-        else {
-        <div class="outsourced-table-wrap"><table class="outsourced-table">
-            <thead><tr><th>شماره درخواست</th><th>شرح خدمات</th><th>مقدار</th><th>تاریخ نیازمندی</th><th>اولویت</th><th>وضعیت گردش کار</th><th>تاریخ ثبت</th><th></th></tr></thead>
-            <tbody>@foreach(var row in Model){
-                var item=row.Request;
-                var state=row.WorkflowStatus;
-                var step=row.CurrentStepTitle;
-                var stateLabel=state switch{"InProgress"=>"در حال گردش","Completed"=>"تکمیل‌شده","Approved"=>"تأیید نهایی","Rejected"=>"رد یا لغو شده","Returned"=>"برگشت داده‌شده",_=>"ثبت‌شده"};
-                <tr><td><strong dir="ltr">@item.RequestNumber</strong></td><td class="service-desc">@item.ServiceDescription</td><td>@item.Quantity.ToString("0.###") @item.UnitOfMeasure</td><td>@HRPortal.Services.PersianDateService.Format(item.NeedByDate)</td><td><span class="outsourced-priority @priorityClass(item.Priority)">@priority(item.Priority)</span></td><td> <span class="outsourced-state">@(item.IsDeleted ? "بایگانی‌شده" : stateLabel)</span>@if(!string.IsNullOrWhiteSpace(step)){<small class="outsourced-step">@step</small>}</td><td>@HRPortal.Services.PersianDateService.Format(HRPortal.Services.PersianDateService.ToTehran(item.CreatedAtUtc))</td><td><a class="btn btn-outline btn-sm" href="/OutsourcedServices/Details/@item.Id">جزئیات</a></td></tr>
-            }</tbody>
-        </table></div>}
+        <div class="outsourced-list-head">
+            <div><h2>فهرست سفارش‌ها</h2><p>جست‌وجو، فیلتر، مرتب‌سازی و صفحه‌بندی درخواست‌ها</p></div>
+            <strong>@Model.TotalCount.ToString("N0") درخواست</strong>
+        </div>
+
+        <form method="get" action="/OutsourcedServices" class="outsourced-filters outsourced-index-filters">
+            <label>جست‌وجو
+                <input type="search" name="q" value="@Model.Search" placeholder="شماره درخواست، شرح خدمت، نام یا شماره پرسنلی" />
+            </label>
+            <label>وضعیت گردش کار
+                <select name="status">
+                    <option value="all" selected="@(Model.Status == "all")">همه وضعیت‌ها</option>
+                    <option value="Submitted" selected="@(Model.Status == "Submitted")">ثبت‌شده</option>
+                    <option value="InProgress" selected="@(Model.Status == "InProgress")">در حال گردش</option>
+                    <option value="Approved" selected="@(Model.Status == "Approved")">تأیید نهایی</option>
+                    <option value="Completed" selected="@(Model.Status == "Completed")">تکمیل‌شده</option>
+                    <option value="Returned" selected="@(Model.Status == "Returned")">برگشت داده‌شده</option>
+                    <option value="Rejected" selected="@(Model.Status == "Rejected")">رد شده</option>
+                    <option value="Cancelled" selected="@(Model.Status == "Cancelled")">لغوشده</option>
+                </select>
+            </label>
+            <label>اولویت
+                <select name="priority">
+                    <option value="all" selected="@(Model.Priority == "all")">همه اولویت‌ها</option>
+                    <option value="Normal" selected="@(Model.Priority == "Normal")">عادی</option>
+                    <option value="Urgent" selected="@(Model.Priority == "Urgent")">فوری</option>
+                    <option value="Emergency" selected="@(Model.Priority == "Emergency")">اضطراری</option>
+                </select>
+            </label>
+            <label>تاریخ نیازمندی از
+                <div class="jalali-date-input">
+                    <input name="fromJalali" value="@Model.FromJalali" data-jalali-date autocomplete="off" inputmode="numeric" placeholder="۱۴۰۵/۰۱/۰۱" />
+                    <button type="button" class="btn btn-outline jalali-date-open" data-jalali-trigger aria-label="انتخاب تاریخ شروع">تقویم</button>
+                </div>
+            </label>
+            <label>تاریخ نیازمندی تا
+                <div class="jalali-date-input">
+                    <input name="toJalali" value="@Model.ToJalali" data-jalali-date autocomplete="off" inputmode="numeric" placeholder="۱۴۰۵/۱۲/۲۹" />
+                    <button type="button" class="btn btn-outline jalali-date-open" data-jalali-trigger aria-label="انتخاب تاریخ پایان">تقویم</button>
+                </div>
+            </label>
+            @if (canViewAll)
+            {
+                <label>وضعیت بایگانی
+                    <select name="archived">
+                        <option value="active" selected="@(Model.ArchiveFilter == "active")">درخواست‌های فعال</option>
+                        <option value="archived" selected="@(Model.ArchiveFilter == "archived")">بایگانی‌شده</option>
+                        <option value="all" selected="@(Model.ArchiveFilter == "all")">همه درخواست‌ها</option>
+                    </select>
+                </label>
+            }
+            <label>تعداد در هر صفحه
+                <select name="pageSize">
+                    <option value="10" selected="@(Model.PageSize == 10)">۱۰</option>
+                    <option value="20" selected="@(Model.PageSize == 20)">۲۰</option>
+                    <option value="50" selected="@(Model.PageSize == 50)">۵۰</option>
+                    <option value="100" selected="@(Model.PageSize == 100)">۱۰۰</option>
+                </select>
+            </label>
+            <input type="hidden" name="sortBy" value="@Model.SortBy" />
+            <input type="hidden" name="sortDirection" value="@Model.SortDirection" />
+            <div class="outsourced-filter-actions">
+                <button class="btn btn-main" type="submit">اعمال فیلترها</button>
+                <a class="btn btn-outline" href="/OutsourcedServices">پاک‌کردن فیلترها</a>
+            </div>
+        </form>
+
+        @if (Model.Rows.Count == 0)
+        {
+            <div class="outsourced-empty"><span>▤</span><h3>سفارشی مطابق معیارهای انتخاب‌شده یافت نشد</h3><p>فیلترها را تغییر دهید یا یک سفارش جدید ثبت کنید.</p>@if (canCreate) { <a class="btn btn-main" href="/OutsourcedServices/Create">ثبت سفارش خدمات</a> }</div>
+        }
+        else
+        {
+            <div class="outsourced-table-wrap">
+                <table class="outsourced-table outsourced-index-table">
+                    <thead>
+                        <tr>
+                            <th><a href="@SortUrl("RequestNumber")">شماره درخواست <span>@SortMark("RequestNumber")</span></a></th>
+                            <th><a href="@SortUrl("ServiceDescription")">شرح خدمات <span>@SortMark("ServiceDescription")</span></a></th>
+                            <th><a href="@SortUrl("Quantity")">مقدار <span>@SortMark("Quantity")</span></a></th>
+                            <th><a href="@SortUrl("NeedByDate")">تاریخ نیازمندی <span>@SortMark("NeedByDate")</span></a></th>
+                            <th><a href="@SortUrl("Priority")">اولویت <span>@SortMark("Priority")</span></a></th>
+                            <th><a href="@SortUrl("WorkflowStatus")">وضعیت گردش کار <span>@SortMark("WorkflowStatus")</span></a></th>
+                            <th><a href="@SortUrl("CreatedAtUtc")">تاریخ ثبت <span>@SortMark("CreatedAtUtc")</span></a></th>
+                            <th>عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in Model.Rows)
+                    {
+                        var item = row.Request;
+                        <tr>
+                            <td><strong dir="ltr">@item.RequestNumber</strong></td>
+                            <td class="service-desc">@item.ServiceDescription</td>
+                            <td>@item.Quantity.ToString("0.###") @item.UnitOfMeasure</td>
+                            <td>@HRPortal.Services.PersianDateService.Format(item.NeedByDate)</td>
+                            <td><span class="outsourced-priority @priorityClass(item.Priority)">@priority(item.Priority)</span></td>
+                            <td>
+                                <span class="outsourced-state">@(item.IsDeleted ? "بایگانی‌شده" : stateTitle(row.WorkflowStatus))</span>
+                                @if (!string.IsNullOrWhiteSpace(row.CurrentStepTitle)) { <small class="outsourced-step">@row.CurrentStepTitle</small> }
+                            </td>
+                            <td>@HRPortal.Services.PersianDateService.Format(HRPortal.Services.PersianDateService.ToTehran(item.CreatedAtUtc))</td>
+                            <td><a class="btn btn-outline btn-sm" href="/OutsourcedServices/Details/@item.Id">جزئیات</a></td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+            <div class="outsourced-pagination">
+                <span>نمایش @Model.FirstItem.ToString("N0") تا @Model.LastItem.ToString("N0") از @Model.TotalCount.ToString("N0") سفارش</span>
+                @if (Model.TotalPages > 1)
+                {
+                    <nav aria-label="صفحه‌بندی سفارش‌های خدمات برونسپاری" class="outsourced-page-links">
+                        <a class="btn btn-outline btn-sm @(Model.Page <= 1 ? "disabled" : "")" href="@(Model.Page > 1 ? PageUrl(Model.Page - 1) : "#")" aria-disabled="@(Model.Page <= 1)">قبلی</a>
+                        @for (var p = Math.Max(1, Model.Page - 2); p <= Math.Min(Model.TotalPages, Model.Page + 2); p++)
+                        {
+                            <a class="btn btn-sm @(p == Model.Page ? "btn-main" : "btn-outline")" href="@PageUrl(p)" aria-current="@(p == Model.Page ? "page" : null)">@p</a>
+                        }
+                        <a class="btn btn-outline btn-sm @(Model.Page >= Model.TotalPages ? "disabled" : "")" href="@(Model.Page < Model.TotalPages ? PageUrl(Model.Page + 1) : "#")" aria-disabled="@(Model.Page >= Model.TotalPages)">بعدی</a>
+                    </nav>
+                }
+            </div>
+        }
     </section>
 </div>

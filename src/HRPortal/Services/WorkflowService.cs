@@ -775,10 +775,16 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             throw new InvalidOperationException("هر گردش کار می‌تواند دقیقاً یک مرحله زنجیره جایگاه‌های سازمانی داشته باشد.");
 
         var template = hierarchyTemplates[0];
-        var minimumRankType = source.Code.StartsWith("__internal_contractrenewal_", StringComparison.Ordinal) ? "سرپرستی" : null;
-        var routeResult = await BuildHierarchyRouteAsync(subjectEmployeeId, template.HierarchyStopRankType, template.HierarchyVacancyPolicy, template.HierarchySubstitutePositionId, cancellationToken, minimumRankType);
+        var isContractRenewal = source.Code.StartsWith("__internal_contractrenewal_", StringComparison.Ordinal);
+        var routeResult = await BuildHierarchyRouteAsync(
+            subjectEmployeeId,
+            template.HierarchyStopRankType,
+            template.HierarchyVacancyPolicy,
+            template.HierarchySubstitutePositionId,
+            cancellationToken,
+            contractRenewalEvaluationPath: isContractRenewal);
         var route = routeResult.Route;
-        if (route.Count == 0)
+        if (route.Count == 0 && !isContractRenewal)
             throw new InvalidOperationException("در مسیر بالادستی کارمند هیچ جایگاه دارای متصدی فعالی برای ارزیابی پیدا نشد؛ انتساب‌های ساختار سازمانی را بررسی کنید.");
 
         var runtime = new WorkflowDefinition
@@ -827,7 +833,10 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         await db.WorkflowSteps.AddRangeAsync(allRuntimeSteps, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
 
-        foreach (var original in source.Steps)
+        var orderedSourceSteps = source.Steps
+            .OrderBy(x => x.SortOrder).ThenBy(x => x.Id).ToList();
+
+        foreach (var original in orderedSourceSteps)
         {
             foreach (var clone in map[original.Id])
             {
@@ -861,8 +870,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                     }
                     else
                     {
-                        targetId = transition.ToStepId.HasValue && map.TryGetValue(transition.ToStepId.Value, out var targets)
-                            ? targets.FirstOrDefault()?.Id
+                        targetId = transition.ToStepId.HasValue
+                            ? ResolveFirstRuntimeTargetId(transition.ToStepId.Value, orderedSourceSteps, map)
                             : null;
                     }
 
@@ -883,6 +892,38 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         await db.SaveChangesAsync(cancellationToken);
         runtime.Steps = allRuntimeSteps;
         return (runtime, routeResult.SkippedPositions);
+    }
+
+    private static int? ResolveFirstRuntimeTargetId(
+        int originalTargetStepId,
+        IReadOnlyList<WorkflowStep> orderedSourceSteps,
+        IReadOnlyDictionary<int, List<WorkflowStep>> runtimeStepMap)
+    {
+        var targetIndex = -1;
+        for (var i = 0; i < orderedSourceSteps.Count; i++)
+        {
+            if (orderedSourceSteps[i].Id == originalTargetStepId)
+            {
+                targetIndex = i;
+                break;
+            }
+        }
+
+        if (targetIndex < 0)
+            return null;
+
+        // A hierarchy template can produce no runtime steps when a contract-renewal
+        // subject has no eligible supervisory/management ancestor. Continue at the
+        // next executable source step (for example, Security) instead of ending
+        // the workflow at a null transition target.
+        for (var i = targetIndex; i < orderedSourceSteps.Count; i++)
+        {
+            if (runtimeStepMap.TryGetValue(orderedSourceSteps[i].Id, out var mappedSteps) &&
+                mappedSteps.Count > 0)
+                return mappedSteps[0].Id;
+        }
+
+        return null;
     }
 
     private static List<int> GetAssignedEmployeeIds(OrganizationNode position) =>
@@ -1051,18 +1092,30 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
     private static bool IsSupervisorRankType(string? rankType) =>
         SameRankType(rankType, "سرپرستی");
 
+    private static bool IsContractRenewalEvaluationRankType(string? rankType) =>
+        SameRankType(rankType, "سرپرستی") ||
+        SameRankType(rankType, "ریاست") ||
+        SameRankType(rankType, "مدیریت") ||
+        SameRankType(rankType, "معاونت");
+
     public async Task<(List<OrganizationNode> Route, List<OrganizationNode> SkippedPositions)> GetHierarchyRoutePreviewAsync(
-        int subjectEmployeeId, string stopRankType, string? minimumRankType, CancellationToken cancellationToken = default)
+        int subjectEmployeeId,
+        string stopRankType,
+        string? minimumRankType,
+        CancellationToken cancellationToken = default,
+        bool contractRenewalEvaluationPath = false)
     {
-        var result = await BuildHierarchyRouteAsync(subjectEmployeeId, stopRankType, "Skip", null, cancellationToken, minimumRankType);
-        if (result.Route.Count == 0)
+        var result = await BuildHierarchyRouteAsync(
+            subjectEmployeeId, stopRankType, "Skip", null, cancellationToken,
+            minimumRankType, contractRenewalEvaluationPath);
+        if (result.Route.Count == 0 && !contractRenewalEvaluationPath)
             throw new InvalidOperationException("در مسیر بالادستی کارمند، از حداقل رده تعیین‌شده تا پیش از مدیرعامل هیچ جایگاه دارای متصدی فعالی برای ارزیابی پیدا نشد؛ انتساب‌های ساختار سازمانی را بررسی کنید.");
         return result;
     }
 
     private async Task<(List<OrganizationNode> Route, List<OrganizationNode> SkippedPositions)> BuildHierarchyRouteAsync(
         int subjectEmployeeId, string stopRankType, string vacancyPolicy, int? substitutePositionId, CancellationToken cancellationToken,
-        string? minimumRankType = null)
+        string? minimumRankType = null, bool contractRenewalEvaluationPath = false)
     {
         // Special option means follow the actual parent chain until the CEO node,
         // excluding CEO itself from the evaluation route.
@@ -1173,12 +1226,16 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         if (!stopFound)
             throw new InvalidOperationException($"در زنجیره بالادستی کارمند، رده توقف «{stopRankType}» پیدا نشد؛ ساختار سازمانی یا تنظیم مرحله را بررسی کنید.");
 
-        // The contract-renewal path must begin at the first ancestor whose
-        // rank type is exactly the supervisor rank. Rank SortOrder is only a
-        // display/order attribute and may place ranks such as مسئول above the
-        // supervisor threshold; using it here can incorrectly add them before
-        // the first supervisor stage.
-        if (!string.IsNullOrWhiteSpace(minimumRankType))
+        if (contractRenewalEvaluationPath)
+        {
+            // Contract renewal evaluates only these organizational ranks, in their
+            // actual ancestor order. Supervisor is included when present, but is
+            // not a mandatory starting point; other rank types are always excluded.
+            route = route
+                .Where(position => IsContractRenewalEvaluationRankType(position.RankType))
+                .ToList();
+        }
+        else if (!string.IsNullOrWhiteSpace(minimumRankType))
         {
             var rankDefinitions = await db.OrganizationRankDefinitions.AsNoTracking().ToListAsync(cancellationToken);
             if (!rankDefinitions.Any(x => SameRankType(x.Title, minimumRankType)))
@@ -1187,12 +1244,12 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             var firstMinimumRankIndex = route.FindIndex(position =>
                 SameRankType(position.RankType, minimumRankType));
             if (firstMinimumRankIndex < 0)
-                throw new InvalidOperationException($"در زنجیره بالادستی کارمند، هیچ جایگاه با رده «{minimumRankType}» پیدا نشد؛ مسیر ارزشیابی تمدید قرارداد باید از نخستین جایگاه سرپرستی آغاز شود.");
+                throw new InvalidOperationException($"در زنجیره بالادستی کارمند، هیچ جایگاه با رده «{minimumRankType}» پیدا نشد؛ ابتدا ساختار سازمانی یا تنظیم مرحله را بررسی کنید.");
 
             route = route.Skip(firstMinimumRankIndex).ToList();
         }
 
-        if (route.Count == 0)
+        if (route.Count == 0 && !contractRenewalEvaluationPath)
             throw new InvalidOperationException($"برای این کارمند، در مسیر سازمانی از رده «{minimumRankType ?? "حداقل تعیین‌شده"}» تا پیش از مدیرعامل هیچ جایگاه ارزیابی وجود ندارد؛ ابتدا ساختار سازمانی را اصلاح کنید.");
 
         // Vacancy handling is configured per hierarchy stage. Only explicitly assigned

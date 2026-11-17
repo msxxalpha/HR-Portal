@@ -1031,6 +1031,8 @@ static async Task VerifyContractRenewalRuntimeFlowAsync()
     var requester = Person(10);
     var initialApprover = Person(8);
     var responsible = Person(9);
+    var subjectWithoutSupervisor = Person(11);
+    var subjectWithoutEvaluatorRanks = Person(12);
 
     var revision = new OrganizationStructureRevision
     {
@@ -1091,6 +1093,24 @@ static async Task VerifyContractRenewalRuntimeFlowAsync()
         Code = "REQUEST-APPROVAL", Title = "تأییدکننده اطلاعات اولیه", RankType = "مدیریت",
         IsActive = true, AssignedEmployeeIdsCsv = "8", PositionHolderEmployeeId = 8
     };
+    var noSupervisorSubjectPosition = new OrganizationNode
+    {
+        Id = 110, OrganizationStructureRevisionId = 1, Revision = revision,
+        Code = "NO-SUP-SUBJECT", Title = "بخش کارمند فاقد سرپرست", RankType = "بخش",
+        IsActive = true, AssignedEmployeeIdsCsv = "11", ParentId = 111
+    };
+    var noSupervisorIntermediatePosition = new OrganizationNode
+    {
+        Id = 111, OrganizationStructureRevisionId = 1, Revision = revision,
+        Code = "NO-SUP-RESPONSIBLE", Title = "مسئول میانی", RankType = "مسئول",
+        IsActive = true, AssignedEmployeeIdsCsv = "9", ParentId = 103
+    };
+    var noEvaluatorRanksSubjectPosition = new OrganizationNode
+    {
+        Id = 112, OrganizationStructureRevisionId = 1, Revision = revision,
+        Code = "NO-EVALUATOR-SUBJECT", Title = "بخش زیر نظر مستقیم مدیرعامل", RankType = "بخش",
+        IsActive = true, AssignedEmployeeIdsCsv = "12", ParentId = 105
+    };
     revision.Nodes.Add(subjectPosition);
     revision.Nodes.Add(responsiblePosition);
     revision.Nodes.Add(supervisorPosition);
@@ -1100,6 +1120,9 @@ static async Task VerifyContractRenewalRuntimeFlowAsync()
     revision.Nodes.Add(securityPosition);
     revision.Nodes.Add(hrPosition);
     revision.Nodes.Add(approvalPosition);
+    revision.Nodes.Add(noSupervisorSubjectPosition);
+    revision.Nodes.Add(noSupervisorIntermediatePosition);
+    revision.Nodes.Add(noEvaluatorRanksSubjectPosition);
 
     var request = new ContractRenewalRequest
     {
@@ -1123,9 +1146,8 @@ static async Task VerifyContractRenewalRuntimeFlowAsync()
         MaxScore = 100m, ScoringGuidance = "ارزیابی کلی",
         IsActive = true, SortOrder = 1
     };
-    // The hierarchy route uses these master-data sort orders to retain all
-    // positions from the supervisor rank upward, while excluding the subject's
-    // lower rank. Seed the same rank vocabulary used by the organization fixture.
+    // Rank metadata is seeded for the structural labels used by the fixture.
+    // Contract renewal filters by the explicit allowed-rank set, not SortOrder.
     var rankDefinitions = new[]
     {
         new OrganizationRankDefinition { Id = 1, Title = "مدیرعامل", SortOrder = 10 },
@@ -1137,8 +1159,11 @@ static async Task VerifyContractRenewalRuntimeFlowAsync()
         new OrganizationRankDefinition { Id = 7, Title = "مسئول", SortOrder = 45 }
     };
     db.AddRange(subject, supervisor, manager, deputy, security, hr, ceo, requester, initialApprover, responsible,
+        subjectWithoutSupervisor, subjectWithoutEvaluatorRanks,
         revision, subjectPosition, responsiblePosition, supervisorPosition, managerPosition, deputyPosition,
-        ceoPosition, securityPosition, hrPosition, approvalPosition, request, settings, question);
+        ceoPosition, securityPosition, hrPosition, approvalPosition,
+        noSupervisorSubjectPosition, noSupervisorIntermediatePosition, noEvaluatorRanksSubjectPosition,
+        request, settings, question);
     db.OrganizationRankDefinitions.AddRange(rankDefinitions);
     await db.SaveChangesAsync();
 
@@ -1241,6 +1266,72 @@ static async Task VerifyContractRenewalRuntimeFlowAsync()
     Check(await db.WorkflowTasks.CountAsync(x => x.WorkflowInstanceId == instance.Id && x.Status == "Completed") == 9,
         "The initial approval, requester correction, re-approval, three evaluations, security, HR and CEO tasks must be completed.");
 
+    // A subject whose parent chain has no supervisor must still receive the
+    // available ریاست/معاونت stages; unrelated ranks such as مسئول are excluded.
+    Check((await renewal.ValidateEvaluationPathAsync(subjectWithoutSupervisor.Id)).Count == 0,
+        "The absence of a supervisor rank must not invalidate a contract-renewal request.");
+    var noSupervisorRequest = new ContractRenewalRequest
+    {
+        Id = 2, RequestCode = "CR-E2E-NO-SUP", EmployeeId = subjectWithoutSupervisor.Id,
+        Employee = subjectWithoutSupervisor, CreatedByEmployeeId = 10,
+        EmployeeNameSnapshot = "کارمند فاقد سرپرست", PersonnelNumberSnapshot = "CR11",
+        OrganizationUnitSnapshot = "واحد آزمون", PositionTitleSnapshot = "کارشناس",
+        Status = "Submitted", CreatedAt = DateTime.UtcNow
+    };
+    db.ContractRenewalRequests.Add(noSupervisorRequest);
+    await db.SaveChangesAsync();
+    var noSupervisorInstance = await renewal.StartAsync(noSupervisorRequest, requesterEmployeeId: 10);
+    var noSupervisorSteps = await db.WorkflowSteps.AsNoTracking()
+        .Where(x => x.WorkflowDefinitionId == noSupervisorInstance.WorkflowDefinitionId &&
+                    x.Code.StartsWith("Evaluation_H"))
+        .OrderBy(x => x.SortOrder).ToListAsync();
+    Check(noSupervisorSteps.Count == 2 &&
+          noSupervisorSteps[0].OrganizationNodeId == managerPosition.Id &&
+          noSupervisorSteps[1].OrganizationNodeId == deputyPosition.Id,
+        "Without a supervisor, contract-renewal evaluation must include only the available presidency and deputy positions, excluding مسئول.");
+
+    // Even when no eligible dynamic rank exists before the CEO, the request
+    // must continue to the configured fixed stages instead of failing or ending.
+    Check((await renewal.ValidateEvaluationPathAsync(subjectWithoutEvaluatorRanks.Id)).Count == 0,
+        "An empty eligible-rank chain must be accepted for contract renewal.");
+    var noDynamicRequest = new ContractRenewalRequest
+    {
+        Id = 3, RequestCode = "CR-E2E-NO-DYNAMIC", EmployeeId = subjectWithoutEvaluatorRanks.Id,
+        Employee = subjectWithoutEvaluatorRanks, CreatedByEmployeeId = 10,
+        EmployeeNameSnapshot = "کارمند با مسیر ثابت", PersonnelNumberSnapshot = "CR12",
+        OrganizationUnitSnapshot = "واحد آزمون", PositionTitleSnapshot = "کارشناس",
+        Status = "Submitted", CreatedAt = DateTime.UtcNow
+    };
+    db.ContractRenewalRequests.Add(noDynamicRequest);
+    await db.SaveChangesAsync();
+    var noDynamicInstance = await renewal.StartAsync(noDynamicRequest, requesterEmployeeId: 10);
+    Check(!await db.WorkflowSteps.AsNoTracking().AnyAsync(x =>
+            x.WorkflowDefinitionId == noDynamicInstance.WorkflowDefinitionId &&
+            x.Code.StartsWith("Evaluation_H")) &&
+          await db.WorkflowSteps.AnyAsync(x =>
+            x.WorkflowDefinitionId == noDynamicInstance.WorkflowDefinitionId && x.Code == "Security"),
+        "An empty dynamic evaluation route must retain the fixed Security, HR and CEO stages.");
+    var noDynamicApprovalTask = await db.WorkflowTasks.Include(x => x.WorkflowStep)
+        .SingleAsync(x => x.WorkflowInstanceId == noDynamicInstance.Id && x.Status == "Pending");
+    Check(noDynamicApprovalTask.WorkflowStep.Code == "IntakeApproval",
+        "A no-hierarchy request must still start at the configured intake approval stage.");
+    await workflow.CompleteTaskAsync(noDynamicApprovalTask.Id, 8, "Approve", "اطلاعات اولیه تأیید شد.");
+    var noDynamicSecurityTask = await db.WorkflowTasks.Include(x => x.WorkflowStep)
+        .SingleAsync(x => x.WorkflowInstanceId == noDynamicInstance.Id && x.Status == "Pending");
+    Check(noDynamicSecurityTask.WorkflowStep.Code == "Security",
+        "When the dynamic chain is empty, intake approval must route directly to the fixed Security stage.");
+    await workflow.CompleteTaskAsync(noDynamicSecurityTask.Id, 5, "Approve", "اظهارنظر حراست ثبت شد.");
+    var noDynamicHrTask = await db.WorkflowTasks.Include(x => x.WorkflowStep)
+        .SingleAsync(x => x.WorkflowInstanceId == noDynamicInstance.Id && x.Status == "Pending");
+    Check(noDynamicHrTask.WorkflowStep.Code == "HumanResources",
+        "The fixed HR stage must follow Security when no hierarchical evaluation stage exists.");
+    await workflow.CompleteTaskAsync(noDynamicHrTask.Id, 6, "Approve", "پیشنهاد منابع انسانی ثبت شد.");
+    var noDynamicCeoTask = await db.WorkflowTasks.Include(x => x.WorkflowStep)
+        .SingleAsync(x => x.WorkflowInstanceId == noDynamicInstance.Id && x.Status == "Pending");
+    Check(noDynamicCeoTask.WorkflowStep.Code == "CEO" &&
+          await workflow.GetTaskAsync(noDynamicCeoTask.Id, 7) is not null,
+        "The final fixed CEO decision must remain assigned and actionable when the dynamic chain is empty.");
+
     request.Status = "تکمیل شده";
     request.CompletedAt = DateTime.UtcNow;
     request.SecurityDecision = "ApproveFull";
@@ -1269,7 +1360,8 @@ static async Task VerifyContractRenewalRuntimeFlowAsync()
     Check(pdf.Length > 1000 && System.Text.Encoding.ASCII.GetString(pdf, 0, 4) == "%PDF",
         "The completed renewal case must generate a valid PDF report.");
 
-    Console.WriteLine("PASS: contract renewal runtime flow from hierarchical evaluation through security, HR, CEO and PDF output.");
+    Console.WriteLine("PASS: contract renewal keeps only the four allowed ranks, accepts missing/no supervisor,");
+    Console.WriteLine("      bypasses an empty dynamic chain to the fixed Security/HR/CEO stages, and generates PDF output.");
 }
 
 

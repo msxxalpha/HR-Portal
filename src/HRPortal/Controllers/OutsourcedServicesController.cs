@@ -2,6 +2,8 @@ using HRPortal.Data;
 using HRPortal.Models;
 using HRPortal.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,7 +14,8 @@ public sealed class OutsourcedServicesController(
     HRPortalDbContext db,
     WorkflowFormSubmissionService workflowSubmission,
     WorkflowService workflow,
-    AuditService audit) : Controller
+    AuditService audit,
+    IWebHostEnvironment environment) : Controller
 {
     private static readonly string[] Units =
     [
@@ -30,37 +33,140 @@ public sealed class OutsourcedServicesController(
     private bool TryEmployeeId(out int id) => int.TryParse(User.FindFirst("EmployeeId")?.Value, out id);
 
     [HttpGet]
-    public async Task<IActionResult> Index()
+    public async Task<IActionResult> Index(
+        string? q,
+        string? status,
+        string? priority,
+        string? fromJalali,
+        string? toJalali,
+        string? archived,
+        string? sortBy,
+        string? sortDirection,
+        int page = 1,
+        int pageSize = 20)
     {
         if (!Has("OutsourcedServices.Create") && !Has("OutsourcedServices.ViewAll")) return Forbid();
-        var query = db.OutsourcedServiceRequests.AsNoTracking()
-            .Where(x => !x.IsDeleted || IsAdmin);
+
+        var model = new OutsourcedServiceRequestListViewModel
+        {
+            Search = q?.Trim() ?? "",
+            Status = status ?? "all",
+            Priority = priority ?? "all",
+            FromJalali = fromJalali?.Trim() ?? "",
+            ToJalali = toJalali?.Trim() ?? "",
+            ArchiveFilter = archived ?? "active",
+            SortBy = sortBy ?? "CreatedAtUtc",
+            SortDirection = string.Equals(sortDirection, "asc", StringComparison.OrdinalIgnoreCase) ? "asc" : "desc",
+            Page = Math.Max(1, page),
+            PageSize = new[] { 10, 20, 50, 100 }.Contains(pageSize) ? pageSize : 20
+        };
+
+        IQueryable<OutsourcedServiceRequest> requestQuery = db.OutsourcedServiceRequests.AsNoTracking();
         if (!Has("OutsourcedServices.ViewAll"))
         {
             if (!TryEmployeeId(out var employeeId)) return Forbid();
-            query = query.Where(x => x.RequesterEmployeeId == employeeId);
+            requestQuery = requestQuery.Where(x => x.RequesterEmployeeId == employeeId && !x.IsDeleted);
+            model.ArchiveFilter = "active";
+        }
+        else
+        {
+            requestQuery = model.ArchiveFilter switch
+            {
+                "archived" => requestQuery.Where(x => x.IsDeleted),
+                "all" => requestQuery,
+                _ => requestQuery.Where(x => !x.IsDeleted)
+            };
+            if (model.ArchiveFilter is not ("active" or "archived" or "all"))
+                model.ArchiveFilter = "active";
         }
 
-        var requests = await query.OrderByDescending(x => x.CreatedAtUtc).Take(300).ToListAsync();
-        var ids = requests.Select(x => x.Id.ToString()).ToArray();
-        var workflows = await db.WorkflowInstances.AsNoTracking()
-            .Where(x => x.EntityType == "OutsourcedServiceRequest" && ids.Contains(x.EntityId))
-            .OrderByDescending(x => x.StartedAt)
-            .Select(x => new { x.EntityId, x.Status, StepTitle = x.CurrentStep == null ? "" : x.CurrentStep.Title })
-            .ToListAsync();
-        var latest = workflows.GroupBy(x => x.EntityId).ToDictionary(x => x.Key, x => x.First());
-        var rows = requests.Select(request =>
+        IQueryable<OutsourcedServiceRequestListItem> rowsQuery = requestQuery.Select(request => new OutsourcedServiceRequestListItem
         {
-            latest.TryGetValue(request.Id.ToString(), out var workflow);
-            return new OutsourcedServiceRequestListItem
-            {
-                Request = request,
-                WorkflowStatus = workflow?.Status ?? request.Status,
-                CurrentStepTitle = workflow?.StepTitle ?? ""
-            };
-        }).ToList();
+            Request = request,
+            WorkflowStatus = db.WorkflowInstances.AsNoTracking()
+                .Where(x => x.EntityType == "OutsourcedServiceRequest" && x.EntityId == request.Id.ToString())
+                .OrderByDescending(x => x.StartedAt).ThenByDescending(x => x.Id)
+                .Select(x => x.Status).FirstOrDefault() ?? request.Status,
+            CurrentStepTitle = db.WorkflowInstances.AsNoTracking()
+                .Where(x => x.EntityType == "OutsourcedServiceRequest" && x.EntityId == request.Id.ToString())
+                .OrderByDescending(x => x.StartedAt).ThenByDescending(x => x.Id)
+                .Select(x => x.CurrentStep == null ? "" : x.CurrentStep.Title).FirstOrDefault() ?? ""
+        });
+
+        if (!string.IsNullOrWhiteSpace(model.Search))
+        {
+            var term = model.Search;
+            rowsQuery = rowsQuery.Where(x =>
+                x.Request.RequestNumber.Contains(term) ||
+                x.Request.ServiceDescription.Contains(term) ||
+                x.Request.UnitOfMeasure.Contains(term) ||
+                db.Employees.AsNoTracking().Any(e =>
+                    e.Id == x.Request.RequesterEmployeeId &&
+                    (e.FirstName.Contains(term) || e.LastName.Contains(term) ||
+                     e.PersonnelNumber.Contains(term))));
+        }
+
+        if (model.Priority is "Normal" or "Urgent" or "Emergency")
+            rowsQuery = rowsQuery.Where(x => x.Request.Priority == model.Priority);
+        else
+            model.Priority = "all";
+
+        var allowedStatuses = new[] { "Submitted", "InProgress", "Completed", "Approved", "Rejected", "Returned", "Cancelled" };
+        if (allowedStatuses.Contains(model.Status, StringComparer.Ordinal))
+            rowsQuery = rowsQuery.Where(x => x.WorkflowStatus == model.Status);
+        else
+            model.Status = "all";
+
+        DateTime? fromDate = null;
+        DateTime? toDate = null;
+        if (!string.IsNullOrWhiteSpace(model.FromJalali))
+        {
+            if (PersianDateService.TryParse(model.FromJalali, out var parsed))
+                fromDate = parsed.Date;
+            else
+                ModelState.AddModelError(nameof(model.FromJalali), "تاریخ شروع شمسی معتبر نیست.");
+        }
+        if (!string.IsNullOrWhiteSpace(model.ToJalali))
+        {
+            if (PersianDateService.TryParse(model.ToJalali, out var parsed))
+                toDate = parsed.Date;
+            else
+                ModelState.AddModelError(nameof(model.ToJalali), "تاریخ پایان شمسی معتبر نیست.");
+        }
+        if (fromDate.HasValue && toDate.HasValue && fromDate.Value > toDate.Value)
+            ModelState.AddModelError(nameof(model.ToJalali), "تاریخ پایان نباید پیش از تاریخ شروع باشد.");
+        if (fromDate.HasValue)
+            rowsQuery = rowsQuery.Where(x => x.Request.NeedByDate >= fromDate.Value);
+        if (toDate.HasValue)
+            rowsQuery = rowsQuery.Where(x => x.Request.NeedByDate <= toDate.Value);
+
+        model.TotalCount = await rowsQuery.CountAsync();
+        model.TotalPages = Math.Max(1, (int)Math.Ceiling(model.TotalCount / (double)model.PageSize));
+        model.Page = Math.Min(model.Page, model.TotalPages);
+
+        var descending = model.SortDirection == "desc";
+        model.SortBy = model.SortBy is "RequestNumber" or "ServiceDescription" or "Quantity" or
+            "NeedByDate" or "Priority" or "WorkflowStatus" or "CreatedAtUtc"
+            ? model.SortBy : "CreatedAtUtc";
+
+        IOrderedQueryable<OutsourcedServiceRequestListItem> ordered = model.SortBy switch
+        {
+            "RequestNumber" => descending ? rowsQuery.OrderByDescending(x => x.Request.RequestNumber) : rowsQuery.OrderBy(x => x.Request.RequestNumber),
+            "ServiceDescription" => descending ? rowsQuery.OrderByDescending(x => x.Request.ServiceDescription) : rowsQuery.OrderBy(x => x.Request.ServiceDescription),
+            "Quantity" => descending ? rowsQuery.OrderByDescending(x => x.Request.Quantity) : rowsQuery.OrderBy(x => x.Request.Quantity),
+            "NeedByDate" => descending ? rowsQuery.OrderByDescending(x => x.Request.NeedByDate) : rowsQuery.OrderBy(x => x.Request.NeedByDate),
+            "Priority" => descending ? rowsQuery.OrderByDescending(x => x.Request.Priority) : rowsQuery.OrderBy(x => x.Request.Priority),
+            "WorkflowStatus" => descending ? rowsQuery.OrderByDescending(x => x.WorkflowStatus) : rowsQuery.OrderBy(x => x.WorkflowStatus),
+            _ => descending ? rowsQuery.OrderByDescending(x => x.Request.CreatedAtUtc) : rowsQuery.OrderBy(x => x.Request.CreatedAtUtc)
+        };
+        model.Rows = await ordered.ThenByDescending(x => x.Request.Id)
+            .Skip((model.Page - 1) * model.PageSize)
+            .Take(model.PageSize)
+            .ToListAsync();
+
         ViewBag.CanCreate = Has("OutsourcedServices.Create");
-        return View(rows);
+        ViewBag.CanViewAll = Has("OutsourcedServices.ViewAll");
+        return View(model);
     }
 
     [HttpGet]
@@ -74,8 +180,8 @@ public sealed class OutsourcedServicesController(
         });
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(OutsourcedServiceRequestFormVm model)
+    [HttpPost, ValidateAntiForgeryToken, RequestSizeLimit(55_000_000)]
+    public async Task<IActionResult> Create(OutsourcedServiceRequestFormVm model, List<IFormFile>? files)
     {
         if (!Has("OutsourcedServices.Create")) return Forbid();
         PrepareFormView(isEdit: false);
@@ -85,8 +191,17 @@ public sealed class OutsourcedServicesController(
         if (!hasRequester)
             ModelState.AddModelError("", "اطلاعات کاربر درخواست‌کننده معتبر نیست.");
 
-        if (!ValidateForm(model, out var needByDate) || !ModelState.IsValid)
+        if (!ValidateForm(model, out var needByDate))
+        {
+            ViewBag.ExistingAttachments = new List<OutsourcedServiceRequestAttachment>();
             return View("Create", model);
+        }
+        ValidateAttachments(files, existingCount: 0, existingBytes: 0);
+        if (!ModelState.IsValid)
+        {
+            ViewBag.ExistingAttachments = new List<OutsourcedServiceRequestAttachment>();
+            return View("Create", model);
+        }
 
         var item = new OutsourcedServiceRequest
         {
@@ -101,20 +216,44 @@ public sealed class OutsourcedServicesController(
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow
         };
-        db.OutsourcedServiceRequests.Add(item);
-        await db.SaveChangesAsync();
-        var jalaliYear = PersianDateService.Format(PersianDateService.ToTehran(DateTime.UtcNow))[..4];
-        item.RequestNumber = $"OS-{jalaliYear}-{item.Id:000000}";
-        await db.SaveChangesAsync();
-        db.OutsourcedServiceRequestRevisions.Add(new OutsourcedServiceRequestRevision
+
+        await using (var transaction = await db.Database.BeginTransactionAsync())
         {
-            RequestId = item.Id,
-            Action = "Created",
-            AfterJson = SnapshotJson(item),
-            ActorEmployeeId = requesterId,
-            ActorUserName = CurrentActorName()
-        });
-        await db.SaveChangesAsync();
+            try
+            {
+                db.OutsourcedServiceRequests.Add(item);
+                await db.SaveChangesAsync();
+                var jalaliYear = PersianDateService.Format(PersianDateService.ToTehran(DateTime.UtcNow))[..4];
+                item.RequestNumber = $"OS-{jalaliYear}-{item.Id:000000}";
+                await SaveAttachmentsAsync(item, files);
+                db.OutsourcedServiceRequestRevisions.Add(new OutsourcedServiceRequestRevision
+                {
+                    RequestId = item.Id,
+                    Action = "Created",
+                    AfterJson = SnapshotJson(item),
+                    ActorEmployeeId = requesterId,
+                    ActorUserName = CurrentActorName()
+                });
+                await db.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch (IOException)
+            {
+                await transaction.RollbackAsync();
+                TryDeleteAttachmentFolder(item.Id);
+                ModelState.AddModelError("Attachments", "ذخیره یکی از فایل‌های پیوست با خطا مواجه شد. لطفاً دوباره تلاش کنید.");
+                ViewBag.ExistingAttachments = new List<OutsourcedServiceRequestAttachment>();
+                return View("Create", model);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                await transaction.RollbackAsync();
+                TryDeleteAttachmentFolder(item.Id);
+                ModelState.AddModelError("Attachments", "سامانه مجوز ذخیره فایل پیوست را ندارد. با مدیر سامانه تماس بگیرید.");
+                ViewBag.ExistingAttachments = new List<OutsourcedServiceRequestAttachment>();
+                return View("Create", model);
+            }
+        }
         await audit.WriteAsync("ثبت سفارش خدمات برونسپاری", nameof(OutsourcedServiceRequest),
             item.Id.ToString(), $"ثبت درخواست {item.RequestNumber}", requesterId);
 
@@ -155,18 +294,23 @@ public sealed class OutsourcedServicesController(
         }
 
         PrepareFormView(isEdit: true, returnTaskId);
+        var existingAttachments = await db.OutsourcedServiceRequestAttachments.AsNoTracking()
+            .Where(x => x.RequestId == item.Id)
+            .OrderByDescending(x => x.UploadedAtUtc).ToListAsync();
+        PrepareFormView(isEdit: true, returnTaskId, existingAttachments);
         return View("Create", new OutsourcedServiceRequestFormVm
         {
             ServiceDescription = item.ServiceDescription,
             UnitOfMeasure = item.UnitOfMeasure,
             Quantity = item.Quantity,
             NeedByDateJalali = PersianDateService.Format(item.NeedByDate),
-            Priority = item.Priority
+            Priority = item.Priority,
+            ExistingAttachments = existingAttachments
         });
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(int id, OutsourcedServiceRequestFormVm model, int? returnTaskId)
+    [HttpPost, ValidateAntiForgeryToken, RequestSizeLimit(55_000_000)]
+    public async Task<IActionResult> Edit(int id, OutsourcedServiceRequestFormVm model, int? returnTaskId, List<IFormFile>? files)
     {
         PrepareFormView(isEdit: true, returnTaskId);
 
@@ -185,8 +329,20 @@ public sealed class OutsourcedServicesController(
             return Forbid();
         }
 
-        if (!ValidateForm(model, out var needByDate) || !ModelState.IsValid)
+        var existingAttachments = await db.OutsourcedServiceRequestAttachments
+            .Where(x => x.RequestId == item.Id).OrderByDescending(x => x.UploadedAtUtc).ToListAsync();
+        PrepareFormView(isEdit: true, returnTaskId, existingAttachments);
+        if (!ValidateForm(model, out var needByDate))
+        {
+            ViewBag.ExistingAttachments = existingAttachments;
             return View("Create", model);
+        }
+        ValidateAttachments(files, existingAttachments.Count, existingAttachments.Sum(x => x.FileSize));
+        if (!ModelState.IsValid)
+        {
+            ViewBag.ExistingAttachments = existingAttachments;
+            return View("Create", model);
+        }
 
         var before = SnapshotJson(item);
         item.ServiceDescription = model.ServiceDescription.Trim();
@@ -196,17 +352,37 @@ public sealed class OutsourcedServicesController(
         item.Priority = model.Priority;
         item.UpdatedAtUtc = DateTime.UtcNow;
 
-        db.OutsourcedServiceRequestRevisions.Add(new OutsourcedServiceRequestRevision
+        try
         {
-            RequestId = item.Id,
-            Action = "Updated",
-            BeforeJson = before,
-            AfterJson = SnapshotJson(item),
-            ActorEmployeeId = TryEmployeeId(out var revisionEditorId) ? revisionEditorId : null,
-            ActorUserName = CurrentActorName()
-        });
-        await db.SaveChangesAsync();
-        await transaction.CommitAsync();
+            await SaveAttachmentsAsync(item, files);
+            db.OutsourcedServiceRequestRevisions.Add(new OutsourcedServiceRequestRevision
+            {
+                RequestId = item.Id,
+                Action = "Updated",
+                BeforeJson = before,
+                AfterJson = SnapshotJson(item),
+                ActorEmployeeId = TryEmployeeId(out var revisionEditorId) ? revisionEditorId : null,
+                ActorUserName = CurrentActorName()
+            });
+            await db.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+        catch (IOException)
+        {
+            await transaction.RollbackAsync();
+            TryDeleteAttachmentFolder(item.Id, deleteAll: false);
+            ModelState.AddModelError("Attachments", "ذخیره یکی از فایل‌های پیوست با خطا مواجه شد. لطفاً دوباره تلاش کنید.");
+            ViewBag.ExistingAttachments = existingAttachments;
+            return View("Create", model);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            await transaction.RollbackAsync();
+            TryDeleteAttachmentFolder(item.Id, deleteAll: false);
+            ModelState.AddModelError("Attachments", "سامانه مجوز ذخیره فایل پیوست را ندارد. با مدیر سامانه تماس بگیرید.");
+            ViewBag.ExistingAttachments = existingAttachments;
+            return View("Create", model);
+        }
 
         await audit.WriteAsync("ویرایش سفارش خدمات برونسپاری", nameof(OutsourcedServiceRequest),
             item.Id.ToString(), $"ویرایش درخواست {item.RequestNumber}",
@@ -290,6 +466,24 @@ public sealed class OutsourcedServicesController(
     }
 
     [HttpGet]
+    public async Task<IActionResult> DownloadAttachment(int id)
+    {
+        var attachment = await db.OutsourcedServiceRequestAttachments.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == id);
+        if (attachment is null) return NotFound();
+
+        var request = await db.OutsourcedServiceRequests.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == attachment.RequestId);
+        if (request is null || !await CanViewRequestAsync(request))
+            return NotFound();
+
+        var path = Path.Combine(GetAttachmentFolder(request.Id), attachment.StoredFileName);
+        if (!System.IO.File.Exists(path)) return NotFound();
+        var downloadName = Path.GetFileName(attachment.OriginalFileName);
+        return PhysicalFile(path, "application/octet-stream", downloadName, enableRangeProcessing: true);
+    }
+
+    [HttpGet]
     public async Task<IActionResult> Details(int id)
     {
         if (!Has("OutsourcedServices.Create") && !Has("OutsourcedServices.ViewAll") && !Has("OutsourcedServices.Reports")) return Forbid();
@@ -321,15 +515,138 @@ public sealed class OutsourcedServicesController(
         ViewBag.Revisions = await db.OutsourcedServiceRequestRevisions.AsNoTracking()
             .Where(x => x.RequestId == item.Id)
             .OrderByDescending(x => x.CreatedAtUtc).Take(100).ToListAsync();
+        ViewBag.Attachments = await db.OutsourcedServiceRequestAttachments.AsNoTracking()
+            .Where(x => x.RequestId == item.Id)
+            .OrderByDescending(x => x.UploadedAtUtc).ToListAsync();
         return View(item);
     }
 
-    private void PrepareFormView(bool isEdit, int? returnTaskId = null)
+    private void PrepareFormView(
+        bool isEdit,
+        int? returnTaskId = null,
+        List<OutsourcedServiceRequestAttachment>? existingAttachments = null)
     {
         ViewBag.Units = Units;
         ViewBag.Priorities = Priorities;
         ViewBag.IsEdit = isEdit;
         ViewBag.ReturnTaskId = returnTaskId;
+        ViewBag.ExistingAttachments = existingAttachments ?? new List<OutsourcedServiceRequestAttachment>();
+    }
+
+    private const long MaxAttachmentBytes = 10 * 1024 * 1024;
+    private const long MaxTotalAttachmentBytes = 50 * 1024 * 1024;
+    private const int MaxAttachmentCount = 10;
+    private static readonly HashSet<string> AllowedAttachmentExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+        ".png", ".jpg", ".jpeg", ".gif", ".txt", ".csv"
+    };
+
+    private void ValidateAttachments(List<IFormFile>? files, int existingCount, long existingBytes)
+    {
+        var uploads = files?.Where(x => x is not null && x.Length > 0).ToList() ?? [];
+        if (existingCount + uploads.Count > MaxAttachmentCount)
+            ModelState.AddModelError("Attachments", $"حداکثر {MaxAttachmentCount} فایل برای هر سفارش قابل نگهداری است.");
+
+        long totalBytes = existingBytes;
+        foreach (var file in uploads)
+        {
+            var extension = Path.GetExtension(file.FileName);
+            if (!AllowedAttachmentExtensions.Contains(extension))
+                ModelState.AddModelError("Attachments", $"قالب فایل «{Path.GetFileName(file.FileName)}» مجاز نیست.");
+            if (file.Length > MaxAttachmentBytes)
+                ModelState.AddModelError("Attachments", $"حجم هر فایل نباید بیشتر از ۱۰ مگابایت باشد.");
+            totalBytes += file.Length;
+        }
+
+        if (totalBytes > MaxTotalAttachmentBytes)
+            ModelState.AddModelError("Attachments", "مجموع حجم پیوست‌های هر سفارش نباید بیشتر از ۵۰ مگابایت باشد.");
+    }
+
+    private async Task SaveAttachmentsAsync(OutsourcedServiceRequest item, List<IFormFile>? files)
+    {
+        var uploads = files?.Where(x => x is not null && x.Length > 0).ToList() ?? [];
+        if (uploads.Count == 0) return;
+
+        var folder = GetAttachmentFolder(item.Id);
+        Directory.CreateDirectory(folder);
+        foreach (var file in uploads)
+        {
+            var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+            var storedName = Guid.NewGuid().ToString("N") + extension;
+            var path = Path.Combine(folder, storedName);
+            await using (var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, useAsync: true))
+                await file.CopyToAsync(stream);
+
+            var originalName = Path.GetFileName(file.FileName.Replace('\\', '/'));
+            originalName = new string(originalName.Where(ch => !char.IsControl(ch)).ToArray()).Trim();
+            if (string.IsNullOrWhiteSpace(originalName)) originalName = "attachment" + extension;
+            if (originalName.Length > 255) originalName = originalName[^255..];
+
+            db.OutsourcedServiceRequestAttachments.Add(new OutsourcedServiceRequestAttachment
+            {
+                RequestId = item.Id,
+                OriginalFileName = originalName,
+                StoredFileName = storedName,
+                ContentType = ContentTypeForExtension(extension),
+                FileSize = file.Length,
+                UploadedAtUtc = DateTime.UtcNow
+            });
+        }
+    }
+
+    private static string ContentTypeForExtension(string extension) => extension.ToLowerInvariant() switch
+    {
+        ".pdf" => "application/pdf",
+        ".doc" => "application/msword",
+        ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".xls" => "application/vnd.ms-excel",
+        ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".ppt" => "application/vnd.ms-powerpoint",
+        ".pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        ".png" => "image/png",
+        ".jpg" or ".jpeg" => "image/jpeg",
+        ".gif" => "image/gif",
+        ".txt" => "text/plain",
+        ".csv" => "text/csv",
+        _ => "application/octet-stream"
+    };
+
+    private string GetAttachmentFolder(int requestId) =>
+        Path.Combine(environment.ContentRootPath, "App_Data", "Uploads", "OutsourcedServices", requestId.ToString());
+
+    private void TryDeleteAttachmentFolder(int requestId, bool deleteAll = true)
+    {
+        if (requestId <= 0) return;
+        var folder = GetAttachmentFolder(requestId);
+        try
+        {
+            if (Directory.Exists(folder))
+            {
+                if (deleteAll) Directory.Delete(folder, recursive: true);
+                else
+                {
+                    var referencedNames = db.OutsourcedServiceRequestAttachments.AsNoTracking()
+                        .Where(x => x.RequestId == requestId).Select(x => x.StoredFileName).ToHashSet();
+                    foreach (var path in Directory.EnumerateFiles(folder))
+                        if (!referencedNames.Contains(Path.GetFileName(path)))
+                            System.IO.File.Delete(path);
+                }
+            }
+        }
+        catch
+        {
+            // Orphan cleanup is non-blocking; stored metadata remains the source of truth.
+        }
+    }
+
+    private async Task<bool> CanViewRequestAsync(OutsourcedServiceRequest item)
+    {
+        if (item.IsDeleted && !IsAdmin) return false;
+        if (!Has("OutsourcedServices.Create") && !Has("OutsourcedServices.ViewAll") &&
+            !Has("OutsourcedServices.Reports")) return false;
+        if (Has("OutsourcedServices.ViewAll") || Has("OutsourcedServices.Reports")) return true;
+        return TryEmployeeId(out var employeeId) && employeeId == item.RequesterEmployeeId;
     }
 
     private bool ValidateForm(OutsourcedServiceRequestFormVm model, out DateTime needByDate)

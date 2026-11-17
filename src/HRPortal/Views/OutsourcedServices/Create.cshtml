@@ -7,6 +7,7 @@
     var formAction = isEdit ? Url.Action("Edit", "OutsourcedServices", new { id = Context.Request.RouteValues["id"], returnTaskId }) : Url.Action("Create", "OutsourcedServices");
     var units = (string[])ViewBag.Units;
     var priorities = (Dictionary<string,string>)ViewBag.Priorities;
+    var existingAttachments = ViewBag.ExistingAttachments as List<HRPortal.Models.OutsourcedServiceRequestAttachment> ?? new();
 }
 <div class="outsourced-page">
     <div class="outsourced-hero">
@@ -16,7 +17,7 @@
     </div>
     @if (TempData["Warning"] is string warning) { <div class="alert warning">@warning</div> }
     @if (!ViewData.ModelState.IsValid) { <div class="alert error">لطفاً اطلاعات مشخص‌شده را بررسی و اصلاح کنید.</div> }
-    <form method="post" action="@formAction" class="outsourced-form">
+    <form method="post" action="@formAction" class="outsourced-form" enctype="multipart/form-data">
         @Html.AntiForgeryToken()
         <div class="outsourced-section-head"><div><small>اطلاعات درخواست</small><h2>مشخصات خدمت موردنیاز</h2></div><span class="required-note">فیلدهای ستاره‌دار الزامی هستند</span></div>
         <div class="outsourced-form-grid">
@@ -44,6 +45,43 @@
                 <span class="field-hint">درخواست‌های فوری و اضطراری در گزارش‌ها به‌صورت جداگانه قابل پایش هستند.</span>
             </label>
         </div>
+        <section class="outsourced-attachment-panel">
+            <div class="outsourced-attachment-heading">
+                <div><small>مستندات و مدارک</small><h3>پیوست‌های سفارش</h3></div>
+                <span class="field-hint">اختیاری · حداکثر ۱۰ فایل</span>
+            </div>
+            <label class="outsourced-upload-zone" for="outsourcedFiles">
+                <span class="outsourced-upload-icon">＋</span>
+                <strong>انتخاب فایل برای پیوست</strong>
+                <small>PDF، Word، Excel، PowerPoint، تصاویر، TXT و CSV · حداکثر ۱۰ مگابایت برای هر فایل</small>
+                <input id="outsourcedFiles" name="files" type="file" multiple
+                       accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.gif,.txt,.csv" />
+            </label>
+            <span class="field-hint">مجموع حجم فایل‌های هر سفارش حداکثر ۵۰ مگابایت است. فایل‌ها به‌صورت خصوصی نگهداری می‌شوند و فقط افراد مجاز به درخواست دسترسی دارند.</span>
+            @if (ViewData.ModelState["Attachments"]?.Errors.Count > 0)
+            {
+                <div class="outsourced-attachment-error">
+                    @foreach (var error in ViewData.ModelState["Attachments"]!.Errors)
+                    {
+                        <div>@error.ErrorMessage</div>
+                    }
+                </div>
+            }
+            @if (existingAttachments.Count > 0)
+            {
+                <div class="outsourced-existing-attachments">
+                    <strong>فایل‌های پیوست‌شده قبلی</strong>
+                    @foreach (var file in existingAttachments)
+                    {
+                        <div class="outsourced-file-row">
+                            <span class="outsourced-file-icon">▤</span>
+                            <span class="outsourced-file-name">@file.OriginalFileName <small>@((file.FileSize / 1024.0).ToString("N0")) کیلوبایت</small></span>
+                            <a class="outsourced-detail-link" href="/OutsourcedServices/DownloadAttachment/@file.Id">دریافت فایل</a>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
         <div class="outsourced-form-footer">
             <a class="btn btn-outline" href="/OutsourcedServices">انصراف</a>
             <button class="btn btn-main" type="submit">@(isWorkflowReturnEdit ? "ذخیره اصلاحات و بازگشت به کارتابل" : isEdit ? "ذخیره تغییرات" : "ثبت درخواست و ارسال به گردش کار") <span>←</span></button>

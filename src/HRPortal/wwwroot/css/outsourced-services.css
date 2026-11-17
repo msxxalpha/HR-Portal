@@ -13,3 +13,24 @@
 .request-report-type-open b{font-size:17px;font-weight:500}
 @media(max-width:1050px){.request-report-type-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.request-report-type-grid{grid-template-columns:1fr}.request-report-type-card{min-height:0}}
+
+/* Outsourced request attachments */
+.outsourced-attachment-panel{margin-top:22px;padding:18px;border:1px solid #e0e6ef;border-radius:14px;background:#fbfcfe}
+.outsourced-attachment-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.outsourced-attachment-heading h3{margin:3px 0;color:#17395f;font-size:15px}
+.outsourced-attachment-heading small{color:#8290a2;font-size:10px}
+.outsourced-upload-zone{display:flex;align-items:center;flex-direction:column;gap:8px;padding:22px 16px;border:1.5px dashed #b9c8d9;border-radius:12px;background:#f5f8fc;text-align:center;cursor:pointer;color:#284663;transition:border-color .15s ease,background .15s ease}
+.outsourced-upload-zone:hover{border-color:#557da8;background:#eef4fa}
+.outsourced-upload-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:11px;background:#e2ebf5;color:#1d4d7a;font-size:22px}
+.outsourced-upload-zone strong{font-size:13px}
+.outsourced-upload-zone small{font-size:10px;color:#7889a0}
+.outsourced-upload-zone input{max-width:100%;font:inherit;font-size:11px;color:#64748b}
+.outsourced-attachment-error{margin-top:10px;padding:10px 12px;border:1px solid #f3c4c4;border-radius:9px;background:#fff4f4;color:#a83232;font-size:11px;line-height:1.8}
+.outsourced-existing-attachments,.outsourced-attachment-list{display:grid;gap:8px;margin-top:16px}
+.outsourced-existing-attachments>strong{font-size:12px;color:#405674}
+.outsourced-file-row{display:flex;align-items:center;gap:10px;min-width:0;padding:10px 12px;border:1px solid #e5eaf1;border-radius:10px;background:#fff}
+.outsourced-file-icon{display:grid;place-items:center;width:32px;height:32px;flex:0 0 32px;border-radius:9px;background:#edf2f7;color:#345879}
+.outsourced-file-name{flex:1;min-width:0;overflow-wrap:anywhere;font-size:12px;font-weight:700;color:#304761}
+.outsourced-file-name small{display:block;margin-top:3px;color:#8794a5;font-size:10px;font-weight:400}
+.outsourced-muted{font-size:12px;color:#8290a2}
+@media(max-width:650px){.outsourced-attachment-heading{align-items:flex-start;flex-direction:column}.outsourced-file-row{align-items:flex-start;flex-wrap:wrap}.outsourced-file-name{min-width:calc(100% - 48px)}.outsourced-file-row>a{margin-inline-start:42px}}

@@ -280,8 +280,13 @@ public class WorkflowController(
         if (instance.EntityType == "OutsourcedServiceRequest" &&
             int.TryParse(instance.EntityId, out var outsourcedServiceRequestId))
         {
-            ViewBag.WorkflowOutsourcedServiceRequest = await db.OutsourcedServiceRequests.AsNoTracking()
+            var outsourcedRequest = await db.OutsourcedServiceRequests.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == outsourcedServiceRequestId);
+            ViewBag.WorkflowOutsourcedServiceRequest = outsourcedRequest;
+            if (outsourcedRequest is not null)
+                ViewBag.WorkflowOutsourcedServiceAttachments = await db.OutsourcedServiceRequestAttachments.AsNoTracking()
+                    .Where(x => x.RequestId == outsourcedRequest.Id)
+                    .OrderByDescending(x => x.UploadedAtUtc).ToListAsync();
         }
 
         if (instance.EntityType == ContractRenewalWorkflowService.WorkflowEntityType &&
@@ -387,8 +392,13 @@ public class WorkflowController(
         if (task.WorkflowInstance.EntityType == "OutsourcedServiceRequest" &&
             int.TryParse(task.WorkflowInstance.EntityId, out var outsourcedServiceRequestId))
         {
-            ViewBag.WorkflowOutsourcedServiceRequest = await db.OutsourcedServiceRequests.AsNoTracking()
+            var outsourcedRequest = await db.OutsourcedServiceRequests.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == outsourcedServiceRequestId);
+            ViewBag.WorkflowOutsourcedServiceRequest = outsourcedRequest;
+            if (outsourcedRequest is not null)
+                ViewBag.WorkflowOutsourcedServiceAttachments = await db.OutsourcedServiceRequestAttachments.AsNoTracking()
+                    .Where(x => x.RequestId == outsourcedRequest.Id)
+                    .OrderByDescending(x => x.UploadedAtUtc).ToListAsync();
         }
         return View(task);
     }

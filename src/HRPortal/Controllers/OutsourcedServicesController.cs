@@ -369,7 +369,7 @@ public sealed class OutsourcedServicesController(
         catch (IOException)
         {
             await transaction.RollbackAsync();
-            TryDeleteAttachmentFolder(item.Id, deleteAll: false, existingAttachments.Select(x => x.StoredFileName));
+            TryDeleteAttachmentFolder(item.Id, deleteAll: false, retainedFileNames: existingAttachments.Select(x => x.StoredFileName));
             ModelState.AddModelError("Attachments", "ذخیره یکی از فایل‌های پیوست با خطا مواجه شد. لطفاً دوباره تلاش کنید.");
             ViewBag.ExistingAttachments = existingAttachments;
             return View("Create", model);

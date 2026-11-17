@@ -41,6 +41,26 @@ BEGIN
         ALTER TABLE dbo.OutsourcedServiceRequests ADD DeletedByEmployeeId int NULL;
 END;
 
+IF OBJECT_ID(N'dbo.OutsourcedServiceRequestAttachments', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.OutsourcedServiceRequestAttachments
+    (
+        Id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_OutsourcedServiceRequestAttachments PRIMARY KEY,
+        RequestId int NOT NULL,
+        OriginalFileName nvarchar(255) NOT NULL,
+        StoredFileName nvarchar(120) NOT NULL,
+        ContentType nvarchar(100) NOT NULL CONSTRAINT DF_OutsourcedServiceRequestAttachments_ContentType DEFAULT N'application/octet-stream',
+        FileSize bigint NOT NULL,
+        UploadedAtUtc datetime2 NOT NULL CONSTRAINT DF_OutsourcedServiceRequestAttachments_Uploaded DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT FK_OutsourcedServiceRequestAttachments_Requests FOREIGN KEY(RequestId)
+            REFERENCES dbo.OutsourcedServiceRequests(Id) ON DELETE CASCADE
+    );
+    CREATE UNIQUE INDEX UX_OutsourcedServiceRequestAttachments_Request_File
+        ON dbo.OutsourcedServiceRequestAttachments(RequestId, StoredFileName);
+    CREATE INDEX IX_OutsourcedServiceRequestAttachments_Request_Uploaded
+        ON dbo.OutsourcedServiceRequestAttachments(RequestId, UploadedAtUtc);
+END;
+
 IF OBJECT_ID(N'dbo.OutsourcedServiceRequestRevisions', N'U') IS NULL
 BEGIN
     CREATE TABLE dbo.OutsourcedServiceRequestRevisions

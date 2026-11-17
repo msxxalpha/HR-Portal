@@ -4,12 +4,13 @@
     var cfg = await SettingsService.GetAsync();
     var company = cfg.System;
     var isAdmin = User.HasClaim("IsAdmin", "1");
-    var headerHasPendingWorkflow = false;
+    var headerInboxWorkflowCount = 0;
     if (User.Identity?.IsAuthenticated == true &&
         int.TryParse(User.FindFirst("EmployeeId")?.Value, out var headerEmployeeId))
     {
-        headerHasPendingWorkflow = (await WorkflowService.GetInboxAsync(headerEmployeeId)).Count > 0;
+        headerInboxWorkflowCount = await WorkflowService.GetInboxWorkflowCountAsync(headerEmployeeId);
     }
+    var headerHasPendingWorkflow = headerInboxWorkflowCount > 0;
     bool Can(string permission) =>
         isAdmin ||
         User.HasClaim("Permission", permission) ||
@@ -34,29 +35,44 @@
     <link rel="stylesheet" href="@Url.Content("~/css/suggestions.css")" asp-append-version="true" />
     <link rel="stylesheet" href="@Url.Content("~/css/outsourced-services.css")" asp-append-version="true" />
     <style>
-        .workflow-attention-wrap { position:relative; display:inline-flex; align-items:center; }
+        .workflow-attention-wrap { position:relative; display:inline-flex; align-items:center; flex:0 0 auto; }
         .workflow-attention-indicator {
-            display:inline-flex; align-items:center; justify-content:center;
-            width:30px; height:30px; margin-inline-start:8px; border-radius:50%;
-            border:1px solid currentColor; flex:0 0 auto; vertical-align:middle;
+            position:relative; display:inline-flex; align-items:center; justify-content:center;
+            width:38px; height:38px; margin-inline-start:8px; border-radius:12px;
+            border:1px solid #d5dfeb; flex:0 0 auto; vertical-align:middle;
+            color:#24415f; background:linear-gradient(145deg,#ffffff,#e9eff6);
+            box-shadow:0 3px 10px rgba(20,45,75,.14);
+            text-decoration:none; transition:transform .18s ease, box-shadow .18s ease, background .18s ease;
         }
+        .workflow-attention-indicator:hover { transform:translateY(-1px); box-shadow:0 6px 15px rgba(20,45,75,.2); }
+        .workflow-attention-indicator:focus-visible { outline:3px solid rgba(59,130,246,.42); outline-offset:3px; }
         .workflow-attention-tooltip {
-            position:absolute; top:calc(100% + 10px); left:50%; transform:translateX(-50%);
-            z-index:1000; width:max-content; max-width:min(300px,80vw); padding:9px 12px;
-            border:1px solid #b8c7d9; border-radius:9px; background:#fff;
-            color:#18324e; box-shadow:0 8px 24px rgba(15,35,60,.18);
-            font-size:.78rem; font-weight:700; line-height:1.7; text-align:center;
-            white-space:normal; pointer-events:none;
+            position:fixed; z-index:10000; top:68px; left:12px;
+            width:min(320px,calc(100vw - 24px)); max-width:calc(100vw - 24px);
+            box-sizing:border-box; padding:10px 14px;
+            border:1px solid #b8c7d9; border-radius:11px; background:#fff;
+            color:#18324e; box-shadow:0 10px 28px rgba(15,35,60,.2);
+            font-size:.8rem; font-weight:700; line-height:1.8; text-align:right;
+            white-space:normal; overflow-wrap:anywhere; pointer-events:none;
         }
         .workflow-attention-tooltip[hidden] { display:none !important; }
-        .workflow-attention-indicator svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
-        .workflow-attention-indicator.is-pending { color:#c26b08; background:#fff7ed; animation:workflow-attention-blink 1.1s ease-in-out infinite; }
-        .workflow-attention-indicator.is-clear { color:#15803d; background:#f0fdf4; }
-        @@keyframes workflow-attention-blink {
-            0%,100% { opacity:1; box-shadow:0 0 0 0 rgba(217,119,6,.12); }
-            50% { opacity:.35; box-shadow:0 0 0 5px rgba(217,119,6,.12); }
+        .workflow-attention-indicator svg { width:21px; height:21px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+        .workflow-attention-indicator.is-pending {
+            color:#fff; border-color:#dc2626;
+            background:linear-gradient(145deg,#ef4444,#b91c1c);
+            box-shadow:0 4px 13px rgba(185,28,28,.3);
+            animation:workflow-attention-pulse 1.65s ease-in-out infinite;
         }
-        @@media (prefers-reduced-motion: reduce) { .workflow-attention-indicator.is-pending { animation:none; } }
+        .workflow-attention-indicator.is-clear { color:#37516d; background:linear-gradient(145deg,#fff,#edf2f7); }
+        @@keyframes workflow-attention-pulse {
+            0%,100% { box-shadow:0 4px 13px rgba(185,28,28,.28),0 0 0 0 rgba(220,38,38,.28); }
+            50% { box-shadow:0 5px 16px rgba(185,28,28,.38),0 0 0 6px rgba(220,38,38,.15); }
+        }
+        @@media (prefers-reduced-motion: reduce) {
+            .workflow-attention-indicator, .workflow-attention-indicator.is-pending { animation:none; transition:none; }
+        }
+        .nav-inbox-count { display:inline-block; margin-inline-start:4px; font-weight:900; font-variant-numeric:tabular-nums; color:#b91c1c; }
+        .nav-inbox-count.is-empty { color:#64748b; }
     </style>
 </head>
 <body style="--navy:@company.PrimaryColor;--navy2:@company.SecondaryColor;">
@@ -76,7 +92,7 @@
                  User.HasClaim("UserType", "Employee")) {
                 <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/Workflow") ? "open" : null)">
                     <summary><span class="nav-icon">▤</span>درخواست‌ها</summary><div class="nav-submenu">
-                        <a href="/Workflow/MyRequests">@(isAdmin ? "مدیریت درخواست‌ها" : User.HasClaim("Permission", "Workflow.SkipStep") ? "گردش‌های فعال" : "درخواست‌های من")</a><a href="/Workflow/Inbox">کارتابل</a>
+                        <a href="/Workflow/MyRequests">@(isAdmin ? "مدیریت درخواست‌ها" : User.HasClaim("Permission", "Workflow.SkipStep") ? "گردش‌های فعال" : "درخواست‌های من")</a><a href="/Workflow/Inbox">کارتابل <strong class="nav-inbox-count @(headerInboxWorkflowCount == 0 ? "is-empty" : "")">(@headerInboxWorkflowCount)</strong></a>
                     </div>
                 </details>
             }
@@ -235,18 +251,26 @@
                 {
                     <span style="font-weight:800;font-size:1.08rem">@User.Identity.Name</span>
                     <span class="workflow-attention-wrap">
-                        <span class="workflow-attention-indicator @(headerHasPendingWorkflow ? "is-pending" : "is-clear")"
-                              role="img"
-                              aria-describedby="workflowAttentionTooltip"
-                              aria-label="@(headerHasPendingWorkflow ? "وظیفه در انتظار اقدام در کارتابل شما وجود دارد" : "وظیفه در انتظار اقدام ندارید")"
-                              title="@(headerHasPendingWorkflow ? "در کارتابل شما وظیفه انجام‌نشده وجود دارد" : "کارتابل شما فاقد وظیفه انجام‌نشده است")">
+                        <a class="workflow-attention-indicator @(headerHasPendingWorkflow ? "is-pending" : "is-clear")"
+                           href="/Workflow/Inbox"
+                           aria-describedby="workflowAttentionTooltip"
+                           aria-label="@(headerHasPendingWorkflow ? $"کارتابل شما دارای {headerInboxWorkflowCount} گردش کار است" : "کارتابل شما خالی است")"
+                           title="@(headerHasPendingWorkflow ? "برای مشاهده گردش کارهای کارتابل انتخاب کنید" : "کارتابل شما فاقد گردش کار قابل‌نمایش است")">
                             <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M4 5.5h16v13H4z" />
-                                <path d="M4 12h4.2l2.1 3h3.4l2.1-3H20" />
+                                <path d="M4 6.5h16v12H4z" />
+                                <path d="M4 13h4l1.8 2.6h4.4L16 13h4" />
+                                <path d="M12 3.5v4.8m-2-2 2 2 2-2" />
                             </svg>
-                        </span>
-                        <span class="workflow-attention-tooltip" id="workflowAttentionTooltip" role="status" hidden>
-                            وضعیت کارتابل شما؛ با انتخاب این آیکون می‌توانید از وجود وظایف در انتظار اقدام مطلع شوید.
+                        </a>
+                        <span class="workflow-attention-tooltip" id="workflowAttentionTooltip" role="tooltip" hidden>
+                            @if (headerHasPendingWorkflow)
+                            {
+                                <text>در کارتابل شما @headerInboxWorkflowCount گردش کار وجود دارد. برای مشاهده فهرست، آیکون را انتخاب کنید.</text>
+                            }
+                            else
+                            {
+                                <text>در حال حاضر گردش کاری در کارتابل شما وجود ندارد.</text>
+                            }
                         </span>
                     </span>
                     <form method="post" action="/Account/Logout">
@@ -279,12 +303,24 @@
 <script>
 (() => {
     const tooltip = document.getElementById("workflowAttentionTooltip");
+    const indicator = document.querySelector(".workflow-attention-indicator");
     const logoutForm = document.querySelector('form[action="/Account/Logout"]');
     const storageKey = "hrportal.workflowAttentionTooltipShown.v1";
-    if (!tooltip) return;
+    if (!tooltip || !indicator) return;
 
     const showForTenSeconds = () => {
         tooltip.hidden = false;
+        const anchor = indicator.getBoundingClientRect();
+        const tooltipWidth = Math.max(0, Math.min(320, window.innerWidth - 24));
+        const left = Math.max(12, Math.min(
+            anchor.left + anchor.width / 2 - tooltipWidth / 2,
+            window.innerWidth - tooltipWidth - 12));
+        const top = Math.max(12, Math.min(
+            anchor.bottom + 10,
+            window.innerHeight - tooltip.offsetHeight - 12));
+        tooltip.style.width = tooltipWidth + "px";
+        tooltip.style.left = left + "px";
+        tooltip.style.top = top + "px";
         window.setTimeout(() => { tooltip.hidden = true; }, 10000);
     };
 

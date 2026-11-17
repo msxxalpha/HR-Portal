@@ -62,13 +62,16 @@ public sealed class OutsourcedServicesController(
         };
 
         IQueryable<OutsourcedServiceRequest> requestQuery = db.OutsourcedServiceRequests.AsNoTracking();
+        if (!IsAdmin)
+            requestQuery = requestQuery.Where(x => !x.IsDeleted);
+
         if (!Has("OutsourcedServices.ViewAll"))
         {
             if (!TryEmployeeId(out var employeeId)) return Forbid();
-            requestQuery = requestQuery.Where(x => x.RequesterEmployeeId == employeeId && !x.IsDeleted);
+            requestQuery = requestQuery.Where(x => x.RequesterEmployeeId == employeeId);
             model.ArchiveFilter = "active";
         }
-        else
+        else if (IsAdmin)
         {
             requestQuery = model.ArchiveFilter switch
             {
@@ -78,6 +81,10 @@ public sealed class OutsourcedServicesController(
             };
             if (model.ArchiveFilter is not ("active" or "archived" or "all"))
                 model.ArchiveFilter = "active";
+        }
+        else
+        {
+            model.ArchiveFilter = "active";
         }
 
         IQueryable<OutsourcedServiceRequestListItem> rowsQuery = requestQuery.Select(request => new OutsourcedServiceRequestListItem
@@ -103,6 +110,7 @@ public sealed class OutsourcedServicesController(
                 db.Employees.AsNoTracking().Any(e =>
                     e.Id == x.Request.RequesterEmployeeId &&
                     (e.FirstName.Contains(term) || e.LastName.Contains(term) ||
+                     (e.FirstName + " " + e.LastName).Contains(term) ||
                      e.PersonnelNumber.Contains(term))));
         }
 
@@ -166,6 +174,7 @@ public sealed class OutsourcedServicesController(
 
         ViewBag.CanCreate = Has("OutsourcedServices.Create");
         ViewBag.CanViewAll = Has("OutsourcedServices.ViewAll");
+        ViewBag.CanArchiveFilter = IsAdmin;
         return View(model);
     }
 
@@ -252,6 +261,12 @@ public sealed class OutsourcedServicesController(
                 ModelState.AddModelError("Attachments", "سامانه مجوز ذخیره فایل پیوست را ندارد. با مدیر سامانه تماس بگیرید.");
                 ViewBag.ExistingAttachments = new List<OutsourcedServiceRequestAttachment>();
                 return View("Create", model);
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                TryDeleteAttachmentFolder(item.Id);
+                throw;
             }
         }
         await audit.WriteAsync("ثبت سفارش خدمات برونسپاری", nameof(OutsourcedServiceRequest),
@@ -377,10 +392,16 @@ public sealed class OutsourcedServicesController(
         catch (UnauthorizedAccessException)
         {
             await transaction.RollbackAsync();
-            TryDeleteAttachmentFolder(item.Id, deleteAll: false);
+            TryDeleteAttachmentFolder(item.Id, deleteAll: false, retainedFileNames: existingAttachments.Select(x => x.StoredFileName));
             ModelState.AddModelError("Attachments", "سامانه مجوز ذخیره فایل پیوست را ندارد. با مدیر سامانه تماس بگیرید.");
             ViewBag.ExistingAttachments = existingAttachments;
             return View("Create", model);
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            TryDeleteAttachmentFolder(item.Id, deleteAll: false, retainedFileNames: existingAttachments.Select(x => x.StoredFileName));
+            throw;
         }
 
         await audit.WriteAsync("ویرایش سفارش خدمات برونسپاری", nameof(OutsourcedServiceRequest),

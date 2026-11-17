@@ -3,6 +3,7 @@
     ViewData["Title"] = "سفارش خدمات برونسپاری";
     var canCreate = (bool)(ViewBag.CanCreate ?? false);
     var canViewAll = (bool)(ViewBag.CanViewAll ?? false);
+    var canArchiveFilter = (bool)(ViewBag.CanArchiveFilter ?? false);
     string priority(string value) => value switch { "Emergency" => "اضطراری", "Urgent" => "فوری", _ => "عادی" };
     string priorityClass(string value) => value switch { "Emergency" => "emergency", "Urgent" => "urgent", _ => "normal" };
     string stateTitle(string value) => value switch
@@ -92,7 +93,7 @@
                     <button type="button" class="btn btn-outline jalali-date-open" data-jalali-trigger aria-label="انتخاب تاریخ پایان">تقویم</button>
                 </div>
             </label>
-            @if (canViewAll)
+            @if (canArchiveFilter)
             {
                 <label>وضعیت بایگانی
                     <select name="archived">

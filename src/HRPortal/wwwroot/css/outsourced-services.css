@@ -49,3 +49,9 @@
 .outsourced-index-table th{white-space:nowrap}
 @media(max-width:1100px){.outsourced-index-filters{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:720px){.outsourced-index-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.outsourced-pagination{align-items:flex-start;flex-direction:column}}
+
+.workflow-attachment-list{display:grid;gap:7px;margin:14px 0;padding:12px 14px;border:1px solid var(--border-color,#dce4ed);border-radius:10px;background:#f8fafc}
+.workflow-attachment-list>strong{font-size:.83rem;color:#24415f}
+.workflow-attachment-list>a{display:flex;align-items:center;gap:7px;padding:6px 0;color:#285b8c;font-size:.82rem;text-decoration:none;overflow-wrap:anywhere}
+.workflow-attachment-list>a:hover{text-decoration:underline}
+.workflow-attachment-list small{color:#8491a2;font-size:.72rem}

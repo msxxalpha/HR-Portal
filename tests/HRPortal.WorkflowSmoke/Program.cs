@@ -2755,6 +2755,8 @@ static async Task VerifyWorkflowUpcomingReadOnlyPreviewsAsync()
           positionPreviewInbox[0].WorkflowStepId == upcomingPositionStep.Id &&
           positionPreviewInbox[0].Status == "Upcoming",
         "A future position assignee must see the workflow as a read-only upcoming preview, without a real task ID.");
+    Check(await workflow.GetInboxWorkflowCountAsync(upcomingPositionAssignee.Id) == 1,
+        "A workflow preview must be counted once in the cartable navigation badge.");
 
     var employeePreviewInbox = await workflow.GetInboxAsync(upcomingEmployeeAssignee.Id);
     Check(employeePreviewInbox.Count == 1 &&
@@ -2778,6 +2780,21 @@ static async Task VerifyWorkflowUpcomingReadOnlyPreviewsAsync()
         "A future assignee must not be able to open or act on the current stage task.");
     Check(await db.WorkflowTasks.CountAsync(x => x.WorkflowInstanceId == instance.Id) == 1,
         "Upcoming previews must not create pending workflow tasks prematurely.");
+    db.WorkflowHistory.Add(new WorkflowHistory
+    {
+        WorkflowInstanceId = instance.Id,
+        WorkflowStepId = upcomingPositionStep.Id,
+        FromStatus = "InProgress",
+        ToStatus = "InProgress",
+        Action = "Approve",
+        ActorEmployeeId = upcomingPositionAssignee.Id,
+        Comment = "اقدام ثبت‌شده در آزمون"
+    });
+    await db.SaveChangesAsync();
+    Check(await workflow.GetInboxWorkflowCountAsync(upcomingPositionAssignee.Id) == 0,
+        "A workflow the employee has already acted on must not be included in the cartable count.");
+    Check(await workflow.GetInboxWorkflowCountAsync(upcomingEmployeeAssignee.Id) == 1,
+        "An employee with no action history must retain the count for their upcoming workflow.");
 
     Console.WriteLine("PASS: future position and employee assignees see read-only inbox previews; unrelated employees cannot view or act early.");
 }

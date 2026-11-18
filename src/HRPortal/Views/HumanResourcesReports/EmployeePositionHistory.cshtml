@@ -28,10 +28,10 @@
 }
 
 <section class="hr-history-kpis">
-    <div class="hr-history-kpi"><span>کل تغییرات</span><strong>@Model.Rows.Count.ToString("N0")</strong><small>پس از اعمال فیلترها</small></div>
-    <div class="hr-history-kpi"><span>انتقال / تغییر جایگاه</span><strong>@transferCount.ToString("N0")</strong><small>جایگاه قبلی به جایگاه جدید</small></div>
-    <div class="hr-history-kpi"><span>شروع انتساب</span><strong>@assignedCount.ToString("N0")</strong><small>انتساب جدید به جایگاه</small></div>
-    <div class="hr-history-kpi"><span>پایان انتساب</span><strong>@unassignedCount.ToString("N0")</strong><small>خروج از جایگاه قبلی</small></div>
+    <div class="hr-history-kpi"><span>کل تغییرات</span><strong id="historyTotalCount">@Model.Rows.Count.ToString("N0")</strong><small>پس از اعمال فیلترها</small></div>
+    <div class="hr-history-kpi"><span>انتقال / تغییر جایگاه</span><strong id="historyTransferCount">@transferCount.ToString("N0")</strong><small>جایگاه قبلی به جایگاه جدید</small></div>
+    <div class="hr-history-kpi"><span>شروع انتساب</span><strong id="historyAssignedCount">@assignedCount.ToString("N0")</strong><small>انتساب جدید به جایگاه</small></div>
+    <div class="hr-history-kpi"><span>پایان انتساب</span><strong id="historyUnassignedCount">@unassignedCount.ToString("N0")</strong><small>خروج از جایگاه قبلی</small></div>
 </section>
 
 <section class="card hr-history-filter-card">
@@ -86,7 +86,12 @@
 <section class="card hr-history-table-card">
     <div class="section-head">
         <div><h3>سوابق تغییر انتساب</h3><span class="muted">جدیدترین تغییرات در ابتدای فهرست نمایش داده می‌شوند.</span></div>
-        <span class="badge">@Model.Rows.Count.ToString("N0") رکورد</span>
+        <label class="hr-history-live-filter" for="employeeHistoryLiveSearch">
+            فیلتر لحظه‌ای کارمند
+            <input id="employeeHistoryLiveSearch" type="search" autocomplete="off"
+                   placeholder="بخشی از نام، نام خانوادگی یا شماره پرسنلی..." />
+        </label>
+        <span class="badge" id="employeeHistoryVisibleCount">@Model.Rows.Count.ToString("N0") رکورد</span>
     </div>
     @if (Model.Rows.Count == 0)
     {
@@ -94,8 +99,8 @@
     }
     else
     {
-        <div class="table-wrap">
-            <table>
+        <div class="table-wrap" id="employeeHistoryTableWrap">
+            <table id="employeePositionHistoryTable">
                 <thead>
                     <tr>
                         <th>تاریخ مؤثر تغییر</th>
@@ -110,7 +115,7 @@
                 <tbody>
                     @foreach (var row in Model.Rows)
                     {
-                        <tr>
+                        <tr data-employee-search="@($"{row.EmployeeName} {row.PersonnelNumber}".ToLowerInvariant())" data-change-type="@row.ChangeType">
                             <td class="hr-history-date">@HRPortal.Services.PersianDateService.Format(row.EffectiveDate)</td>
                             <td><strong>@row.EmployeeName</strong><div class="muted">شماره پرسنلی: @row.PersonnelNumber</div></td>
                             <td><span class="hr-history-change hr-history-change-@row.ChangeType.ToLowerInvariant()">@changeTitle(row.ChangeType)</span></td>
@@ -123,6 +128,7 @@
                 </tbody>
             </table>
         </div>
+        <div id="employeeHistoryNoMatches" class="empty" hidden>کارمندی با نام یا شماره پرسنلی واردشده در سوابق فعلی پیدا نشد.</div>
     }
 </section>
 
@@ -146,4 +152,68 @@
 .hr-history-change-unassigned { color:#77552c; background:#faf4e9; border:1px solid #eadcc5; }
 @@media(max-width:980px) { .hr-history-filters { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @@media(max-width:650px) { .hr-history-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } .hr-history-filters { grid-template-columns:1fr; } }
+
+.hr-history-table-tools { display:flex; align-items:end; gap:12px; flex-wrap:wrap; }
+.hr-history-live-filter { display:flex; flex-direction:column; gap:6px; min-width:min(390px,100%); color:#334155; font-size:.82rem; font-weight:700; }
+.hr-history-live-filter input { width:100%; min-width:0; padding:9px 12px; border:1px solid #cbd5e1; border-radius:9px; font:inherit; background:#fff; color:#172033; }
+.hr-history-live-filter input:focus { outline:3px solid #dbeafe; border-color:#3b82f6; }
+#employeeHistoryTableWrap[hidden] { display:none; }
+@@media(max-width:650px) { .hr-history-live-filter { min-width:100%; } }
 </style>
+
+
+@section Scripts {
+<script>
+(function () {
+    const input = document.getElementById("employeeHistoryLiveSearch");
+    const table = document.getElementById("employeePositionHistoryTable");
+    if (!input || !table) return;
+
+    const rows = Array.from(table.querySelectorAll("tbody tr"));
+    const tableWrap = document.getElementById("employeeHistoryTableWrap");
+    const noMatches = document.getElementById("employeeHistoryNoMatches");
+    const visibleCount = document.getElementById("employeeHistoryVisibleCount");
+    const counters = {
+        total: document.getElementById("historyTotalCount"),
+        transfer: document.getElementById("historyTransferCount"),
+        assigned: document.getElementById("historyAssignedCount"),
+        unassigned: document.getElementById("historyUnassignedCount")
+    };
+
+    function normalize(value) {
+        return String(value || "")
+            .toLocaleLowerCase()
+            .replace(/[۰-۹]/g, digit => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+            .replace(/[٠-٩]/g, digit => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+            .replace(/\s+/g, " ")
+            .trim();
+    }
+
+    function update() {
+        const query = normalize(input.value);
+        const counts = { total: 0, transfer: 0, assigned: 0, unassigned: 0 };
+
+        rows.forEach(row => {
+            const match = !query || normalize(row.dataset.employeeSearch).includes(query);
+            row.hidden = !match;
+            if (!match) return;
+            counts.total++;
+            const type = row.dataset.changeType;
+            if (type === "Transfer") counts.transfer++;
+            else if (type === "Assigned") counts.assigned++;
+            else if (type === "Unassigned") counts.unassigned++;
+        });
+
+        Object.keys(counters).forEach(key => {
+            if (counters[key]) counters[key].textContent = counts[key].toLocaleString("fa-IR");
+        });
+        if (visibleCount) visibleCount.textContent = counts.total.toLocaleString("fa-IR") + " رکورد";
+        if (tableWrap) tableWrap.hidden = counts.total === 0;
+        if (noMatches) noMatches.hidden = counts.total !== 0;
+    }
+
+    input.addEventListener("input", update);
+    update();
+})();
+</script>
+}

@@ -135,18 +135,18 @@
                         @foreach (var row in Model.Rows)
                         {
                             <tr>
-                                <td><strong>@row.RequestCode</strong><div class="exec-muted">شناسه گردش: @row.Id</div></td>
-                                <td>@row.WorkflowTypeTitle<div class="exec-muted">تعریف: @row.WorkflowTitle</div></td>
-                                <td><span class="exec-pill @(row.Direction.Contains("ورودی") && row.Direction.Contains("خروجی") ? "neutral" : row.Direction == "ورودی" ? "info" : "neutral")">@row.Direction</span></td>
-                                <td>@row.RequesterName<div class="exec-muted">شماره پرسنلی: @row.RequesterPersonnelNumber</div></td>
-                                <td><span class="exec-pill @(row.Status == "Approved" || row.Status == "Completed" ? "success" : row.Status == "Rejected" ? "danger" : row.Status == "Returned" ? "warning" : "info")">@row.StatusTitle</span></td>
-                                <td>@row.CurrentStep</td>
-                                <td>@row.CurrentOwner</td>
-                                <td data-sort="@row.StartedAt.Ticks">@row.StartedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
-                                <td>@row.AgeDays روز</td>
-                                <td>@row.LastAction@if (!string.IsNullOrWhiteSpace(row.LastComment)) { <div class="exec-muted" title="@row.LastComment">@row.LastComment</div> }</td>
-                                <td><span class="exec-pill @row.QualityClass">@(row.QualityClass == "danger" ? "●" : row.QualityClass == "warning" ? "▲" : row.QualityClass == "success" ? "✓" : "●") @row.QualitySignal</span></td>
-                                <td><a class="exec-row-link" href="/Workflow/Details/@row.Id">مشاهده تاریخچه ←</a></td>
+                                <td data-label="درخواست"><strong>@row.RequestCode</strong><div class="exec-muted">شناسه گردش: @row.Id</div></td>
+                                <td data-label="نوع گردش کار">@row.WorkflowTypeTitle<div class="exec-muted">تعریف: @row.WorkflowTitle</div></td>
+                                <td data-label="جهت"><span class="exec-pill @(row.Direction.Contains("ورودی") && row.Direction.Contains("خروجی") ? "neutral" : row.Direction == "ورودی" ? "info" : "neutral")">@row.Direction</span></td>
+                                <td data-label="درخواست‌کننده">@row.RequesterName<div class="exec-muted">شماره پرسنلی: @row.RequesterPersonnelNumber</div></td>
+                                <td data-label="وضعیت"><span class="exec-pill @(row.Status == "Approved" || row.Status == "Completed" ? "success" : row.Status == "Rejected" ? "danger" : row.Status == "Returned" ? "warning" : "info")">@row.StatusTitle</span></td>
+                                <td data-label="مرحله جاری">@row.CurrentStep</td>
+                                <td data-label="مالک / کارتابل">@row.CurrentOwner</td>
+                                <td data-label="تاریخ ثبت" data-sort="@row.StartedAt.Ticks">@row.StartedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                <td data-label="سن گردش">@row.AgeDays روز</td>
+                                <td data-label="آخرین اقدام">@row.LastAction@if (!string.IsNullOrWhiteSpace(row.LastComment)) { <div class="exec-muted" title="@row.LastComment">@row.LastComment</div> }</td>
+                                <td data-label="نشانگر کیفی"><span class="exec-pill @row.QualityClass">@(row.QualityClass == "danger" ? "●" : row.QualityClass == "warning" ? "▲" : row.QualityClass == "success" ? "✓" : "●") @row.QualitySignal</span></td>
+                                <td data-label="جزئیات"><a class="exec-row-link" href="/Workflow/Details/@row.Id">مشاهده تاریخچه ←</a></td>
                             </tr>
                         }
                         </tbody>

@@ -1446,6 +1446,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         if (!string.IsNullOrWhiteSpace(status))
             rows = rows.Where(x => x.Status == status).ToList();
 
+        await ApplyContractRenewalWorkflowTitlesAsync(rows);
+
         return rows
             .OrderByDescending(x => x.CreatedAt)
             .ThenBy(x => x.IsUpcomingPreview)
@@ -1729,14 +1731,18 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
     public async Task<List<WorkflowInboxRow>> GetAllRequestsAsync()
     {
-        return await BuildRequestsQuery(null).ToListAsync();
+        var rows = await BuildRequestsQuery(null).ToListAsync();
+        await ApplyContractRenewalWorkflowTitlesAsync(rows);
+        return rows;
     }
 
     public async Task<List<WorkflowInboxRow>> GetActiveRequestsForSkipAsync()
     {
-        return await BuildRequestsQuery(null)
+        var rows = await BuildRequestsQuery(null)
             .Where(x => x.Status == "InProgress")
             .ToListAsync();
+        await ApplyContractRenewalWorkflowTitlesAsync(rows);
+        return rows;
     }
 
     private IQueryable<WorkflowInboxRow> BuildRequestsQuery(int? requesterEmployeeId)
@@ -1770,6 +1776,41 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                         h.ActorEmployeeId != null && h.ActorEmployeeId != x.RequesterEmployeeId &&
                         h.Action != "Created" && h.Action != "Submitted" && h.Action != "Submit")
             });
+    }
+
+    private async Task ApplyContractRenewalWorkflowTitlesAsync(List<WorkflowInboxRow> rows)
+    {
+        var requestIds = rows
+            .Where(row => row.EntityType == "ContractRenewalRequest")
+            .Select(row => int.TryParse(row.EntityId, out var id) ? id : 0)
+            .Where(id => id > 0)
+            .Distinct()
+            .ToArray();
+        if (requestIds.Length == 0)
+            return;
+
+        var requests = await db.ContractRenewalRequests.AsNoTracking()
+            .Where(request => requestIds.Contains(request.Id))
+            .Select(request => new
+            {
+                request.Id,
+                request.EmployeeNameSnapshot,
+                request.PersonnelNumberSnapshot,
+                request.RequestCode
+            })
+            .ToListAsync();
+        var byId = requests.ToDictionary(request => request.Id);
+
+        foreach (var row in rows)
+        {
+            if (row.EntityType != "ContractRenewalRequest" ||
+                !int.TryParse(row.EntityId, out var requestId) ||
+                !byId.TryGetValue(requestId, out var request))
+                continue;
+
+            row.WorkflowTitle =
+                $"ارزشیابی عملکرد و تمدید قرارداد - {request.EmployeeNameSnapshot} ({request.PersonnelNumberSnapshot}) - {request.RequestCode}";
+        }
     }
 
     public async Task DeleteRequestAsync(int instanceId, int actorEmployeeId, bool isAdmin)
@@ -1831,8 +1872,12 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         await transaction.CommitAsync();
     }
 
-    public async Task<List<WorkflowInboxRow>> GetMyRequestsAsync(int employeeId) =>
-        await BuildRequestsQuery(employeeId).ToListAsync();
+    public async Task<List<WorkflowInboxRow>> GetMyRequestsAsync(int employeeId)
+    {
+        var rows = await BuildRequestsQuery(employeeId).ToListAsync();
+        await ApplyContractRenewalWorkflowTitlesAsync(rows);
+        return rows;
+    }
 
     public async Task<WorkflowInstance?> GetInstanceAsync(int id, int employeeId, bool allowUpcomingPreview = false)
     {

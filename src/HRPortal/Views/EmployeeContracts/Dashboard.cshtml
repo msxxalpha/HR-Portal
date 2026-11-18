@@ -17,6 +17,7 @@
 <section class="card contract-expiry-card">
     <div class="section-head">
         <div><h3>کارکنان با کمتر از ۳۱ روز تا پایان قرارداد</h3><span class="muted">مبنای کنترل درخواست تکراری، تاریخ پایان قرارداد فعلی ثبت‌شده برای همان کارمند است.</span></div>
+        <div class="contract-expiry-legend"><span></span> ردیف قرمز کم‌رنگ: هنوز اقدامی در گردش ثبت نشده است</div>
         <span class="status-pill status-pending">@Model.ExpiringEmployeeCount نفر</span>
     </div>
     @if (Model.ExpiringEmployees.Count == 0)
@@ -33,7 +34,7 @@
                 var target = row.CanStartRequest
                     ? $"/EmployeeContracts/Renewal?employeeId={row.EmployeeId}"
                     : row.LatestRequest is not null ? $"/EmployeeContracts/History?id={row.LatestRequest.Id}" : "/EmployeeContracts/Requests";
-                <tr class="contract-expiry-row" data-href="@target" tabindex="0" role="link" aria-label="مشاهده اطلاعات تمدید قرارداد @row.FullName">
+                <tr class="contract-expiry-row @(row.NeedsAction ? "contract-expiry-row-needs-action" : "")" data-href="@target" tabindex="0" role="link" aria-label="مشاهده اطلاعات تمدید قرارداد @row.FullName">
                     <td><strong>@row.FullName</strong></td>
                     <td>@row.PersonnelNumber</td>
                     <td>@row.OrganizationUnit</td>
@@ -101,6 +102,13 @@
 </section>
 
 <div class="form-actions"><a class="btn btn-outline" href="/EmployeeContracts">صفحه اصلی ماژول قراردادها</a><a class="btn btn-outline" href="/EmployeeContracts/Requests">مشاهده جزئیات همه درخواست‌ها</a></div>
+
+<style>
+.contract-expiry-legend { display:inline-flex; align-items:center; gap:7px; color:#7f1d1d; font-size:.78rem; font-weight:700; }
+.contract-expiry-legend span { width:12px; height:12px; border-radius:3px; background:#ffe4e6; border:1px solid #fecdd3; display:inline-block; }
+.contract-expiry-row-needs-action td { background:#fff1f2 !important; }
+.contract-expiry-row-needs-action:hover td { background:#ffe4e6 !important; }
+</style>
 
 @section Scripts {
 <script>

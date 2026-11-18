@@ -26,6 +26,7 @@ public class ContractRenewalExpiryRow
     public int DaysRemaining { get; set; }
     public ContractRenewalRequest? LatestRequest { get; set; }
     public bool CanStartRequest { get; set; }
+    public bool NeedsAction { get; set; }
 }
 
 public class ContractRenewalDashboardBucket

@@ -64,6 +64,37 @@ public class EmployeeContractsController(
             });
         }
 
+        var workflowIdsForExpiryRows = rows
+            .Where(row => row.LatestRequest?.WorkflowInstanceId.HasValue == true)
+            .Select(row => row.LatestRequest!.WorkflowInstanceId!.Value)
+            .Distinct()
+            .ToArray();
+        var actedWorkflowIds = workflowIdsForExpiryRows.Length == 0
+            ? new HashSet<int>()
+            : (await db.WorkflowHistory.AsNoTracking()
+                .Where(history => workflowIdsForExpiryRows.Contains(history.WorkflowInstanceId) &&
+                    history.Action != "Created" && history.Action != "Submitted" &&
+                    history.Action != "Submit" && history.Action != "SaveDraft")
+                .Select(history => history.WorkflowInstanceId)
+                .Distinct()
+                .ToListAsync()).ToHashSet();
+
+        foreach (var row in rows)
+        {
+            var request = row.LatestRequest;
+            if (request is null)
+            {
+                row.NeedsAction = true;
+                continue;
+            }
+
+            var isTerminal = request.Status is "متوقف شده" or "تکمیل شده" or "رد شده" ||
+                request.WorkflowInstance?.Status is "Cancelled" or "Approved" or "Rejected";
+            row.NeedsAction = !isTerminal &&
+                (!request.WorkflowInstanceId.HasValue ||
+                 !actedWorkflowIds.Contains(request.WorkflowInstanceId.Value));
+        }
+
         var currentRequests = requests.Where(x => x.Status != "حذف شده").ToList();
         bool isInProgress(ContractRenewalRequest request) =>
             request.WorkflowInstance?.Status == "InProgress" ||

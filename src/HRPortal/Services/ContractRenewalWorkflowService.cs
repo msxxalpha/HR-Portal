@@ -131,7 +131,7 @@ public class ContractRenewalWorkflowService(HRPortalDbContext db, WorkflowServic
         var definition = new WorkflowDefinition
         {
             Code = code,
-            Title = $"ارزشیابی عملکرد و تمدید قرارداد - {request.RequestCode}",
+            Title = $"ارزشیابی عملکرد و تمدید قرارداد - {request.EmployeeNameSnapshot} ({request.PersonnelNumberSnapshot}) - {request.RequestCode}",
             Description = "تعریف داخلی مختص همین درخواست؛ شامل زنجیره پویا، حراست، منابع انسانی و مدیرعامل.",
             Version = 1,
             IsActive = true,

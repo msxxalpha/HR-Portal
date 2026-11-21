@@ -197,7 +197,7 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
             return RedirectToAction(nameof(PersonalPassword));
         // Every employee starts at the main portal dashboard. The performance
         // dashboard remains available from its dedicated menu/quick-access link.
-        return Redirect(!string.IsNullOrWhiteSpace(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl) ? model.ReturnUrl : "/");
+        return RedirectToAction("Index", "Home");
     }
 
     [HttpGet, AllowAnonymous]
@@ -343,7 +343,7 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
 
         await audit.WriteAsync("ورود موفق کارمند", "Account", employee.Id.ToString(), employee.PersonnelNumber, employee.Id);
         // All employees land on the main portal dashboard after OTP verification.
-        return Redirect(!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl) ? returnUrl : "/");
+        return RedirectToAction("Index", "Home");
     }
 
     [HttpGet, Authorize]

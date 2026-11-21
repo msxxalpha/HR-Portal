@@ -2411,6 +2411,143 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             actorEmployeeId);
     }
 
+    public async Task<int> AutoAdvanceExpiredContractRenewalEvaluationStepsAsync(CancellationToken cancellationToken = default)
+    {
+        var allowedDays = await db.ContractRenewalWorkflowSettings.AsNoTracking()
+            .Where(x => x.Id == 1)
+            .Select(x => (int?)x.EvaluationAutoAdvanceAfterDays)
+            .FirstOrDefaultAsync(cancellationToken) ?? 2;
+        allowedDays = allowedDays is >= 1 and <= 365 ? allowedDays : 2;
+
+        var instanceIds = await db.WorkflowInstances.AsNoTracking()
+            .Where(x => x.EntityType == ContractRenewalWorkflowService.WorkflowEntityType &&
+                        x.Status == "InProgress" && x.CurrentStepId.HasValue)
+            .Select(x => x.Id)
+            .ToListAsync(cancellationToken);
+
+        var advanced = 0;
+        foreach (var instanceId in instanceIds)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await using var transaction = await db.Database.BeginTransactionAsync(
+                System.Data.IsolationLevel.Serializable, cancellationToken);
+
+            var instance = await db.WorkflowInstances
+                .Include(x => x.WorkflowDefinition).ThenInclude(x => x.Steps)
+                    .ThenInclude(x => x.OrganizationNode).ThenInclude(x => x!.Parent)
+                .Include(x => x.Tasks)
+                .FirstOrDefaultAsync(x => x.Id == instanceId &&
+                    x.EntityType == ContractRenewalWorkflowService.WorkflowEntityType &&
+                    x.Status == "InProgress" && x.CurrentStepId.HasValue, cancellationToken);
+            if (instance is null)
+                continue;
+
+            var currentStep = instance.WorkflowDefinition.Steps
+                .FirstOrDefault(x => x.Id == instance.CurrentStepId!.Value);
+            if (currentStep is null ||
+                !currentStep.Code.StartsWith("Evaluation_H", StringComparison.Ordinal) ||
+                currentStep.Code is "Security" or "HumanResources" or "CEO")
+                continue;
+
+            var requestCreatedAt = await db.ContractRenewalRequests.AsNoTracking()
+                .Where(x => x.WorkflowInstanceId == instance.Id)
+                .Select(x => (DateTime?)x.CreatedAt)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (!requestCreatedAt.HasValue)
+                continue;
+
+            var requestStartUtc = DateTime.SpecifyKind(requestCreatedAt.Value, DateTimeKind.Utc);
+            if (DateTime.UtcNow < requestStartUtc.AddDays(allowedDays))
+                continue;
+
+            var node = currentStep.OrganizationNode;
+            var rank = RoleService.NormalizeRankType(node?.RankType);
+            var parentRank = RoleService.NormalizeRankType(node?.Parent?.RankType);
+            var isExecutiveDirectReport = parentRank == "مدیرعامل" &&
+                rank is "مدیریت" or "مدیر" or "معاونت" or "معاون" or "ریاست" or "رئیس";
+            if (isExecutiveDirectReport)
+                continue;
+
+            // A stage with any saved score is never auto-advanced, even if the
+            // request has exceeded its global evaluation window.
+            var hasSavedScore = await db.EmployeePerformanceEvaluationScores.AsNoTracking()
+                .AnyAsync(x => x.WorkflowInstanceId == instance.Id &&
+                    x.WorkflowStepId == currentStep.Id && x.Score.HasValue, cancellationToken);
+            if (hasSavedScore)
+                continue;
+
+            var pendingTasks = instance.Tasks
+                .Where(x => x.WorkflowStepId == currentStep.Id && x.Status == "Pending")
+                .OrderBy(x => x.Id)
+                .ToList();
+            if (pendingTasks.Count == 0)
+                continue;
+
+            var reserved = db.Database.IsRelational()
+                ? await db.WorkflowTasks
+                    .Where(x => x.WorkflowInstanceId == instance.Id &&
+                                x.WorkflowStepId == currentStep.Id &&
+                                x.Status == "Pending")
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.Status, "Processing"), cancellationToken)
+                : pendingTasks.Count;
+            if (reserved != pendingTasks.Count)
+                continue;
+
+            var previousStatus = instance.Status;
+            var now = DateTime.UtcNow;
+            var comment = $"مرحله «{currentStep.Title}» به علت ثبت‌نشدن امتیاز تا {allowedDays} روز پس از تاریخ ثبت درخواست، به‌صورت خودکار و بدون امتیازدهی خاتمه یافت.";
+            foreach (var task in pendingTasks)
+            {
+                task.Status = "Superseded";
+                task.Action = "UnevaluatedTimeout";
+                task.Comment = comment;
+                task.CompletedAt = now;
+            }
+
+            var resolution = await ResolveTransitionAsync(
+                currentStep.Id, "Approve", instance.Id, instance.WorkflowDefinition.Steps);
+            var next = resolution.NextStep;
+            if (next is null || currentStep.IsFinalStep)
+            {
+                instance.Status = "CompletedBySkip";
+                instance.CurrentStepId = null;
+                instance.CompletedAt = now;
+            }
+            else
+            {
+                instance.CurrentStepId = next.Id;
+                instance.Status = "InProgress";
+                instance.CompletedAt = null;
+                await CreateTasksAsync(instance, next, cancellationToken);
+            }
+
+            db.WorkflowHistory.Add(new WorkflowHistory
+            {
+                WorkflowInstanceId = instance.Id,
+                WorkflowStepId = currentStep.Id,
+                FromStatus = previousStatus,
+                ToStatus = instance.Status,
+                Action = "UnevaluatedTimeout",
+                ActorEmployeeId = null,
+                ActorPositionId = null,
+                Comment = comment
+            });
+
+            await UpdateContractRenewalStatusAfterSkipAsync(instance, currentStep, next, cancellationToken);
+            await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            await audit.WriteAsync(
+                "عبور خودکار مرحله ارزشیابی تمدید قرارداد",
+                nameof(WorkflowInstance),
+                instance.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                comment);
+            advanced++;
+            db.ChangeTracker.Clear();
+        }
+
+        return advanced;
+    }
+
     private async Task UpdateContractRenewalStatusAfterSkipAsync(
         WorkflowInstance instance, WorkflowStep skippedStep, WorkflowStep? nextStep,
         CancellationToken cancellationToken)

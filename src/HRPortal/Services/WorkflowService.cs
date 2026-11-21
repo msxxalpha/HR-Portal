@@ -2464,7 +2464,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             var rank = RoleService.NormalizeRankType(node?.RankType);
             var parentRank = RoleService.NormalizeRankType(node?.Parent?.RankType);
             var isExecutiveDirectReport = parentRank == "مدیرعامل" &&
-                rank is "مدیریت" or "مدیر" or "معاونت" or "معاون" or "ریاست" or "رئیس";
+                (rank is "مدیریت" or "مدیر" or "معاونت" or "معاون" or "ریاست" or "رئیس");
             if (isExecutiveDirectReport)
                 continue;
 

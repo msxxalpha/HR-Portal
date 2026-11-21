@@ -7,6 +7,7 @@ public class ContractRenewalWorkflowSettings
     public int? SecurityPositionId { get; set; }
     public int? HumanResourcesPositionId { get; set; }
     public int? CeoEmployeeId { get; set; }
+    public int EvaluationAutoAdvanceAfterDays { get; set; } = 2;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     public OrganizationNode? RequestApprovalPosition { get; set; }

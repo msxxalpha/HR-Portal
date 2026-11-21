@@ -28,6 +28,8 @@
     </div>
 }
 
+@await Html.PartialAsync("_AnnouncementsDashboard", activeAnnouncements)
+
 <div class="hero">
     <div>
         <div class="eyebrow">سامانه یکپارچه منابع انسانی</div>
@@ -40,19 +42,6 @@
 @if (!isAdmin)
 {
     <div class="employee-home-tiles">
-        <div class="employee-announcements-slot">
-            @if (activeAnnouncements.Count > 0)
-            {
-                @await Html.PartialAsync("_AnnouncementsDashboard", activeAnnouncements)
-            }
-            else
-            {
-                <section class="employee-announcements-empty">
-                    <h2>آخرین اطلاعیه‌ها</h2>
-                    <p>در حال حاضر اطلاعیه فعالی برای نمایش وجود ندارد.</p>
-                </section>
-            }
-        </div>
         <a class="performance-quick-tile" href="/MonthlyPerformance/Mine">
             <span class="performance-tile-icon">▦</span>
             <span class="performance-tile-eyebrow">دسترسی سریع</span>
@@ -155,11 +144,6 @@
             </section>
         </div>
     </section>
-}
-
-@if (isAdmin && activeAnnouncements.Count > 0)
-{
-    @await Html.PartialAsync("_AnnouncementsDashboard", activeAnnouncements)
 }
 
 @if ((bool?)ViewBag.CanViewSuggestionReports == true)

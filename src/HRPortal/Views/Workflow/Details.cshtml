@@ -56,7 +56,7 @@
         @foreach (var item in history)
         {
             <div class="workflow-history-item">
-                <div><strong>@(item.Action switch { "SkipStep" => "عبور از مرحله جاری", "RouteCorrected" => "اصلاح خودکار مسیر ارزشیابی", "Approve" => "تأیید", "Reject" => "رد", "Return" => "برگشت", "SaveDraft" => "ذخیره پیش‌نویس", _ => item.Action })</strong><span>@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span></div>
+                <div><strong>@(item.Action switch { "SkipStep" => "عبور از مرحله جاری", "UnevaluatedTimeout" => "عبور خودکار؛ ارزشیابی نشده در زمان مقرر", "RouteCorrected" => "اصلاح خودکار مسیر ارزشیابی", "Approve" => "تأیید", "Reject" => "رد", "Return" => "برگشت", "SaveDraft" => "ذخیره پیش‌نویس", _ => item.Action })</strong><span>@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span></div>
                 <p>@(item.ActorEmployee == null ? (item.Action == "SkipStep" ? "مدیر سامانه / کاربر دارای مجوز" : "سیستم") : item.ActorEmployee.FirstName + " " + item.ActorEmployee.LastName) — @(item.Comment ?? "بدون توضیح")</p>
             </div>
         }
@@ -192,11 +192,12 @@
             var stepTasks = renewalTasks.Where(t => t.WorkflowStepId == step.Id).ToList();
             var stepScores = renewalScores.Where(s => s.WorkflowStepId == step.Id).ToList();
             var completed = stepTasks.Any(t => t.Status == "Completed");
-            var bypassed = stepTasks.Any(t => t.Action == "SkipStep" || t.Action == "RouteCorrected" || t.Status == "Superseded");
+            var timedOut = stepTasks.Any(t => t.Action == "UnevaluatedTimeout");
+            var bypassed = stepTasks.Any(t => t.Action == "SkipStep" || t.Action == "UnevaluatedTimeout" || t.Action == "RouteCorrected" || t.Status == "Superseded");
             <article class="workflow-history-item" style="padding:1rem;margin-bottom:.8rem;border:1px solid var(--border-color,#ddd);border-radius:10px">
                 <div>
                     <strong>@step.Title</strong>
-                    <span class="badge">@(bypassed ? "عبور / اصلاح مسیر" : completed ? "انجام‌شده" : stepTasks.Any(t => t.Status == "Pending") ? "در انتظار اقدام" : "بدون اقدام ثبت‌شده")</span>
+                    <span class="badge @(timedOut ? "badge-evaluation-timeout" : "")">@(timedOut ? "ارزشیابی نشده در زمان مقرر" : bypassed ? "عبور / اصلاح مسیر" : completed ? "انجام‌شده" : stepTasks.Any(t => t.Status == "Pending") ? "در انتظار اقدام" : "بدون اقدام ثبت‌شده")</span>
                 </div>
                 <p class="muted">جایگاه: @(step.OrganizationNode?.Title ?? (step.AssignedEmployeeId.HasValue ? "کارمند مشخص" : step.AssignmentType == "Hierarchy" ? "مسیر سلسله‌مراتبی" : "—"))</p>
                 @if (renewal is not null && step.Code == "Security")
@@ -231,7 +232,7 @@
                 @foreach (var task in stepTasks)
                 {
                     <div class="workflow-history-item">
-                        <p><strong>اقدام:</strong> @(task.Action ?? (task.Status == "Completed" ? "تکمیل" : task.Status)) — <strong>مسئول:</strong> @(task.AssignedEmployee == null ? task.AssignedPosition?.Title ?? "—" : task.AssignedEmployee.FirstName + " " + task.AssignedEmployee.LastName)</p>
+                        <p><strong>اقدام:</strong> @(task.Action == "UnevaluatedTimeout" ? "عبور خودکار به علت پایان مهلت ارزشیابی" : task.Action ?? (task.Status == "Completed" ? "تکمیل" : task.Status)) — <strong>مسئول:</strong> @(task.AssignedEmployee == null ? task.AssignedPosition?.Title ?? "—" : task.AssignedEmployee.FirstName + " " + task.AssignedEmployee.LastName)</p>
                         <p><strong>زمان ثبت:</strong> @((task.CompletedAt ?? task.CreatedAt).ToLocalTime().ToString("yyyy/MM/dd HH:mm"))</p>
                         <p><strong>نظر ثبت‌شده:</strong> @(string.IsNullOrWhiteSpace(task.Comment) ? "نظری ثبت نشده است." : task.Comment)</p>
                     </div>

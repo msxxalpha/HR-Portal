@@ -786,3 +786,75 @@
 }
 
 .role-system-note{margin:8px 0 12px;padding:9px 12px;border:1px solid #e5e8d9;border-radius:8px;background:#fafbf6;color:#65704f;font-size:11px;line-height:1.8}
+
+
+/* Dashboard announcements: priority-aware surfaces and subtle motion */
+.announcement-dashboard{
+    position:relative;isolation:isolate;overflow:hidden;margin:0 0 22px;padding:22px;
+    border:1px solid #d7e2ec;border-radius:20px;
+    background:linear-gradient(125deg,#eaf1f8 0%,#f6f9fc 48%,#e8f0f7 100%);
+    box-shadow:0 12px 32px rgba(18,48,78,.09)
+}
+.announcement-dashboard:before{
+    content:"";position:absolute;z-index:-1;inset:-45% auto auto -8%;width:48%;height:180%;
+    background:radial-gradient(ellipse,rgba(107,157,194,.18),transparent 68%);
+    animation:announcement-glow-drift 11s ease-in-out infinite alternate;pointer-events:none
+}
+.announcement-dashboard-head{position:relative;align-items:center;margin-bottom:16px}
+.announcement-dashboard-head h2{color:#173653;font-size:19px}
+.announcement-dashboard-head .eyebrow{color:#55718a;font-weight:800;letter-spacing:.2px}
+.announcement-count{background:#173653;color:#fff;padding:7px 12px;font-weight:700}
+.announcement-dashboard-list{position:relative;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.announcement-card{
+    border-radius:15px;padding:17px 19px 15px;border-color:rgba(151,173,193,.45);
+    box-shadow:0 5px 16px rgba(20,48,76,.055);transition:transform .24s ease,box-shadow .24s ease,border-color .24s ease
+}
+.announcement-card:hover{transform:translateY(-3px);box-shadow:0 12px 25px rgba(20,48,76,.12)}
+.announcement-card.normal{background:linear-gradient(118deg,#edf5fc 0%,#fff 76%)}
+.announcement-card.important{background:linear-gradient(118deg,#fff5df 0%,#fffdf7 78%);border-color:#ead7a9}
+.announcement-card.urgent{background:linear-gradient(118deg,#fff0e7 0%,#fffaf7 78%);border-color:#efc3aa}
+.announcement-card:before{width:5px;background:#4e7fa5}
+.announcement-card.important:before{background:#d69a2d}
+.announcement-card.urgent:before{background:#e47735}
+.announcement-card:after{
+    content:"";position:absolute;top:-70%;left:-42%;width:28%;height:240%;transform:rotate(22deg);
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.5),transparent);
+    animation:announcement-sheen 8s ease-in-out infinite;pointer-events:none
+}
+.announcement-card.pinned{box-shadow:0 8px 22px rgba(23,50,77,.1)}
+.announcement-category{background:rgba(255,255,255,.72);color:#345b79}
+.announcement-priority{background:rgba(255,255,255,.72);color:#52677a}
+.announcement-card.important .announcement-priority{color:#936018}
+.announcement-card.urgent .announcement-priority{color:#a54c20}
+.announcement-card h3{color:#173653;font-size:14px}
+.announcement-summary{color:#536b80}
+.announcement-body{color:#31495e}
+.announcement-meta{border-color:rgba(151,173,193,.35)}
+.announcement-dashboard-empty{
+    display:flex;align-items:center;gap:13px;padding:20px;border:1px dashed #b9cad9;
+    border-radius:14px;background:rgba(255,255,255,.62);color:#294963
+}
+.announcement-dashboard-empty p{margin:4px 0 0;color:#60778b;font-size:10px}
+.announcement-empty-mark{
+    display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;border-radius:12px;
+    background:#dce9f4;color:#1d4a6b;font-weight:900;font-size:18px
+}
+.badge-evaluation-timeout{
+    display:inline-flex;align-items:center;background:#fff0d9!important;color:#a6530b!important;
+    border:1px solid #f2c17e;font-weight:800;box-shadow:0 2px 8px rgba(185,103,20,.12)
+}
+@keyframes announcement-glow-drift{
+    from{transform:translate3d(0,-3%,0) scale(.94);opacity:.65}
+    to{transform:translate3d(18%,5%,0) scale(1.12);opacity:1}
+}
+@keyframes announcement-sheen{
+    0%,55%{left:-42%;opacity:0}
+    65%{opacity:.8}
+    82%,100%{left:130%;opacity:0}
+}
+@media(max-width:950px){.announcement-dashboard-list{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){
+    .announcement-dashboard:before,.announcement-card:after{animation:none}
+    .announcement-card{transition:none}
+    .announcement-card:hover{transform:none}
+}

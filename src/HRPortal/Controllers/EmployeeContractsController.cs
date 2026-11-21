@@ -299,7 +299,7 @@ public class EmployeeContractsController(
         Redirect("/EmployeeContracts/BasicInformation#workflow-settings");
 
     [HttpPost, Authorize(Policy = "ContractRenewal.Settings"), ValidateAntiForgeryToken]
-    public async Task<IActionResult> SaveWorkflowSettings(int? requestApprovalPositionId, int? securityPositionId, int? humanResourcesPositionId)
+    public async Task<IActionResult> SaveWorkflowSettings(int? requestApprovalPositionId, int? securityPositionId, int? humanResourcesPositionId, int evaluationAutoAdvanceAfterDays = 2)
     {
         var current = await CurrentRevisionAsync();
         if (current is null)
@@ -311,6 +311,8 @@ public class EmployeeContractsController(
         var nodes = await db.OrganizationNodes
             .Where(x => x.OrganizationStructureRevisionId == current.Id && x.IsActive)
             .ToListAsync();
+        if (evaluationAutoAdvanceAfterDays is < 1 or > 365)
+            ModelState.AddModelError(nameof(evaluationAutoAdvanceAfterDays), "مهلت عبور خودکار باید بین ۱ تا ۳۶۵ روز باشد.");
         if (!requestApprovalPositionId.HasValue || !nodes.Any(x => x.Id == requestApprovalPositionId.Value))
             ModelState.AddModelError(nameof(requestApprovalPositionId), "جایگاه فعال تأییدکننده اطلاعات اولیه درخواست را انتخاب کنید.");
         if (!securityPositionId.HasValue || !nodes.Any(x => x.Id == securityPositionId.Value))
@@ -354,6 +356,7 @@ public class EmployeeContractsController(
             basicInfo.WorkflowSettings.Settings.RequestApprovalPositionId = requestApprovalPositionId;
             basicInfo.WorkflowSettings.Settings.SecurityPositionId = securityPositionId;
             basicInfo.WorkflowSettings.Settings.HumanResourcesPositionId = humanResourcesPositionId;
+            basicInfo.WorkflowSettings.Settings.EvaluationAutoAdvanceAfterDays = evaluationAutoAdvanceAfterDays;
             basicInfo.WorkflowSettings.ErrorMessage = string.Join(" ", ModelState.Values
                 .SelectMany(v => v.Errors).Select(e => e.ErrorMessage));
             ViewBag.ActiveTab = "workflow-settings";
@@ -370,6 +373,7 @@ public class EmployeeContractsController(
         settings.SecurityPositionId = securityPositionId;
         settings.HumanResourcesPositionId = humanResourcesPositionId;
         settings.CeoEmployeeId = ceoEmployees[0].Id;
+        settings.EvaluationAutoAdvanceAfterDays = evaluationAutoAdvanceAfterDays;
         settings.UpdatedAt = DateTime.UtcNow;
         try
         {
@@ -381,6 +385,7 @@ public class EmployeeContractsController(
             SetBasicInformationPermissions();
             var basicInfo = await BuildBasicInfoViewModelAsync();
             basicInfo.WorkflowSettings = await BuildWorkflowSettingsViewModelAsync(securityPositionId, humanResourcesPositionId, requestApprovalPositionId);
+            basicInfo.WorkflowSettings.Settings.EvaluationAutoAdvanceAfterDays = evaluationAutoAdvanceAfterDays;
             basicInfo.WorkflowSettings.ErrorMessage = "ذخیره تنظیمات مراحل ثابت در پایگاه داده انجام نشد. ارتباط پایگاه داده و ساختار فعال را بررسی کنید؛ مقادیر انتخاب‌شده حفظ شده‌اند.";
             ViewBag.ActiveTab = "workflow-settings";
             return View("BasicInformation", basicInfo);

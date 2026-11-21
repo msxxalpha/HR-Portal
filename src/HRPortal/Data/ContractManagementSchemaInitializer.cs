@@ -47,9 +47,16 @@ BEGIN
         [SecurityPositionId] int NULL,
         [HumanResourcesPositionId] int NULL,
         [CeoEmployeeId] int NULL,
+        [EvaluationAutoAdvanceAfterDays] int NOT NULL CONSTRAINT [DF_ContractRenewalWorkflowSettings_EvaluationAutoAdvanceAfterDays] DEFAULT 2,
         [UpdatedAt] datetime2 NOT NULL CONSTRAINT [DF_ContractRenewalWorkflowSettings_UpdatedAt] DEFAULT SYSUTCDATETIME()
     );
 END;
+
+-- Add the configurable evaluation timeout to existing installations; existing rows default to two days.
+IF OBJECT_ID(N'dbo.ContractRenewalWorkflowSettings', N'U') IS NOT NULL
+AND COL_LENGTH(N'dbo.ContractRenewalWorkflowSettings', N'EvaluationAutoAdvanceAfterDays') IS NULL
+    ALTER TABLE [dbo].[ContractRenewalWorkflowSettings] ADD [EvaluationAutoAdvanceAfterDays] int NOT NULL
+        CONSTRAINT [DF_ContractRenewalWorkflowSettings_EvaluationAutoAdvanceAfterDays] DEFAULT 2 WITH VALUES;
 
 -- Upgrade older databases with the configurable initial-information approval position.
 IF OBJECT_ID(N'dbo.ContractRenewalWorkflowSettings', N'U') IS NOT NULL

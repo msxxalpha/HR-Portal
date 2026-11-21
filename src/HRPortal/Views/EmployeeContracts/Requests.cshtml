@@ -86,11 +86,11 @@
                     var searchText = $"{r.RequestCode} {r.EmployeeNameSnapshot} {r.PersonnelNumberSnapshot} {row.LastStatus} {row.CurrentStageTitle}";
                     <tr data-search="@searchText.ToLowerInvariant()" data-status="@row.LastStatus"
                         data-evaluated="@row.HasAnyEvaluation.ToString().ToLowerInvariant()">
-                        <td><strong class="contract-request-code">@r.RequestCode</strong><small class="contract-request-subline">@PersianDateService.Format(r.CreatedAt)</small></td>
-                        <td><strong>@r.EmployeeNameSnapshot</strong><small class="contract-request-subline">پرسنلی: @r.PersonnelNumberSnapshot</small></td>
-                        <td><span class="contract-request-status">@row.LastStatus</span><small class="contract-request-subline">@row.CurrentStageTitle</small></td>
-                        <td><strong>@score(r.FinalEvaluationScore)</strong><small class="contract-request-subline">@(r.FinalContractMonths.HasValue ? $"{r.FinalContractMonths.Value} ماه" : "مدت ثبت نشده")</small></td>
-                        <td>
+                        <td data-label="درخواست / تاریخ"><strong class="contract-request-code">@r.RequestCode</strong><small class="contract-request-subline">@PersianDateService.Format(r.CreatedAt)</small></td>
+                        <td data-label="کارمند"><strong>@r.EmployeeNameSnapshot</strong><small class="contract-request-subline">پرسنلی: @r.PersonnelNumberSnapshot</small></td>
+                        <td data-label="وضعیت / مرحله"><span class="contract-request-status">@row.LastStatus</span><small class="contract-request-subline">@row.CurrentStageTitle</small></td>
+                        <td data-label="نتیجه"><strong>@score(r.FinalEvaluationScore)</strong><small class="contract-request-subline">@(r.FinalContractMonths.HasValue ? $"{r.FinalContractMonths.Value} ماه" : "مدت ثبت نشده")</small></td>
+                        <td data-label="عملیات">
                             <div class="contract-row-actions">
                                 <a class="btn btn-outline btn-sm" href="/EmployeeContracts/History?id=@r.Id">سوابق</a>
                                 @if (row.CanConfirmPreviousStageScores && row.EvaluationTaskId.HasValue)
@@ -100,6 +100,7 @@
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="id" value="@row.EvaluationTaskId.Value" />
                                         <button class="btn btn-main btn-sm" type="submit" title="تأیید امتیازهای مرحله قبل">تأیید امتیاز قبل</button>
+                                        <small class="contract-request-subline">مجموع قبلی: @score(row.PreviousStageScoreTotal) از ۱۰۰</small>
                                     </form>
                                 }
                                 @if (row.CanEditOrDelete)

@@ -106,11 +106,11 @@
         </label>
         <label>
             از تاریخ
-            <input id="workflowRequestDateFrom" type="date" />
+            <input id="workflowRequestDateFrom" type="text" inputmode="numeric" dir="ltr" placeholder="۱۴۰۵/۰۸/۳۰" autocomplete="off" />
         </label>
         <label>
             تا تاریخ
-            <input id="workflowRequestDateTo" type="date" />
+            <input id="workflowRequestDateTo" type="text" inputmode="numeric" dir="ltr" placeholder="۱۴۰۵/۰۸/۳۰" autocomplete="off" />
         </label>
         <label>
             مرتب‌سازی
@@ -370,15 +370,36 @@
     function normalize(value) {
         return String(value || "").toLocaleLowerCase()
             .replace(/[يى]/g, "ی").replace(/ك/g, "ک")
-            .replace(/\s+/g, " ").trim();
+            .replace(/\\s+/g, " ").trim();
+    }
+
+    function jalaliToIsoDate(value) {
+        const raw = String(value || "").trim();
+        if (!raw) return "";
+        const calendar = window.HRPortalJalali;
+        if (!calendar || typeof calendar.parse !== "function" || typeof calendar.j2g !== "function") return null;
+
+        const parts = calendar.parse(raw);
+        if (!parts) return null;
+        try {
+            const date = calendar.j2g(parts.y, parts.m, parts.day);
+            const year = date.getUTCFullYear();
+            const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+            const day = String(date.getUTCDate()).padStart(2, "0");
+            return year + "-" + month + "-" + day;
+        } catch {
+            return null;
+        }
     }
 
     function applyFilters() {
         const query = normalize(search && search.value);
         const typeValue = type ? type.value : "";
         const statusValue = status ? status.value : "";
-        const fromValue = dateFrom ? dateFrom.value : "";
-        const toValue = dateTo ? dateTo.value : "";
+        const fromInput = dateFrom ? dateFrom.value : "";
+        const toInput = dateTo ? dateTo.value : "";
+        const fromValue = jalaliToIsoDate(fromInput);
+        const toValue = jalaliToIsoDate(toInput);
 
         filteredRows = allRows.filter(function (row) {
             const text = normalize(row.dataset.search);
@@ -386,8 +407,8 @@
             const matchesText = !query || text.includes(query);
             const matchesType = !typeValue || row.dataset.type === typeValue;
             const matchesStatus = !statusValue || row.dataset.status === statusValue;
-            const matchesFrom = !fromValue || created >= fromValue;
-            const matchesTo = !toValue || created <= toValue;
+            const matchesFrom = !fromInput || (!!fromValue && created >= fromValue);
+            const matchesTo = !toInput || (!!toValue && created <= toValue);
             return matchesText && matchesType && matchesStatus && matchesFrom && matchesTo;
         });
 

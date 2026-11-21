@@ -4,11 +4,13 @@
     Layout = "~/Views/Shared/_Layout.cshtml";
     ViewData["Title"] = "فهرست درخواست‌های ارزشیابی و تمدید قرارداد";
     string score(decimal? value) => value.HasValue ? value.Value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) : "—";
+    var statuses = Model.Select(x => x.LastStatus).Where(x => !string.IsNullOrWhiteSpace(x))
+        .Distinct(StringComparer.Ordinal).OrderBy(x => x).ToList();
 }
 <div class="page-head">
     <div>
         <h1>فهرست درخواست‌های ارزشیابی و تمدید قرارداد</h1>
-        <p>آخرین وضعیت هر درخواست، مرحله جاری و عملیات مجاز بر اساس سابقه ارزیابی</p>
+        <p>مدیریت، جست‌وجو و پیگیری درخواست‌ها؛ عملیات هر ردیف بر اساس وضعیت درخواست و دسترسی کاربر کنترل می‌شود.</p>
     </div>
     <div class="actions">
         <a class="btn btn-outline" href="/EmployeeContracts">بازگشت به مدیریت قراردادهای کارکنان</a>
@@ -19,50 +21,87 @@
 @if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
 @if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
 
-<section class="card">
-    <div class="section-head">
-        <div><h3>درخواست‌های ثبت‌شده</h3><span class="muted">@Model.Count درخواست در فهرست</span></div>
-        <div class="actions contract-request-list-filters">
-            <input id="contractRequestSearch" type="search" placeholder="جست‌وجو با کد درخواست، نام یا شماره پرسنلی" aria-label="جست‌وجوی درخواست‌ها" />
-            <form method="get" action="/EmployeeContracts/Requests" class="inline-filter-form">
-                <label class="inline-check">
-                    <input type="checkbox" name="includeDeleted" value="true" checked="@((bool?)ViewBag.IncludeDeleted == true)" />
-                    نمایش درخواست‌های حذف‌شده
-                </label>
-                <button class="btn btn-outline btn-sm" type="submit">اعمال فیلتر</button>
-            </form>
+<section class="card contract-request-management">
+    <div class="section-head contract-request-management-head">
+        <div>
+            <h3>درخواست‌های ثبت‌شده</h3>
+            <span class="muted"><strong id="contractRequestVisibleCount">@Model.Count</strong> مورد از @Model.Count درخواست</span>
         </div>
+        <form method="get" action="/EmployeeContracts/Requests" class="contract-request-deleted-filter">
+            <label class="inline-check">
+                <input type="checkbox" name="includeDeleted" value="true" checked="@((bool?)ViewBag.IncludeDeleted == true)" />
+                نمایش درخواست‌های حذف‌شده
+            </label>
+            <button class="btn btn-outline btn-sm" type="submit">اعمال</button>
+        </form>
     </div>
+
+    <div class="contract-request-filter-grid">
+        <label>جست‌وجو
+            <input id="contractRequestSearch" type="search" placeholder="کد درخواست، نام، نام خانوادگی یا شماره پرسنلی" aria-label="جست‌وجوی درخواست‌ها" />
+        </label>
+        <label>وضعیت درخواست
+            <select id="contractRequestStatus">
+                <option value="">همه وضعیت‌ها</option>
+                @foreach (var status in statuses)
+                {
+                    <option value="@status">@status</option>
+                }
+            </select>
+        </label>
+        <label>وضعیت ارزشیابی
+            <select id="contractRequestEvaluation">
+                <option value="">همه درخواست‌ها</option>
+                <option value="true">دارای سابقه ارزشیابی</option>
+                <option value="false">بدون سابقه ارزشیابی</option>
+            </select>
+        </label>
+        <label>تعداد ردیف در صفحه
+            <select id="contractRequestPageSize">
+                <option value="10" selected>۱۰</option>
+                <option value="20">۲۰</option>
+                <option value="50">۵۰</option>
+                <option value="0">همه</option>
+            </select>
+        </label>
+    </div>
+
     @if (Model.Count == 0)
     {
         <div class="empty">درخواستی برای نمایش ثبت نشده است.</div>
     }
     else
     {
-        <div class="table-wrap">
-            <table id="contractRequestsTable">
-                <thead>
-                    <tr>
-                        <th>کد درخواست</th><th>کارمند</th><th>شماره پرسنلی</th><th>تاریخ ثبت</th>
-                        <th>آخرین وضعیت</th><th>مرحله جاری / وضعیت گردش</th><th>امتیاز نهایی</th><th>مدت نهایی</th><th>عملیات</th>
-                    </tr>
-                </thead>
+        <div class="table-wrap contract-request-table-wrap">
+            <table id="contractRequestsTable" class="contract-request-table">
+                <colgroup>
+                    <col style="width:14%" /><col style="width:20%" /><col style="width:25%" />
+                    <col style="width:12%" /><col style="width:29%" />
+                </colgroup>
+                <thead><tr><th>درخواست / تاریخ</th><th>کارمند</th><th>وضعیت / مرحله جاری</th><th>نتیجه</th><th>عملیات</th></tr></thead>
                 <tbody>
                 @foreach (var row in Model)
                 {
                     var r = row.Request;
-                    <tr data-search="@($"{r.RequestCode} {r.EmployeeNameSnapshot} {r.PersonnelNumberSnapshot}".ToLowerInvariant())">
-                        <td>@r.RequestCode</td>
-                        <td>@r.EmployeeNameSnapshot</td>
-                        <td>@r.PersonnelNumberSnapshot</td>
-                        <td>@PersianDateService.Format(r.CreatedAt)</td>
-                        <td><span class="contract-request-status">@row.LastStatus</span></td>
-                        <td>@row.CurrentStageTitle</td>
-                        <td>@score(r.FinalEvaluationScore)</td>
-                        <td>@(r.FinalContractMonths.HasValue ? $"{r.FinalContractMonths.Value} ماه" : "—")</td>
+                    var searchText = $"{r.RequestCode} {r.EmployeeNameSnapshot} {r.PersonnelNumberSnapshot} {row.LastStatus} {row.CurrentStageTitle}";
+                    <tr data-search="@searchText.ToLowerInvariant()" data-status="@row.LastStatus"
+                        data-evaluated="@row.HasAnyEvaluation.ToString().ToLowerInvariant()">
+                        <td><strong class="contract-request-code">@r.RequestCode</strong><small class="contract-request-subline">@PersianDateService.Format(r.CreatedAt)</small></td>
+                        <td><strong>@r.EmployeeNameSnapshot</strong><small class="contract-request-subline">پرسنلی: @r.PersonnelNumberSnapshot</small></td>
+                        <td><span class="contract-request-status">@row.LastStatus</span><small class="contract-request-subline">@row.CurrentStageTitle</small></td>
+                        <td><strong>@score(r.FinalEvaluationScore)</strong><small class="contract-request-subline">@(r.FinalContractMonths.HasValue ? $"{r.FinalContractMonths.Value} ماه" : "مدت ثبت نشده")</small></td>
                         <td>
                             <div class="contract-row-actions">
                                 <a class="btn btn-outline btn-sm" href="/EmployeeContracts/History?id=@r.Id">سوابق</a>
+                                @if (row.CanConfirmPreviousStageScores && row.EvaluationTaskId.HasValue)
+                                {
+                                    <form method="post" action="/ContractRenewalTask/ConfirmPreviousScores"
+                                          onsubmit="return confirm('امتیازهای کامل ارزیاب مرحله قبل بدون تغییر تأیید و به نام شما ثبت شود؟');">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@row.EvaluationTaskId.Value" />
+                                        <button class="btn btn-main btn-sm" type="submit" title="تأیید امتیازهای مرحله قبل">تأیید امتیاز قبل</button>
+                                    </form>
+                                }
                                 @if (row.CanEditOrDelete)
                                 {
                                     <a class="btn btn-outline btn-sm" href="/EmployeeContracts/Edit?id=@r.Id">ویرایش</a>
@@ -78,15 +117,15 @@
                                 }
                                 @if (User.HasClaim("IsAdmin", "1"))
                                 {
-                                    <form method="post" action="/EmployeeContracts/DeleteRequest" class="contract-admin-delete-form" style="display:flex;gap:.35rem;align-items:center;flex-wrap:wrap" onsubmit="return confirmAdminContractDelete(this);">
+                                    <form method="post" action="/EmployeeContracts/DeleteRequest" class="contract-admin-delete-form" onsubmit="return confirmAdminContractDelete(this);">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="id" value="@r.Id" />
                                         <select name="deleteMode" aria-label="نحوه حذف درخواست" required>
-                                            <option value="" selected disabled>انتخاب نحوه حذف…</option>
+                                            <option value="" selected disabled>نحوه حذف…</option>
                                             <option value="PreserveHistory">حذف با حفظ سوابق</option>
                                             <option value="DeleteAll">حذف کامل اطلاعات</option>
                                         </select>
-                                        <button class="btn btn-outline btn-sm danger" type="submit">حذف درخواست</button>
+                                        <button class="btn btn-outline btn-sm danger" type="submit">حذف</button>
                                     </form>
                                 }
                                 @if (row.CanStop)
@@ -98,14 +137,18 @@
                                         <button class="btn btn-outline btn-sm danger" type="submit">توقف</button>
                                     </form>
                                 }
-                                @if (!row.CanEditOrDelete && !row.CanStop && !User.HasClaim("IsAdmin", "1"))
+                                @if (!row.CanEditOrDelete && !row.CanStop && !row.CanConfirmPreviousStageScores && !User.HasClaim("IsAdmin", "1"))
                                 {
-                                    <span class="muted">بدون عملیات — سوابق حفظ شده</span>
+                                    <span class="muted contract-no-action">بدون عملیات</span>
                                 }
                             </div>
                             @if (row.HasAnyEvaluation && row.CanStop && !User.HasClaim("IsAdmin", "1"))
                             {
-                                <small class="muted">ویرایش و حذف غیرفعال است؛ حداقل یک مرحله ارزیابی ثبت شده.</small>
+                                <small class="muted contract-request-row-hint">ویرایش و حذف غیرفعال است؛ حداقل یک مرحله ارزیابی ثبت شده.</small>
+                            }
+                            @if (row.CanConfirmPreviousStageScores)
+                            {
+                                <small class="muted contract-request-row-hint">امتیازهای مرحله قبل کامل و قابل تأیید هستند.</small>
                             }
                         </td>
                     </tr>
@@ -113,13 +156,62 @@
                 </tbody>
             </table>
         </div>
+        <div class="contract-request-pager" id="contractRequestPager">
+            <button type="button" class="btn btn-outline btn-sm" id="contractRequestPrev" disabled>قبلی</button>
+            <span id="contractRequestPageInfo" aria-live="polite">صفحه ۱</span>
+            <button type="button" class="btn btn-outline btn-sm" id="contractRequestNext">بعدی</button>
+        </div>
+        <div class="empty contract-request-filter-empty" id="contractRequestFilterEmpty" hidden>درخواستی با فیلترهای انتخاب‌شده پیدا نشد.</div>
     }
 </section>
+
+<style>
+.contract-request-management { min-width:0; }
+.contract-request-management-head { align-items:flex-start; gap:1rem; flex-wrap:wrap; }
+.contract-request-deleted-filter { display:flex; align-items:center; gap:.55rem; flex-wrap:wrap; }
+.contract-request-filter-grid { display:grid; grid-template-columns:minmax(220px,2fr) repeat(3,minmax(145px,1fr)); gap:.75rem; margin:1rem 0 1.1rem; align-items:end; }
+.contract-request-filter-grid label { display:flex; flex-direction:column; gap:.35rem; min-width:0; font-size:.86rem; color:#475569; }
+.contract-request-filter-grid input, .contract-request-filter-grid select { width:100%; min-width:0; }
+.contract-request-table-wrap { width:100%; max-width:100%; overflow-x:hidden; }
+.contract-request-table { width:100%; table-layout:fixed; border-collapse:collapse; }
+.contract-request-table th, .contract-request-table td { padding:.62rem .48rem; white-space:normal; overflow-wrap:anywhere; word-break:break-word; vertical-align:middle; }
+.contract-request-table th { font-size:.82rem; }
+.contract-request-table td { font-size:.84rem; }
+.contract-request-code { direction:ltr; display:inline-block; }
+.contract-request-subline { display:block; margin-top:.3rem; color:#64748b; font-size:.76rem; line-height:1.45; }
+.contract-request-status { display:inline-block; max-width:100%; white-space:normal; border-radius:7px; background:#f1f5f9; padding:.2rem .42rem; font-size:.78rem; line-height:1.55; }
+.contract-row-actions { display:flex; flex-wrap:wrap; align-items:center; gap:.35rem; min-width:0; }
+.contract-row-actions form { display:inline-flex; flex-wrap:wrap; align-items:center; gap:.3rem; min-width:0; max-width:100%; margin:0; }
+.contract-row-actions .btn { white-space:normal; line-height:1.35; padding:.32rem .5rem; font-size:.75rem; }
+.contract-row-actions select { max-width:100%; width:100%; min-width:0; font-size:.76rem; }
+.contract-row-actions .contract-admin-delete-form { flex-basis:100%; }
+.contract-no-action, .contract-request-row-hint { font-size:.74rem; line-height:1.45; }
+.contract-request-row-hint { display:block; margin-top:.35rem; }
+.contract-request-pager { display:flex; align-items:center; justify-content:center; gap:.85rem; margin-top:1rem; }
+.contract-request-pager button:disabled { opacity:.45; cursor:not-allowed; }
+.contract-request-filter-empty { margin-top:.8rem; }
+@media (max-width:900px) {
+    .contract-request-filter-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .contract-request-table th, .contract-request-table td { padding:.48rem .32rem; font-size:.78rem; }
+    .contract-request-table .btn { font-size:.72rem; }
+}
+@media (max-width:600px) {
+    .contract-request-filter-grid { grid-template-columns:1fr; }
+    .contract-request-table thead { display:none; }
+    .contract-request-table, .contract-request-table tbody, .contract-request-table tr, .contract-request-table td { display:block; width:100%; }
+    .contract-request-table tr { border:1px solid #e2e8f0; border-radius:10px; margin-bottom:.7rem; overflow:hidden; }
+    .contract-request-table td { display:grid; grid-template-columns:105px minmax(0,1fr); gap:.6rem; border-bottom:1px solid #eef2f7; padding:.55rem .65rem; }
+    .contract-request-table td::before { content:attr(data-label); color:#64748b; font-weight:700; font-size:.75rem; }
+    .contract-request-table td:last-child { display:block; }
+    .contract-request-table td:last-child::before { content:"عملیات"; display:block; margin-bottom:.4rem; }
+}
+</style>
 
 @section Scripts {
 <script>
 function confirmAdminContractDelete(form) {
     const mode = form.querySelector('select[name="deleteMode"]')?.value;
+    if (!mode) return false;
     if (mode === "DeleteAll") {
         return window.confirm("هشدار: تمام اطلاعات درخواست، امتیازهای ارزیابی، سوابق، تاریخچه و گردش کار وابسته به‌صورت دائمی حذف می‌شود. این عملیات قابل بازگشت نیست. ادامه می‌دهید؟");
     }
@@ -133,14 +225,60 @@ function stopContractRenewalRequest(form) {
     return window.confirm("گردش این درخواست متوقف شود؟ امتیازها و تاریخچه حفظ می‌شوند.");
 }
 (function () {
-    const input = document.getElementById("contractRequestSearch");
-    const rows = Array.from(document.querySelectorAll("#contractRequestsTable tbody tr"));
-    input?.addEventListener("input", function () {
-        const q = (input.value || "").trim().toLocaleLowerCase();
-        rows.forEach(function (row) {
-            row.hidden = q.length > 0 && !(row.dataset.search || "").includes(q);
+    const table = document.getElementById("contractRequestsTable");
+    if (!table) return;
+    const allRows = Array.from(table.querySelectorAll("tbody tr"));
+    const search = document.getElementById("contractRequestSearch");
+    const status = document.getElementById("contractRequestStatus");
+    const evaluation = document.getElementById("contractRequestEvaluation");
+    const pageSize = document.getElementById("contractRequestPageSize");
+    const prev = document.getElementById("contractRequestPrev");
+    const next = document.getElementById("contractRequestNext");
+    const pageInfo = document.getElementById("contractRequestPageInfo");
+    const visibleCount = document.getElementById("contractRequestVisibleCount");
+    const empty = document.getElementById("contractRequestFilterEmpty");
+    let page = 1;
+    let filteredRows = allRows;
+
+    function normalize(value) {
+        return String(value || "").toLocaleLowerCase().replace(/[يى]/g, "ی").replace(/ك/g, "ک").trim();
+    }
+    function apply() {
+        const query = normalize(search?.value);
+        const statusValue = status?.value || "";
+        const evaluationValue = evaluation?.value || "";
+        filteredRows = allRows.filter(row => {
+            const matchesSearch = !query || normalize(row.dataset.search).includes(query);
+            const matchesStatus = !statusValue || row.dataset.status === statusValue;
+            const matchesEvaluation = !evaluationValue || row.dataset.evaluated === evaluationValue;
+            return matchesSearch && matchesStatus && matchesEvaluation;
         });
-    });
+        page = 1;
+        render();
+    }
+    function render() {
+        const size = Number(pageSize?.value || 10);
+        const totalPages = size === 0 ? 1 : Math.max(1, Math.ceil(filteredRows.length / size));
+        page = Math.min(Math.max(1, page), totalPages);
+        const start = size === 0 ? 0 : (page - 1) * size;
+        const end = size === 0 ? filteredRows.length : start + size;
+        const visible = new Set(filteredRows.slice(start, end));
+        allRows.forEach(row => { row.hidden = !visible.has(row); });
+        if (visibleCount) visibleCount.textContent = String(filteredRows.length);
+        if (pageInfo) pageInfo.textContent = "صفحه " + page + " از " + totalPages;
+        if (prev) prev.disabled = page <= 1 || filteredRows.length === 0;
+        if (next) next.disabled = page >= totalPages || filteredRows.length === 0;
+        const pager = document.getElementById("contractRequestPager");
+        if (pager) pager.hidden = filteredRows.length === 0;
+        if (empty) empty.hidden = filteredRows.length !== 0;
+    }
+    search?.addEventListener("input", apply);
+    status?.addEventListener("change", apply);
+    evaluation?.addEventListener("change", apply);
+    pageSize?.addEventListener("change", () => { page = 1; render(); });
+    prev?.addEventListener("click", () => { page--; render(); });
+    next?.addEventListener("click", () => { page++; render(); });
+    render();
 })();
 </script>
 }

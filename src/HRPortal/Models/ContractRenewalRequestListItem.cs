@@ -8,4 +8,7 @@ public class ContractRenewalRequestListItem
     public bool HasAnyEvaluation { get; set; }
     public bool CanEditOrDelete { get; set; }
     public bool CanStop { get; set; }
+    public int? EvaluationTaskId { get; set; }
+    public bool CanConfirmPreviousStageScores { get; set; }
+    public decimal? PreviousStageScoreTotal { get; set; }
 }

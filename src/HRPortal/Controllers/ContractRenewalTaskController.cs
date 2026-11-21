@@ -42,7 +42,8 @@ public class ContractRenewalTaskController(
         Dictionary<string, decimal?>? scores,
         string? securityDecision,
         int? contractMonths,
-        decimal? disciplinaryDeductionPercent)
+        decimal? disciplinaryDeductionPercent,
+        bool confirmPreviousScores = false)
     {
         if (!TryGetEmployeeId(out var employeeId)) return Forbid();
         var task = await workflow.GetTaskAsync(id, employeeId);
@@ -86,17 +87,24 @@ public class ContractRenewalTaskController(
 
                 var validIds = currentRows.Select(x => x.Id).ToHashSet();
                 var parsedScores = new Dictionary<int, decimal?>();
-                if (scores is not null)
+                if (confirmPreviousScores)
                 {
-                    foreach (var pair in scores)
-                    {
-                        if (!int.TryParse(pair.Key, out var scoreId) || !validIds.Contains(scoreId))
-                            throw new InvalidOperationException("اطلاعات ارسالی امتیازدهی معتبر نیست.");
-                        parsedScores[scoreId] = pair.Value;
-                    }
+                    parsedScores = await BuildPreviousStageScoreSubmissionAsync(task, currentRows);
                 }
-                if (scores is null)
-                    throw new InvalidOperationException("اطلاعات ارسالی امتیازدهی معتبر نیست.");
+                else
+                {
+                    if (scores is not null)
+                    {
+                        foreach (var pair in scores)
+                        {
+                            if (!int.TryParse(pair.Key, out var scoreId) || !validIds.Contains(scoreId))
+                                throw new InvalidOperationException("اطلاعات ارسالی امتیازدهی معتبر نیست.");
+                            parsedScores[scoreId] = pair.Value;
+                        }
+                    }
+                    if (scores is null)
+                        throw new InvalidOperationException("اطلاعات ارسالی امتیازدهی معتبر نیست.");
+                }
 
                 foreach (var row in currentRows)
                 {
@@ -211,13 +219,18 @@ public class ContractRenewalTaskController(
                 ? action!
                 : stageKind == "Security" && securityDecision == "Reject" ? "Reject" : "Approve";
             await workflow.CompleteTaskAsync(id, employeeId, workflowAction, comment);
-            await audit.WriteAsync("ثبت مرحله ارزشیابی تمدید قرارداد", nameof(ContractRenewalRequest),
-                request.Id.ToString(), $"{task.WorkflowStep.Title} | {stageKind}");
+            await audit.WriteAsync(
+                confirmPreviousScores ? "تأیید امتیازهای مرحله قبل در ارزشیابی تمدید قرارداد" : "ثبت مرحله ارزشیابی تمدید قرارداد",
+                nameof(ContractRenewalRequest),
+                request.Id.ToString(),
+                $"{task.WorkflowStep.Title} | {stageKind} | {(confirmPreviousScores ? "تأیید عین امتیازهای ارزیاب قبلی" : "ثبت/تغییر امتیازها")}");
             TempData["Success"] = stageKind == "IntakeApproval" && workflowAction == "Return"
                 ? $"درخواست {request.RequestCode} برای اصلاح اطلاعات به ثبت‌کننده برگشت داده شد."
                 : stageKind == "IntakeApproval"
                     ? $"اطلاعات اولیه درخواست {request.RequestCode} تأیید شد و وارد زنجیره ارزشیابی سازمانی شد."
-                    : stageKind == "CEO"
+                    : confirmPreviousScores
+                        ? $"امتیازهای ارزیاب مرحله قبل بدون تغییر برای درخواست {request.RequestCode} تأیید و به مرحله بعد ارجاع شد."
+                        : stageKind == "CEO"
                 ? $"درخواست {request.RequestCode} با تأیید مدیرعامل تکمیل شد."
                 : stageKind == "Security" && securityDecision == "Reject"
                     ? $"درخواست {request.RequestCode} با تصمیم عدم موافقت حراست خاتمه یافت."
@@ -230,6 +243,10 @@ public class ContractRenewalTaskController(
             return RedirectToAction(nameof(Details), new { id });
         }
     }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public Task<IActionResult> ConfirmPreviousScores(int id) =>
+        Submit(id, "تأیید امتیازهای مرحله قبل بدون تغییر", "Approve", null, null, null, null, true);
 
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> SaveReturnedRequest(int id, ContractRenewalIntakeViewModel input)
@@ -348,6 +365,46 @@ public class ContractRenewalTaskController(
         });
     }
 
+    private async Task<Dictionary<int, decimal?>> BuildPreviousStageScoreSubmissionAsync(
+        WorkflowTask currentTask,
+        List<EmployeePerformanceEvaluationScore> currentRows)
+    {
+        if (currentRows.Any(x => x.Score.HasValue))
+            throw new InvalidOperationException("در این مرحله قبلاً امتیاز ثبت شده است؛ برای جلوگیری از بازنویسی، تأیید خودکار امتیازهای قبلی مجاز نیست.");
+
+        var previousTask = await db.WorkflowTasks.AsNoTracking()
+            .Include(x => x.WorkflowStep)
+            .Where(x => x.WorkflowInstanceId == currentTask.WorkflowInstanceId &&
+                x.Status == "Completed" && x.Action == "Approve" &&
+                x.WorkflowStep.Code.StartsWith("Evaluation_H") &&
+                x.WorkflowStep.SortOrder < currentTask.WorkflowStep.SortOrder)
+            .OrderByDescending(x => x.WorkflowStep.SortOrder)
+            .ThenByDescending(x => x.Id)
+            .FirstOrDefaultAsync();
+        if (previousTask is null)
+            throw new InvalidOperationException("مرحله ارزشیابی تأییدشده‌ای پیش از مرحله جاری وجود ندارد.");
+
+        var previousRows = await db.EmployeePerformanceEvaluationScores.AsNoTracking()
+            .Where(x => x.WorkflowInstanceId == currentTask.WorkflowInstanceId &&
+                x.WorkflowStepId == previousTask.WorkflowStepId)
+            .ToListAsync();
+        if (previousRows.Count == 0 || previousRows.Any(x => !x.Score.HasValue) ||
+            previousRows.Count != currentRows.Count)
+            throw new InvalidOperationException("امتیازهای مرحله قبل کامل نیستند یا تعداد پرسش‌های دو مرحله منطبق نیست.");
+
+        var previousByQuestion = previousRows.ToDictionary(x => x.QuestionId);
+        var result = new Dictionary<int, decimal?>();
+        foreach (var current in currentRows)
+        {
+            if (!previousByQuestion.TryGetValue(current.QuestionId, out var previous) ||
+                previous.MaxScoreSnapshot != current.MaxScoreSnapshot ||
+                !previous.Score.HasValue)
+                throw new InvalidOperationException("پرسش‌ها یا سقف امتیاز مرحله قبل با مرحله جاری یکسان نیست؛ تأیید خودکار انجام نشد.");
+            result[current.Id] = previous.Score.Value;
+        }
+        return result;
+    }
+
     private async Task<ContractRenewalStageViewModel> BuildStageViewModelAsync(
         WorkflowTask task, ContractRenewalRequest request, string stageKind)
     {
@@ -389,6 +446,24 @@ public class ContractRenewalTaskController(
         var previousScores = previousStep is null
             ? new List<EmployeePerformanceEvaluationScore>()
             : allScores.Where(x => x.WorkflowStepId == previousStep.Id).OrderBy(x => x.Id).ToList();
+
+        var canConfirmPreviousStageScores = stageKind == "Evaluation" &&
+            task.Status == "Pending" && currentScores.Count > 0 &&
+            previousScores.Count == currentScores.Count &&
+            previousScores.All(x => x.Score.HasValue) &&
+            currentScores.All(x => !x.Score.HasValue);
+        if (canConfirmPreviousStageScores)
+        {
+            var previousByQuestion = previousScores.ToDictionary(x => x.QuestionId);
+            canConfirmPreviousStageScores = currentScores.All(x =>
+                previousByQuestion.TryGetValue(x.QuestionId, out var previous) &&
+                previous.MaxScoreSnapshot == x.MaxScoreSnapshot);
+            if (canConfirmPreviousStageScores)
+            {
+                foreach (var current in currentScores)
+                    current.Score = previousByQuestion[current.QuestionId].Score;
+            }
+        }
 
         var groups = new List<ContractRenewalScoreStageGroup>();
         foreach (var stage in evaluationSteps.Where(x => approvedEvaluationStepIds.Contains(x.Id)))
@@ -450,6 +525,7 @@ public class ContractRenewalTaskController(
             IsHrDisciplinaryScoreDeductionEnabled = enableHrDisciplinaryScoreDeduction,
             CurrentScores = currentScores,
             PreviousStageScores = previousScores,
+            CanConfirmPreviousStageScores = canConfirmPreviousStageScores,
             AllScoreStages = groups,
             CurrentQuestionCeilingTotal = currentScores.Sum(x => x.MaxScoreSnapshot),
             PreviousStageScoreTotal = previousScores.Count > 0 && previousScores.All(x => x.Score.HasValue)

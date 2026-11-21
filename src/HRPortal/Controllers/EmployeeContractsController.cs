@@ -14,7 +14,8 @@ public class EmployeeContractsController(
     AuditService audit,
     RoleService roles,
     ContractRenewalWorkflowService renewalWorkflow,
-    ContractRenewalPdfService renewalPdf) : Controller
+    ContractRenewalPdfService renewalPdf,
+    WorkflowService workflowService) : Controller
 {
     [Authorize(Policy = "ContractRenewal.View")]
     public IActionResult Index() => View();
@@ -571,9 +572,6 @@ public class EmployeeContractsController(
         var requestQuery = db.ContractRenewalRequests.AsNoTracking()
             .Include(x => x.WorkflowInstance).ThenInclude(x => x!.CurrentStep)
             .AsQueryable();
-
-        // Soft-deleted requests are hidden from the ordinary operational list,
-        // but remain discoverable from this list to preserve access to their audit trail.
         if (!includeDeleted)
             requestQuery = requestQuery.Where(x => x.Status != "حذف شده");
 
@@ -616,6 +614,73 @@ public class EmployeeContractsController(
                 CanStop = active
             };
         }).ToList();
+
+        // Only a pending evaluation task assigned to the signed-in employee can expose this action.
+        if (int.TryParse(User.FindFirst("EmployeeId")?.Value, out var currentEmployeeId) &&
+            User.HasClaim("Permission", "Workflow.Inbox") && rows.Count > 0)
+        {
+            var requestIds = rows.Select(x => x.Request.Id).ToHashSet();
+            var inbox = await workflowService.GetInboxAsync(currentEmployeeId);
+            var eligibleInboxRows = inbox.Where(x =>
+                    x.CanAct && !x.IsUpcomingPreview &&
+                    x.EntityType == ContractRenewalWorkflowService.WorkflowEntityType &&
+                    int.TryParse(x.EntityId, out var parsedRequestId) && requestIds.Contains(parsedRequestId))
+                .ToList();
+            var taskIds = eligibleInboxRows.Select(x => x.TaskId).Where(x => x > 0).Distinct().ToArray();
+            var pendingEvaluationTasks = taskIds.Length == 0
+                ? new List<WorkflowTask>()
+                : await db.WorkflowTasks.AsNoTracking()
+                    .Include(x => x.WorkflowStep)
+                    .Where(x => taskIds.Contains(x.Id) && x.Status == "Pending" &&
+                        x.WorkflowStep.Code.StartsWith("Evaluation_H"))
+                    .ToListAsync();
+
+            var relevantInstanceIds = pendingEvaluationTasks.Select(x => x.WorkflowInstanceId).Distinct().ToArray();
+            if (relevantInstanceIds.Length > 0)
+            {
+                var approvedEvaluationTasks = await db.WorkflowTasks.AsNoTracking()
+                    .Include(x => x.WorkflowStep)
+                    .Where(x => relevantInstanceIds.Contains(x.WorkflowInstanceId) &&
+                        x.Status == "Completed" && x.Action == "Approve" &&
+                        x.WorkflowStep.Code.StartsWith("Evaluation_H"))
+                    .ToListAsync();
+                var scoreRows = await db.EmployeePerformanceEvaluationScores.AsNoTracking()
+                    .Where(x => relevantInstanceIds.Contains(x.WorkflowInstanceId))
+                    .ToListAsync();
+
+                foreach (var currentTask in pendingEvaluationTasks)
+                {
+                    var previousTask = approvedEvaluationTasks
+                        .Where(x => x.WorkflowInstanceId == currentTask.WorkflowInstanceId &&
+                            x.WorkflowStep.SortOrder < currentTask.WorkflowStep.SortOrder)
+                        .OrderByDescending(x => x.WorkflowStep.SortOrder)
+                        .ThenByDescending(x => x.Id)
+                        .FirstOrDefault();
+                    if (previousTask is null) continue;
+
+                    var currentScores = scoreRows.Where(x => x.WorkflowStepId == currentTask.WorkflowStepId).ToList();
+                    var previousScores = scoreRows.Where(x => x.WorkflowStepId == previousTask.WorkflowStepId).ToList();
+                    if (currentScores.Count == 0 || previousScores.Count != currentScores.Count ||
+                        previousScores.Any(x => !x.Score.HasValue) || currentScores.Any(x => x.Score.HasValue))
+                        continue;
+
+                    var previousByQuestion = previousScores.ToDictionary(x => x.QuestionId);
+                    var compatible = currentScores.All(x =>
+                        previousByQuestion.TryGetValue(x.QuestionId, out var previous) &&
+                        previous.MaxScoreSnapshot == x.MaxScoreSnapshot);
+                    if (!compatible) continue;
+
+                    var inboxRow = eligibleInboxRows.FirstOrDefault(x => x.TaskId == currentTask.Id);
+                    if (inboxRow is null || !int.TryParse(inboxRow.EntityId, out var requestId)) continue;
+                    var listItem = rows.FirstOrDefault(x => x.Request.Id == requestId);
+                    if (listItem is null) continue;
+
+                    listItem.EvaluationTaskId = currentTask.Id;
+                    listItem.CanConfirmPreviousStageScores = true;
+                    listItem.PreviousStageScoreTotal = previousScores.Sum(x => x.Score!.Value);
+                }
+            }
+        }
 
         return View(rows);
     }

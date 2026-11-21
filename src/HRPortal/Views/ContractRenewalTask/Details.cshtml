@@ -225,6 +225,18 @@
             {
                 <div class="note"><strong>توضیحات ارزیاب مرحله قبل:</strong> @Model.PreviousStageComment</div>
             }
+            @if (Model.CanConfirmPreviousStageScores)
+            {
+                <div class="note" style="margin-top:.75rem">
+                    امتیازهای ارزیاب قبلی به‌عنوان مقدار پیش‌فرض در جدول امتیازدهی شما قرار گرفته‌اند. می‌توانید آن‌ها را بررسی و تغییر دهید یا عین همان امتیازها را یک‌جا تأیید کنید.
+                </div>
+                <form method="post" action="/ContractRenewalTask/ConfirmPreviousScores" class="actions"
+                      onsubmit="return confirm('تمام امتیازهای مرحله قبل بدون تغییر به نام شما ثبت و درخواست به مرحله بعد ارجاع شود؟');">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@Model.Task.Id" />
+                    <button class="btn btn-outline" type="submit">تأیید عین امتیازهای مرحله قبل</button>
+                </form>
+            }
         }
     </section>
 

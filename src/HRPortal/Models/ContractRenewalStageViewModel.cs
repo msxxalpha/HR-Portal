@@ -12,6 +12,7 @@ public class ContractRenewalStageViewModel
     public bool IsHrDisciplinaryScoreDeductionEnabled { get; set; } = true;
     public List<EmployeePerformanceEvaluationScore> CurrentScores { get; set; } = [];
     public List<EmployeePerformanceEvaluationScore> PreviousStageScores { get; set; } = [];
+    public bool CanConfirmPreviousStageScores { get; set; }
     public List<ContractRenewalScoreStageGroup> AllScoreStages { get; set; } = [];
     public decimal CurrentQuestionCeilingTotal { get; set; }
     public decimal? PreviousStageScoreTotal { get; set; }

@@ -73,11 +73,11 @@ public sealed class OutsourcedServicePrintPdfDocument(OutsourcedServicePrintRepo
                         });
                         table.Header(header =>
                         {
-                            HeaderCell(header, "ردیف");
-                            HeaderCell(header, "مرحله / مسئول");
-                            HeaderCell(header, "نتیجه اقدام");
-                            HeaderCell(header, "تاریخ");
-                            HeaderCell(header, "توضیحات");
+                            HeaderCell(header.Cell(), "ردیف");
+                            HeaderCell(header.Cell(), "مرحله / مسئول");
+                            HeaderCell(header.Cell(), "نتیجه اقدام");
+                            HeaderCell(header.Cell(), "تاریخ");
+                            HeaderCell(header.Cell(), "توضیحات");
                         });
                         foreach (var item in model.History)
                         {
@@ -105,10 +105,10 @@ public sealed class OutsourcedServicePrintPdfDocument(OutsourcedServicePrintRepo
         column.Item().PaddingTop(2).Background("#E8EEF4").Padding(6)
             .Text(title).Bold().FontSize(9).FontColor("#173653");
 
-    private static void HeaderCell(TableCellDescriptor cell, string value) =>
+    private static void HeaderCell(IContainer cell, string value) =>
         cell.Background("#294A68").Padding(5).AlignCenter().Text(value)
             .Bold().FontColor("#FFFFFF").FontSize(7);
 
-    private static void BodyCell(TableCellDescriptor cell, string value) =>
+    private static void BodyCell(IContainer cell, string value) =>
         cell.BorderBottom(1).BorderColor("#E2E8F0").Padding(4).Text(value).FontSize(7);
 }

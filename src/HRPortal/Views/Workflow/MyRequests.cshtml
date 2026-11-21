@@ -5,11 +5,43 @@
     var isSkipRequests = (bool?)ViewBag.IsSkipRequests ?? false;
     var pageTitle = isAdminRequests ? "مدیریت درخواست‌ها" : isSkipRequests ? "گردش‌های فعال" : "درخواست‌های من";
     ViewData["Title"] = pageTitle;
+    var requestTypes = Model.Select(x => x.EntityType).Where(x => !string.IsNullOrWhiteSpace(x))
+        .Distinct(StringComparer.Ordinal).OrderBy(x => x).ToList();
+    var requestStatuses = Model.Select(x => x.Status).Where(x => !string.IsNullOrWhiteSpace(x))
+        .Distinct(StringComparer.Ordinal).OrderBy(x => x).ToList();
+    string statusTitle(string status) => status switch
+    {
+        "Approved" => "تأیید نهایی",
+        "Completed" => "پایان‌یافته",
+        "CompletedBySkip" => "پایان با عبور از مرحله",
+        "Rejected" => "رد شده",
+        "Returned" => "برگشت داده شده",
+        _ => "در حال گردش"
+    };
+    string typeTitle(string type) => type switch
+    {
+        "Suggestion" => "پیشنهاد",
+        "ContractRenewalRequest" => "ارزشیابی و تمدید قرارداد",
+        "OutsourcedServiceRequest" => "خدمات برونسپاری",
+        "PersonnelOrder" => "حکم کارگزینی",
+        _ => type
+    };
 }
 <div class="page-head">
-    <div><h1>@pageTitle</h1><p>@(isAdminRequests ? "مشاهده و حذف کامل درخواست‌ها همراه با سوابق و تاریخچه گردش کار." : isSkipRequests ? "همه گردش‌های در حال اجرا که با مجوز عبور از مرحله جاری می‌توانید بررسی و تعیین تکلیف کنید." : "پیگیری وضعیت درخواست‌های ثبت‌شده توسط شما؛ حذف فقط تا پیش از مشاهده مرحله بعد امکان‌پذیر است.")</p></div>
-    <div class="actions"><a class="btn btn-outline" href="/Workflow/Inbox">کارتابل</a><a class="btn btn-main" href="/">بازگشت به داشبورد</a></div>
+    <div>
+        <h1>@pageTitle</h1>
+        <p>@(isAdminRequests
+            ? "مشاهده، جست‌وجو و مدیریت همه درخواست‌های ثبت‌شده در سامانه همراه با سوابق و تاریخچه گردش کار."
+            : isSkipRequests
+                ? "همه گردش‌های در حال اجرا که با مجوز عبور از مرحله جاری می‌توانید بررسی و تعیین تکلیف کنید."
+                : "پیگیری وضعیت درخواست‌های ثبت‌شده توسط شما؛ حذف فقط تا پیش از مشاهده مرحله بعد امکان‌پذیر است.")</p>
+    </div>
+    <div class="actions">
+        <a class="btn btn-outline" href="/Workflow/Inbox">کارتابل</a>
+        <a class="btn btn-main" href="/">بازگشت به داشبورد</a>
+    </div>
 </div>
+
 <div class="workflow-stats">
     @if (isSkipRequests)
     {
@@ -26,31 +58,112 @@
         <div class="stat"><span>رد یا برگشت</span><strong>@Model.Count(x => x.Status == "Rejected" || x.Status == "Returned")</strong></div>
     }
 </div>
-<section class="card request-list-card">
-    <div class="section-head"><div><h3>@(isAdminRequests ? "همه درخواست‌های سامانه" : isSkipRequests ? "گردش‌های فعال قابل بررسی" : "فهرست درخواست‌ها")</h3><span class="muted">نمایش @Model.Count مورد @(isSkipRequests ? "در حال اجرا" : "؛ تفکیک بر اساس وضعیت در آمار بالای صفحه")</span></div><span class="request-count-pill">@Model.Count</span></div>
-    @if (isAdminRequests) { <div class="alert warning">حذف مدیر سامانه غیرقابل‌بازگشت است و اطلاعات درخواست، مراحل، امتیازها و تاریخچه مرتبط را حذف می‌کند.</div> }
-    @if (isSkipRequests) { <div class="alert info">برای عبور از یک مرحله، جزئیات گردش را باز کنید، علت عبور را ثبت کنید و عملیات «عبور از مرحله جاری» را انجام دهید. این مجوز جایگزین تأیید محتوایی فرم نیست و عبور در تاریخچه ثبت می‌شود.</div> }
+
+<section class="card request-list-card workflow-request-management">
+    <div class="section-head workflow-request-management-head">
+        <div>
+            <h3>@(isAdminRequests ? "همه درخواست‌های سامانه" : isSkipRequests ? "گردش‌های فعال قابل بررسی" : "فهرست درخواست‌ها")</h3>
+            <span class="muted">
+                نمایش <strong id="workflowRequestVisibleCount">@Model.Count</strong> مورد از @Model.Count درخواست
+            </span>
+        </div>
+        <span class="request-count-pill">@Model.Count</span>
+    </div>
+
+    @if (isAdminRequests)
+    {
+        <div class="alert warning">حذف مدیر سامانه غیرقابل‌بازگشت است و اطلاعات درخواست، مراحل، امتیازها و تاریخچه مرتبط را حذف می‌کند.</div>
+    }
+    @if (isSkipRequests)
+    {
+        <div class="alert info">برای عبور از یک مرحله، جزئیات گردش را باز کنید، علت عبور را ثبت کنید و عملیات «عبور از مرحله جاری» را انجام دهید. این مجوز جایگزین تأیید محتوایی فرم نیست و عبور در تاریخچه ثبت می‌شود.</div>
+    }
+
+    <div class="workflow-request-filters">
+        <label class="workflow-request-search">
+            جست‌وجو
+            <input id="workflowRequestSearch" type="search" placeholder="عنوان گردش، نام درخواست‌کننده، شماره پرسنلی، شناسه درخواست یا مرحله" autocomplete="off" />
+        </label>
+        <label>
+            نوع درخواست
+            <select id="workflowRequestType">
+                <option value="">همه انواع</option>
+                @foreach (var type in requestTypes)
+                {
+                    <option value="@type">@typeTitle(type)</option>
+                }
+            </select>
+        </label>
+        <label>
+            وضعیت
+            <select id="workflowRequestStatus">
+                <option value="">همه وضعیت‌ها</option>
+                @foreach (var status in requestStatuses)
+                {
+                    <option value="@status">@statusTitle(status)</option>
+                }
+            </select>
+        </label>
+        <label>
+            از تاریخ
+            <input id="workflowRequestDateFrom" type="date" />
+        </label>
+        <label>
+            تا تاریخ
+            <input id="workflowRequestDateTo" type="date" />
+        </label>
+        <label>
+            مرتب‌سازی
+            <select id="workflowRequestSort">
+                <option value="newest">جدیدترین ابتدا</option>
+                <option value="oldest">قدیمی‌ترین ابتدا</option>
+                <option value="title">عنوان گردش کار</option>
+                <option value="requester">نام درخواست‌کننده</option>
+            </select>
+        </label>
+        <label>
+            تعداد ردیف در صفحه
+            <select id="workflowRequestPageSize">
+                <option value="10" selected>۱۰ ردیف</option>
+                <option value="20">۲۰ ردیف</option>
+                <option value="50">۵۰ ردیف</option>
+                <option value="0">نمایش همه</option>
+            </select>
+        </label>
+        <button type="button" class="btn btn-outline btn-sm workflow-request-reset" id="workflowRequestReset">پاک‌کردن فیلترها</button>
+    </div>
+
     @if (Model.Count == 0)
     {
-        <div class="empty">@(isSkipRequests ? "در حال حاضر گردش کار فعالی برای بررسی وجود ندارد." : "هنوز درخواستی از طرف شما در گردش کار ثبت نشده است.")</div>
+        <div class="empty">@(isSkipRequests ? "در حال حاضر گردش کار فعالی برای بررسی وجود ندارد." : "هنوز درخواستی برای نمایش ثبت نشده است.")</div>
     }
     else
     {
-        <div class="table-wrap">
-            <table>
-                <thead><tr><th>گردش کار</th><th>نوع/شناسه</th><th>مرحله جاری</th><th>وضعیت</th><th>تاریخ ثبت</th><th>عملیات</th></tr></thead>
+        <div class="table-wrap workflow-request-table-wrap">
+            <table id="workflowRequestsTable" class="workflow-request-table">
+                <colgroup>
+                    <col style="width:25%" />
+                    <col style="width:16%" />
+                    <col style="width:20%" />
+                    <col style="width:12%" />
+                    <col style="width:13%" />
+                    <col style="width:14%" />
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th>عنوان درخواست / نوع</th>
+                        <th>درخواست‌کننده</th>
+                        <th>مرحله جاری / جایگاه</th>
+                        <th>وضعیت</th>
+                        <th>تاریخ ثبت</th>
+                        <th>عملیات</th>
+                    </tr>
+                </thead>
                 <tbody>
                 @foreach (var item in Model)
                 {
-                    var statusTitle = item.Status switch
-                    {
-                        "Approved" => "تأیید نهایی",
-                        "Completed" => "پایان‌یافته",
-                        "CompletedBySkip" => "پایان با عبور از مرحله",
-                        "Rejected" => "رد شده",
-                        "Returned" => "برگشت داده شده",
-                        _ => "در حال گردش"
-                    };
+                    var statusLabel = statusTitle(item.Status);
+                    var typeLabel = typeTitle(item.EntityType);
                     var requestRowClass = item.Status == "Rejected"
                         ? "workflow-result-row-rejected"
                         : item.Status == "Returned"
@@ -59,14 +172,39 @@
                                 ? "workflow-result-row-skipped"
                                 : item.Status == "Approved" || item.Status == "Completed"
                                     ? "workflow-result-row-completed" : "";
-                    <tr class="@requestRowClass">
-                        <td><strong>@item.WorkflowTitle</strong></td>
-                        <td>@item.EntityType #@item.EntityId</td>
-                        <td>@item.StepTitle</td>
-                        <td><span class="workflow-status @(item.Status == "Approved" || item.Status == "Completed" ? "done" : item.Status == "CompletedBySkip" ? "skipped" : item.Status == "Rejected" ? "rejected" : item.Status == "Returned" ? "returned" : "pending")">@statusTitle</span></td>
-                        <td>@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
-                        <td>
-                            <div class="actions request-row-actions">
+                    var searchText = $"{item.WorkflowTitle} {typeLabel} {item.EntityType} {item.EntityId} {item.RequesterName} {item.RequesterPersonnelNumber} {item.StepTitle} {item.PositionTitle} {statusLabel}";
+                    <tr class="@requestRowClass"
+                        data-search="@searchText.ToLowerInvariant()"
+                        data-type="@item.EntityType"
+                        data-status="@item.Status"
+                        data-created="@item.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)"
+                        data-created-sort="@item.CreatedAt.ToUniversalTime().Ticks"
+                        data-title="@item.WorkflowTitle"
+                        data-requester="@item.RequesterName">
+                        <td data-label="عنوان درخواست / نوع">
+                            <strong class="workflow-request-title">@item.WorkflowTitle</strong>
+                            <small class="workflow-request-subline">@typeLabel · شناسه @item.EntityId</small>
+                        </td>
+                        <td data-label="درخواست‌کننده">
+                            <strong>@item.RequesterName</strong>
+                            <small class="workflow-request-subline">پرسنلی: @item.RequesterPersonnelNumber</small>
+                        </td>
+                        <td data-label="مرحله جاری / جایگاه">
+                            <strong>@item.StepTitle</strong>
+                            @if (!string.IsNullOrWhiteSpace(item.PositionTitle))
+                            {
+                                <small class="workflow-request-subline">@item.PositionTitle</small>
+                            }
+                        </td>
+                        <td data-label="وضعیت">
+                            <span class="workflow-status @(item.Status == "Approved" || item.Status == "Completed" ? "done" : item.Status == "CompletedBySkip" ? "skipped" : item.Status == "Rejected" ? "rejected" : item.Status == "Returned" ? "returned" : "pending")">@statusLabel</span>
+                        </td>
+                        <td data-label="تاریخ ثبت">
+                            <span class="workflow-request-date">@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd")</span>
+                            <small class="workflow-request-subline">@item.CreatedAt.ToLocalTime().ToString("HH:mm")</small>
+                        </td>
+                        <td data-label="عملیات">
+                            <div class="workflow-request-actions">
                                 <a class="btn btn-outline btn-sm" href="/Workflow/Details/@item.WorkflowInstanceId">جزئیات و تاریخچه</a>
                                 @if (isAdminRequests || (!isSkipRequests && item.CanDelete))
                                 {
@@ -78,7 +216,7 @@
                                 }
                                 else if (!isSkipRequests && item.Status == "InProgress")
                                 {
-                                    <span class="request-locked-note">مرحله بعد مشاهده کرده یا روی درخواست اقدام شده است.</span>
+                                    <small class="workflow-request-locked-note">مرحله بعد مشاهده کرده یا روی درخواست اقدام شده است.</small>
                                 }
                             </div>
                         </td>
@@ -87,21 +225,248 @@
                 </tbody>
             </table>
         </div>
+
+        <div class="workflow-request-footer">
+            <span class="muted" id="workflowRequestResultSummary" aria-live="polite">نمایش همه درخواست‌ها</span>
+            <div class="workflow-request-pager" id="workflowRequestPager">
+                <button type="button" class="btn btn-outline btn-sm" id="workflowRequestPrev" disabled>قبلی</button>
+                <span id="workflowRequestPageInfo" aria-live="polite">صفحه ۱</span>
+                <button type="button" class="btn btn-outline btn-sm" id="workflowRequestNext" disabled>بعدی</button>
+            </div>
+        </div>
+        <div class="empty workflow-request-filter-empty" id="workflowRequestFilterEmpty" hidden>درخواستی با معیارهای انتخاب‌شده پیدا نشد.</div>
     }
 </section>
 
-
 <style>
+.workflow-request-management { min-width:0; }
+.workflow-request-management-head { align-items:center; gap:1rem; flex-wrap:wrap; }
+.workflow-request-filters {
+    display:grid;
+    grid-template-columns:minmax(230px,2fr) repeat(3,minmax(135px,1fr));
+    gap:.7rem;
+    margin:1rem 0 1.1rem;
+    align-items:end;
+}
+.workflow-request-filters label {
+    display:flex; flex-direction:column; gap:.35rem; min-width:0;
+    color:#475569; font-size:.82rem; font-weight:600;
+}
+.workflow-request-filters input, .workflow-request-filters select {
+    width:100%; min-width:0; max-width:100%;
+}
+.workflow-request-search { grid-column:span 2; }
+.workflow-request-reset { justify-self:start; white-space:nowrap; }
+.workflow-request-table-wrap { width:100%; max-width:100%; overflow-x:hidden; }
+.workflow-request-table { width:100%; table-layout:fixed; border-collapse:collapse; }
+.workflow-request-table th, .workflow-request-table td {
+    padding:.62rem .45rem; white-space:normal; overflow-wrap:anywhere;
+    word-break:break-word; vertical-align:middle;
+}
+.workflow-request-table th { font-size:.8rem; }
+.workflow-request-table td { font-size:.8rem; }
+.workflow-request-title { display:block; line-height:1.65; }
+.workflow-request-subline {
+    display:block; margin-top:.26rem; color:#64748b;
+    font-size:.73rem; line-height:1.5; font-weight:400;
+}
+.workflow-request-date { direction:ltr; display:inline-block; white-space:nowrap; }
+.workflow-request-actions {
+    display:flex; flex-wrap:wrap; align-items:flex-start;
+    gap:.35rem; min-width:0;
+}
+.workflow-request-actions form { display:inline-flex; min-width:0; margin:0; }
+.workflow-request-actions .btn {
+    white-space:normal; line-height:1.35; font-size:.72rem;
+    padding:.34rem .48rem; min-width:0;
+}
+.workflow-request-locked-note { display:block; color:#64748b; font-size:.72rem; line-height:1.5; }
+.workflow-request-footer {
+    display:flex; justify-content:space-between; align-items:center;
+    flex-wrap:wrap; gap:.7rem; margin-top:1rem;
+}
+.workflow-request-pager {
+    display:flex; justify-content:center; align-items:center;
+    gap:.8rem;
+}
+.workflow-request-pager button:disabled { opacity:.45; cursor:not-allowed; }
+.workflow-request-filter-empty { margin-top:.8rem; }
+.workflow-request-table tr[hidden] { display:none !important; }
 .workflow-result-row-rejected > td { background:#fff1f2 !important; border-bottom-color:#fecdd3 !important; }
 .workflow-result-row-returned > td { background:#fff7ed !important; border-bottom-color:#fed7aa !important; }
 .workflow-result-row-completed > td { background:#ecfdf5 !important; border-bottom-color:#bbf7d0 !important; }
+.workflow-result-row-skipped > td { background:#f1f5f9 !important; border-bottom-color:#cbd5e1 !important; }
 .workflow-result-row-rejected:hover > td { background:#ffe4e6 !important; }
 .workflow-result-row-returned:hover > td { background:#ffedd5 !important; }
 .workflow-result-row-completed:hover > td { background:#dcfce7 !important; }
-</style>
-
-<style>
-.workflow-result-row-skipped > td { background:#f1f5f9 !important; border-bottom-color:#cbd5e1 !important; }
 .workflow-result-row-skipped:hover > td { background:#e2e8f0 !important; }
 .workflow-status.skipped { background:#e2e8f0;color:#334155; }
+@media (max-width:1100px) {
+    .workflow-request-filters { grid-template-columns:repeat(3,minmax(0,1fr)); }
+    .workflow-request-search { grid-column:span 3; }
+    .workflow-request-table th, .workflow-request-table td { padding:.5rem .32rem; font-size:.75rem; }
+}
+@media (max-width:760px) {
+    .workflow-request-filters { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .workflow-request-search { grid-column:span 2; }
+    .workflow-request-table thead { display:none; }
+    .workflow-request-table, .workflow-request-table tbody,
+    .workflow-request-table tr, .workflow-request-table td {
+        display:block; width:100%;
+    }
+    .workflow-request-table tr {
+        border:1px solid #e2e8f0; border-radius:10px;
+        margin-bottom:.75rem; overflow:hidden;
+    }
+    .workflow-request-table td {
+        display:grid; grid-template-columns:118px minmax(0,1fr);
+        gap:.65rem; padding:.58rem .7rem;
+        border-bottom:1px solid #eef2f7;
+    }
+    .workflow-request-table td::before {
+        content:attr(data-label); color:#64748b;
+        font-size:.74rem; font-weight:700;
+    }
+    .workflow-request-table td:last-child { display:block; }
+    .workflow-request-table td:last-child::before {
+        content:"عملیات"; display:block; margin-bottom:.4rem;
+    }
+}
+@media (max-width:480px) {
+    .workflow-request-filters { grid-template-columns:1fr; }
+    .workflow-request-search { grid-column:span 1; }
+    .workflow-request-table td { grid-template-columns:100px minmax(0,1fr); }
+    .workflow-request-footer { align-items:stretch; }
+    .workflow-request-pager { justify-content:space-between; }
+}
 </style>
+
+@section Scripts {
+<script>
+(function () {
+    const table = document.getElementById("workflowRequestsTable");
+    if (!table) return;
+
+    const body = table.querySelector("tbody");
+    const allRows = Array.from(body.querySelectorAll("tr"));
+    const search = document.getElementById("workflowRequestSearch");
+    const type = document.getElementById("workflowRequestType");
+    const status = document.getElementById("workflowRequestStatus");
+    const dateFrom = document.getElementById("workflowRequestDateFrom");
+    const dateTo = document.getElementById("workflowRequestDateTo");
+    const sort = document.getElementById("workflowRequestSort");
+    const pageSize = document.getElementById("workflowRequestPageSize");
+    const prev = document.getElementById("workflowRequestPrev");
+    const next = document.getElementById("workflowRequestNext");
+    const pageInfo = document.getElementById("workflowRequestPageInfo");
+    const visibleCount = document.getElementById("workflowRequestVisibleCount");
+    const resultSummary = document.getElementById("workflowRequestResultSummary");
+    const empty = document.getElementById("workflowRequestFilterEmpty");
+    const pager = document.getElementById("workflowRequestPager");
+    const reset = document.getElementById("workflowRequestReset");
+    let page = 1;
+    let filteredRows = allRows.slice();
+
+    function normalize(value) {
+        return String(value || "").toLocaleLowerCase()
+            .replace(/[يى]/g, "ی").replace(/ك/g, "ک")
+            .replace(/\s+/g, " ").trim();
+    }
+
+    function applyFilters() {
+        const query = normalize(search && search.value);
+        const typeValue = type ? type.value : "";
+        const statusValue = status ? status.value : "";
+        const fromValue = dateFrom ? dateFrom.value : "";
+        const toValue = dateTo ? dateTo.value : "";
+
+        filteredRows = allRows.filter(function (row) {
+            const text = normalize(row.dataset.search);
+            const created = row.dataset.created || "";
+            const matchesText = !query || text.includes(query);
+            const matchesType = !typeValue || row.dataset.type === typeValue;
+            const matchesStatus = !statusValue || row.dataset.status === statusValue;
+            const matchesFrom = !fromValue || created >= fromValue;
+            const matchesTo = !toValue || created <= toValue;
+            return matchesText && matchesType && matchesStatus && matchesFrom && matchesTo;
+        });
+
+        sortRows();
+        page = 1;
+        render();
+    }
+
+    function sortRows() {
+        const mode = sort ? sort.value : "newest";
+        filteredRows.sort(function (a, b) {
+            if (mode === "title") {
+                return normalize(a.dataset.title).localeCompare(normalize(b.dataset.title), "fa");
+            }
+            if (mode === "requester") {
+                return normalize(a.dataset.requester).localeCompare(normalize(b.dataset.requester), "fa");
+            }
+            const aTime = Number(a.dataset.createdSort || 0);
+            const bTime = Number(b.dataset.createdSort || 0);
+            return mode === "oldest" ? aTime - bTime : bTime - aTime;
+        });
+    }
+
+    function render() {
+        const size = Number(pageSize && pageSize.value || 10);
+        const totalPages = size === 0 ? 1 : Math.max(1, Math.ceil(filteredRows.length / size));
+        page = Math.min(Math.max(1, page), totalPages);
+        const start = size === 0 ? 0 : (page - 1) * size;
+        const end = size === 0 ? filteredRows.length : start + size;
+        const visible = new Set(filteredRows.slice(start, end));
+
+        allRows.forEach(function (row) {
+            row.hidden = !visible.has(row);
+        });
+
+        // Keep the DOM order in sync with the selected sort so the current
+        // page remains coherent for assistive technology and browser printing.
+        filteredRows.forEach(function (row) { body.appendChild(row); });
+        allRows.filter(function (row) { return !filteredRows.includes(row); })
+            .forEach(function (row) { body.appendChild(row); });
+
+        if (visibleCount) visibleCount.textContent = String(filteredRows.length);
+        if (pageInfo) pageInfo.textContent = "صفحه " + page + " از " + totalPages;
+        if (prev) prev.disabled = page <= 1 || filteredRows.length === 0;
+        if (next) next.disabled = page >= totalPages || filteredRows.length === 0;
+        if (pager) pager.hidden = filteredRows.length === 0;
+        if (empty) empty.hidden = filteredRows.length !== 0;
+        if (resultSummary) {
+            const first = filteredRows.length === 0 ? 0 : start + 1;
+            const last = Math.min(end, filteredRows.length);
+            resultSummary.textContent = filteredRows.length === 0
+                ? "موردی برای نمایش وجود ندارد."
+                : "نمایش " + first + " تا " + last + " از " + filteredRows.length + " درخواست فیلترشده";
+        }
+    }
+
+    [search].forEach(function (control) {
+        if (control) control.addEventListener("input", applyFilters);
+    });
+    [type, status, dateFrom, dateTo].forEach(function (control) {
+        if (control) control.addEventListener("change", applyFilters);
+    });
+    if (sort) sort.addEventListener("change", function () { sortRows(); page = 1; render(); });
+    if (pageSize) pageSize.addEventListener("change", function () { page = 1; render(); });
+    if (prev) prev.addEventListener("click", function () { page -= 1; render(); });
+    if (next) next.addEventListener("click", function () { page += 1; render(); });
+    if (reset) reset.addEventListener("click", function () {
+        if (search) search.value = "";
+        if (type) type.value = "";
+        if (status) status.value = "";
+        if (dateFrom) dateFrom.value = "";
+        if (dateTo) dateTo.value = "";
+        if (sort) sort.value = "newest";
+        if (pageSize) pageSize.value = "10";
+        applyFilters();
+    });
+
+    sortRows();
+    render();
+})();
+</script>
+}

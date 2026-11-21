@@ -3,9 +3,7 @@
 @{
  var activeAnnouncements = Model;
 }
-@if (activeAnnouncements.Count > 0)
-{
-    <section class="announcement-dashboard">
+<section class="announcement-dashboard">
         <div class="announcement-dashboard-head">
             <div>
                 <span class="eyebrow">اطلاعیه‌های سامانه</span>
@@ -13,6 +11,15 @@
             </div>
             <span class="announcement-count">@activeAnnouncements.Count مورد معتبر</span>
         </div>
+        @if (activeAnnouncements.Count == 0)
+        {
+            <div class="announcement-dashboard-empty">
+                <span class="announcement-empty-mark">i</span>
+                <div><strong>در حال حاضر اطلاعیه فعالی وجود ندارد</strong><p>در صورت انتشار اطلاعیه جدید، در همین بخش نمایش داده خواهد شد.</p></div>
+            </div>
+        }
+        else
+        {
         <div class="announcement-dashboard-list">
             @foreach (var item in activeAnnouncements)
             {
@@ -45,6 +52,6 @@
                 </article>
             }
         </div>
+        }
     </section>
-}
 

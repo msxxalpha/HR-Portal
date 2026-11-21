@@ -195,11 +195,9 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
 
         if (employee.MustChangeInitialPassword)
             return RedirectToAction(nameof(PersonalPassword));
-        // Evaluators still enter their dashboard when no period is active, to see
-        // the closed-period warning and their own historical evaluations.
-        var canEvaluate = employee.IsPerformanceEvaluator && permissions.Contains("MonthlyPerformance.Evaluate");
-        var landing = canEvaluate ? "/MonthlyPerformance/Dashboard" : "/MonthlyPerformance/Mine";
-        return Redirect(!string.IsNullOrWhiteSpace(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl) ? model.ReturnUrl : landing);
+        // Every employee starts at the main portal dashboard. The performance
+        // dashboard remains available from its dedicated menu/quick-access link.
+        return Redirect(!string.IsNullOrWhiteSpace(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl) ? model.ReturnUrl : "/");
     }
 
     [HttpGet, AllowAnonymous]
@@ -344,11 +342,8 @@ public class AccountController(HRPortalDbContext db, OtpService otp, AuditServic
         HttpContext.Session.Remove("PendingReturnUrl");
 
         await audit.WriteAsync("ورود موفق کارمند", "Account", employee.Id.ToString(), employee.PersonnelNumber, employee.Id);
-        // Evaluators still enter their dashboard when no period is active, to see
-        // the closed-period warning and their own historical evaluations.
-        var canEvaluate = employee.IsPerformanceEvaluator && permissions.Contains("MonthlyPerformance.Evaluate");
-        var landing = canEvaluate ? "/MonthlyPerformance/Dashboard" : "/MonthlyPerformance/Mine";
-        return Redirect(!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl) ? returnUrl : landing);
+        // All employees land on the main portal dashboard after OTP verification.
+        return Redirect(!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl) ? returnUrl : "/");
     }
 
     [HttpGet, Authorize]

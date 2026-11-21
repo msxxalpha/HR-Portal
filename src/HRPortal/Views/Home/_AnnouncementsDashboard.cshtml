@@ -20,7 +20,7 @@
         }
         else
         {
-        <div class="announcement-dashboard-list">
+        <div class="announcement-dashboard-list @(activeAnnouncements.Count == 1 ? "single-announcement" : "")">
             @foreach (var item in activeAnnouncements)
             {
                 var priorityClass = item.Priority switch

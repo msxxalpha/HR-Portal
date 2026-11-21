@@ -858,3 +858,6 @@
     .announcement-card{transition:none}
     .announcement-card:hover{transform:none}
 }
+
+/* A single active announcement should span the full dashboard content width. */
+.announcement-dashboard-list.single-announcement{grid-template-columns:minmax(0,1fr)}

@@ -243,7 +243,10 @@
     <div class="main">
         <header class="topbar">
             <div>
-                <div class="topbar-caption">@company.ApplicationName</div>
+                @if (ViewData["HidePortalCaption"] as bool? != true)
+                {
+                    <div class="topbar-caption">@company.ApplicationName</div>
+                }
                 <h2>@ViewData["Title"]</h2>
             </div>
             <div class="user-box">

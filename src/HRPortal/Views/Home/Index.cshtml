@@ -3,6 +3,8 @@
     Layout = "~/Views/Shared/_Layout.cshtml";
     ViewData["Title"] = "داشبورد";
     var isAdmin = User.HasClaim("IsAdmin", "1");
+    // Hide the muted portal-name caption in the shared top bar for non-admin users on this dashboard only.
+    ViewData["HidePortalCaption"] = !isAdmin;
     var canCreateEmployee = isAdmin || User.HasClaim("Permission", "Employees.Create");
     var canViewEmployees = isAdmin || User.HasClaim("Permission", "Employees.View");
     var canViewOrg = isAdmin || User.HasClaim("Permission", "Organization.View");

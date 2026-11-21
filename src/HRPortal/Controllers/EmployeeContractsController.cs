@@ -1440,7 +1440,8 @@ public class EmployeeContractsController(
                 RequestApprovalPositionId = selectedApprovalPositionId,
                 SecurityPositionId = selectedSecurityPositionId,
                 HumanResourcesPositionId = selectedHrPositionId,
-                CeoEmployeeId = ceoEmployees.Count == 1 ? ceoEmployees[0].Id : null
+                CeoEmployeeId = ceoEmployees.Count == 1 ? ceoEmployees[0].Id : null,
+                EvaluationAutoAdvanceAfterDays = persisted.EvaluationAutoAdvanceAfterDays > 0 ? persisted.EvaluationAutoAdvanceAfterDays : 2
             },
             Positions = positions,
             ActiveEmployees = await db.Employees.AsNoTracking().Where(x => x.Status == "فعال")

@@ -32,14 +32,17 @@
 
 @await Html.PartialAsync("_AnnouncementsDashboard", activeAnnouncements)
 
-<div class="hero">
-    <div>
-        <div class="eyebrow">سامانه یکپارچه منابع انسانی</div>
-        <h1>پورتال جامع منابع انسانی</h1>
-        <p>مدیریت اطلاعات کارکنان، ساختار سازمانی و خدمات پرسنلی در یک محیط یکپارچه.</p>
+@if (isAdmin)
+{
+    <div class="hero">
+        <div>
+            <div class="eyebrow">سامانه یکپارچه منابع انسانی</div>
+            <h1>پورتال جامع منابع انسانی</h1>
+            <p>مدیریت اطلاعات کارکنان، ساختار سازمانی و خدمات پرسنلی در یک محیط یکپارچه.</p>
+        </div>
+        @if (canCreateEmployee) { <a class="btn btn-main btn-hero" href="/Employees/Create">ثبت کارمند جدید</a> }
     </div>
-    @if (canCreateEmployee) { <a class="btn btn-main btn-hero" href="/Employees/Create">ثبت کارمند جدید</a> }
-</div>
+}
 
 @if (!isAdmin)
 {

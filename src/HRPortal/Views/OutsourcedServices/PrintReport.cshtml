@@ -1,0 +1,101 @@
+@model HRPortal.Models.OutsourcedServicePrintReportVm
+@{
+    Layout = null;
+    ViewData["Title"] = "گزارش نهایی درخواست خدمات برونسپاری";
+}
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>@ViewData["Title"] - @Model.RequestNumber</title>
+<style>
+:root{--navy:#173653;--ink:#243447;--muted:#64748b;--line:#d9e1e9;--soft:#eef2f6}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font-family:Tahoma,Arial,sans-serif}
+.toolbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 2px 8px #172b3a10}
+.toolbar-title{font-weight:800;color:var(--navy)}
+.toolbar-actions{display:flex;gap:8px;flex-wrap:wrap}
+.toolbar a,.toolbar button{border:0;border-radius:8px;padding:9px 14px;font:inherit;font-size:12px;font-weight:700;text-decoration:none;cursor:pointer}
+.btn-primary{background:var(--navy);color:#fff}.btn-light{background:#edf2f7;color:var(--ink)}
+.sheet{width:210mm;min-height:297mm;margin:18px auto;padding:13mm;background:#fff;box-shadow:0 4px 24px #172b3a18}
+.report-header{background:var(--navy);color:#fff;padding:16px 18px;text-align:center;border-radius:5px}
+.report-header h1{font-size:17px;margin:0 0 6px}.report-header p{font-size:10px;margin:0;color:#dce7f1}
+.report-number{margin-top:9px;font-size:11px;font-weight:700}
+.status-line{display:flex;justify-content:space-between;gap:12px;background:var(--soft);padding:9px 12px;margin:10px 0;border-radius:4px;font-size:10px}
+.section{margin-top:12px;border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.section-title{margin:0;padding:8px 11px;background:#e8eef4;color:var(--navy);font-size:11px;font-weight:800}
+.section-body{padding:10px 12px}
+.meta-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px 14px}
+.meta-item{min-width:0}.meta-item small{display:block;color:var(--muted);font-size:9px;margin-bottom:4px}.meta-item strong{font-size:10px;overflow-wrap:anywhere}
+.description{margin-top:10px;padding:9px;background:#f7f9fb;border:1px solid #edf1f5;border-radius:4px;font-size:10px;line-height:1.9;white-space:pre-wrap}
+.workflow-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9px}
+.workflow-table th{background:#294a68;color:#fff;padding:7px 5px;font-weight:700}
+.workflow-table td{padding:7px 5px;border-bottom:1px solid #e2e8f0;vertical-align:top;line-height:1.7;overflow-wrap:anywhere}
+.workflow-table tr:nth-child(even) td{background:#fafbfd}
+.workflow-table .comment{font-size:8px;color:#475569}
+.footer{display:flex;justify-content:space-between;border-top:1px solid var(--line);margin-top:12px;padding-top:7px;color:var(--muted);font-size:8px}
+.empty{padding:15px;text-align:center;color:var(--muted);font-size:10px}
+@@media(max-width:850px){.sheet{width:100%;min-height:0;margin:0;padding:18px;box-shadow:none}.toolbar{position:static}.meta-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@@media print{
+ @page{size:A4 portrait;margin:0}
+ body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+ .toolbar{display:none!important}
+ .sheet{width:210mm;height:297mm;min-height:297mm;margin:0;padding:11mm;box-shadow:none;overflow:hidden}
+ .section,.report-header,.status-line{break-inside:avoid}
+ .workflow-table tr{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<header class="toolbar">
+ <div class="toolbar-title">گزارش نهایی درخواست برونسپاری · @Model.RequestNumber</div>
+ <nav class="toolbar-actions">
+  <a class="btn-light" href="/OutsourcedServices/Details/@Model.RequestId">بازگشت</a>
+  <button class="btn-light" type="button" onclick="window.print()">چاپ / ذخیره PDF</button>
+  <a class="btn-primary" href="/OutsourcedServices/DownloadPrintReportPdf/@Model.RequestId">دریافت فایل PDF</a>
+ </nav>
+</header>
+<main class="sheet">
+ <header class="report-header">
+  <h1>گزارش نهایی درخواست خدمات برونسپاری</h1>
+  <p>فرم رسمی مشخصات درخواست و سوابق گردش تأیید</p>
+  <div class="report-number">شماره درخواست: <b dir="ltr">@Model.RequestNumber</b></div>
+ </header>
+ <div class="status-line"><strong>وضعیت نهایی: @Model.WorkflowStatusTitle</strong><span>تاریخ ثبت: @Model.CreatedAt</span></div>
+ <section class="section">
+  <h2 class="section-title">۱. مشخصات درخواست‌کننده و درخواست</h2>
+  <div class="section-body">
+   <div class="meta-grid">
+    <div class="meta-item"><small>نام و نام خانوادگی درخواست‌کننده</small><strong>@Model.RequesterName</strong></div>
+    <div class="meta-item"><small>شماره پرسنلی</small><strong>@Model.PersonnelNumber</strong></div>
+    <div class="meta-item"><small>واحد سازمانی درخواست‌کننده</small><strong>@Model.OrganizationalUnit</strong></div>
+    <div class="meta-item"><small>تاریخ نیازمندی</small><strong>@Model.NeedByDate</strong></div>
+    <div class="meta-item"><small>اولویت درخواست</small><strong>@Model.Priority</strong></div>
+    <div class="meta-item"><small>مقدار و واحد سنجش</small><strong>@Model.Quantity.ToString("0.###") @Model.UnitOfMeasure</strong></div>
+   </div>
+   <div class="description"><strong>شرح خدمات درخواستی</strong><br/>@Model.ServiceDescription</div>
+   @if(Model.Attachments.Count>0){<div style="margin-top:8px;font-size:9px"><b>پیوست‌ها:</b> @string.Join("، ",Model.Attachments)</div>}
+  </div>
+ </section>
+ <section class="section">
+  <h2 class="section-title">۲. گردش کار و سوابق تأیید</h2>
+  @if(Model.History.Count==0){<div class="empty">سابقه‌ای برای گردش کار ثبت نشده است.</div>}
+  else{
+  <table class="workflow-table">
+   <thead><tr><th style="width:6%">ردیف</th><th style="width:23%">مرحله / مسئول اقدام</th><th style="width:15%">نتیجه</th><th style="width:19%">تاریخ اقدام</th><th style="width:37%">توضیحات</th></tr></thead>
+   <tbody>
+   @foreach(var row in Model.History){
+    <tr><td>@row.Sequence</td><td><b>@row.Stage</b><br/>@row.Actor @if(!string.IsNullOrWhiteSpace(row.PersonnelNumber)){<span>(@row.PersonnelNumber)</span>}</td><td>@row.Action</td><td>@row.Date</td><td class="comment">@(string.IsNullOrWhiteSpace(row.Comment)?"—":row.Comment)</td></tr>
+   }
+   </tbody>
+  </table>
+  }
+  <div class="section-body" style="display:flex;justify-content:space-between;gap:10px;font-size:9px">
+   <span>شروع گردش: @Model.WorkflowStartedAt</span><span>پایان گردش: @Model.WorkflowCompletedAt</span>
+  </div>
+ </section>
+ <footer class="footer"><span>تاریخ تهیه گزارش: @Model.GeneratedAt</span><span>گزارش سامانه مدیریت منابع انسانی</span></footer>
+</main>
+</body>
+</html>

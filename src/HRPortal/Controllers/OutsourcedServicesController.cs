@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using QuestPDF.Fluent;
+using QuestPDF.Infrastructure;
 
 namespace HRPortal.Controllers;
 
@@ -539,6 +541,12 @@ public sealed class OutsourcedServicesController(
             .OrderByDescending(x => x.StartedAt)
             .Select(x => new { x.Status, StepTitle = x.CurrentStep == null ? "" : x.CurrentStep.Title, x.StartedAt })
             .FirstOrDefaultAsync();
+        var workflowInstance = await db.WorkflowInstances.AsNoTracking()
+            .Where(x => x.EntityType == "OutsourcedServiceRequest" && x.EntityId == id.ToString())
+            .OrderByDescending(x => x.StartedAt).ThenByDescending(x => x.Id)
+            .FirstOrDefaultAsync();
+        ViewBag.CanPrintReport = workflowInstance is not null &&
+            workflowInstance.Status is "Approved" or "Completed";
         ViewBag.Requester = requester;
         ViewBag.Workflow = workflow;
         ViewBag.PriorityTitle = Priorities.GetValueOrDefault(item.Priority, item.Priority);
@@ -553,6 +561,132 @@ public sealed class OutsourcedServicesController(
             .OrderByDescending(x => x.UploadedAtUtc).ToListAsync();
         return View(item);
     }
+
+    [HttpGet]
+    public async Task<IActionResult> PrintReport(int id)
+    {
+        var model = await BuildPrintReportAsync(id);
+        if (model is null) return NotFound();
+        if (model.WorkflowStatus is not ("Approved" or "Completed")) return Forbid();
+        return View("PrintReport", model);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> DownloadPrintReportPdf(int id)
+    {
+        var model = await BuildPrintReportAsync(id);
+        if (model is null) return NotFound();
+        if (model.WorkflowStatus is not ("Approved" or "Completed")) return Forbid();
+
+        QuestPDF.Settings.License = LicenseType.Community;
+        var pdf = new OutsourcedServicePrintPdfDocument(model).GeneratePdf();
+        return File(pdf, "application/pdf", $"Outsourced-Service-{model.RequestNumber}.pdf");
+    }
+
+    private async Task<OutsourcedServicePrintReportVm?> BuildPrintReportAsync(int id)
+    {
+        if (!Has("OutsourcedServices.Create") && !Has("OutsourcedServices.ViewAll") &&
+            !Has("OutsourcedServices.Reports")) return null;
+
+        var request = await db.OutsourcedServiceRequests.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == id && (!x.IsDeleted || IsAdmin));
+        if (request is null) return null;
+
+        if (!Has("OutsourcedServices.ViewAll") && !Has("OutsourcedServices.Reports"))
+        {
+            if (!TryEmployeeId(out var employeeId) || employeeId != request.RequesterEmployeeId)
+                return null;
+        }
+
+        var employee = await db.Employees.AsNoTracking()
+            .Where(x => x.Id == request.RequesterEmployeeId)
+            .Select(x => new
+            {
+                x.Id, x.FirstName, x.LastName, x.PersonnelNumber,
+                x.OrganizationPositionId, x.OrganizationSectionId,
+                x.OrganizationDepartmentId, x.OrganizationUnitId
+            }).FirstOrDefaultAsync();
+        var nodes = await db.OrganizationNodes.AsNoTracking()
+            .OrderByDescending(x => x.OrganizationStructureRevisionId)
+            .ThenByDescending(x => x.Id).ToListAsync();
+        var organization = employee is null
+            ? OutsourcedServiceOrganizationResolver.UnassignedTitle
+            : OutsourcedServiceOrganizationResolver.ResolveUnitTitle(
+                employee.Id, nodes, employee.OrganizationPositionId,
+                employee.OrganizationSectionId, employee.OrganizationDepartmentId,
+                employee.OrganizationUnitId);
+
+        var instance = await db.WorkflowInstances.AsNoTracking()
+            .Where(x => x.EntityType == "OutsourcedServiceRequest" && x.EntityId == id.ToString())
+            .OrderByDescending(x => x.StartedAt).ThenByDescending(x => x.Id)
+            .FirstOrDefaultAsync();
+        if (instance is null) return null;
+
+        var history = await db.WorkflowHistory.AsNoTracking()
+            .Where(x => x.WorkflowInstanceId == instance.Id)
+            .Include(x => x.WorkflowStep).ThenInclude(x => x!.OrganizationNode)
+            .Include(x => x.ActorEmployee)
+            .Include(x => x.ActorPosition)
+            .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id)
+            .ToListAsync();
+
+        var attachments = await db.OutsourcedServiceRequestAttachments.AsNoTracking()
+            .Where(x => x.RequestId == id)
+            .OrderBy(x => x.UploadedAtUtc)
+            .Select(x => x.OriginalFileName).ToListAsync();
+
+        return new OutsourcedServicePrintReportVm
+        {
+            RequestId = request.Id,
+            RequestNumber = request.RequestNumber,
+            ServiceDescription = request.ServiceDescription,
+            UnitOfMeasure = request.UnitOfMeasure,
+            Quantity = request.Quantity,
+            NeedByDate = PersianDateService.Format(request.NeedByDate),
+            Priority = Priorities.GetValueOrDefault(request.Priority, request.Priority),
+            RequesterName = employee is null ? "—" : $"{employee.FirstName} {employee.LastName}".Trim(),
+            PersonnelNumber = employee?.PersonnelNumber ?? "—",
+            OrganizationalUnit = organization,
+            CreatedAt = PersianDateService.FormatDateTime(PersianDateService.ToTehran(request.CreatedAtUtc)),
+            WorkflowStatus = instance.Status,
+            WorkflowStatusTitle = instance.Status switch
+            {
+                "Approved" => "تأیید نهایی",
+                "Completed" => "تکمیل‌شده",
+                _ => instance.Status
+            },
+            WorkflowStartedAt = PersianDateService.FormatDateTime(PersianDateService.ToTehran(instance.StartedAt)),
+            WorkflowCompletedAt = instance.CompletedAt.HasValue
+                ? PersianDateService.FormatDateTime(PersianDateService.ToTehran(instance.CompletedAt.Value))
+                : "—",
+            History = history.Select((entry, index) => new OutsourcedServicePrintHistoryRow
+            {
+                Sequence = index + 1,
+                Stage = entry.WorkflowStep?.Title ??
+                    entry.WorkflowStep?.OrganizationNode?.Title ?? "مرحله گردش کار",
+                Actor = entry.ActorEmployee is not null
+                    ? $"{entry.ActorEmployee.FirstName} {entry.ActorEmployee.LastName}".Trim()
+                    : entry.ActorPosition?.Title ?? "—",
+                PersonnelNumber = entry.ActorEmployee?.PersonnelNumber ?? "",
+                Action = WorkflowActionTitle(entry.Action, entry.ToStatus),
+                Date = PersianDateService.FormatDateTime(PersianDateService.ToTehran(entry.CreatedAt)),
+                Comment = entry.Comment ?? ""
+            }).ToList(),
+            Attachments = attachments,
+            GeneratedAt = PersianDateService.FormatDateTime(PersianDateService.ToTehran(DateTime.UtcNow))
+        };
+    }
+
+    private static string WorkflowActionTitle(string action, string status) => action switch
+    {
+        "Submit" or "Submitted" => "ثبت و ارسال درخواست",
+        "Approve" or "Approved" => "تأیید",
+        "Reject" or "Rejected" => "رد درخواست",
+        "Return" or "Returned" => "عودت جهت اصلاح",
+        "Skip" => "عبور از مرحله",
+        "RequestArchived" => "بایگانی درخواست",
+        _ => string.IsNullOrWhiteSpace(action) ? status : action
+    };
 
     private void PrepareFormView(
         bool isEdit,

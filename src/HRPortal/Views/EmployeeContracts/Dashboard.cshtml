@@ -117,7 +117,7 @@
                         data-href="@target" data-search="@searchText" data-name="@row.FullName"
                         data-personnel="@row.PersonnelNumber" data-unit="@row.OrganizationUnit"
                         data-position="@row.PositionTitle" data-status="@requestStatus"
-                        data-end-date="@isoDate" data-days="@row.DaysRemaining"
+                        data-date="@isoDate" data-days="@row.DaysRemaining"
                         data-needs-action="@row.NeedsAction.ToString().ToLowerInvariant()"
                         tabindex="0" role="link" aria-label="مشاهده اطلاعات تمدید قرارداد @row.FullName">
                         <td data-label="کارمند"><strong>@row.FullName</strong></td>
@@ -193,11 +193,11 @@
 .contract-expiry-pager button:disabled { opacity:.45; cursor:not-allowed; }
 .contract-expiry-filter-empty { margin-top:.8rem; }
 .contract-expiry-row[hidden] { display:none !important; }
-@media (max-width:900px) {
+@@media (max-width:900px) {
     .contract-expiry-filter-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
     .contract-expiry-table th, .contract-expiry-table td { padding:.48rem .3rem; font-size:.76rem; }
 }
-@media (max-width:600px) {
+@@media (max-width:600px) {
     .contract-expiry-filter-grid { grid-template-columns:1fr; }
     .contract-expiry-table thead { display:none; }
     .contract-expiry-table, .contract-expiry-table tbody, .contract-expiry-table tr, .contract-expiry-table td { display:block; width:100%; }

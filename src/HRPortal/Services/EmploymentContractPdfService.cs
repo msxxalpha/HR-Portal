@@ -108,11 +108,12 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
                     column.Spacing(3);
 
                     Article(column,
-                        $"۱- بر اساس ماده ۷ و۱۰ قانون کار جمهوری اسلامی ایران و با عنایت به حقوق و تکالیف مقرر در قانون مزبور و مقررات تبعی قرارداد زیر بین شرکت کارخانجات کمک فنر ایندامین سایپا(سهامی عام) به نشانی تهران بزرگراه شهید لشگری کیلومتر ۱۴ چیتگر جنوبی که از این به بعد کارفرما نامیده می‌شود و خانم/آقای{fullName} فرزند {fatherName} به شماره شناسنامه{birthCertificate} کد ملی{nationalId} صادره از{issuePlace} تاریخ تولد {birthDate} به نشانی{address} تلفن{mobile} از طرف دیگر که از این پس کارگر نامیده می‌شود منعقد می‌گردد .",
+                        $"۱- بر اساس ماده ۷ و۱۰ قانون کار جمهوری اسلامی ایران و با عنایت به حقوق و تکالیف مقرر در قانون مزبور و مقررات تبعی قرارداد زیر بین شرکت کارخانجات کمک فنر ایندامین سایپا(سهامی عام) به نشانی تهران بزرگراه شهید لشگری کیلومتر ۱۴ چیتگر جنوبی که از این به بعد کارفرما نامیده می‌شود و به شماره شناسنامه{birthCertificate} فرزند {fatherName} خانم/آقای{fullName} تاریخ تولد {birthDate} صادره از{issuePlace} کد ملی{nationalId} تلفن{mobile} به نشانی{address} از طرف دیگر که از این پس کارگر نامیده می‌شود منعقد می‌گردد .",
                         emphasized: true);
 
                     Article(column, $"۲- وضعیت نظام وظیفه کارگر{military}");
-                    Article(column, $"۳- وضعیت تاهل کارگر{marital} تعداد اولاد{PersianDigits(children)}");
+                    Article(column, $"تعداد اولاد{PersianDigits(children)}");
+                    Article(column, $"۳- وضعیت تأهل کارگر{marital}");
                     Article(column, $"۴- شماره بیمه{insurance}");
                     Article(column, "۵- محل اشتغال اقامتگاه قانونی شرکت کمک فنر ایندامین سایپا می باشد.");
                     Article(column, $"۶- مهارت کارگر{skill} تاریخ استخدام{hireDate}");
@@ -124,16 +125,16 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
                     column.Item().PaddingTop(12).ShowEntire().Border(1).BorderColor(Colors.Grey.Lighten2)
                         .Background(Colors.Grey.Lighten4).Padding(12).Row(sign =>
                         {
-                            sign.RelativeItem().Column(worker =>
-                            {
-                                worker.Item().AlignCenter().Text("نام و نام خانوادگی کارگر").Bold().FontSize(11);
-                                worker.Item().PaddingTop(24).AlignCenter().Text("امضاء - اثر انگشت").FontSize(10);
-                            });
-                            sign.ConstantItem(1).Height(72).Background(Colors.Grey.Lighten1);
                             sign.RelativeItem().Column(employer =>
                             {
                                 employer.Item().AlignCenter().Text("نام و نام خانوادگی کارفرما").Bold().FontSize(11);
                                 employer.Item().PaddingTop(24).AlignCenter().Text("محل امضاء").FontSize(10);
+                            });
+                            sign.ConstantItem(1).Height(72).Background(Colors.Grey.Lighten1);
+                            sign.RelativeItem().Column(worker =>
+                            {
+                                worker.Item().AlignCenter().Text("نام و نام خانوادگی کارگر").Bold().FontSize(11);
+                                worker.Item().PaddingTop(24).AlignCenter().Text("امضاء - اثر انگشت").FontSize(10);
                             });
                         });
                 });

@@ -98,6 +98,7 @@ builder.Services.AddScoped<MonthlyPerformanceImprovementService>();
 builder.Services.AddScoped<ContractRenewalWorkflowService>();
 builder.Services.AddHostedService<ContractRenewalEvaluationTimeoutService>();
 builder.Services.AddScoped<ContractRenewalPdfService>();
+builder.Services.AddScoped<EmploymentContractPdfService>();
 builder.Services.AddScoped<ISmsService, ConfigurableSmsService>();
 
 builder.Services

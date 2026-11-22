@@ -6,6 +6,10 @@
     int maxStatus = Math.Max(1, Model.StatusBuckets.Select(x => x.Count).DefaultIfEmpty(0).Max());
     int maxMonth = Math.Max(1, Model.MonthlyBuckets.Select(x => x.Count).DefaultIfEmpty(0).Max());
     string faDate(DateTime d) => PersianDateService.Format(d);
+    var statuses = Model.ExpiringEmployees.Select(x => x.LatestRequest?.Status ?? "درخواستی ثبت نشده")
+        .Distinct(StringComparer.Ordinal).OrderBy(x => x).ToList();
+    var units = Model.ExpiringEmployees.Select(x => x.OrganizationUnit)
+        .Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.Ordinal).OrderBy(x => x).ToList();
 }
 <div class="page-head">
     <div><h1>داشبورد و گزارش‌های تمدید قرارداد</h1><p>نمای کلی عملکرد درخواست‌ها و قراردادهایی که کمتر از ۳۱ روز تا پایان آن‌ها باقی مانده یا موعدشان گذشته است.</p></div>
@@ -13,59 +17,6 @@
 </div>
 @if (TempData["Error"] is string error) { <div class="alert error">@error</div> }
 @if (TempData["Success"] is string success) { <div class="alert success">@success</div> }
-
-<section class="card contract-expiry-card">
-    <div class="section-head">
-        <div><h3>کارکنان با کمتر از ۳۱ روز تا پایان قرارداد</h3><span class="muted">مبنای کنترل درخواست تکراری، تاریخ پایان قرارداد فعلی ثبت‌شده برای همان کارمند است.</span></div>
-        <div class="contract-expiry-legend"><span></span> ردیف قرمز کم‌رنگ: هنوز اقدامی در گردش ثبت نشده است</div>
-        <span class="status-pill status-pending">@Model.ExpiringEmployeeCount نفر</span>
-    </div>
-    @if (Model.ExpiringEmployees.Count == 0)
-    {
-        <div class="empty">در حال حاضر کارمند فعالی با قرارداد نزدیک به پایان یا پایان‌یافته یافت نشد.</div>
-    }
-    else
-    {
-        <div class="table-wrap"><table class="contract-expiry-table">
-            <thead><tr><th>کارمند</th><th>شماره پرسنلی</th><th>واحد / بخش</th><th>سمت</th><th>پایان قرارداد</th><th>روز باقی‌مانده</th><th>آخرین وضعیت درخواست همان دوره</th><th>عملیات</th></tr></thead>
-            <tbody>
-            @foreach (var row in Model.ExpiringEmployees)
-            {
-                var target = row.CanStartRequest
-                    ? $"/EmployeeContracts/Renewal?employeeId={row.EmployeeId}"
-                    : row.LatestRequest is not null ? $"/EmployeeContracts/History?id={row.LatestRequest.Id}" : "/EmployeeContracts/Requests";
-                <tr class="contract-expiry-row @(row.NeedsAction ? "contract-expiry-row-needs-action" : "")" data-href="@target" tabindex="0" role="link" aria-label="مشاهده اطلاعات تمدید قرارداد @row.FullName">
-                    <td><strong>@row.FullName</strong></td>
-                    <td>@row.PersonnelNumber</td>
-                    <td>@row.OrganizationUnit</td>
-                    <td>@row.PositionTitle</td>
-                    <td>@faDate(row.ContractEndDate)</td>
-                    <td>
-                        @if (row.DaysRemaining < 0) { <span class="status-pill status-cancelled">@Math.Abs(row.DaysRemaining) روز از موعد گذشته</span> }
-                        else if (row.DaysRemaining <= 7) { <span class="status-pill status-cancelled">@row.DaysRemaining روز</span> }
-                        else { <span class="status-pill status-pending">@row.DaysRemaining روز</span> }
-                    </td>
-                    <td>@(row.LatestRequest?.Status ?? "درخواستی ثبت نشده")</td>
-                    <td>
-                        @if (row.CanStartRequest)
-                        {
-                            <a class="btn btn-sm btn-main" href="/EmployeeContracts/Renewal?employeeId=@row.EmployeeId">شروع فرم تمدید</a>
-                        }
-                        else if (row.LatestRequest is not null)
-                        {
-                            <a class="btn btn-sm btn-outline" href="/EmployeeContracts/History?id=@row.LatestRequest.Id">مشاهده سوابق</a>
-                        }
-                        else
-                        {
-                            <a class="btn btn-sm btn-outline" href="/EmployeeContracts/Requests">فهرست درخواست‌ها</a>
-                        }
-                    </td>
-                </tr>
-            }
-            </tbody>
-        </table></div>
-    }
-</section>
 
 <section class="contract-dashboard-kpis">
     <div class="card contract-kpi"><span>کل درخواست‌های غیرحذف‌شده</span><strong>@Model.TotalRequests</strong><small>شامل درخواست‌های متوقف‌شده</small></div>
@@ -101,34 +52,299 @@
     </div>
 </section>
 
+<section class="card contract-expiry-card">
+    <div class="section-head contract-expiry-head">
+        <div><h3>کارکنان با کمتر از ۳۱ روز تا پایان قرارداد</h3><span class="muted">مبنای کنترل درخواست تکراری، تاریخ پایان قرارداد فعلی ثبت‌شده برای همان کارمند است.</span></div>
+        <div class="contract-expiry-head-meta">
+            <div class="contract-expiry-legend"><span></span> هنوز اقدامی در گردش ثبت نشده است</div>
+            <span class="status-pill status-pending">@Model.ExpiringEmployeeCount نفر</span>
+        </div>
+    </div>
+    <div class="contract-expiry-toolbar">
+        <div class="contract-expiry-filter-grid">
+            <label>جست‌وجوی کارمند
+                <input id="expirySearch" type="search" placeholder="نام، نام خانوادگی یا شماره پرسنلی..." autocomplete="off" />
+            </label>
+            <label>واحد سازمانی
+                <select id="expiryUnit"><option value="">همه واحدها</option>@foreach (var unit in units) { <option value="@unit">@unit</option> }</select>
+            </label>
+            <label>وضعیت درخواست
+                <select id="expiryStatus"><option value="">همه وضعیت‌ها</option>@foreach (var status in statuses) { <option value="@status">@status</option> }</select>
+            </label>
+            <label>از تاریخ پایان قرارداد
+                <div class="jalali-date-input"><input id="expiryFrom" type="text" data-jalali-date autocomplete="off" inputmode="numeric" placeholder="۱۴۰۵/۰۱/۰۱" /><button type="button" class="btn btn-outline jalali-date-open" data-jalali-trigger>تقویم</button></div>
+            </label>
+            <label>تا تاریخ پایان قرارداد
+                <div class="jalali-date-input"><input id="expiryTo" type="text" data-jalali-date autocomplete="off" inputmode="numeric" placeholder="۱۴۰۵/۱۲/۲۹" /><button type="button" class="btn btn-outline jalali-date-open" data-jalali-trigger>تقویم</button></div>
+            </label>
+            <label>تعداد ردیف در صفحه
+                <select id="expiryPageSize"><option value="10" selected>۱۰</option><option value="20">۲۰</option><option value="50">۵۰</option><option value="0">همه</option></select>
+            </label>
+        </div>
+        <div class="contract-expiry-filter-actions">
+            <span class="muted"><strong id="expiryVisibleCount">@Model.ExpiringEmployeeCount</strong> ردیف از @Model.ExpiringEmployeeCount</span>
+            <button type="button" class="btn btn-outline btn-sm" id="expiryClearFilters">پاک‌کردن فیلترها</button>
+        </div>
+    </div>
+    @if (Model.ExpiringEmployees.Count == 0)
+    {
+        <div class="empty">در حال حاضر کارمند فعالی با قرارداد نزدیک به پایان یا پایان‌یافته یافت نشد.</div>
+    }
+    else
+    {
+        <div class="table-wrap contract-expiry-table-wrap">
+            <table class="contract-expiry-table" id="contractExpiryTable">
+                <thead><tr>
+                    <th scope="col" data-sort="name" aria-sort="none">کارمند <span class="sort-indicator"></span></th>
+                    <th scope="col" data-sort="personnel" aria-sort="none">شماره پرسنلی <span class="sort-indicator"></span></th>
+                    <th scope="col" data-sort="unit" aria-sort="none">واحد / بخش <span class="sort-indicator"></span></th>
+                    <th scope="col" data-sort="position" aria-sort="none">سمت <span class="sort-indicator"></span></th>
+                    <th scope="col" data-sort="date" aria-sort="none">پایان قرارداد <span class="sort-indicator"></span></th>
+                    <th scope="col" data-sort="days" aria-sort="ascending">روز باقی‌مانده <span class="sort-indicator">↑</span></th>
+                    <th scope="col" data-sort="status" aria-sort="none">آخرین وضعیت درخواست <span class="sort-indicator"></span></th>
+                    <th scope="col">عملیات</th>
+                </tr></thead>
+                <tbody>
+                @foreach (var row in Model.ExpiringEmployees)
+                {
+                    var target = row.CanStartRequest
+                        ? $"/EmployeeContracts/Renewal?employeeId={row.EmployeeId}"
+                        : row.LatestRequest is not null ? $"/EmployeeContracts/History?id={row.LatestRequest.Id}" : "/EmployeeContracts/Requests";
+                    var requestStatus = row.LatestRequest?.Status ?? "درخواستی ثبت نشده";
+                    var searchText = $"{row.FullName} {row.PersonnelNumber} {row.OrganizationUnit} {row.PositionTitle} {requestStatus}";
+                    var isoDate = row.ContractEndDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+                    <tr class="contract-expiry-row @(row.NeedsAction ? "contract-expiry-row-needs-action" : "")"
+                        data-href="@target" data-search="@searchText" data-name="@row.FullName"
+                        data-personnel="@row.PersonnelNumber" data-unit="@row.OrganizationUnit"
+                        data-position="@row.PositionTitle" data-status="@requestStatus"
+                        data-end-date="@isoDate" data-days="@row.DaysRemaining"
+                        data-needs-action="@row.NeedsAction.ToString().ToLowerInvariant()"
+                        tabindex="0" role="link" aria-label="مشاهده اطلاعات تمدید قرارداد @row.FullName">
+                        <td data-label="کارمند"><strong>@row.FullName</strong></td>
+                        <td data-label="شماره پرسنلی">@row.PersonnelNumber</td>
+                        <td data-label="واحد / بخش">@row.OrganizationUnit</td>
+                        <td data-label="سمت">@row.PositionTitle</td>
+                        <td data-label="پایان قرارداد">@faDate(row.ContractEndDate)</td>
+                        <td data-label="روز باقی‌مانده">
+                            @if (row.DaysRemaining < 0) { <span class="status-pill status-cancelled">@Math.Abs(row.DaysRemaining) روز از موعد گذشته</span> }
+                            else if (row.DaysRemaining <= 7) { <span class="status-pill status-cancelled">@row.DaysRemaining روز</span> }
+                            else { <span class="status-pill status-pending">@row.DaysRemaining روز</span> }
+                        </td>
+                        <td data-label="آخرین وضعیت درخواست">
+                            <span class="contract-expiry-status">@requestStatus</span>
+                            @if (row.NeedsAction) { <small class="contract-expiry-row-hint">بدون اقدام در گردش</small> }
+                        </td>
+                        <td data-label="عملیات">
+                            @if (row.CanStartRequest)
+                            {
+                                <a class="btn btn-sm btn-main" href="/EmployeeContracts/Renewal?employeeId=@row.EmployeeId">شروع فرم تمدید</a>
+                            }
+                            else if (row.LatestRequest is not null)
+                            {
+                                <a class="btn btn-sm btn-outline" href="/EmployeeContracts/History?id=@row.LatestRequest.Id">مشاهده سوابق</a>
+                            }
+                            else
+                            {
+                                <a class="btn btn-sm btn-outline" href="/EmployeeContracts/Requests">فهرست درخواست‌ها</a>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+        <div class="contract-expiry-pager" id="expiryPager">
+            <button type="button" class="btn btn-outline btn-sm" id="expiryPrev" disabled>قبلی</button>
+            <span id="expiryPageInfo" aria-live="polite">صفحه ۱</span>
+            <button type="button" class="btn btn-outline btn-sm" id="expiryNext">بعدی</button>
+        </div>
+        <div class="empty contract-expiry-filter-empty" id="expiryFilterEmpty" hidden>کارمندی با فیلترهای انتخاب‌شده پیدا نشد.</div>
+    }
+</section>
+
 <div class="form-actions"><a class="btn btn-outline" href="/EmployeeContracts">صفحه اصلی ماژول قراردادها</a><a class="btn btn-outline" href="/EmployeeContracts/Requests">مشاهده جزئیات همه درخواست‌ها</a></div>
 
 <style>
+.contract-dashboard-kpis { margin:0 0 1rem; }
+.contract-dashboard-charts { margin:0 0 1rem; }
+.contract-expiry-card { min-width:0; }
+.contract-expiry-head { align-items:flex-start; gap:1rem; flex-wrap:wrap; }
+.contract-expiry-head-meta { display:flex; align-items:center; gap:.8rem; flex-wrap:wrap; }
 .contract-expiry-legend { display:inline-flex; align-items:center; gap:7px; color:#7f1d1d; font-size:.78rem; font-weight:700; }
 .contract-expiry-legend span { width:12px; height:12px; border-radius:3px; background:#ffe4e6; border:1px solid #fecdd3; display:inline-block; }
+.contract-expiry-toolbar { margin:1rem 0; padding:1rem; border:1px solid #e2e8f0; border-radius:12px; background:#f8fafc; }
+.contract-expiry-filter-grid { display:grid; grid-template-columns:minmax(220px,2fr) repeat(2,minmax(145px,1fr)); gap:.75rem; align-items:end; }
+.contract-expiry-filter-grid label { display:flex; flex-direction:column; gap:.35rem; min-width:0; color:#475569; font-size:.84rem; }
+.contract-expiry-filter-grid input, .contract-expiry-filter-grid select { width:100%; min-width:0; }
+.contract-expiry-filter-actions { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; margin-top:.8rem; }
+.contract-expiry-table-wrap { width:100%; max-width:100%; overflow-x:hidden; }
+.contract-expiry-table { width:100%; table-layout:fixed; border-collapse:collapse; }
+.contract-expiry-table th, .contract-expiry-table td { padding:.62rem .45rem; white-space:normal; overflow-wrap:anywhere; word-break:break-word; vertical-align:middle; font-size:.82rem; }
+.contract-expiry-table th { color:#334155; background:#f8fafc; cursor:pointer; user-select:none; }
+.contract-expiry-table th:last-child { cursor:default; }
+.contract-expiry-table th[data-sort]:hover { background:#eef2f7; }
+.sort-indicator { display:inline-block; min-width:.7em; color:#2563eb; font-weight:800; }
+.contract-expiry-row { cursor:pointer; }
 .contract-expiry-row-needs-action td { background:#fff1f2 !important; }
 .contract-expiry-row-needs-action:hover td { background:#ffe4e6 !important; }
+.contract-expiry-row-hint { display:block; margin-top:.25rem; color:#9f1239; font-size:.72rem; font-weight:700; }
+.contract-expiry-status { display:inline-block; max-width:100%; border-radius:7px; background:#f1f5f9; padding:.2rem .42rem; font-size:.77rem; line-height:1.5; }
+.contract-expiry-pager { display:flex; align-items:center; justify-content:center; gap:.85rem; margin-top:1rem; }
+.contract-expiry-pager button:disabled { opacity:.45; cursor:not-allowed; }
+.contract-expiry-filter-empty { margin-top:.8rem; }
+.contract-expiry-row[hidden] { display:none !important; }
+@media (max-width:900px) {
+    .contract-expiry-filter-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .contract-expiry-table th, .contract-expiry-table td { padding:.48rem .3rem; font-size:.76rem; }
+}
+@media (max-width:600px) {
+    .contract-expiry-filter-grid { grid-template-columns:1fr; }
+    .contract-expiry-table thead { display:none; }
+    .contract-expiry-table, .contract-expiry-table tbody, .contract-expiry-table tr, .contract-expiry-table td { display:block; width:100%; }
+    .contract-expiry-table tr { border:1px solid #e2e8f0; border-radius:10px; margin-bottom:.7rem; overflow:hidden; }
+    .contract-expiry-table td { display:grid; grid-template-columns:110px minmax(0,1fr); gap:.6rem; border-bottom:1px solid #eef2f7; padding:.55rem .65rem; }
+    .contract-expiry-table td::before { content:attr(data-label); color:#64748b; font-weight:700; font-size:.75rem; }
+    .contract-expiry-table td:last-child { display:block; }
+    .contract-expiry-table td:last-child::before { content:"عملیات"; display:block; margin-bottom:.4rem; }
+}
 </style>
 
 @section Scripts {
 <script>
 (function () {
-    document.querySelectorAll('.contract-expiry-row').forEach(function (row) {
+    const table = document.getElementById("contractExpiryTable");
+    if (!table) return;
+    const tbody = table.querySelector("tbody");
+    const allRows = Array.from(tbody.querySelectorAll("tr"));
+    const search = document.getElementById("expirySearch");
+    const unit = document.getElementById("expiryUnit");
+    const status = document.getElementById("expiryStatus");
+    const from = document.getElementById("expiryFrom");
+    const to = document.getElementById("expiryTo");
+    const pageSize = document.getElementById("expiryPageSize");
+    const prev = document.getElementById("expiryPrev");
+    const next = document.getElementById("expiryNext");
+    const pageInfo = document.getElementById("expiryPageInfo");
+    const visibleCount = document.getElementById("expiryVisibleCount");
+    const pager = document.getElementById("expiryPager");
+    const empty = document.getElementById("expiryFilterEmpty");
+    let page = 1;
+    let filteredRows = allRows.slice();
+    let sortKey = "days";
+    let sortDirection = 1;
+
+    function normalize(value) {
+        return String(value || "").toLocaleLowerCase()
+            .replace(/[يى]/g, "ی").replace(/ك/g, "ک")
+            .replace(/[۰-۹]/g, d => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
+            .replace(/[٠-٩]/g, d => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).trim();
+    }
+    function jalaliToIso(value) {
+        const normalized = normalize(value).replaceAll("-", "/");
+        if (!normalized) return "";
+        const match = /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(normalized);
+        if (!match || !window.HRPortalJalali) return null;
+        const parsed = window.HRPortalJalali.parse(normalized);
+        if (!parsed) return null;
+        return window.HRPortalJalali.j2g(parsed.y, parsed.m, parsed.day).toISOString().slice(0, 10);
+    }
+    function compareRows(a, b) {
+        const aPriority = a.dataset.needsAction === "true" ? 0 : 1;
+        const bPriority = b.dataset.needsAction === "true" ? 0 : 1;
+        if (aPriority !== bPriority) return aPriority - bPriority;
+        let av = a.dataset[sortKey] || "";
+        let bv = b.dataset[sortKey] || "";
+        if (sortKey === "days") {
+            av = Number(av); bv = Number(bv);
+            return (av - bv) * sortDirection;
+        }
+        return String(av).localeCompare(String(bv), "fa", {numeric:true, sensitivity:"base"}) * sortDirection;
+    }
+    function apply() {
+        const query = normalize(search?.value);
+        const unitValue = unit?.value || "";
+        const statusValue = status?.value || "";
+        const fromValue = jalaliToIso(from?.value);
+        const toValue = jalaliToIso(to?.value);
+        const invalidRange = (from?.value && fromValue === null) || (to?.value && toValue === null);
+        const lower = fromValue || "";
+        const upper = toValue || "";
+        filteredRows = allRows.filter(row => {
+            const matchesSearch = !query || normalize(row.dataset.search).includes(query);
+            const matchesUnit = !unitValue || row.dataset.unit === unitValue;
+            const matchesStatus = !statusValue || row.dataset.status === statusValue;
+            const matchesFrom = !lower || row.dataset.endDate >= lower;
+            const matchesTo = !upper || row.dataset.endDate <= upper;
+            return !invalidRange && matchesSearch && matchesUnit && matchesStatus && matchesFrom && matchesTo;
+        });
+        filteredRows.sort(compareRows);
+        page = 1;
+        render();
+    }
+    function render() {
+        const size = Number(pageSize?.value || 10);
+        const totalPages = size === 0 ? 1 : Math.max(1, Math.ceil(filteredRows.length / size));
+        page = Math.min(Math.max(1, page), totalPages);
+        const start = size === 0 ? 0 : (page - 1) * size;
+        const visible = new Set(filteredRows.slice(start, size === 0 ? filteredRows.length : start + size));
+        allRows.forEach(row => { row.hidden = !visible.has(row); });
+        filteredRows.forEach(row => tbody.appendChild(row));
+        if (visibleCount) visibleCount.textContent = String(filteredRows.length);
+        if (pageInfo) pageInfo.textContent = "صفحه " + page + " از " + totalPages;
+        if (prev) prev.disabled = page <= 1 || filteredRows.length === 0;
+        if (next) next.disabled = page >= totalPages || filteredRows.length === 0;
+        if (pager) pager.hidden = filteredRows.length === 0;
+        if (empty) empty.hidden = filteredRows.length !== 0;
+    }
+    function setSort(key) {
+        if (sortKey === key) sortDirection *= -1;
+        else { sortKey = key; sortDirection = key === "days" || key === "date" ? 1 : 1; }
+        table.querySelectorAll("th[data-sort]").forEach(th => {
+            const active = th.dataset.sort === sortKey;
+            th.setAttribute("aria-sort", active ? (sortDirection === 1 ? "ascending" : "descending") : "none");
+            const indicator = th.querySelector(".sort-indicator");
+            if (indicator) indicator.textContent = active ? (sortDirection === 1 ? "↑" : "↓") : "";
+        });
+        apply();
+    }
+    table.querySelectorAll("th[data-sort]").forEach(th => {
+        th.addEventListener("click", () => setSort(th.dataset.sort));
+        th.setAttribute("title", "مرتب‌سازی بر اساس " + th.textContent.trim());
+    });
+    [search].forEach(input => input?.addEventListener("input", apply));
+    [unit, status].forEach(input => input?.addEventListener("change", apply));
+    [from, to].forEach(input => {
+        input?.addEventListener("change", apply);
+        input?.addEventListener("input", apply);
+    });
+    pageSize?.addEventListener("change", () => { page = 1; render(); });
+    prev?.addEventListener("click", () => { page--; render(); });
+    next?.addEventListener("click", () => { page++; render(); });
+    document.getElementById("expiryClearFilters")?.addEventListener("click", () => {
+        if (search) search.value = "";
+        if (unit) unit.value = "";
+        if (status) status.value = "";
+        if (from) from.value = "";
+        if (to) to.value = "";
+        apply();
+    });
+    allRows.forEach(row => {
         function openRow() {
             const target = row.dataset.href;
             if (target) window.location.href = target;
         }
-        row.addEventListener('click', function (event) {
-            if (event.target.closest('a, button, form, input, select, textarea')) return;
+        row.addEventListener("click", event => {
+            if (event.target.closest("a, button, form, input, select, textarea")) return;
             openRow();
         });
-        row.addEventListener('keydown', function (event) {
-            if (event.key === 'Enter' || event.key === ' ') {
+        row.addEventListener("keydown", event => {
+            if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault();
                 openRow();
             }
         });
     });
+    apply();
 })();
 </script>
 }

@@ -1061,7 +1061,7 @@ static async Task VerifyContractRenewalEvaluationTimeoutAsync()
         };
         var approvalPosition = new OrganizationNode
         {
-            Id = 9830 + index,
+            Id = 9900 + index,
             OrganizationStructureRevisionId = revision.Id,
             Revision = revision,
             Code = $"APPROVAL-{index}",
@@ -1088,7 +1088,7 @@ static async Task VerifyContractRenewalEvaluationTimeoutAsync()
 
         var currentPosition = currentRank is null ? null : new OrganizationNode
         {
-            Id = 9831 + index,
+            Id = 10000 + index,
             OrganizationStructureRevisionId = revision.Id,
             Revision = revision,
             Code = $"CURRENT-{index}",

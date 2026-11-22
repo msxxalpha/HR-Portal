@@ -2484,7 +2484,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 continue;
 
             // A stage with any saved score is never auto-advanced, even if the
-            // request has exceeded its global evaluation window.
+            // configured period since the latest administrative approval has elapsed.
             var hasSavedScore = await db.EmployeePerformanceEvaluationScores.AsNoTracking()
                 .AnyAsync(x => x.WorkflowInstanceId == instance.Id &&
                     x.WorkflowStepId == currentStep.Id && x.Score.HasValue, cancellationToken);
@@ -2510,7 +2510,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
             var previousStatus = instance.Status;
             var now = DateTime.UtcNow;
-            var comment = $"مرحله «{currentStep.Title}» به علت ثبت‌نشدن امتیاز تا {allowedDays} روز پس از تاریخ ثبت درخواست، به‌صورت خودکار و بدون امتیازدهی خاتمه یافت.";
+            var comment = $"مرحله «{currentStep.Title}» به علت ثبت‌نشدن امتیاز تا {allowedDays} روز پس از تأیید درخواست توسط رئیس امور اداری، به‌صورت خودکار و بدون امتیازدهی خاتمه یافت.";
             foreach (var task in pendingTasks)
             {
                 task.Status = "Superseded";

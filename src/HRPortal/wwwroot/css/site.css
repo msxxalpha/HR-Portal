@@ -503,6 +503,8 @@
 .workflow-status{display:inline-flex;align-items:center;border-radius:30px;padding:5px 8px;font-size:9px;white-space:nowrap}
 .workflow-status.pending{background:#fff4df;color:#8c5c0b}.workflow-status.done{background:#e8f5ec;color:#276b43}
 .workflow-status.rejected{background:#fff0f0;color:#9c3535}.workflow-status.returned{background:#f1ecfb;color:#6643a0}
+.workflow-status.skipped,.workflow-status.stopped{background:#e2e8f0;color:#334155}
+.workflow-status.deleted,.workflow-status.cancelled{background:#ffe4e6;color:#9f1239}
 .workflow-widget-footer{display:flex;align-items:center;justify-content:center;gap:5px;padding:13px 16px;border-top:1px solid #edf1f3;background:#fbfcfd;color:var(--navy);text-decoration:none;font-size:10px;font-weight:700}
 .workflow-empty{display:flex;align-items:center;flex-direction:column;justify-content:center;text-align:center;padding:26px 16px;min-height:170px}
 .workflow-empty-mark{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:#edf5f0;color:#438260;font-size:20px;margin-bottom:10px}

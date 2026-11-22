@@ -2434,7 +2434,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
             var instance = await db.WorkflowInstances
                 .Include(x => x.WorkflowDefinition).ThenInclude(x => x.Steps)
-                    .ThenInclude(x => x.OrganizationNode).ThenInclude(x => x!.Parent)
+                    .ThenInclude(x => x.OrganizationNode)
                 .Include(x => x.Tasks)
                 .FirstOrDefaultAsync(x => x.Id == instanceId &&
                     x.EntityType == ContractRenewalWorkflowService.WorkflowEntityType &&
@@ -2444,28 +2444,43 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
             var currentStep = instance.WorkflowDefinition.Steps
                 .FirstOrDefault(x => x.Id == instance.CurrentStepId!.Value);
+            // Automatic timeout is limited to dynamic supervisor evaluation stages.
+            // Fixed workflow stages (intake approval, requester correction, Security,
+            // HR and CEO) are never eligible, and management/deputy/presidency ranks
+            // must always remain in their assigned cartables regardless of elapsed time.
             if (currentStep is null ||
                 !currentStep.Code.StartsWith("Evaluation_H", StringComparison.Ordinal) ||
-                currentStep.Code is "Security" or "HumanResources" or "CEO")
+                currentStep.AssignmentType != "Position" ||
+                currentStep.OrganizationNode is null ||
+                !IsSupervisorRankType(currentStep.OrganizationNode.RankType))
                 continue;
 
-            var requestCreatedAt = await db.ContractRenewalRequests.AsNoTracking()
-                .Where(x => x.WorkflowInstanceId == instance.Id)
-                .Select(x => (DateTime?)x.CreatedAt)
+            // The evaluation clock starts only after the first fixed stage
+            // (IntakeApproval / administrative affairs approval) is approved.
+            // When a request was returned for correction and re-approved, use the
+            // latest successful approval that led back into the evaluation chain.
+            var intakeApprovalStepId = instance.WorkflowDefinition.Steps
+                .Where(x => string.Equals(x.Code, "IntakeApproval", StringComparison.Ordinal))
+                .Select(x => (int?)x.Id)
+                .FirstOrDefault();
+            if (!intakeApprovalStepId.HasValue)
+                continue;
+
+            var intakeApprovalCompletedAt = await db.WorkflowTasks.AsNoTracking()
+                .Where(x => x.WorkflowInstanceId == instance.Id &&
+                            x.WorkflowStepId == intakeApprovalStepId.Value &&
+                            x.Status == "Completed" &&
+                            x.Action == "Approve" &&
+                            x.CompletedAt.HasValue)
+                .OrderByDescending(x => x.CompletedAt)
+                .Select(x => x.CompletedAt)
                 .FirstOrDefaultAsync(cancellationToken);
-            if (!requestCreatedAt.HasValue)
+            if (!intakeApprovalCompletedAt.HasValue)
                 continue;
 
-            var requestStartUtc = DateTime.SpecifyKind(requestCreatedAt.Value, DateTimeKind.Utc);
-            if (DateTime.UtcNow < requestStartUtc.AddDays(allowedDays))
-                continue;
-
-            var node = currentStep.OrganizationNode;
-            var rank = RoleService.NormalizeRankType(node?.RankType);
-            var parentRank = RoleService.NormalizeRankType(node?.Parent?.RankType);
-            var isExecutiveDirectReport = parentRank == "مدیرعامل" &&
-                (rank is "مدیریت" or "مدیر" or "معاونت" or "معاون" or "ریاست" or "رئیس");
-            if (isExecutiveDirectReport)
+            var approvalCompletedAtUtc = DateTime.SpecifyKind(
+                intakeApprovalCompletedAt.Value, DateTimeKind.Utc);
+            if (DateTime.UtcNow < approvalCompletedAtUtc.AddDays(allowedDays))
                 continue;
 
             // A stage with any saved score is never auto-advanced, even if the

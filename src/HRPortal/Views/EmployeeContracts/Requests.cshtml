@@ -92,6 +92,15 @@
                         <td data-label="نتیجه"><strong>@score(r.FinalEvaluationScore)</strong><small class="contract-request-subline">@(r.FinalContractMonths.HasValue ? $"{r.FinalContractMonths.Value} ماه" : "مدت ثبت نشده")</small></td>
                         <td data-label="عملیات">
                             <div class="contract-row-actions">
+                                @if (User.HasClaim("IsAdmin", "1") ||
+                                    (r.Status == "تکمیل شده" && r.FinalContractMonths.GetValueOrDefault() > 0 &&
+                                     User.HasClaim("Permission", "ContractRenewal.Reports")))
+                                {
+                                    <a class="btn btn-main btn-sm" href="/EmployeeContracts/DownloadEmploymentContract?id=@r.Id"
+                                       title="دریافت و چاپ قرارداد کار مدت معین">
+                                        @(r.Status == "تکمیل شده" && r.FinalContractMonths.GetValueOrDefault() > 0 ? "قرارداد PDF" : "پیش‌نمایش قرارداد")
+                                    </a>
+                                }
                                 <a class="btn btn-outline btn-sm" href="/EmployeeContracts/History?id=@r.Id">سوابق</a>
                                 @if (row.CanConfirmPreviousStageScores && row.EvaluationTaskId.HasValue)
                                 {

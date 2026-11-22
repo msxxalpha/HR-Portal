@@ -15,6 +15,7 @@
     var isSubjectEmployee = request is not null && hasEmployeeId && currentEmployeeId == request.EmployeeId;
     var canDownloadFinalContract = request is not null &&
         request.Status == "تکمیل شده" && request.FinalContractMonths.GetValueOrDefault() > 0 &&
+        request.NewContractStartDate.HasValue && request.NewContractEndDate.HasValue &&
         (isAdmin || isSubjectEmployee || User.HasClaim("Permission", "ContractRenewal.Reports"));
     string actionTitle(string action) => action switch
     {

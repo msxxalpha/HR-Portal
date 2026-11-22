@@ -15,6 +15,7 @@ public class EmployeeContractsController(
     RoleService roles,
     ContractRenewalWorkflowService renewalWorkflow,
     ContractRenewalPdfService renewalPdf,
+    EmploymentContractPdfService employmentContractPdf,
     WorkflowService workflowService) : Controller
 {
     [Authorize(Policy = "ContractRenewal.View")]
@@ -774,6 +775,43 @@ public class EmployeeContractsController(
         return View(revisions);
     }
 
+    [HttpGet]
+    public async Task<IActionResult> DownloadEmploymentContract(int id)
+    {
+        var isAdmin = User.HasClaim("IsAdmin", "1");
+        var hasEmployeeId = int.TryParse(User.FindFirst("EmployeeId")?.Value, out var currentEmployeeId);
+        var request = await db.ContractRenewalRequests.AsNoTracking()
+            .Include(x => x.Employee)
+            .FirstOrDefaultAsync(x => x.Id == id && x.Status != "حذف شده");
+        if (request is null || request.Employee is null)
+            return NotFound();
+
+        var ceoApproved = request.WorkflowInstanceId.HasValue &&
+            await db.WorkflowTasks.AsNoTracking().AnyAsync(x =>
+                x.WorkflowInstanceId == request.WorkflowInstanceId.Value &&
+                x.WorkflowStep.Code == "CEO" &&
+                x.Status == "Completed" &&
+                x.Action == "Approve");
+
+        var isFinalRenewal = request.Status == "تکمیل شده" &&
+            request.CompletedAt.HasValue &&
+            request.FinalContractMonths.GetValueOrDefault() > 0 &&
+            request.NewContractStartDate.HasValue &&
+            request.NewContractEndDate.HasValue &&
+            ceoApproved;
+
+        var hasContractReportPermission = User.HasClaim("Permission", "ContractRenewal.Reports");
+        var isSubjectEmployee = hasEmployeeId && currentEmployeeId == request.EmployeeId;
+        if (!isAdmin && (!isFinalRenewal || (!hasContractReportPermission && !isSubjectEmployee)))
+            return Forbid();
+
+        // The administrator may print a draft preview before the workflow ends.
+        // Its start/end date slots remain empty until a positive CEO-approved renewal.
+        var bytes = employmentContractPdf.Generate(request.Employee, request, isFinalRenewal);
+        var fileName = $"EmploymentContract-{request.Employee.PersonnelNumber}-{request.RequestCode}.pdf";
+        return File(bytes, "application/pdf", fileName);
+    }
+
     [HttpGet, Authorize(Policy = "ContractRenewal.Reports")]
     public async Task<IActionResult> DownloadReport(int id)
     {
@@ -1144,6 +1182,8 @@ public class EmployeeContractsController(
             request.OrganizationUnitSnapshot,
             request.PositionTitleSnapshot,
             request.PreviousContractEndDate,
+            request.NewContractStartDate,
+            request.NewContractEndDate,
             request.PreviousExtensionMonths1,
             request.PreviousExtensionMonths2,
             request.PreviousExtensionMonths3,

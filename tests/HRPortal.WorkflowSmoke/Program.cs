@@ -238,6 +238,7 @@ await VerifyMaintenanceModeBypassAsync();
 await VerifyWorkflowServiceAuthorizationAsync();
 await VerifyExplicitPositionTaskCreationAsync();
 await VerifyWorkflowTransitionLifecycleAsync();
+await VerifyWorkflowManagementCancelledStatusesAsync();
 await VerifyContractRenewalEvaluationTimeoutAsync();
 await VerifyContractRenewalRuntimeFlowAsync();
 
@@ -1006,6 +1007,92 @@ static async Task VerifyWorkflowTransitionLifecycleAsync()
 
     Console.WriteLine("PASS: workflow lifecycle draft validation, approval, return, rejection, task creation and audit history.");
 }
+
+static async Task VerifyWorkflowManagementCancelledStatusesAsync()
+{
+    var options = new DbContextOptionsBuilder<HRPortalDbContext>()
+        .UseInMemoryDatabase("workflow-management-cancelled-statuses")
+        .Options;
+    await using var db = new HRPortalDbContext(options);
+
+    var requester = new Employee
+    {
+        Id = 9751,
+        PersonnelNumber = "STOP-9751",
+        NationalId = "STOP-NID-9751",
+        FirstName = "درخواست‌کننده",
+        LastName = "آزمایشی",
+        Mobile = "09120000000",
+        Gender = "مرد",
+        Status = "فعال"
+    };
+    var definition = new WorkflowDefinition
+    {
+        Code = "WORKFLOW-MANAGEMENT-STOP-STATUS",
+        Title = "آزمون وضعیت گردش درخواست",
+        IsActive = true
+    };
+    db.AddRange(requester, definition);
+    await db.SaveChangesAsync();
+
+    var stoppedInstance = new WorkflowInstance
+    {
+        WorkflowDefinitionId = definition.Id,
+        EntityType = ContractRenewalWorkflowService.WorkflowEntityType,
+        EntityId = "975101",
+        RequesterEmployeeId = requester.Id,
+        Status = "Cancelled",
+        CurrentStepId = null,
+        CompletedAt = DateTime.UtcNow
+    };
+    var deletedInstance = new WorkflowInstance
+    {
+        WorkflowDefinitionId = definition.Id,
+        EntityType = ContractRenewalWorkflowService.WorkflowEntityType,
+        EntityId = "975102",
+        RequesterEmployeeId = requester.Id,
+        Status = "Cancelled",
+        CurrentStepId = null,
+        CompletedAt = DateTime.UtcNow
+    };
+    db.WorkflowInstances.AddRange(stoppedInstance, deletedInstance);
+    await db.SaveChangesAsync();
+
+    db.WorkflowHistory.AddRange(
+        new WorkflowHistory
+        {
+            WorkflowInstanceId = stoppedInstance.Id,
+            FromStatus = "InProgress",
+            ToStatus = "Cancelled",
+            Action = "Stop",
+            ActorEmployeeId = requester.Id,
+            Comment = "توقف توسط کاربر"
+        },
+        new WorkflowHistory
+        {
+            WorkflowInstanceId = deletedInstance.Id,
+            FromStatus = "InProgress",
+            ToStatus = "Cancelled",
+            Action = "Delete",
+            ActorEmployeeId = requester.Id,
+            Comment = "حذف نرم درخواست"
+        });
+    await db.SaveChangesAsync();
+
+    var audit = new AuditService(new AuditLogQueue(), new HttpContextAccessor());
+    var workflow = new WorkflowService(db, audit);
+    var rows = await workflow.GetAllRequestsAsync();
+
+    Check(rows.Single(x => x.WorkflowInstanceId == stoppedInstance.Id).Status == "Stopped",
+        "A request stopped by a user must be exposed as Stopped in dashboard and management request projections.");
+    Check(rows.Single(x => x.WorkflowInstanceId == deletedInstance.Id).Status == "Deleted",
+        "A soft-deleted request must remain distinguishable from a user-stopped request.");
+    Check(rows.Where(x => x.Status is "Stopped" or "Deleted").All(x => x.StepTitle == "پایان گردش"),
+        "Stopped and deleted workflow rows must retain the completed-current-step presentation.");
+
+    Console.WriteLine("PASS: stopped and soft-deleted workflows are distinguished in dashboard and management request projections.");
+}
+
 
 static async Task VerifyContractRenewalEvaluationTimeoutAsync()
 {

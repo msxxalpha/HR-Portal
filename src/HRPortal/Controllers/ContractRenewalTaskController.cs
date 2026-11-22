@@ -260,15 +260,25 @@ public class ContractRenewalTaskController(
                 nameof(ContractRenewalRequest),
                 request.Id.ToString(),
                 $"{task.WorkflowStep.Title} | {stageKind} | {(confirmPreviousScores ? "تأیید عین امتیازهای ارزیاب قبلی" : "ثبت/تغییر امتیازها")}");
+            if (stageKind == "CEO" && request.NewContractEndDate.HasValue)
+            {
+                await audit.WriteAsync(
+                    "بروزرسانی تاریخ پایان قرارداد پس از تأیید مدیرعامل",
+                    nameof(Employee),
+                    request.EmployeeId.ToString(),
+                    $"درخواست {request.RequestCode} | پایان قبلی: {PersianDateService.Format(request.PreviousContractEndDate!.Value)} | شروع جدید: {PersianDateService.Format(request.NewContractStartDate!.Value)} | پایان جدید: {PersianDateService.Format(request.NewContractEndDate.Value)} | مدت: {request.FinalContractMonths} ماه");
+            }
             TempData["Success"] = stageKind == "IntakeApproval" && workflowAction == "Return"
                 ? $"درخواست {request.RequestCode} برای اصلاح اطلاعات به ثبت‌کننده برگشت داده شد."
                 : stageKind == "IntakeApproval"
                     ? $"اطلاعات اولیه درخواست {request.RequestCode} تأیید شد و وارد زنجیره ارزشیابی سازمانی شد."
                     : confirmPreviousScores
                         ? $"امتیازهای ارزیاب مرحله قبل بدون تغییر برای درخواست {request.RequestCode} تأیید و به مرحله بعد ارجاع شد."
-                        : stageKind == "CEO"
-                ? $"درخواست {request.RequestCode} با تأیید مدیرعامل تکمیل شد."
-                : stageKind == "Security" && securityDecision == "Reject"
+                        : stageKind == "CEO" && request.NewContractEndDate.HasValue
+                ? $"درخواست {request.RequestCode} تکمیل شد؛ تاریخ پایان قرارداد کارمند به {PersianDateService.Format(request.NewContractEndDate.Value)} بروزرسانی شد."
+                : stageKind == "CEO"
+                    ? $"درخواست {request.RequestCode} تکمیل شد؛ با توجه به مدت تمدید صفر ماه، تاریخ قرارداد کارمند تغییر نکرد."
+                    : stageKind == "Security" && securityDecision == "Reject"
                     ? $"درخواست {request.RequestCode} با تصمیم عدم موافقت حراست خاتمه یافت."
                     : "اطلاعات مرحله جاری ذخیره و درخواست به مرحله بعد ارجاع شد.";
             return RedirectToAction("Inbox", "Workflow");

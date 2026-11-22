@@ -1767,7 +1767,16 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 RequesterPersonnelNumber = x.RequesterEmployee.PersonnelNumber,
                 StepTitle = x.CurrentStep == null ? "پایان گردش" : x.CurrentStep.Title,
                 PositionTitle = x.CurrentStep == null || x.CurrentStep.OrganizationNode == null ? "" : x.CurrentStep.OrganizationNode.Title,
-                Status = x.Status,
+                // A cancelled workflow can mean either a user-requested stop or a
+                // soft deletion. Keep those outcomes distinct for dashboard and
+                // management tables instead of letting the UI classify them as active.
+                Status = x.Status == "Cancelled" &&
+                    db.WorkflowHistory.Any(h => h.WorkflowInstanceId == x.Id && h.Action == "Stop")
+                        ? "Stopped"
+                        : x.Status == "Cancelled" &&
+                          db.WorkflowHistory.Any(h => h.WorkflowInstanceId == x.Id && h.Action == "Delete")
+                            ? "Deleted"
+                            : x.Status,
                 CreatedAt = x.StartedAt,
                 CanDelete = db.WorkflowTasks.Any(t => t.WorkflowInstanceId == x.Id) &&
                     !db.WorkflowTasks.Any(t => t.WorkflowInstanceId == x.Id &&

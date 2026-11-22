@@ -94,6 +94,7 @@
                             <div class="contract-row-actions">
                                 @if (User.HasClaim("IsAdmin", "1") ||
                                     (r.Status == "تکمیل شده" && r.FinalContractMonths.GetValueOrDefault() > 0 &&
+                                     r.NewContractStartDate.HasValue && r.NewContractEndDate.HasValue &&
                                      User.HasClaim("Permission", "ContractRenewal.Reports")))
                                 {
                                     <a class="btn btn-main btn-sm" href="/EmployeeContracts/DownloadEmploymentContract?id=@r.Id"

@@ -1,5 +1,7 @@
 using System.Globalization;
 using HRPortal.Models;
+using Microsoft.AspNetCore.Hosting;
+using QuestPDF.Drawing;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;

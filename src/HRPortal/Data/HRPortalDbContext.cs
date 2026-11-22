@@ -498,6 +498,9 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.Property(x => x.PersonnelNumberSnapshot).HasMaxLength(50).IsRequired();
             e.Property(x => x.OrganizationUnitSnapshot).HasMaxLength(200).IsRequired();
             e.Property(x => x.PositionTitleSnapshot).HasMaxLength(300).IsRequired();
+            e.Property(x => x.PreviousContractEndDate).HasColumnType("date");
+            e.Property(x => x.NewContractStartDate).HasColumnType("date");
+            e.Property(x => x.NewContractEndDate).HasColumnType("date");
             e.Property(x => x.PreviousPeriodScore1).HasPrecision(5, 2);
             e.Property(x => x.PreviousPeriodScore2).HasPrecision(5, 2);
             e.Property(x => x.FinalEvaluationScore).HasPrecision(5, 2);

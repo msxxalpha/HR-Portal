@@ -10,6 +10,12 @@
     var workflowSteps = ViewBag.WorkflowSteps as List<WorkflowStep> ?? [];
     var workflowTasks = ViewBag.WorkflowTasks as List<WorkflowTask> ?? [];
     string score(decimal? value) => value.HasValue ? value.Value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) : "—";
+    var isAdmin = User.HasClaim("IsAdmin", "1");
+    var hasEmployeeId = int.TryParse(User.FindFirst("EmployeeId")?.Value, out var currentEmployeeId);
+    var isSubjectEmployee = request is not null && hasEmployeeId && currentEmployeeId == request.EmployeeId;
+    var canDownloadFinalContract = request is not null &&
+        request.Status == "تکمیل شده" && request.FinalContractMonths.GetValueOrDefault() > 0 &&
+        (isAdmin || isSubjectEmployee || User.HasClaim("Permission", "ContractRenewal.Reports"));
     string actionTitle(string action) => action switch
     {
         "BeforeEdit" => "نسخه قبل از ویرایش",
@@ -22,6 +28,7 @@
         "Delete" => "حذف نرم درخواست",
         "EditIntake" => "ویرایش اطلاعات اولیه",
         "Submit" => "ثبت درخواست",
+        "ContractRenewalApplied" => "اعمال تمدید قرارداد پس از تأیید مدیرعامل",
         _ => action
     };
     string statusTitle(string status) => status switch
@@ -41,9 +48,19 @@
         <p>@request?.RequestCode — @request?.EmployeeNameSnapshot — شماره پرسنلی @request?.PersonnelNumberSnapshot</p>
     </div>
     <div class="actions">
+        @if (request is not null && isAdmin)
+        {
+            <a class="btn btn-main" href="/EmployeeContracts/DownloadEmploymentContract?id=@request.Id">
+                @(request.Status == "تکمیل شده" && request.FinalContractMonths.GetValueOrDefault() > 0 ? "دریافت قرارداد PDF" : "پیش‌نمایش قرارداد")
+            </a>
+        }
+        else if (canDownloadFinalContract)
+        {
+            <a class="btn btn-main" href="/EmployeeContracts/DownloadEmploymentContract?id=@request!.Id">دریافت قرارداد PDF</a>
+        }
         @if (request is not null && request.Status == "تکمیل شده" && request.CompletedAt.HasValue)
         {
-            <a class="btn btn-main" href="/EmployeeContracts/DownloadReport/@request.Id">دریافت گزارش نهایی PDF</a>
+            <a class="btn btn-outline" href="/EmployeeContracts/DownloadReport/@request.Id">دریافت گزارش نهایی PDF</a>
         }
         <a class="btn btn-outline" href="/EmployeeContracts/Requests">بازگشت به فهرست درخواست‌ها</a>
     </div>
@@ -177,6 +194,7 @@
                     <tr><th>کد درخواست</th><td>@request.RequestCode</td><th>وضعیت</th><td>@request.Status</td></tr>
                     <tr><th>واحد سازمانی</th><td>@request.OrganizationUnitSnapshot</td><th>جایگاه</th><td>@request.PositionTitleSnapshot</td></tr>
                     <tr><th>پایان قرارداد قبلی</th><td>@(request.PreviousContractEndDate.HasValue ? PersianDateService.Format(request.PreviousContractEndDate.Value) : "—")</td><th>تاریخ تکمیل</th><td>@(request.CompletedAt.HasValue ? PersianDateService.Format(request.CompletedAt.Value) : "—")</td></tr>
+                    <tr><th>تاریخ شروع قرارداد جدید</th><td>@(request.NewContractStartDate.HasValue ? PersianDateService.Format(request.NewContractStartDate.Value) : "")</td><th>تاریخ پایان قرارداد جدید</th><td>@(request.NewContractEndDate.HasValue ? PersianDateService.Format(request.NewContractEndDate.Value) : "")</td></tr>
                     <tr><th>امتیاز اولیه ارزشیابی</th><td>@score(request.OriginalEvaluationScore ?? request.FinalEvaluationScore) از ۱۰۰</td><th>درصد کسر سوابق انضباطی</th><td>@score(request.HrDisciplinaryDeductionPercent)٪</td></tr>
                     <tr><th>امتیاز نهایی پس از کسر</th><td>@score(request.FinalEvaluationScore) از ۱۰۰</td><th>مدت پیشنهادی سیستم</th><td>@ContractRenewalWorkflowService.SuggestedContractMonths(request.FinalEvaluationScore) ماه</td></tr>
                     <tr><th>تصمیم حراست</th><td>@(request.SecurityDecision switch { "ApproveFull" => "موافقت", "ApproveOneMonth" => "موافقت با تمدید یک‌ماهه", "Reject" => "عدم موافقت", _ => "ثبت نشده" })</td></tr>

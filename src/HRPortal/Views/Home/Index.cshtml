@@ -126,11 +126,26 @@
                             var statusTitle = item.Status switch
                             {
                                 "Approved" => "تأیید نهایی",
+                                "Completed" => "پایان‌یافته",
+                                "CompletedBySkip" => "پایان با عبور از مرحله",
                                 "Rejected" => "رد شده",
                                 "Returned" => "برگشت داده شده",
+                                "Stopped" => "متوقف شده",
+                                "Deleted" => "حذف شده",
+                                "Cancelled" => "لغو شده",
                                 _ => "در حال گردش"
                             };
-                            var statusClass = item.Status switch { "Approved" => "done", "Rejected" => "rejected", "Returned" => "returned", _ => "pending" };
+                            var statusClass = item.Status switch
+                            {
+                                "Approved" or "Completed" => "done",
+                                "CompletedBySkip" => "skipped",
+                                "Rejected" => "rejected",
+                                "Returned" => "returned",
+                                "Stopped" => "stopped",
+                                "Deleted" => "deleted",
+                                "Cancelled" => "cancelled",
+                                _ => "pending"
+                            };
                             <article class="workflow-list-item">
                                 <div class="workflow-list-main">
                                     <strong>@item.WorkflowTitle</strong>

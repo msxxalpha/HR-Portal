@@ -16,6 +16,9 @@ public class ContractRenewalRequest
     [MaxLength(200)] public string OrganizationUnitSnapshot { get; set; } = "";
     [MaxLength(300)] public string PositionTitleSnapshot { get; set; } = "";
     public DateTime? PreviousContractEndDate { get; set; }
+    // Populated only after the CEO approves the renewal workflow.
+    public DateTime? NewContractStartDate { get; set; }
+    public DateTime? NewContractEndDate { get; set; }
 
     public int PreviousExtensionMonths1 { get; set; }
     public int PreviousExtensionMonths2 { get; set; }

@@ -238,6 +238,7 @@ await VerifyMaintenanceModeBypassAsync();
 await VerifyWorkflowServiceAuthorizationAsync();
 await VerifyExplicitPositionTaskCreationAsync();
 await VerifyWorkflowTransitionLifecycleAsync();
+await VerifyContractRenewalEvaluationTimeoutAsync();
 await VerifyContractRenewalRuntimeFlowAsync();
 
 static void VerifyGranularPermissionMatrix()
@@ -1005,6 +1006,272 @@ static async Task VerifyWorkflowTransitionLifecycleAsync()
 
     Console.WriteLine("PASS: workflow lifecycle draft validation, approval, return, rejection, task creation and audit history.");
 }
+
+static async Task VerifyContractRenewalEvaluationTimeoutAsync()
+{
+    var options = new DbContextOptionsBuilder<HRPortalDbContext>()
+        .UseInMemoryDatabase("contract-renewal-evaluation-timeout")
+        .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+        .Options;
+    await using var db = new HRPortalDbContext(options);
+
+    var now = DateTime.UtcNow;
+    var employee = new Employee
+    {
+        Id = 9801, PersonnelNumber = "TIMEOUT-9801", NationalId = "TIMEOUT-NID-9801",
+        FirstName = "آزمون", LastName = "مهلت ارزشیابی", Mobile = "09120000000",
+        Gender = "مرد", Status = "فعال"
+    };
+    var revision = new OrganizationStructureRevision
+    {
+        Id = 9801, RevisionCode = "TIMEOUT-REVISION",
+        Title = "ساختار آزمون مهلت ارزشیابی",
+        EffectiveDate = now.Date.AddDays(-10), IsFinalized = true
+    };
+    db.Employees.Add(employee);
+    db.OrganizationStructureRevisions.Add(revision);
+    db.ContractRenewalWorkflowSettings.Add(new ContractRenewalWorkflowSettings
+    {
+        Id = 1, EvaluationAutoAdvanceAfterDays = 2
+    });
+
+    var approvalTasks = new Dictionary<string, WorkflowTask>(StringComparer.Ordinal);
+    var currentTasks = new Dictionary<string, WorkflowTask>(StringComparer.Ordinal);
+    var instances = new Dictionary<string, WorkflowInstance>(StringComparer.Ordinal);
+    var currentStepByCase = new Dictionary<string, WorkflowStep>(StringComparer.Ordinal);
+    var requestByCase = new Dictionary<string, ContractRenewalRequest>(StringComparer.Ordinal);
+
+    void AddCase(
+        int index,
+        string key,
+        string currentCode,
+        string? currentRank,
+        string currentAssignmentType,
+        DateTime? latestApprovalAt,
+        DateTime? earlierApprovalAt = null)
+    {
+        var definition = new WorkflowDefinition
+        {
+            Id = 9810 + index,
+            Code = $"__internal_contractrenewal_timeout_{index}",
+            Title = $"آزمون مهلت ارزشیابی {key}",
+            IsActive = false,
+            IsRuntimeInstance = true,
+            Version = 1
+        };
+        var approvalPosition = new OrganizationNode
+        {
+            Id = 9830 + index,
+            OrganizationStructureRevisionId = revision.Id,
+            Revision = revision,
+            Code = $"APPROVAL-{index}",
+            Title = "رئیس امور اداری",
+            RankType = "مدیریت",
+            IsActive = true,
+            AssignedEmployeeIdsCsv = employee.Id.ToString()
+        };
+        revision.Nodes.Add(approvalPosition);
+
+        var intakeStep = new WorkflowStep
+        {
+            Id = 9850 + index * 10,
+            WorkflowDefinition = definition,
+            WorkflowDefinitionId = definition.Id,
+            Code = "IntakeApproval",
+            Title = "تأیید اطلاعات اولیه درخواست",
+            SortOrder = 10,
+            AssignmentType = "Position",
+            OrganizationNode = approvalPosition,
+            OrganizationNodeId = approvalPosition.Id,
+            AssignmentMode = "Any"
+        };
+
+        var currentPosition = currentRank is null ? null : new OrganizationNode
+        {
+            Id = 9831 + index,
+            OrganizationStructureRevisionId = revision.Id,
+            Revision = revision,
+            Code = $"CURRENT-{index}",
+            Title = $"جایگاه جاری {key}",
+            RankType = currentRank,
+            IsActive = true,
+            AssignedEmployeeIdsCsv = employee.Id.ToString()
+        };
+        if (currentPosition is not null)
+            revision.Nodes.Add(currentPosition);
+
+        var currentStep = currentCode == "IntakeApproval"
+            ? intakeStep
+            : new WorkflowStep
+            {
+                Id = intakeStep.Id + 1,
+                WorkflowDefinition = definition,
+                WorkflowDefinitionId = definition.Id,
+                Code = currentCode,
+                Title = $"مرحله جاری {key}",
+                SortOrder = 20,
+                AssignmentType = currentAssignmentType,
+                OrganizationNode = currentPosition,
+                OrganizationNodeId = currentPosition?.Id,
+                AssignedEmployeeId = currentAssignmentType == "Employee" ? employee.Id : null,
+                AssignmentMode = "Any",
+                IsFinalStep = currentCode == "CEO"
+            };
+
+        definition.Steps.Add(intakeStep);
+        if (!ReferenceEquals(currentStep, intakeStep))
+            definition.Steps.Add(currentStep);
+
+        WorkflowStep? nextStep = null;
+        if (currentCode.StartsWith("Evaluation_H", StringComparison.Ordinal))
+        {
+            nextStep = new WorkflowStep
+            {
+                Id = intakeStep.Id + 2,
+                WorkflowDefinition = definition,
+                WorkflowDefinitionId = definition.Id,
+                Code = "Security",
+                Title = "اظهارنظر مدیر حراست",
+                SortOrder = 100,
+                AssignmentType = "Employee",
+                AssignedEmployeeId = employee.Id
+            };
+            definition.Steps.Add(nextStep);
+        }
+
+        var instance = new WorkflowInstance
+        {
+            Id = 9870 + index,
+            WorkflowDefinition = definition,
+            WorkflowDefinitionId = definition.Id,
+            EntityType = ContractRenewalWorkflowService.WorkflowEntityType,
+            EntityId = (9890 + index).ToString(System.Globalization.CultureInfo.InvariantCulture),
+            RequesterEmployee = employee,
+            RequesterEmployeeId = employee.Id,
+            CurrentStep = currentStep,
+            CurrentStepId = currentStep.Id,
+            Status = "InProgress",
+            StartedAt = now.AddDays(-30)
+        };
+        var request = new ContractRenewalRequest
+        {
+            Id = 9890 + index,
+            RequestCode = $"TIMEOUT-{index}",
+            Employee = employee,
+            EmployeeId = employee.Id,
+            WorkflowInstance = instance,
+            WorkflowInstanceId = instance.Id,
+            CreatedAt = now.AddDays(-30),
+            Status = "در حال ارزیابی سازمانی"
+        };
+
+        if (currentCode != "IntakeApproval" && latestApprovalAt.HasValue)
+        {
+            var latestApprovalTask = new WorkflowTask
+            {
+                WorkflowInstance = instance,
+                WorkflowInstanceId = instance.Id,
+                WorkflowStep = intakeStep,
+                WorkflowStepId = intakeStep.Id,
+                AssignedPosition = approvalPosition,
+                AssignedPositionId = approvalPosition.Id,
+                AssignedEmployeeId = employee.Id,
+                Status = "Completed",
+                Action = "Approve",
+                CompletedAt = latestApprovalAt.Value
+            };
+            instance.Tasks.Add(latestApprovalTask);
+            approvalTasks[key] = latestApprovalTask;
+
+            if (earlierApprovalAt.HasValue)
+            {
+                instance.Tasks.Add(new WorkflowTask
+                {
+                    WorkflowInstance = instance,
+                    WorkflowInstanceId = instance.Id,
+                    WorkflowStep = intakeStep,
+                    WorkflowStepId = intakeStep.Id,
+                    AssignedPosition = approvalPosition,
+                    AssignedPositionId = approvalPosition.Id,
+                    AssignedEmployeeId = employee.Id,
+                    Status = "Completed",
+                    Action = "Approve",
+                    CompletedAt = earlierApprovalAt.Value
+                });
+            }
+        }
+
+        var pendingTask = new WorkflowTask
+        {
+            WorkflowInstance = instance,
+            WorkflowInstanceId = instance.Id,
+            WorkflowStep = currentStep,
+            WorkflowStepId = currentStep.Id,
+            AssignedPosition = currentPosition,
+            AssignedPositionId = currentPosition?.Id,
+            AssignedEmployeeId = currentAssignmentType == "Employee" || currentCode == "IntakeApproval"
+                ? employee.Id : null,
+            Status = "Pending"
+        };
+        instance.Tasks.Add(pendingTask);
+
+        db.WorkflowDefinitions.Add(definition);
+        db.WorkflowInstances.Add(instance);
+        db.ContractRenewalRequests.Add(request);
+        currentTasks[key] = pendingTask;
+        instances[key] = instance;
+        currentStepByCase[key] = currentStep;
+        requestByCase[key] = request;
+    }
+
+    // The request itself is 30 days old, but the intake approval was only one day ago.
+    // The older approval is deliberately included to verify that a later re-approval
+    // resets the clock and the newest successful IntakeApproval is authoritative.
+    AddCase(1, "supervisor", "Evaluation_H1", "سرپرستی", "Position",
+        now.AddDays(-1), now.AddDays(-10));
+    AddCase(2, "presidency", "Evaluation_H1", "ریاست", "Position", now.AddDays(-1));
+    AddCase(3, "management", "Evaluation_H1", "مدیریت", "Position", now.AddDays(-1));
+    AddCase(4, "deputy", "Evaluation_H1", "معاونت", "Position", now.AddDays(-1));
+    AddCase(5, "requester-edit", "RequesterEdit", null, "Employee", now.AddDays(-1));
+    AddCase(6, "security", "Security", "مدیریت", "Position", now.AddDays(-1));
+    AddCase(7, "human-resources", "HumanResources", "مدیریت", "Position", now.AddDays(-1));
+    AddCase(8, "ceo", "CEO", null, "Employee", now.AddDays(-1));
+    AddCase(9, "intake-approval", "IntakeApproval", "مدیریت", "Position", null);
+
+    await db.SaveChangesAsync();
+
+    var audit = new AuditService(new AuditLogQueue(), new HttpContextAccessor());
+    var workflow = new WorkflowService(db, audit);
+
+    var beforeApprovalTimeout = await workflow.AutoAdvanceExpiredContractRenewalEvaluationStepsAsync();
+    Check(beforeApprovalTimeout == 0,
+        "The timeout must not start from the request creation date; a request older than the configured period must remain active until the latest IntakeApproval is old enough.");
+
+    foreach (var task in approvalTasks.Values)
+        task.CompletedAt = now.AddDays(-3);
+    await db.SaveChangesAsync();
+
+    var advanced = await workflow.AutoAdvanceExpiredContractRenewalEvaluationStepsAsync();
+    Check(advanced == 1,
+        "Only an overdue, unscored supervisor-rank evaluation stage may be automatically advanced.");
+
+    Check(currentTasks["supervisor"].Status == "Superseded" &&
+          currentTasks["supervisor"].Action == "UnevaluatedTimeout" &&
+          instances["supervisor"].CurrentStepId == instances["supervisor"].WorkflowDefinition.Steps
+              .Single(x => x.Code == "Security").Id,
+        "An overdue supervisor stage must be recorded as an unevaluated timeout and routed to the next fixed stage.");
+
+    foreach (var key in new[] { "presidency", "management", "deputy", "requester-edit", "security", "human-resources", "ceo", "intake-approval" })
+        Check(currentTasks[key].Status == "Pending" &&
+              instances[key].CurrentStepId == currentStepByCase[key].Id,
+            $"The {key} task must never be automatically removed from its cartable.");
+
+    Check(requestByCase["supervisor"].Status == "در انتظار اظهارنظر حراست",
+        "After the supervisor-stage timeout, the contract-renewal request must be synchronized with its next fixed stage.");
+
+    Console.WriteLine("PASS: contract renewal auto-advance clock starts at latest IntakeApproval approval; only supervisor evaluation stages can time out; presidency, management, deputy and all fixed stages remain active.");
+}
+
 
 static async Task VerifyContractRenewalRuntimeFlowAsync()
 {

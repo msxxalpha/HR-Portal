@@ -1,6 +1,7 @@
 using HRPortal.Data;
 using HRPortal.Models;
 using HRPortal.Services;
+using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -212,6 +213,41 @@ public class ContractRenewalTaskController(
                 request.CeoComment = comment?.Trim();
                 request.Status = "تکمیل شده";
                 request.CompletedAt = DateTime.UtcNow;
+
+                // Apply the approved renewal only after the CEO's final decision.
+                // A zero-month decision deliberately leaves the employee date unchanged.
+                request.NewContractStartDate = null;
+                request.NewContractEndDate = null;
+                if (contractMonths.Value > 0)
+                {
+                    var subjectEmployee = await db.Employees
+                        .FirstOrDefaultAsync(x => x.Id == request.EmployeeId);
+                    if (subjectEmployee is null)
+                        throw new InvalidOperationException("پرونده کارمند موضوع درخواست یافت نشد.");
+                    if (!request.PreviousContractEndDate.HasValue)
+                        throw new InvalidOperationException("تاریخ پایان قرارداد قبلی در زمان ثبت درخواست موجود نبوده و امکان محاسبه قرارداد جدید وجود ندارد.");
+
+                    var previousEndDate = request.PreviousContractEndDate.Value.Date;
+                    if (!subjectEmployee.ContractEndDate.HasValue ||
+                        subjectEmployee.ContractEndDate.Value.Date != previousEndDate)
+                        throw new InvalidOperationException("تاریخ پایان قرارداد کارمند پس از ثبت این درخواست تغییر کرده است؛ برای جلوگیری از بازنویسی اطلاعات جدید، ابتدا سوابق قرارداد را بررسی کنید.");
+
+                    var persianCalendar = new PersianCalendar();
+                    var newStartDate = previousEndDate.AddDays(1);
+                    var newEndDate = persianCalendar.AddMonths(previousEndDate, contractMonths.Value).Date;
+                    if (newEndDate < newStartDate)
+                        throw new InvalidOperationException("مدت تمدید انتخاب‌شده، تاریخ پایان معتبری برای قرارداد جدید ایجاد نمی‌کند.");
+
+                    request.NewContractStartDate = newStartDate;
+                    request.NewContractEndDate = newEndDate;
+                    subjectEmployee.ContractEndDate = newEndDate;
+                    subjectEmployee.UpdatedAt = DateTime.UtcNow;
+
+                    // Archive the applied employee end date alongside the request's
+                    // previous end date and the newly approved start/end dates.
+                    await PreserveRequestRevisionAsync(
+                        request, "ContractRenewalApplied", employeeId, subjectEmployee.ContractEndDate);
+                }
             }
 
             // Security's negative decision is a real workflow rejection, not an approval.
@@ -328,7 +364,9 @@ public class ContractRenewalTaskController(
             ModelState.AddModelError("", $"مقدار «{title}» باید نامنفی و در صورت وجود سابقه بیشتر از صفر باشد.");
     }
 
-    private async Task PreserveRequestRevisionAsync(ContractRenewalRequest request, string action, int actorEmployeeId)
+    private async Task PreserveRequestRevisionAsync(
+        ContractRenewalRequest request, string action, int actorEmployeeId,
+        DateTime? employeeContractEndDate = null)
     {
         var nextRevision = (await db.ContractRenewalRequestRevisions
             .Where(x => x.ContractRenewalRequestId == request.Id)
@@ -339,7 +377,9 @@ public class ContractRenewalTaskController(
             request.Id, request.RequestCode, request.EmployeeId, request.CreatedByEmployeeId,
             request.WorkflowInstanceId, request.Status, request.EmployeeNameSnapshot,
             request.PersonnelNumberSnapshot, request.OrganizationUnitSnapshot, request.PositionTitleSnapshot,
-            request.PreviousContractEndDate, request.PreviousExtensionMonths1, request.PreviousExtensionMonths2,
+            request.PreviousContractEndDate, request.NewContractStartDate, request.NewContractEndDate,
+            EmployeeContractEndDate = employeeContractEndDate,
+            request.PreviousExtensionMonths1, request.PreviousExtensionMonths2,
             request.PreviousExtensionMonths3, request.HasDisciplinaryWarnings, request.DisciplinaryWarningCount,
             request.HasDisciplinaryCommitteeResolution, request.DisciplinaryCommitteeResolutionCount,
             request.HasUnpaidLeave, request.UnpaidLeaveDays, request.HasSickLeave, request.SickLeaveDays,

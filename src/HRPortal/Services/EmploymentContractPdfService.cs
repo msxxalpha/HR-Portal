@@ -251,9 +251,12 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
             .PaddingHorizontal(7).PaddingVertical(emphasized ? 8 : 4)
             .AlignRight();
 
+        // Apply every wrapper before adding the paragraph's single content child.
+        // Reusing the original container in a second fluent chain can assign a
+        // second child and cause QuestPDF's DocumentComposeException.
         if (emphasized)
         {
-            paragraph.Background(NavySoft)
+            paragraph = paragraph.Background(NavySoft)
                 .BorderRight(3).BorderColor(Navy);
         }
 

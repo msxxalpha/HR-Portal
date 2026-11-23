@@ -86,10 +86,10 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
             {
                 page.Size(PageSizes.A4);
                 page.ContentFromRightToLeft();
-                page.MarginHorizontal(30);
-                page.MarginTop(24);
-                page.MarginBottom(27);
-                page.DefaultTextStyle(style => style.FontFamily("Vazir").FontSize(11).FontColor(TextColor));
+                page.MarginHorizontal(28);
+                page.MarginTop(18);
+                page.MarginBottom(20);
+                page.DefaultTextStyle(style => style.FontFamily("Vazir").FontSize(10).FontColor(TextColor));
 
                 page.Header().Column(header =>
                 {
@@ -98,15 +98,15 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
                         // The SVG layer supplies a navy-to-cool-gray gradient and a subtle
                         // hexagonal motif; the primary layer contains all readable content.
                         layers.Layer().Svg(size => HeaderBackgroundSvg(size.Width, size.Height));
-                        layers.PrimaryLayer().PaddingHorizontal(17).PaddingVertical(14).Row(row =>
+                        layers.PrimaryLayer().PaddingHorizontal(15).PaddingVertical(10).Row(row =>
                         {
                             row.RelativeItem().Column(title =>
                             {
                                 title.Item().AlignRight().Text("قرارداد کار مدت معین")
-                                    .FontSize(18).Bold().FontColor(Colors.White);
+                                    .FontSize(16).Bold().FontColor(Colors.White);
                                 title.Item().PaddingTop(4).AlignRight()
                                     .Text("شرکت کارخانجات کمک فنر ایندامین سایپا (سهامی عام)")
-                                    .FontSize(9).FontColor("#E1E8EE");
+                                    .FontSize(8).FontColor("#E1E8EE");
                             });
                             row.ConstantItem(132).AlignMiddle()
                                 .Background("#EFF2F5").Border(1).BorderColor("#D0D8DF")
@@ -123,9 +123,9 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
                     header.Item().Height(3).Background(AccentGray);
                 });
 
-                page.Content().PaddingTop(9).Column(column =>
+                page.Content().PaddingTop(5).Column(column =>
                 {
-                    column.Spacing(3);
+                    column.Spacing(2);
 
                     Article(column, true,
                         "۱- بر اساس ماده ۷ و۱۰ قانون کار جمهوری اسلامی ایران و با عنایت به حقوق و تکالیف مقرر در قانون مزبور و مقررات تبعی قرارداد زیر بین شرکت کارخانجات کمک فنر ایندامین سایپا(سهامی عام) به نشانی تهران بزرگراه شهید لشگری کیلومتر ۱۴ چیتگر جنوبی که از این به بعد کارفرما نامیده می‌شود و به شماره شناسنامه ",
@@ -166,29 +166,29 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
 
                     for (var i = 1; i < articles.Length; i++)
                     {
-                        // Split after clause 14 so the contract is composed as
-                        // two balanced pages, with clause 15 onward on page two.
-                        if (i == 6)
+                        // Keep clause 15 and note 1 on page one; page two starts
+                        // with note 2, balancing the body text and signature area.
+                        if (i == 8)
                             column.Item().PageBreak();
 
                         Article(column, false, articles[i]);
                     }
 
-                    column.Item().PaddingTop(13).ShowEntire()
+                    column.Item().PaddingTop(8).ShowEntire()
                         .Border(1).BorderColor(BorderColor)
-                        .Background(PaperColor).Padding(12).Column(signatures =>
+                        .Background(PaperColor).Padding(8).Column(signatures =>
                         {
                             signatures.Item().Row(sign =>
                             {
                                 sign.RelativeItem().Border(1).BorderColor(BorderColor)
-                                    .Background(Colors.White).Padding(10).Column(employer =>
+                                    .Background(Colors.White).Padding(7).Column(employer =>
                                     {
                                         employer.Item().AlignCenter().Text("کارفرما")
                                             .FontSize(9).Bold().FontColor(Navy);
                                         employer.Item().PaddingTop(5).AlignCenter()
                                             .Text("نام و نام خانوادگی کارفرما")
                                             .FontSize(10).Bold();
-                                        employer.Item().PaddingTop(25).AlignCenter()
+                                        employer.Item().PaddingTop(14).AlignCenter()
                                             .Text("امضاء")
                                             .FontSize(9).FontColor(MutedColor);
                                         employer.Item().PaddingTop(7).LineHorizontal(0.7f)
@@ -196,14 +196,14 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
                                     });
                                 sign.ConstantItem(10);
                                 sign.RelativeItem().Border(1).BorderColor(BorderColor)
-                                    .Background(Colors.White).Padding(10).Column(worker =>
+                                    .Background(Colors.White).Padding(7).Column(worker =>
                                     {
                                         worker.Item().AlignCenter().Text("کارگر")
                                             .FontSize(9).Bold().FontColor(Navy);
                                         worker.Item().PaddingTop(5).AlignCenter()
                                             .Text("نام و نام خانوادگی کارگر")
                                             .FontSize(10).Bold();
-                                        worker.Item().PaddingTop(25).AlignCenter()
+                                        worker.Item().PaddingTop(14).AlignCenter()
                                             .Text("امضاء - اثر انگشت")
                                             .FontSize(9).FontColor(MutedColor);
                                         worker.Item().PaddingTop(7).LineHorizontal(0.7f)
@@ -232,13 +232,9 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
 
     private static void Article(ColumnDescriptor column, bool emphasized, params object[] parts)
     {
-        // Inset the highlighted first paragraph by 0.5 cm from the right edge.
-        // 0.5 cm = 14.17 PDF points.
-        var item = emphasized
-            ? column.Item().PaddingRight(14.17f)
-            : column.Item();
+        var item = column.Item();
         var paragraph = item
-            .PaddingHorizontal(7).PaddingVertical(emphasized ? 7 : 3)
+            .PaddingHorizontal(6).PaddingVertical(emphasized ? 5 : 2)
             .AlignRight();
 
         // Apply every wrapper before adding the paragraph's single content child.
@@ -246,8 +242,11 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
         // second child and cause QuestPDF's DocumentComposeException.
         if (emphasized)
         {
+            // Keep the highlight box in its original position and add 0.5 cm
+            // of inner breathing room between the navy border and the text.
             paragraph = paragraph.Background(NavySoft)
-                .BorderRight(3).BorderColor(Navy);
+                .BorderRight(3).BorderColor(Navy)
+                .PaddingRight(14.17f);
         }
 
         paragraph.Text(text =>
@@ -255,7 +254,7 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
             // Text(Action<TextDescriptor>) returns void; apply paragraph typography
             // through the descriptor's default style instead of chaining on Text().
             text.DefaultTextStyle(style =>
-                style.FontSize(11).LineHeight(emphasized ? 1.55f : 1.48f));
+                style.FontSize(10).LineHeight(emphasized ? 1.25f : 1.18f));
 
             // Keep the first paragraph's opening text clear of the navy right border.
             if (emphasized)

@@ -138,6 +138,18 @@
                                     }
                                 </div>
                             }
+                            else if (field.FieldType == "Date")
+                            {
+                                <div class="jalali-date-input">
+                                    <input id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)"
+                                           name="@(group.IsCurrentStep ? $"values[field_{field.FieldDefinitionId}]" : $"previousValues[{field.FieldDefinitionId}]")"
+                                           type="text" inputmode="numeric" autocomplete="off"
+                                           data-jalali-date value="@field.Value" placeholder="۱۴۰۵/۰۱/۰۱"
+                                           required="@(group.IsCurrentStep && field.IsRequired)" />
+                                    <button type="button" class="btn btn-outline jalali-date-open"
+                                            data-jalali-trigger aria-label="باز کردن تقویم شمسی">تقویم</button>
+                                </div>
+                            }
                             else if (field.FieldType == "TextArea")
                             {
                                 <textarea id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="@(group.IsCurrentStep ? $"values[field_{field.FieldDefinitionId}]" : $"previousValues[{field.FieldDefinitionId}]")" rows="3" maxlength="@(field.MaxLength ?? 4000)" required="@(group.IsCurrentStep && field.IsRequired)">@field.Value</textarea>
@@ -176,7 +188,7 @@
                             }
                             else
                             {
-                                var inputType = field.FieldType == "Number" ? "number" : field.FieldType == "Date" ? "date" : "text";
+                                var inputType = field.FieldType == "Number" ? "number" : "text";
                                 <input id="wf_@(group.WorkflowStepId)_@(field.FieldDefinitionId)" name="@(group.IsCurrentStep ? $"values[field_{field.FieldDefinitionId}]" : $"previousValues[{field.FieldDefinitionId}]")" type="@inputType" value="@field.Value" maxlength="@(field.MaxLength ?? 4000)" required="@(group.IsCurrentStep && field.IsRequired)" />
                             }
                             @if (!string.IsNullOrWhiteSpace(field.HelpText))

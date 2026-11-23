@@ -498,17 +498,21 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 Fields = stepFields.Select(f =>
                 {
                     var value = values.FirstOrDefault(v => v.WorkflowStepFieldId == f.Id);
+                    var fieldType = value?.FieldType ?? f.FieldType;
+                    var fieldValue = value?.Value;
+                    if (fieldType == "Date")
+                        fieldValue = FormatWorkflowDateValue(fieldValue);
                     return new WorkflowTaskFieldItem
                     {
                         FieldDefinitionId = f.Id,
                         Code = f.Code,
                         Title = value?.FieldTitle ?? f.Title,
-                        FieldType = value?.FieldType ?? f.FieldType,
+                        FieldType = fieldType,
                         Options = f.Options,
                         HelpText = f.HelpText,
                         MaxLength = f.MaxLength,
                         IsRequired = f.IsRequired,
-                        Value = value?.Value
+                        Value = fieldValue
                     };
                 }).ToList()
             });
@@ -527,6 +531,39 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         "PositionPicker" => "PositionPicker",
         _ => throw new InvalidOperationException("نوع فیلد نامعتبر است.")
     };
+
+    private static string? NormalizeWorkflowDateValue(string? value, string fieldTitle)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return value;
+
+        if (PersianDateService.TryParse(value, out var jalaliDate))
+            return PersianDateService.Format(jalaliDate);
+
+        // Compatibility for dates posted by older browser tabs using input[type=date].
+        if (DateOnly.TryParseExact(value, "yyyy-MM-dd",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out var legacyGregorianDate))
+            return PersianDateService.Format(legacyGregorianDate.ToDateTime(TimeOnly.MinValue));
+
+        throw new InvalidOperationException(
+            $"تاریخ فیلد «{fieldTitle}» معتبر نیست. تاریخ را به شمسی و با قالب سال/ماه/روز وارد کنید.");
+    }
+
+    private static string? FormatWorkflowDateValue(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return value;
+
+        if (PersianDateService.TryParse(value, out var jalaliDate))
+            return PersianDateService.Format(jalaliDate);
+
+        // Older snapshots may still contain a Gregorian yyyy-MM-dd value.
+        if (DateOnly.TryParseExact(value, "yyyy-MM-dd",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out var legacyGregorianDate))
+            return PersianDateService.Format(legacyGregorianDate.ToDateTime(TimeOnly.MinValue));
+
+        return value;
+    }
 
     private async Task SavePreviousTaskFieldValuesAsync(
         WorkflowTask task, int actorEmployeeId, IDictionary<string, string?>? submitted,
@@ -578,8 +615,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             {
                 if (field.FieldType == "Number" && !decimal.TryParse(value, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out _))
                     throw new InvalidOperationException($"مقدار فیلد «{field.Title}» باید عددی باشد.");
-                if (field.FieldType == "Date" && !DateOnly.TryParseExact(value, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out _))
-                    throw new InvalidOperationException($"تاریخ فیلد «{field.Title}» معتبر نیست.");
+                if (field.FieldType == "Date")
+                    value = NormalizeWorkflowDateValue(value, field.Title);
                 if (field.FieldType == "Select" && !(field.Options ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Contains(value))
                     throw new InvalidOperationException($"گزینه انتخاب‌شده برای فیلد «{field.Title}» معتبر نیست.");
                 if (field.FieldType == "PositionPicker")
@@ -657,9 +694,8 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 if (field.FieldType == "Number" && !decimal.TryParse(value, System.Globalization.NumberStyles.Number,
                     System.Globalization.CultureInfo.InvariantCulture, out _))
                     throw new InvalidOperationException($"مقدار فیلد «{field.Title}» باید عددی باشد.");
-                if (field.FieldType == "Date" && !DateOnly.TryParseExact(value, "yyyy-MM-dd",
-                    System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out _))
-                    throw new InvalidOperationException($"تاریخ فیلد «{field.Title}» معتبر نیست.");
+                if (field.FieldType == "Date")
+                    value = NormalizeWorkflowDateValue(value, field.Title);
                 if (field.FieldType == "Select" &&
                     !(field.Options ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Contains(value))
                     throw new InvalidOperationException($"گزینه انتخاب‌شده برای فیلد «{field.Title}» معتبر نیست.");

@@ -1,6 +1,7 @@
 using System.Globalization;
 using HRPortal.Models;
 using Microsoft.AspNetCore.Hosting;
+using System.Text.RegularExpressions;
 using QuestPDF.Drawing;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
@@ -17,11 +18,10 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
     private static readonly object FontRegistrationLock = new();
     private static bool _vazirRegistered;
 
-    // Corporate palette: deep navy, restrained champagne accent, and cool neutral surfaces.
+    // Corporate palette: deep navy with cool gray accents and soft neutral surfaces.
     private const string Navy = "#142B42";
-    private const string NavyMid = "#203F59";
     private const string NavySoft = "#EAF0F5";
-    private const string Gold = "#B59A6A";
+    private const string AccentGray = "#AAB4BE";
     private const string TextColor = "#263746";
     private const string MutedColor = "#647587";
     private const string BorderColor = "#D9E1E8";
@@ -93,45 +93,36 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
 
                 page.Header().Column(header =>
                 {
-                    header.Item().Background(Navy).PaddingHorizontal(17).PaddingVertical(14).Row(row =>
+                    header.Item().Layers(layers =>
                     {
-                        row.RelativeItem().Column(title =>
+                        // The SVG layer supplies a navy-to-cool-gray gradient and a subtle
+                        // hexagonal motif; the primary layer contains all readable content.
+                        layers.Layer().Svg(size => HeaderBackgroundSvg(size.Width, size.Height));
+                        layers.PrimaryLayer().PaddingHorizontal(17).PaddingVertical(14).Row(row =>
                         {
-                            title.Item().AlignRight().Text("قرارداد کار مدت معین")
-                                .FontSize(18).Bold().FontColor(Colors.White);
-                            title.Item().PaddingTop(4).AlignRight()
-                                .Text("شرکت کارخانجات کمک فنر ایندامین سایپا (سهامی عام)")
-                                .FontSize(9).FontColor("#E1E8EE");
-                            title.Item().PaddingTop(8).Row(meta =>
+                            row.RelativeItem().Column(title =>
                             {
-                                meta.AutoItem().AlignRight().Text("امور منابع انسانی")
-                                    .FontSize(8).FontColor("#D5C29D");
-                                meta.AutoItem().PaddingHorizontal(7).AlignCenter()
-                                    .Text("•").FontSize(8).FontColor("#D5C29D");
-                                meta.AutoItem().AlignRight().Text("سند قرارداد استخدامی")
-                                    .FontSize(8).FontColor("#D5C29D");
+                                title.Item().AlignRight().Text("قرارداد کار مدت معین")
+                                    .FontSize(18).Bold().FontColor(Colors.White);
+                                title.Item().PaddingTop(4).AlignRight()
+                                    .Text("شرکت کارخانجات کمک فنر ایندامین سایپا (سهامی عام)")
+                                    .FontSize(9).FontColor("#E1E8EE");
                             });
+                            row.ConstantItem(132).AlignMiddle()
+                                .Background("#EFF2F5").Border(1).BorderColor("#D0D8DF")
+                                .Padding(10).Column(code =>
+                                {
+                                    code.Item().AlignCenter().Text("کد پرسنلی")
+                                        .FontSize(9).FontColor(MutedColor);
+                                    code.Item().PaddingTop(5).AlignCenter()
+                                        .Text(PersianDigits(employee.PersonnelNumber))
+                                        .FontSize(13).Bold().FontColor(Navy);
+                                });
                         });
-                        row.ConstantItem(132).AlignMiddle().Background(NavyMid)
-                            .Border(1).BorderColor("#526A7D").Padding(10).Column(code =>
-                            {
-                                code.Item().AlignCenter().Text("کد پرسنلی")
-                                    .FontSize(9).FontColor("#DFE7ED");
-                                code.Item().PaddingTop(5).AlignCenter()
-                                    .Text(PersianDigits(employee.PersonnelNumber))
-                                    .FontSize(13).Bold().FontColor(Colors.White);
-                                code.Item().PaddingTop(4).AlignCenter().Text("EMPLOYEE ID")
-                                    .FontSize(6).FontColor("#C2CED7");
-                            });
                     });
-                    header.Item().Height(3).Background(Gold);
-                    header.Item().PaddingTop(8).Row(row =>
-                    {
-                        row.RelativeItem().AlignRight().Text("قرارداد کارکنان")
-                            .FontSize(8).Bold().FontColor(Navy);
-                        row.RelativeItem().AlignLeft().Text("نسخه قابل چاپ")
-                            .FontSize(8).FontColor(MutedColor);
-                    });
+                    header.Item().Height(3).Background(AccentGray);
+                    header.Item().PaddingTop(8).AlignRight().Text("قرارداد کارکنان")
+                        .FontSize(8).Bold().FontColor(Navy);
                 });
 
                 page.Content().PaddingTop(9).Column(column =>
@@ -158,8 +149,10 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
                         " از طرف دیگر که از این پس کارگر نامیده می‌شود منعقد می‌گردد .");
 
                     Article(column, false, "۲- وضعیت نظام وظیفه کارگر ", Field(military));
-                    Article(column, false, "تعداد اولاد ", Field(children));
-                    Article(column, false, "۳- وضعیت تأهل کارگر ", Field(marital));
+                    Article(column, false,
+                        "۳- وضعیت تأهل کارگر ", Field(marital),
+                        "\u00A0\u00A0\u00A0\u00A0",
+                        "تعداد اولاد ", Field(children));
                     Article(column, false, "۴- شماره بیمه ", Field(insurance));
                     Article(column, "۵- محل اشتغال اقامتگاه قانونی شرکت کمک فنر ایندامین سایپا می باشد.");
                     Article(column, false, "۶- مهارت کارگر ", Field(skill), " تاریخ استخدام ", Field(hireDate));
@@ -180,14 +173,7 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
                         .Border(1).BorderColor(BorderColor)
                         .Background(PaperColor).Padding(12).Column(signatures =>
                         {
-                            signatures.Item().Row(caption =>
-                            {
-                                caption.RelativeItem().AlignRight().Text("محل امضاء و اثر انگشت طرفین")
-                                    .FontSize(10).Bold().FontColor(Navy);
-                                caption.AutoItem().AlignLeft().Text("SIGNATURES")
-                                    .FontSize(7).Bold().FontColor(Gold);
-                            });
-                            signatures.Item().PaddingTop(8).Row(sign =>
+                            signatures.Item().Row(sign =>
                             {
                                 sign.RelativeItem().Border(1).BorderColor(BorderColor)
                                     .Background(Colors.White).Padding(10).Column(employer =>
@@ -224,14 +210,10 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
 
                 page.Footer().PaddingTop(7).Column(footer =>
                 {
-                    footer.Item().Height(1).Background(Gold);
-                    footer.Item().PaddingTop(5).Row(row =>
-                    {
-                        row.RelativeItem().AlignRight().Text("شرکت کارخانجات کمک فنر ایندامین سایپا (سهامی عام)")
-                            .FontSize(8).FontColor(MutedColor);
-                        row.RelativeItem().AlignLeft().Text("سند داخلی منابع انسانی")
-                            .FontSize(8).FontColor(MutedColor);
-                    });
+                    footer.Item().Height(1).Background(AccentGray);
+                    footer.Item().PaddingTop(5).AlignCenter()
+                        .Text("شرکت کارخانجات کمک فنر ایندامین سایپا (سهامی عام)")
+                        .FontSize(8).FontColor(MutedColor);
                 });
             });
         }).GeneratePdf();
@@ -247,7 +229,6 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
     {
         var item = column.Item();
         var paragraph = item
-            .BorderBottom(0.45f).BorderColor(BorderColor)
             .PaddingHorizontal(7).PaddingVertical(emphasized ? 8 : 4)
             .AlignRight();
 
@@ -267,6 +248,10 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
             text.DefaultTextStyle(style =>
                 style.FontSize(11).LineHeight(emphasized ? 1.55f : 1.48f));
 
+            // Keep the first paragraph's opening text clear of the navy right border.
+            if (emphasized)
+                text.Span("\u00A0\u00A0\u00A0");
+
             foreach (var part in parts)
             {
                 if (part is DynamicField field)
@@ -282,11 +267,65 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
                 }
                 else if (part is string literal)
                 {
-                    text.Span(PersianDigits(literal));
+                    AddArticleLiteral(text, literal);
                 }
             }
         });
     }
+
+    private static readonly Regex ArticlePrefixRegex = new(
+        @"^(?:تبصره\\s*[۰-۹]+\\s*[-–—]|[۰-۹]+\\s*[-–—])",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    private static void AddArticleLiteral(TextDescriptor text, string literal)
+    {
+        var normalized = PersianDigits(literal);
+        var prefix = ArticlePrefixRegex.Match(normalized);
+
+        if (prefix.Success)
+        {
+            text.Span(prefix.Value).Bold();
+            text.Span(normalized[prefix.Length..]);
+            return;
+        }
+
+        text.Span(normalized);
+    }
+
+    private static string HeaderBackgroundSvg(float width, float height) => $"""
+        <svg xmlns="http://www.w3.org/2000/svg"
+             width="{width}" height="{height}"
+             viewBox="0 0 {width} {height}">
+          <defs>
+            <linearGradient id="headerGradient" x1="100%" y1="50%" x2="0%" y2="50%">
+              <stop offset="0%" stop-color="#142B42"/>
+              <stop offset="47%" stop-color="#71808D"/>
+              <stop offset="100%" stop-color="#D7DEE4"/>
+            </linearGradient>
+            <pattern id="hexPattern" width="42" height="36" patternUnits="userSpaceOnUse">
+              <path d="M21 1 L38 10 L38 27 L21 35 L4 27 L4 10 Z"
+                    fill="none" stroke="#FFFFFF" stroke-width="1.15" opacity="0.20"/>
+            </pattern>
+          </defs>
+          <rect x="0" y="0" width="{width}" height="{height}" fill="url(#headerGradient)"/>
+          <rect x="{width * 0.25f}" y="0" width="{width * 0.56f}" height="{height}"
+                fill="url(#hexPattern)" opacity="0.52"/>
+          <g fill="none" stroke="#FFFFFF" stroke-width="1.4" opacity="0.10">
+            <path d="M{width * 0.50f} {height * 0.10f}
+                     L{width * 0.57f} {height * 0.27f}
+                     L{width * 0.57f} {height * 0.63f}
+                     L{width * 0.50f} {height * 0.80f}
+                     L{width * 0.43f} {height * 0.63f}
+                     L{width * 0.43f} {height * 0.27f} Z"/>
+            <path d="M{width * 0.69f} {height * 0.19f}
+                     L{width * 0.75f} {height * 0.34f}
+                     L{width * 0.75f} {height * 0.66f}
+                     L{width * 0.69f} {height * 0.81f}
+                     L{width * 0.63f} {height * 0.66f}
+                     L{width * 0.63f} {height * 0.34f} Z"/>
+          </g>
+        </svg>
+        """;
 
     private sealed record DynamicField(string Value);
 

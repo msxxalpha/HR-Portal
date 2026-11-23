@@ -16,9 +16,10 @@ if(typeof window !== "undefined") window.HRPortalJalali = Object.freeze({g2j,j2g
 document.addEventListener("DOMContentLoaded",()=>{
 document.querySelectorAll("input").forEach(input=>{
  if(input.type!=="text"||input.disabled||input.readOnly||input.closest(".jalali-picker"))return;
+ const explicitlyJalali=input.hasAttribute("data-jalali-date");
  const label=input.closest("label");
  const clue=[input.name,input.id,input.placeholder,label?label.textContent:""].join(" ");
- if(!/تاریخ|date|effective|startdate|enddate|fromdate|todate/i.test(clue))return;
+ if(!explicitlyJalali&&!/تاریخ|date|effective|startdate|enddate|fromdate|todate/i.test(clue))return;
  input.setAttribute("data-jalali-date","");
  let wrapper=input.parentElement;
  if(!wrapper.classList.contains("jalali-date-input")){

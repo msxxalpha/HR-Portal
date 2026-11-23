@@ -128,23 +128,23 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
                     column.Spacing(2);
 
                     Article(column, true,
-                        "۱- بر اساس ماده ۷ و۱۰ قانون کار جمهوری اسلامی ایران و با عنایت به حقوق و تکالیف مقرر در قانون مزبور و مقررات تبعی قرارداد زیر بین شرکت کارخانجات کمک فنر ایندامین سایپا(سهامی عام) به نشانی تهران بزرگراه شهید لشگری کیلومتر ۱۴ چیتگر جنوبی که از این به بعد کارفرما نامیده می‌شود و به شماره شناسنامه ",
-                        Field(birthCertificate),
+                        "۱- بر اساس ماده ۷ و۱۰ قانون کار جمهوری اسلامی ایران و با عنایت به حقوق و تکالیف مقرر در قانون مزبور و مقررات تبعی قرارداد زیر بین شرکت کارخانجات کمک فنر ایندامین سایپا(سهامی عام) به نشانی تهران بزرگراه شهید لشگری کیلومتر ۱۴ چیتگر جنوبی که از این به بعد کارفرما نامیده می‌شود و خانم/آقای ",
+                        Field(fullName),
                         " فرزند ",
                         Field(fatherName),
-                        " خانم/آقای ",
-                        Field(fullName),
-                        " تاریخ تولد ",
-                        Field(birthDate),
-                        " صادره از ",
-                        Field(issuePlace),
+                        " به شماره شناسنامه ",
+                        Field(birthCertificate),
                         " کد ملی ",
                         Field(nationalId),
-                        " تلفن ",
-                        Field(mobile),
+                        " صادره از ",
+                        Field(issuePlace),
+                        " تاریخ تولد ",
+                        Field(birthDate),
                         " به نشانی ",
                         Field(address),
-                        " از طرف دیگر که از این پس کارگر نامیده می‌شود منعقد می‌گردد .");
+                        " تلفن ",
+                        Field(mobile),
+                        " از طرف دیگر که از این پس کارگر نامیده می‌شود منعقد می‌گردد.");
 
                     Article(column, false, "۲- وضعیت نظام وظیفه کارگر ", Field(military));
                     Article(column, false,
@@ -166,11 +166,8 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
 
                     for (var i = 1; i < articles.Length; i++)
                     {
-                        // Keep clause 15 and note 1 on page one; page two starts
-                        // with note 2, balancing the body text and signature area.
-                        if (i == 8)
-                            column.Item().PageBreak();
-
+                        // Let clauses continue naturally below note 1; do not
+                        // force a page break while there is still usable space.
                         Article(column, false, articles[i]);
                     }
 

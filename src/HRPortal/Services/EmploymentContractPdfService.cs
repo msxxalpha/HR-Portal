@@ -121,13 +121,11 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
                         });
                     });
                     header.Item().Height(3).Background(AccentGray);
-                    header.Item().PaddingTop(8).AlignRight().Text("قرارداد کارکنان")
-                        .FontSize(8).Bold().FontColor(Navy);
                 });
 
                 page.Content().PaddingTop(9).Column(column =>
                 {
-                    column.Spacing(4);
+                    column.Spacing(3);
 
                     Article(column, true,
                         "۱- بر اساس ماده ۷ و۱۰ قانون کار جمهوری اسلامی ایران و با عنایت به حقوق و تکالیف مقرر در قانون مزبور و مقررات تبعی قرارداد زیر بین شرکت کارخانجات کمک فنر ایندامین سایپا(سهامی عام) به نشانی تهران بزرگراه شهید لشگری کیلومتر ۱۴ چیتگر جنوبی که از این به بعد کارفرما نامیده می‌شود و به شماره شناسنامه ",
@@ -167,7 +165,14 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
                         " می‌باشد.");
 
                     for (var i = 1; i < articles.Length; i++)
+                    {
+                        // Split after clause 14 so the contract is composed as
+                        // two balanced pages, with clause 15 onward on page two.
+                        if (i == 6)
+                            column.Item().PageBreak();
+
                         Article(column, false, articles[i]);
+                    }
 
                     column.Item().PaddingTop(13).ShowEntire()
                         .Border(1).BorderColor(BorderColor)
@@ -227,9 +232,13 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
 
     private static void Article(ColumnDescriptor column, bool emphasized, params object[] parts)
     {
-        var item = column.Item();
+        // Inset the highlighted first paragraph by 0.5 cm from the right edge.
+        // 0.5 cm = 14.17 PDF points.
+        var item = emphasized
+            ? column.Item().PaddingRight(14.17f)
+            : column.Item();
         var paragraph = item
-            .PaddingHorizontal(7).PaddingVertical(emphasized ? 8 : 4)
+            .PaddingHorizontal(7).PaddingVertical(emphasized ? 7 : 3)
             .AlignRight();
 
         // Apply every wrapper before adding the paragraph's single content child.

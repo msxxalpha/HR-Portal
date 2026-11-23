@@ -274,7 +274,7 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
     }
 
     private static readonly Regex ArticlePrefixRegex = new(
-        @"^(?:تبصره\\s*[۰-۹]+\\s*[-–—]|[۰-۹]+\\s*[-–—])",
+        @"^(?:تبصره\s*[۰-۹]+\s*[-–—]|[۰-۹]+\s*[-–—])",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private static void AddArticleLiteral(TextDescriptor text, string literal)
@@ -292,7 +292,7 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
         text.Span(normalized);
     }
 
-    private static string HeaderBackgroundSvg(float width, float height) => $"""
+    private static string HeaderBackgroundSvg(float width, float height) => FormattableString.Invariant($"""
         <svg xmlns="http://www.w3.org/2000/svg"
              width="{width}" height="{height}"
              viewBox="0 0 {width} {height}">
@@ -325,7 +325,7 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
                      L{width * 0.63f} {height * 0.34f} Z"/>
           </g>
         </svg>
-        """;
+        """);
 
     private sealed record DynamicField(string Value);
 

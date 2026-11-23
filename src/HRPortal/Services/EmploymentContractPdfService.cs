@@ -259,6 +259,11 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
 
         paragraph.Text(text =>
         {
+            // Text(Action<TextDescriptor>) returns void; apply paragraph typography
+            // through the descriptor's default style instead of chaining on Text().
+            text.DefaultTextStyle(style =>
+                style.FontSize(11).LineHeight(emphasized ? 1.55f : 1.48f));
+
             foreach (var part in parts)
             {
                 if (part is DynamicField field)
@@ -277,7 +282,7 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
                     text.Span(PersianDigits(literal));
                 }
             }
-        }).FontSize(11).LineHeight(emphasized ? 1.55f : 1.48f);
+        });
     }
 
     private sealed record DynamicField(string Value);

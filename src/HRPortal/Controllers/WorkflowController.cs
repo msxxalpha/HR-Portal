@@ -351,7 +351,7 @@ public class WorkflowController(
         if (loadedInstance is null) return NotFound();
         instance = loadedInstance;
 
-        var stepsQuery = db.WorkflowSteps.AsNoTracking().Include(x => x.OrganizationNode)
+        IQueryable<WorkflowStep> stepsQuery = db.WorkflowSteps.AsNoTracking().Include(x => x.OrganizationNode)
             .Where(x => x.WorkflowDefinitionId == instance.WorkflowDefinitionId);
         if (previewBoundarySortOrder.HasValue)
             stepsQuery = stepsQuery.Where(x => x.SortOrder < previewBoundarySortOrder.Value);
@@ -361,14 +361,14 @@ public class WorkflowController(
             .Include(x => x.AssignedEmployee).Include(x => x.AssignedPosition)
             .Where(x => x.WorkflowInstanceId == id && visibleStepIds.Contains(x.WorkflowStepId))
             .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync();
-        var fieldsQuery = db.WorkflowFieldValues.AsNoTracking().Include(x => x.WorkflowStep)
+        IQueryable<WorkflowFieldValue> fieldsQuery = db.WorkflowFieldValues.AsNoTracking().Include(x => x.WorkflowStep)
             .Include(x => x.WorkflowStepField)
             .Where(x => x.WorkflowInstanceId == id && x.Value != null && x.Value != "");
         if (previewBoundarySortOrder.HasValue)
             fieldsQuery = fieldsQuery.Where(x => x.WorkflowStep.SortOrder < previewBoundarySortOrder.Value);
         var fields = await fieldsQuery.OrderBy(x => x.WorkflowStep.SortOrder)
             .ThenBy(x => x.WorkflowStepField.SortOrder).ThenBy(x => x.Id).ToListAsync();
-        var historyQuery = db.WorkflowHistory.AsNoTracking().Include(x => x.WorkflowStep)
+        IQueryable<WorkflowHistory> historyQuery = db.WorkflowHistory.AsNoTracking().Include(x => x.WorkflowStep)
             .Include(x => x.ActorEmployee).Include(x => x.ActorPosition)
             .Where(x => x.WorkflowInstanceId == id);
         if (previewBoundarySortOrder.HasValue)

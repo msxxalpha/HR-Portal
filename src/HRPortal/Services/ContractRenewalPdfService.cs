@@ -27,9 +27,12 @@ public sealed class ContractRenewalPdfService
     {
         RegisterLocalFont();
 
+        // Historical score rows can outlive or lose their WorkflowStep navigation.
+        // Ignore orphaned/non-evaluation rows rather than failing the entire PDF.
         var evaluationScores = scores
-            .Where(x => x.WorkflowStep.Code.StartsWith("Evaluation_H", StringComparison.OrdinalIgnoreCase))
-            .OrderBy(x => x.WorkflowStep.SortOrder).ThenBy(x => x.QuestionId).ThenBy(x => x.Id)
+            .Where(x => x.WorkflowStep is not null &&
+                x.WorkflowStep.Code?.StartsWith("Evaluation_H", StringComparison.OrdinalIgnoreCase) == true)
+            .OrderBy(x => x.WorkflowStep!.SortOrder).ThenBy(x => x.QuestionId).ThenBy(x => x.Id)
             .ToList();
 
         var evaluators = evaluationScores
@@ -41,7 +44,7 @@ public sealed class ContractRenewalPdfService
                     ? "ارزیاب نامشخص"
                     : $"{x.EvaluatorEmployee.FirstName} {x.EvaluatorEmployee.LastName}".Trim()).FirstOrDefault()
                     ?? "ارزیاب نامشخص",
-                FirstOrder = group.Min(x => x.WorkflowStep.SortOrder)
+                FirstOrder = group.Min(x => x.WorkflowStep!.SortOrder)
             })
             .OrderBy(x => x.FirstOrder).ThenBy(x => x.Id).ToList();
 
@@ -50,12 +53,12 @@ public sealed class ContractRenewalPdfService
             .Select(group => new
             {
                 QuestionId = group.Key,
-                Text = group.OrderBy(x => x.WorkflowStep.SortOrder).First().QuestionTextSnapshot,
+                Text = group.OrderBy(x => x.WorkflowStep!.SortOrder).First().QuestionTextSnapshot,
                 MaxScore = group.Max(x => x.MaxScoreSnapshot),
                 Scores = group
             })
             .OrderBy(x => evaluationScores.Where(s => s.QuestionId == x.QuestionId)
-                .Min(s => s.WorkflowStep.SortOrder))
+                 .Min(s => s.WorkflowStep!.SortOrder))
             .ThenBy(x => x.QuestionId).ToList();
 
         var initialScore = request.OriginalEvaluationScore ?? evaluationScores
@@ -166,7 +169,7 @@ public sealed class ContractRenewalPdfService
                                 {
                                     var score = question.Scores
                                         .Where(x => (x.EvaluatorEmployeeId ?? 0) == evaluator.Id)
-                                        .OrderByDescending(x => x.WorkflowStep.SortOrder)
+                                         .OrderByDescending(x => x.WorkflowStep!.SortOrder)
                                         .Select(x => x.Score)
                                         .FirstOrDefault();
                                     table.Cell().Element(c => DataCell(c, alternate)).AlignCenter()

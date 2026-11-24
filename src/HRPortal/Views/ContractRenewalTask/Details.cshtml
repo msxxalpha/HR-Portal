@@ -29,7 +29,14 @@
         <h1>@Model.Task.WorkflowStep.Title</h1>
         <p>درخواست @r.RequestCode — @r.EmployeeNameSnapshot — شماره پرسنلی @r.PersonnelNumberSnapshot</p>
     </div>
-    <a class="btn btn-outline" href="/Workflow/Inbox">بازگشت به کارتابل</a>
+    <div class="actions">
+        @if (r.Status == "تکمیل شده" && r.CompletedAt.HasValue &&
+            (User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "ContractRenewal.Reports")))
+        {
+            <a class="btn btn-main" href="/EmployeeContracts/DownloadReport?id=@r.Id">دریافت خلاصه ارزشیابی PDF</a>
+        }
+        <a class="btn btn-outline" href="/Workflow/Inbox">بازگشت به کارتابل</a>
+    </div>
 </div>
 
 <section class="contract-stage-summary">

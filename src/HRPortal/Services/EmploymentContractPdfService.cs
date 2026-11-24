@@ -45,7 +45,6 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
             ? employee.ChildrenCount.Value.ToString(CultureInfo.InvariantCulture)
             : "";
         var insurance = Value(employee.InsuranceNumber);
-        var skill = Value(employee.Skill);
         var hireDate = FormatDate(employee.HireDate);
         var jobType = Value(employee.JobType ?? employee.PositionTitle);
         var startDate = showApprovedDates ? FormatDate(request.NewContractStartDate) : "";
@@ -153,7 +152,7 @@ public sealed class EmploymentContractPdfService(IWebHostEnvironment environment
                         "تعداد اولاد ", Field(children));
                     Article(column, false, "۴- شماره بیمه ", Field(insurance));
                     Article(column, "۵- محل اشتغال اقامتگاه قانونی شرکت کمک فنر ایندامین سایپا می باشد.");
-                    Article(column, false, "۶- مهارت کارگر ", Field(skill), " تاریخ استخدام ", Field(hireDate));
+                    Article(column, false, "۶- تاریخ استخدام ", Field(hireDate));
                     Article(column, false, "۷- نوع شغل محوله ", Field(jobType));
 
                     Article(column, false, articles[0]);

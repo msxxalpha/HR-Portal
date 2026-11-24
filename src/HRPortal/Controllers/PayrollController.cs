@@ -23,10 +23,11 @@ public class PayrollController(HRPortalDbContext db, ReportService reports, Temp
         ViewBag.PersonnelNumber = employee?.PersonnelNumber;
 
         var requestedYearMonth = string.IsNullOrWhiteSpace(yearMonth)
-            ? PersianMonth()
+            ? LatestAllowedPersianMonth()
             : NormalizeDigits(yearMonth).Trim();
 
         ViewBag.YearMonth = requestedYearMonth;
+        ViewBag.LatestAllowedYearMonth = LatestAllowedPersianMonth();
 
         var reportSettings = db.PayrollReportSettings.AsNoTracking().FirstOrDefault();
         ViewBag.ReportAllowPrint = reportSettings?.AllowPrint ?? true;
@@ -43,15 +44,24 @@ public class PayrollController(HRPortalDbContext db, ReportService reports, Temp
         else if (!string.IsNullOrWhiteSpace(yearMonth) &&
                  ReportService.TryNormalizeYearMonth(yearMonth, out var normalizedYearMonth))
         {
-            var minimumYear = await GetMinimumPayrollYearAsync();
-            if (int.Parse(normalizedYearMonth[..4], System.Globalization.CultureInfo.InvariantCulture) < minimumYear)
+            if (!IsAllowedPayrollMonth(normalizedYearMonth))
             {
-                ViewBag.Message = $"فقط فیش‌های سال {minimumYear} و پس از آن قابل مشاهده هستند.";
+                ViewBag.Message = $"حداکثر دوره مجاز {LatestAllowedPersianMonth()} است؛ ماه جاری و ماه‌های آینده قابل مشاهده نیستند.";
                 ViewBag.MessageType = "error";
+                ViewBag.PayrollPeriodInvalid = true;
             }
             else
             {
-                ViewBag.ReportEndpoint = Url.Action(nameof(Report), "Payroll", new { yearMonth = normalizedYearMonth });
+                var minimumYear = await GetMinimumPayrollYearAsync();
+                if (int.Parse(normalizedYearMonth[..4], System.Globalization.CultureInfo.InvariantCulture) < minimumYear)
+                {
+                    ViewBag.Message = $"فقط فیش‌های سال {minimumYear} و پس از آن قابل مشاهده هستند.";
+                    ViewBag.MessageType = "error";
+                }
+                else
+                {
+                    ViewBag.ReportEndpoint = Url.Action(nameof(Report), "Payroll", new { yearMonth = normalizedYearMonth });
+                }
             }
         }
         else if (!string.IsNullOrWhiteSpace(yearMonth))
@@ -77,6 +87,7 @@ public class PayrollController(HRPortalDbContext db, ReportService reports, Temp
         var employee = GetAuthenticatedEmployee();
         ViewBag.PersonnelNumber = employee?.PersonnelNumber;
         ViewBag.YearMonth = NormalizeDigits(yearMonth).Trim();
+        ViewBag.LatestAllowedYearMonth = LatestAllowedPersianMonth();
 
         if (employee is null)
         {
@@ -93,6 +104,13 @@ public class PayrollController(HRPortalDbContext db, ReportService reports, Temp
         if (!ReportService.TryNormalizeYearMonth(yearMonth, out var normalizedYearMonth))
         {
             ModelState.AddModelError("", "سال و ماه را به صورت ۱۴۰۵۰۶ وارد کنید؛ دقیقاً ۶ رقم و بدون اسلش.");
+            return View("Payslip");
+        }
+
+        if (!IsAllowedPayrollMonth(normalizedYearMonth))
+        {
+            ViewBag.PayrollPeriodInvalid = true;
+            ModelState.AddModelError("", $"حداکثر دوره مجاز {LatestAllowedPersianMonth()} است؛ ماه جاری و ماه‌های آینده قابل مشاهده نیستند.");
             return View("Payslip");
         }
 
@@ -136,6 +154,8 @@ public class PayrollController(HRPortalDbContext db, ReportService reports, Temp
             return StyledReportError("پارامتر سال و ماه نامعتبر است.", StatusCodes.Status400BadRequest);
 
         var minimumYear = await GetMinimumPayrollYearAsync();
+        if (!IsAllowedPayrollMonth(normalizedYearMonth))
+            return StyledReportError($"حداکثر دوره مجاز {LatestAllowedPersianMonth()} است؛ ماه جاری و ماه‌های آینده قابل مشاهده نیستند.", StatusCodes.Status403Forbidden);
         if (int.Parse(normalizedYearMonth[..4], System.Globalization.CultureInfo.InvariantCulture) < minimumYear)
             return StyledReportError($"فقط فیش‌های سال {minimumYear} و پس از آن قابل مشاهده هستند.", StatusCodes.Status403Forbidden);
 
@@ -170,6 +190,8 @@ public class PayrollController(HRPortalDbContext db, ReportService reports, Temp
             return StyledReportError("پارامتر سال و ماه نامعتبر است.", StatusCodes.Status400BadRequest);
 
         var minimumYear = await GetMinimumPayrollYearAsync();
+        if (!IsAllowedPayrollMonth(normalizedYearMonth))
+            return StyledReportError($"حداکثر دوره مجاز {LatestAllowedPersianMonth()} است؛ ماه جاری و ماه‌های آینده قابل مشاهده نیستند.", StatusCodes.Status403Forbidden);
         if (int.Parse(normalizedYearMonth[..4], System.Globalization.CultureInfo.InvariantCulture) < minimumYear)
             return StyledReportError($"فقط فیش‌های سال {minimumYear} و پس از آن قابل مشاهده هستند.", StatusCodes.Status403Forbidden);
 
@@ -204,6 +226,8 @@ public class PayrollController(HRPortalDbContext db, ReportService reports, Temp
             return StyledReportError("پارامتر سال و ماه باید دقیقاً با فرمت ۱۴۰۵۰۶ (شش رقم، بدون اسلش) باشد.", StatusCodes.Status400BadRequest);
 
         var minimumYear = await GetMinimumPayrollYearAsync();
+        if (!IsAllowedPayrollMonth(normalizedYearMonth))
+            return StyledReportError($"حداکثر دوره مجاز {LatestAllowedPersianMonth()} است؛ ماه جاری و ماه‌های آینده قابل مشاهده نیستند.", StatusCodes.Status403Forbidden);
         if (int.Parse(normalizedYearMonth[..4], System.Globalization.CultureInfo.InvariantCulture) < minimumYear)
             return StyledReportError($"فقط فیش‌های سال {minimumYear} و پس از آن قابل مشاهده هستند.", StatusCodes.Status403Forbidden);
 
@@ -309,12 +333,21 @@ public class PayrollController(HRPortalDbContext db, ReportService reports, Temp
             .FirstOrDefault();
     }
 
-    private static string PersianMonth()
+    private static string LatestAllowedPersianMonth()
     {
-        var pc = new System.Globalization.PersianCalendar();
-        var now = DateTime.Now;
-        return $"{pc.GetYear(now):0000}{pc.GetMonth(now):00}";
+        var calendar = new System.Globalization.PersianCalendar();
+        var year = calendar.GetYear(DateTime.Now);
+        var month = calendar.GetMonth(DateTime.Now);
+        if (month == 1) { year--; month = 12; } else { month--; }
+        return $"{year:0000}{month:00}";
     }
+
+    private static bool IsAllowedPayrollMonth(string normalizedYearMonth) =>
+        int.TryParse(normalizedYearMonth, System.Globalization.NumberStyles.None,
+            System.Globalization.CultureInfo.InvariantCulture, out var requested) &&
+        int.TryParse(LatestAllowedPersianMonth(), System.Globalization.NumberStyles.None,
+            System.Globalization.CultureInfo.InvariantCulture, out var latestAllowed) &&
+        requested <= latestAllowed;
 
     private static string NormalizeDigits(string? value)
     {

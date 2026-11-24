@@ -98,7 +98,7 @@ public sealed class WorkflowProcessPdfService
                             if(sh.Count>0)
                             {
                                 d.Item().PaddingTop(4).Text("رویدادهای مرحله").Bold().FontColor(Navy);
-                                foreach(var h in sh) HistoryEntry(d,h);
+                                foreach(var h in sh) d.Item().Element(container => HistoryEntry(container,h));
                             }
                         });
                     });

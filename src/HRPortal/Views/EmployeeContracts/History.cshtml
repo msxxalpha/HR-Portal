@@ -59,9 +59,9 @@
         {
             <a class="btn btn-main" href="/EmployeeContracts/DownloadEmploymentContract?id=@request!.Id">دریافت قرارداد PDF</a>
         }
-        @if (request is not null && request.Status == "تکمیل شده" && request.CompletedAt.HasValue)
+        @if (request is not null && request.WorkflowInstanceId.HasValue)
         {
-            <a class="btn btn-outline" href="/EmployeeContracts/DownloadReport/@request.Id">دریافت گزارش نهایی PDF</a>
+            <a class="btn btn-outline" href="/Workflow/DownloadFullReport/@request.WorkflowInstanceId.Value">دریافت گزارش تفصیلی گردش کار PDF</a>
         }
         <a class="btn btn-outline" href="/EmployeeContracts/Requests">بازگشت به فهرست درخواست‌ها</a>
     </div>

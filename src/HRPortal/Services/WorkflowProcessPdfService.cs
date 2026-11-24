@@ -116,10 +116,10 @@ public sealed class WorkflowProcessPdfService
         })).GeneratePdf();
     }
 
-    private static void HistoryEntry(ColumnDescriptor c, WorkflowHistory h)
+    private static void HistoryEntry(IContainer container, WorkflowHistory h)
     {
         var actor=h.ActorEmployee is null ? h.ActorPosition?.Title ?? "سیستم" : (h.ActorEmployee.FirstName+" "+h.ActorEmployee.LastName).Trim();
-        c.Item().Border(.5f).BorderColor(Border).Padding(6).Column(x=>
+        container.Border(.5f).BorderColor(Border).Padding(6).Column(x=>
         {
             x.Item().Row(r=>{r.RelativeItem().Text(ActionTitle(h.Action)).Bold().FontColor(Navy);r.AutoItem().Text(PersianDateService.FormatDateTime(PersianDateService.ToTehran(h.CreatedAt))).FontSize(7).FontColor(Muted);});
             Pair(x,"مرحله",h.WorkflowStep?.Title ?? "مرحله عمومی / بدون مرحله"); Pair(x,"انجام‌دهنده",actor);

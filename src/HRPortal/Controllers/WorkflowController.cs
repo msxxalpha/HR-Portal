@@ -417,11 +417,40 @@ public class WorkflowController(
         else if (instance.EntityType == "OutsourcedServiceRequest" &&
                  int.TryParse(instance.EntityId, out var outsourcedId))
         {
-            var r = await db.OutsourcedServiceRequests.AsNoTracking().FirstOrDefaultAsync(x => x.Id == outsourcedId);
+            var r = await db.OutsourcedServiceRequests.AsNoTracking().Include(x => x.Attachments)
+                .FirstOrDefaultAsync(x => x.Id == outsourcedId);
             if (r is not null)
-                requestDetails.AddRange(new[] { ("شماره درخواست", r.RequestNumber), ("شرح خدمات", r.ServiceDescription),
+                requestDetails.AddRange(new[]
+                {
+                    ("شماره درخواست", r.RequestNumber), ("شرح خدمات", r.ServiceDescription),
                     ("مقدار و واحد", r.Quantity.ToString("0.###") + " " + r.UnitOfMeasure),
-                    ("تاریخ نیازمندی", PersianDateService.Format(r.NeedByDate)), ("اولویت", r.Priority) });
+                    ("تاریخ نیازمندی", PersianDateService.Format(r.NeedByDate)),
+                    ("اولویت", r.Priority), ("وضعیت درخواست", r.Status),
+                    ("پیوست‌ها", r.Attachments.Count == 0 ? "بدون پیوست" : string.Join("، ", r.Attachments.Select(x => x.OriginalFileName)))
+                });
+        }
+        else if (instance.EntityType == "Suggestion" &&
+                 int.TryParse(instance.EntityId, out var suggestionId))
+        {
+            var s = await db.Suggestions.AsNoTracking().Include(x => x.Members).Include(x => x.Attachments)
+                .FirstOrDefaultAsync(x => x.Id == suggestionId);
+            if (s is not null)
+            {
+                var benefits = System.Text.Json.JsonSerializer.Deserialize<List<string>>(s.BenefitsJson) ?? new List<string>();
+                var resources = System.Text.Json.JsonSerializer.Deserialize<List<string>>(s.ResourceTypesJson) ?? new List<string>();
+                requestDetails.AddRange(new[]
+                {
+                    ("شماره پیشنهاد", s.SuggestionNumber), ("عنوان", s.Title), ("دسته‌بندی", s.Category),
+                    ("حوزه مرتبط", s.RelatedArea ?? "—"), ("شرح کوتاه", s.ShortDescription),
+                    ("شرح مسئله", s.ProblemDescription), ("راه‌حل پیشنهادی", s.ProposedSolution),
+                    ("منافع مورد انتظار", string.Join("، ", benefits)), ("جزئیات منافع", s.BenefitDetails ?? "—"),
+                    ("دامنه اجرا", s.ImplementationScope ?? "—"), ("روش اجرا", s.ImplementationMethod ?? "—"),
+                    ("منابع موردنیاز", string.Join("، ", resources)), ("توضیحات منابع", s.ResourceDetails ?? "—"),
+                    ("اعضای گروه", s.Members.Count == 0 ? "فقط پیشنهاددهنده" : string.Join("، ", s.Members.Select(x => x.EmployeeNameSnapshot))),
+                    ("پیوست‌ها", s.Attachments.Count == 0 ? "بدون پیوست" : string.Join("، ", s.Attachments.Select(x => x.OriginalFileName))),
+                    ("وضعیت پیشنهاد", s.Status)
+                });
+            }
         }
 
         var bytes = workflowProcessPdf.Generate(instance, steps, tasks, fields, history, requestDetails);

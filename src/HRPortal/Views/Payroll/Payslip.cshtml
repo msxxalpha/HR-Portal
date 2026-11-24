@@ -127,7 +127,7 @@
             const validatePeriod = () => {
                 if (!form || !periodInput || !viewButton) return true;
                 const value = toLatinDigits(periodInput.value).trim();
-                const validFormat = /^\\d{4}(0[1-9]|1[0-2])$/.test(value);
+                const validFormat = /^\d{4}(0[1-9]|1[0-2])$/.test(value);
                 const validRange = validFormat && latestAllowed && value <= latestAllowed;
                 const valid = Boolean(validRange);
                 periodInput.classList.toggle("input-invalid", !valid && value.length > 0);

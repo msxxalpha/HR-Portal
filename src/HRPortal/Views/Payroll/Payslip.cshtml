@@ -3,6 +3,15 @@
     Layout = "~/Views/Shared/_Layout.cshtml";
     ViewData["Title"] = "فیش حقوقی";
 }
+<style>
+    #payslipYearMonth.input-invalid {
+        border: 1px solid #dc2626 !important;
+        box-shadow: 0 0 0 3px rgba(220, 38, 38, .12) !important;
+        background: #fff8f8;
+    }
+    #payslipPeriodError { color: #b91c1c; font-size: .78rem; line-height: 1.8; }
+    #payslipViewButton:disabled { opacity: .55; cursor: not-allowed; }
+</style>
 <div class="page-head">
     <div>
         <h1>فیش حقوقی</h1>
@@ -61,7 +70,7 @@
                         { <text>حداکثر دوره مجاز @ViewBag.LatestAllowedYearMonth است؛ ماه جاری و ماه‌های آینده قابل مشاهده نیستند.</text> }
                     </small>
                 </label>
-                <button class="btn btn-main" id="payslipViewButton" type="submit" disabled="@((bool?)ViewBag.PayrollPeriodInvalid == true)">مشاهده فیش حقوقی</button>
+                <button class="btn btn-main" id="payslipViewButton" type="submit" disabled="@((bool?)ViewBag.PayrollPeriodInvalid == true ? "disabled" : null)">مشاهده فیش حقوقی</button>
             </form>
         }
     </div>

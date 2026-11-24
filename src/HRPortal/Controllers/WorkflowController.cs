@@ -343,10 +343,6 @@ public class WorkflowController(
             ? await workflow.GetInstanceForAdminAsync(id)
             : await workflow.GetInstanceAsync(id, employeeId, canViewOnlyWorkflowDetails);
         if (instance is null) return NotFound();
-        if (!instance.CompletedAt.HasValue &&
-            instance.Status is not ("Approved" or "Completed" or "CompletedBySkip"))
-            return BadRequest("گزارش تفصیلی نهایی پس از تکمیل گردش کار قابل دریافت است.");
-
         var loadedInstance = await db.WorkflowInstances.AsNoTracking()
             .Include(x => x.WorkflowDefinition)
             .Include(x => x.RequesterEmployee)

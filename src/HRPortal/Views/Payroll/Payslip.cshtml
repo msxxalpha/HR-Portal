@@ -41,18 +41,27 @@
 
         @if (ViewBag.PersonnelNumber != null)
         {
-            <form method="get" asp-controller="Payroll" asp-action="Payslip" class="report-filter report-filter-inline">
+            <form method="get" asp-controller="Payroll" asp-action="Payslip" class="report-filter report-filter-inline" id="payslipPeriodForm" novalidate>
                 <label class="report-period">
                     سال / ماه
                     <input name="yearMonth"
+                           id="payslipYearMonth"
+                           class="@((bool?)ViewBag.PayrollPeriodInvalid == true ? "input-invalid" : "")"
                            value="@ViewBag.YearMonth"
                            placeholder="۱۴۰۵۰۶"
                            maxlength="6"
                            inputmode="numeric"
                            autocomplete="off"
-                           required />
+                           required
+                           aria-describedby="payslipPeriodError"
+                           aria-invalid="@(((bool?)ViewBag.PayrollPeriodInvalid == true).ToString().ToLowerInvariant())" />
+                    <small id="payslipPeriodError" class="field-validation-error" role="alert"
+                           style="display:@(((bool?)ViewBag.PayrollPeriodInvalid == true) ? "block" : "none")">
+                        @if ((bool?)ViewBag.PayrollPeriodInvalid == true)
+                        { <text>حداکثر دوره مجاز @ViewBag.LatestAllowedYearMonth است؛ ماه جاری و ماه‌های آینده قابل مشاهده نیستند.</text> }
+                    </small>
                 </label>
-                <button class="btn btn-main" type="submit">مشاهده فیش حقوقی</button>
+                <button class="btn btn-main" id="payslipViewButton" type="submit" disabled="@((bool?)ViewBag.PayrollPeriodInvalid == true)">مشاهده فیش حقوقی</button>
             </form>
         }
     </div>
@@ -93,6 +102,51 @@
 {
     <script>
         (() => {
+            const form = document.getElementById("payslipPeriodForm");
+            const periodInput = document.getElementById("payslipYearMonth");
+            const viewButton = document.getElementById("payslipViewButton");
+            const periodError = document.getElementById("payslipPeriodError");
+            const latestAllowed = "@(ViewBag.LatestAllowedYearMonth ?? "")";
+
+            const toLatinDigits = value => (value || "").replace(/[۰-۹٠-٩]/g, digit => {
+                const fa = "۰۱۲۳۴۵۶۷۸۹";
+                const ar = "٠١٢٣٤٥٦٧٨٩";
+                const index = fa.indexOf(digit);
+                return String(index >= 0 ? index : ar.indexOf(digit));
+            });
+
+            const validatePeriod = () => {
+                if (!form || !periodInput || !viewButton) return true;
+                const value = toLatinDigits(periodInput.value).trim();
+                const validFormat = /^\\d{4}(0[1-9]|1[0-2])$/.test(value);
+                const validRange = validFormat && latestAllowed && value <= latestAllowed;
+                const valid = Boolean(validRange);
+                periodInput.classList.toggle("input-invalid", !valid && value.length > 0);
+                periodInput.setAttribute("aria-invalid", String(!valid && value.length > 0));
+                viewButton.disabled = !valid;
+                if (periodError) {
+                    periodError.textContent = !valid && value.length > 0
+                        ? (validFormat
+                            ? `حداکثر دوره مجاز ${latestAllowed} است؛ ماه جاری و ماه‌های آینده قابل مشاهده نیستند.`
+                            : "سال و ماه را به صورت شش‌رقمی معتبر مانند ۱۴۰۵۰۶ وارد کنید.")
+                        : "";
+                    periodError.style.display = !valid && value.length > 0 ? "block" : "none";
+                }
+                return valid;
+            };
+
+            if (periodInput) {
+                periodInput.addEventListener("input", validatePeriod);
+                periodInput.addEventListener("change", validatePeriod);
+                validatePeriod();
+            }
+            if (form) form.addEventListener("submit", event => {
+                if (!validatePeriod()) {
+                    event.preventDefault();
+                    periodInput?.focus();
+                }
+            });
+
             // Remove an accidental literal "\\n" text prefix if it is emitted by a
             // surrounding template/partial before the payroll period controls.
             const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);

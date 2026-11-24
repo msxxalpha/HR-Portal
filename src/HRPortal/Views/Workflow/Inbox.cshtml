@@ -4,6 +4,12 @@
     ViewData["Title"] = "کارتابل من";
     var currentTasks = Model.Where(x => !x.IsUpcomingPreview && x.CanAct).ToList();
     var upcomingTasks = Model.Where(x => x.IsUpcomingPreview || !x.CanAct).ToList();
+    var actionHistory = ViewBag.ActionHistory as List<HRPortal.Models.WorkflowInboxRow> ?? [];
+    var approvedActions = actionHistory.Count(x => x.Action == "Approve");
+    var returnedActions = actionHistory.Count(x => x.Action == "Return");
+    var rejectedActions = actionHistory.Count(x => x.Action == "Reject");
+    var otherActions = actionHistory.Count - approvedActions - returnedActions - rejectedActions;
+    var distinctHistoryWorkflows = actionHistory.Select(x => x.WorkflowInstanceId).Distinct().Count();
 }
 <div class="page-head">
     <div>
@@ -18,8 +24,19 @@
 @if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
 @if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
 
-<div class="workflow-stats">
-    <div class="stat"><span>وظایف جاری</span><strong>@currentTasks.Count</strong></div>
+<section class="workflow-dashboard" aria-label="خلاصه وضعیت کارتابل">
+    <div class="workflow-dashboard-heading"><div><h2>نمای کلی کارتابل</h2><span>خلاصه وظایف و عملکرد ثبت‌شده شما در گردش کارها</span></div><span class="workflow-dashboard-period"><icon name="chart-no-axes-combined" /> آمار به‌روز</span></div>
+    <div class="workflow-metric-grid">
+        <article class="workflow-metric metric-current"><div class="metric-icon"><icon name="inbox" /></div><div><span>وظایف جاری</span><strong>@currentTasks.Count</strong><small>نیازمند اقدام شما</small></div></article>
+        <article class="workflow-metric metric-upcoming"><div class="metric-icon"><icon name="calendar-clock" /></div><div><span>وظایف آتی</span><strong>@upcomingTasks.Count</strong><small>در انتظار رسیدن نوبت</small></div></article>
+        <article class="workflow-metric metric-history"><div class="metric-icon"><icon name="clipboard-list" /></div><div><span>کل سوابق اقدام</span><strong>@actionHistory.Count</strong><small>اقدام‌های ثبت‌شده شما</small></div></article>
+        <article class="workflow-metric metric-approved"><div class="metric-icon"><icon name="check-circle-2" /></div><div><span>تأییدها</span><strong>@approvedActions</strong><small>اقدام از نوع تأیید</small></div></article>
+        <article class="workflow-metric metric-returned"><div class="metric-icon"><icon name="corner-up-left" /></div><div><span>برگشت‌ها</span><strong>@returnedActions</strong><small>ارجاع جهت اصلاح</small></div></article>
+        <article class="workflow-metric metric-rejected"><div class="metric-icon"><icon name="x-circle" /></div><div><span>رد درخواست</span><strong>@rejectedActions</strong><small>اقدام از نوع رد</small></div></article>
+        <article class="workflow-metric metric-other"><div class="metric-icon"><icon name="workflow" /></div><div><span>سایر اقدام‌ها</span><strong>@otherActions</strong><small>اصلاح مسیر، عبور و سایر موارد</small></div></article>
+        <article class="workflow-metric metric-types"><div class="metric-icon"><icon name="files" /></div><div><span>گردش‌های دارای سابقه</span><strong>@distinctHistoryWorkflows</strong><small>گردش کار یکتا</small></div></article>
+    </div>
+</section>
     <div class="stat"><span>وظایف آتی</span><strong>@upcomingTasks.Count</strong></div>
     <div class="stat"><span>انواع گردش کار</span><strong>@Model.Select(x => x.WorkflowTitle).Distinct().Count()</strong></div>
     <div class="stat"><span>سوابق اقدام‌های من</span><strong>@((ViewBag.ActionHistory as List<HRPortal.Models.WorkflowInboxRow> ?? []).Count)</strong></div>
@@ -29,6 +46,7 @@
     <div class="workflow-tabs" role="tablist" aria-label="دسته‌بندی وظایف کارتابل">
         <button type="button" class="workflow-tab active" role="tab" aria-selected="true" aria-controls="currentTasksPanel" data-tab="currentTasksPanel">وظایف جاری <span>@currentTasks.Count</span></button>
         <button type="button" class="workflow-tab" role="tab" aria-selected="false" aria-controls="upcomingTasksPanel" data-tab="upcomingTasksPanel">وظایف آتی <span>@upcomingTasks.Count</span></button>
+        <button type="button" class="workflow-tab" role="tab" aria-selected="false" aria-controls="actionHistoryPanel" data-tab="actionHistoryPanel">سوابق اقدام‌های من <span>@actionHistory.Count</span></button>
     </div>
 
     <div id="currentTasksPanel" class="workflow-tab-panel active" role="tabpanel">
@@ -106,12 +124,9 @@
             <div class="grid-footer"><span class="grid-summary"></span><div class="grid-pagination"></div></div>
         }
     </div>
-<div id="actionHistoryPanel" class="workflow-tab-panel" role="tabpanel" hidden>
+    <div id="actionHistoryPanel" class="workflow-tab-panel" role="tabpanel" hidden>
         <div class="section-head">
             <div><h3>سوابق اقدام‌های من</h3><span class="muted">تمام اقدام‌هایی که در مراحل گردش کار ثبت کرده‌اید؛ مستقل از وضعیت فعلی درخواست.</span></div>
-</section>
-
-    
             <span class="badge">@actionHistory.Count سابقه</span>
         </div>
         @if (actionHistory.Count == 0)
@@ -156,7 +171,7 @@
             <div class="grid-footer"><span class="grid-summary"></span><div class="grid-pagination"></div></div>
         }
     </div>
-
+</section>
 
 <style>
 .workflow-result-row-rejected > td { background:#fff1f2 !important; border-bottom-color:#fecdd3 !important; }
@@ -239,6 +254,31 @@
 @media(max-width:560px){.inbox-grid-tools{grid-template-columns:1fr}.inbox-grid-tools .grid-search{grid-column:auto}.workflow-tab{padding:10px 12px}}
 </style>
 
+<style>
+.workflow-dashboard{background:linear-gradient(135deg,#f8fafc,#eef3f8);border:1px solid #dbe4ee;border-radius:16px;padding:18px 20px;margin:18px 0 22px}
+.workflow-dashboard-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.workflow-dashboard-heading h2{font-size:1.08rem;margin:0 0 4px;color:#173b60}
+.workflow-dashboard-heading span{font-size:.84rem;color:#64748b}
+.workflow-dashboard-period{display:inline-flex;align-items:center;gap:6px;border:1px solid #d5dfeb;background:#fff;padding:6px 10px;border-radius:20px;white-space:nowrap}
+.workflow-metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}
+.workflow-metric{display:flex;align-items:center;gap:12px;min-width:0;padding:13px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 2px 7px rgba(15,23,42,.035)}
+.workflow-metric .metric-icon{width:42px;height:42px;flex:0 0 42px;display:grid;place-items:center;border-radius:11px;background:#edf2f7;color:#334155}
+.workflow-metric .metric-icon icon{width:21px;height:21px}
+.workflow-metric>div:last-child{display:flex;flex-direction:column;min-width:0}
+.workflow-metric span{font-size:.82rem;color:#64748b}
+.workflow-metric strong{font-size:1.45rem;line-height:1.5;color:#172b45;font-variant-numeric:tabular-nums}
+.workflow-metric small{font-size:.73rem;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.metric-current .metric-icon{background:#e8f1fb;color:#1d4e89}
+.metric-upcoming .metric-icon{background:#fff5e7;color:#a16207}
+.metric-history .metric-icon{background:#eef2ff;color:#4338ca}
+.metric-approved .metric-icon{background:#e9f8ef;color:#15803d}
+.metric-returned .metric-icon{background:#fff4e8;color:#c2410c}
+.metric-rejected .metric-icon{background:#fff0f1;color:#be123c}
+.metric-other .metric-icon{background:#f1f5f9;color:#475569}
+.metric-types .metric-icon{background:#e7f5f5;color:#0f766e}
+@media(max-width:1000px){.workflow-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.workflow-dashboard{padding:13px}.workflow-dashboard-heading{align-items:flex-start;flex-direction:column}.workflow-metric-grid{grid-template-columns:1fr 1fr}.workflow-metric{padding:10px;gap:8px}.workflow-metric .metric-icon{width:36px;height:36px;flex-basis:36px}.workflow-metric strong{font-size:1.2rem}}
+</style>
 <style>
 .workflow-dashboard{background:linear-gradient(135deg,#f8fafc,#eef3f8);border:1px solid #dbe4ee;border-radius:16px;padding:18px 20px;margin:18px 0 22px}
 .workflow-dashboard-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}

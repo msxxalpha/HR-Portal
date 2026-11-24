@@ -834,14 +834,15 @@ public class EmployeeContractsController(
             .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync();
 
         if (request.Status != "تکمیل شده" || !request.CompletedAt.HasValue ||
-            !tasks.Any(x => x.WorkflowStep.Code == "CEO" && x.Status == "Completed"))
+            !tasks.Any(x => x.WorkflowStep is not null && x.WorkflowStep.Code == "CEO" && x.Status == "Completed"))
             return BadRequest("گزارش نهایی پس از ثبت تصمیم مدیرعامل و تکمیل فرایند قابل دریافت است.");
 
+        // Load all score rows for the instance; legacy/orphan rows may have no WorkflowStep.
+        // The PDF service safely filters those rows and retains all valid evaluation stages.
         var scores = await db.EmployeePerformanceEvaluationScores.AsNoTracking()
             .Include(x => x.EvaluatorEmployee).Include(x => x.WorkflowStep)
-            .Where(x => x.WorkflowInstanceId == instanceId &&
-                x.WorkflowStep.Code.StartsWith("Evaluation_H"))
-            .OrderBy(x => x.WorkflowStep.SortOrder).ThenBy(x => x.QuestionId).ThenBy(x => x.Id).ToListAsync();
+            .Where(x => x.WorkflowInstanceId == instanceId)
+            .ToListAsync();
         var history = await db.WorkflowHistory.AsNoTracking()
             .Include(x => x.WorkflowStep).Include(x => x.ActorEmployee).Include(x => x.ActorPosition)
             .Where(x => x.WorkflowInstanceId == instanceId)

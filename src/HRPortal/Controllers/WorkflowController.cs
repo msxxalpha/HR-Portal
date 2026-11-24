@@ -330,12 +330,18 @@ public class WorkflowController(
     public async Task<IActionResult> DownloadFullReport(int id)
     {
         var isAdmin = User.HasClaim("IsAdmin", "1");
-        if (!int.TryParse(User.FindFirst("EmployeeId")?.Value, out var employeeId) && !isAdmin)
-            return Forbid();
+        var hasEmployeeId = int.TryParse(User.FindFirst("EmployeeId")?.Value, out var employeeId);
+        if (!hasEmployeeId && !isAdmin) return Forbid();
 
-        var instance = isAdmin
+        var canSkipWorkflowSteps = User.HasClaim("Permission", "Workflow.SkipStep");
+        var canViewOnlyWorkflowDetails = User.HasClaim("Permission", "Workflow.ViewOnly");
+        var previewBoundarySortOrder = !isAdmin && !canSkipWorkflowSteps && hasEmployeeId
+            ? await workflow.GetUpcomingViewBoundarySortOrderAsync(id, employeeId)
+            : null;
+
+        var instance = isAdmin || canSkipWorkflowSteps
             ? await workflow.GetInstanceForAdminAsync(id)
-            : await workflow.GetInstanceAsync(id, employeeId);
+            : await workflow.GetInstanceAsync(id, employeeId, canViewOnlyWorkflowDetails);
         if (instance is null) return NotFound();
         if (!instance.CompletedAt.HasValue &&
             instance.Status is not ("Approved" or "Completed" or "CompletedBySkip"))
@@ -349,20 +355,33 @@ public class WorkflowController(
         if (loadedInstance is null) return NotFound();
         instance = loadedInstance;
 
-        var steps = await db.WorkflowSteps.AsNoTracking().Include(x => x.OrganizationNode)
-            .Where(x => x.WorkflowDefinitionId == instance.WorkflowDefinitionId)
-            .OrderBy(x => x.SortOrder).ThenBy(x => x.Id).ToListAsync();
+        var stepsQuery = db.WorkflowSteps.AsNoTracking().Include(x => x.OrganizationNode)
+            .Where(x => x.WorkflowDefinitionId == instance.WorkflowDefinitionId);
+        if (previewBoundarySortOrder.HasValue)
+            stepsQuery = stepsQuery.Where(x => x.SortOrder < previewBoundarySortOrder.Value);
+        var steps = await stepsQuery.OrderBy(x => x.SortOrder).ThenBy(x => x.Id).ToListAsync();
+        var visibleStepIds = steps.Select(x => x.Id).ToArray();
         var tasks = await db.WorkflowTasks.AsNoTracking().Include(x => x.WorkflowStep)
             .Include(x => x.AssignedEmployee).Include(x => x.AssignedPosition)
-            .Where(x => x.WorkflowInstanceId == id).OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync();
-        var fields = await db.WorkflowFieldValues.AsNoTracking().Include(x => x.WorkflowStep)
+            .Where(x => x.WorkflowInstanceId == id && visibleStepIds.Contains(x.WorkflowStepId))
+            .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync();
+        var fieldsQuery = db.WorkflowFieldValues.AsNoTracking().Include(x => x.WorkflowStep)
             .Include(x => x.WorkflowStepField)
-            .Where(x => x.WorkflowInstanceId == id)
-            .OrderBy(x => x.WorkflowStep.SortOrder).ThenBy(x => x.WorkflowStepField.SortOrder).ThenBy(x => x.Id)
-            .ToListAsync();
-        var history = await db.WorkflowHistory.AsNoTracking().Include(x => x.WorkflowStep)
+            .Where(x => x.WorkflowInstanceId == id && x.Value != null && x.Value != "");
+        if (previewBoundarySortOrder.HasValue)
+            fieldsQuery = fieldsQuery.Where(x => x.WorkflowStep.SortOrder < previewBoundarySortOrder.Value);
+        var fields = await fieldsQuery.OrderBy(x => x.WorkflowStep.SortOrder)
+            .ThenBy(x => x.WorkflowStepField.SortOrder).ThenBy(x => x.Id).ToListAsync();
+        var historyQuery = db.WorkflowHistory.AsNoTracking().Include(x => x.WorkflowStep)
             .Include(x => x.ActorEmployee).Include(x => x.ActorPosition)
-            .Where(x => x.WorkflowInstanceId == id).OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync();
+            .Where(x => x.WorkflowInstanceId == id);
+        if (previewBoundarySortOrder.HasValue)
+            historyQuery = historyQuery.Where(x =>
+                (x.WorkflowStepId.HasValue && x.WorkflowStep != null &&
+                    x.WorkflowStep.SortOrder < previewBoundarySortOrder.Value) ||
+                (!x.WorkflowStepId.HasValue &&
+                    (x.Action == "Created" || x.Action == "Submitted" || x.Action == "Submit")));
+        var history = await historyQuery.OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync();
 
         var requestDetails = new List<(string Label, string Value)>();
         if (instance.EntityType == ContractRenewalWorkflowService.WorkflowEntityType &&
@@ -384,13 +403,19 @@ public class WorkflowController(
                     ("مرخصی بدون حقوق", r.HasUnpaidLeave ? r.UnpaidLeaveDays + " روز" : "۰ روز"),
                     ("مرخصی استعلاجی", r.HasSickLeave ? r.SickLeaveDays + " روز" : "۰ روز"),
                     ("مرخصی حادثه", r.HasAccidentLeave ? r.AccidentLeaveDays + " روز" : "۰ روز"),
-                    ("تقدیرنامه", r.HasCommendations ? r.CommendationCount.ToString() : "۰"),
-                    ("تصمیم حراست", r.SecurityDecision), ("توضیحات حراست", r.SecurityComment),
-                    ("درصد کسر امتیاز", r.HrDisciplinaryDeductionPercent.ToString("0.##") + "٪"),
-                    ("پیشنهاد مدت منابع انسانی", r.HrProposedContractMonths?.ToString() + " ماه"),
-                    ("توضیحات منابع انسانی", r.HrComment), ("امتیاز نهایی", r.FinalEvaluationScore?.ToString("0.##")),
-                    ("مدت مصوب مدیرعامل", r.FinalContractMonths?.ToString() + " ماه"), ("نظر مدیرعامل", r.CeoComment)
+                    ("تقدیرنامه", r.HasCommendations ? r.CommendationCount.ToString() : "۰")
                 });
+                if (!previewBoundarySortOrder.HasValue)
+                {
+                    requestDetails.AddRange(new[]
+                    {
+                        ("تصمیم حراست", r.SecurityDecision), ("توضیحات حراست", r.SecurityComment),
+                        ("درصد کسر امتیاز", r.HrDisciplinaryDeductionPercent.ToString("0.##") + "٪"),
+                        ("پیشنهاد مدت منابع انسانی", r.HrProposedContractMonths?.ToString() + " ماه"),
+                        ("توضیحات منابع انسانی", r.HrComment), ("امتیاز نهایی", r.FinalEvaluationScore?.ToString("0.##")),
+                        ("مدت مصوب مدیرعامل", r.FinalContractMonths?.ToString() + " ماه"), ("نظر مدیرعامل", r.CeoComment)
+                    });
+                }
             }
         }
         else if (instance.EntityType == "OutsourcedServiceRequest" &&

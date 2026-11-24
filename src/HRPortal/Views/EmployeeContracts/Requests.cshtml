@@ -102,6 +102,14 @@
                                         @(r.Status == "تکمیل شده" && r.FinalContractMonths.GetValueOrDefault() > 0 ? "قرارداد PDF" : "پیش‌نمایش قرارداد")
                                     </a>
                                 }
+                                @if (r.Status == "تکمیل شده" && r.CompletedAt.HasValue &&
+                                    (User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "ContractRenewal.Reports")))
+                                {
+                                    <a class="btn btn-outline btn-sm" href="/EmployeeContracts/DownloadReport?id=@r.Id"
+                                       title="دریافت گزارش خلاصه نهایی ارزشیابی">
+                                        خلاصه ارزشیابی PDF
+                                    </a>
+                                }
                                 <a class="btn btn-outline btn-sm" href="/EmployeeContracts/History?id=@r.Id">سوابق</a>
                                 @if (row.CanConfirmPreviousStageScores && row.EvaluationTaskId.HasValue)
                                 {

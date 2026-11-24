@@ -212,15 +212,18 @@ public sealed class ContractRenewalPdfService
                                 .Text("جمع امتیاز هر ارزیاب").Bold();
                             foreach (var evaluator in evaluators)
                             {
-                                var evaluatorTotal = questions.Sum(question => question.Scores
+                                var evaluatorScores = questions.Select(question => question.Scores
                                     .Where(x => (x.EvaluatorEmployeeId ?? 0) == evaluator.Id)
                                     .OrderByDescending(x => x.WorkflowStep!.SortOrder)
                                     .Select(x => x.Score)
-                                    .FirstOrDefault() ?? 0m);
-                                var hasAnyScore = questions.Any(question => question.Scores.Any(x =>
-                                    (x.EvaluatorEmployeeId ?? 0) == evaluator.Id && x.Score.HasValue));
+                                    .FirstOrDefault()).ToList();
+                                var hasAnyScore = evaluatorScores.Any(x => x.HasValue);
+                                var isComplete = evaluatorScores.Count > 0 && evaluatorScores.All(x => x.HasValue);
+                                var evaluatorTotal = evaluatorScores.Where(x => x.HasValue).Sum(x => x!.Value);
+                                var totalText = !hasAnyScore ? "—" : !isComplete ? "ناقص" :
+                                    evaluatorTotal.ToString("0.##", CultureInfo.InvariantCulture);
                                 table.Cell().Element(c => DataCell(c, false)).AlignCenter()
-                                    .Text(hasAnyScore ? evaluatorTotal.ToString("0.##", CultureInfo.InvariantCulture) : "—").Bold();
+                                    .Text(totalText).Bold();
                             }
                         });
                     }

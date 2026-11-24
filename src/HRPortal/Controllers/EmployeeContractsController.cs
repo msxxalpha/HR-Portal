@@ -16,7 +16,8 @@ public class EmployeeContractsController(
     ContractRenewalWorkflowService renewalWorkflow,
     ContractRenewalPdfService renewalPdf,
     EmploymentContractPdfService employmentContractPdf,
-    WorkflowService workflowService) : Controller
+    WorkflowService workflowService,
+    WorkflowProcessPdfService workflowProcessPdf) : Controller
 {
     [Authorize(Policy = "ContractRenewal.View")]
     public IActionResult Index() => View();
@@ -849,6 +850,62 @@ public class EmployeeContractsController(
             .OrderBy(x => x.CreatedAt).ToListAsync();
         var bytes = renewalPdf.Generate(request, steps, tasks, scores, history);
         return File(bytes, "application/pdf", $"ContractRenewal-{request.RequestCode}.pdf");
+    }
+
+    [HttpGet, Authorize(Policy = "ContractRenewal.List")]
+    public async Task<IActionResult> DownloadWorkflowReport(int id)
+    {
+        var request = await db.ContractRenewalRequests.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == id && x.Status != "حذف شده");
+        if (request is null || !request.WorkflowInstanceId.HasValue) return NotFound();
+
+        var instanceId = request.WorkflowInstanceId.Value;
+        var instance = await db.WorkflowInstances.AsNoTracking()
+            .Include(x => x.WorkflowDefinition).Include(x => x.RequesterEmployee).Include(x => x.CurrentStep)
+            .FirstOrDefaultAsync(x => x.Id == instanceId);
+        if (instance is null) return NotFound();
+
+        var steps = await db.WorkflowSteps.AsNoTracking().Include(x => x.OrganizationNode)
+            .Where(x => x.WorkflowDefinitionId == instance.WorkflowDefinitionId)
+            .OrderBy(x => x.SortOrder).ThenBy(x => x.Id).ToListAsync();
+        var visibleStepIds = steps.Select(x => x.Id).ToArray();
+        var tasks = await db.WorkflowTasks.AsNoTracking().Include(x => x.WorkflowStep)
+            .Include(x => x.AssignedEmployee).Include(x => x.AssignedPosition)
+            .Where(x => x.WorkflowInstanceId == instanceId)
+            .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync();
+        var fields = await db.WorkflowFieldValues.AsNoTracking().Include(x => x.WorkflowStep)
+            .Include(x => x.WorkflowStepField)
+            .Where(x => x.WorkflowInstanceId == instanceId && x.Value != null && x.Value != "")
+            .OrderBy(x => x.WorkflowStep.SortOrder).ThenBy(x => x.WorkflowStepField.SortOrder).ThenBy(x => x.Id)
+            .ToListAsync();
+        var history = await db.WorkflowHistory.AsNoTracking().Include(x => x.WorkflowStep)
+            .Include(x => x.ActorEmployee).Include(x => x.ActorPosition)
+            .Where(x => x.WorkflowInstanceId == instanceId)
+            .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync();
+
+        var details = new List<(string Label, string Value)>
+        {
+            ("کد درخواست", request.RequestCode),
+            ("کارمند", request.EmployeeNameSnapshot + " (" + request.PersonnelNumberSnapshot + ")"),
+            ("واحد سازمانی", request.OrganizationUnitSnapshot),
+            ("جایگاه سازمانی", request.PositionTitleSnapshot),
+            ("تمدیدهای قبلی", request.PreviousExtensionMonths1 + "، " + request.PreviousExtensionMonths2 + "، " + request.PreviousExtensionMonths3 + " ماه"),
+            ("امتیاز دوره قبلی اول", request.PreviousPeriodScore1.ToString("0.##") + (request.PreviousPeriodScore1FromHistory ? " (از سوابق)" : "")),
+            ("امتیاز دوره قبلی دوم", request.PreviousPeriodScore2.ToString("0.##") + (request.PreviousPeriodScore2FromHistory ? " (از سوابق)" : "")),
+            ("اخطار انضباطی", request.HasDisciplinaryWarnings ? "بله - " + request.DisciplinaryWarningCount : "خیر"),
+            ("آرای کمیته انضباطی", request.HasDisciplinaryCommitteeResolution ? request.DisciplinaryCommitteeResolutionCount.ToString() : "۰"),
+            ("مرخصی بدون حقوق", request.HasUnpaidLeave ? request.UnpaidLeaveDays + " روز" : "۰ روز"),
+            ("مرخصی استعلاجی", request.HasSickLeave ? request.SickLeaveDays + " روز" : "۰ روز"),
+            ("مرخصی حادثه", request.HasAccidentLeave ? request.AccidentLeaveDays + " روز" : "۰ روز"),
+            ("تقدیرنامه", request.HasCommendations ? request.CommendationCount.ToString() : "۰"),
+            ("تصمیم حراست", request.SecurityDecision), ("توضیحات حراست", request.SecurityComment),
+            ("درصد کسر امتیاز", request.HrDisciplinaryDeductionPercent.ToString("0.##") + "٪"),
+            ("پیشنهاد مدت منابع انسانی", request.HrProposedContractMonths?.ToString() + " ماه"),
+            ("توضیحات منابع انسانی", request.HrComment), ("امتیاز نهایی", request.FinalEvaluationScore?.ToString("0.##")),
+            ("مدت مصوب مدیرعامل", request.FinalContractMonths?.ToString() + " ماه"), ("نظر مدیرعامل", request.CeoComment)
+        };
+        var bytes = workflowProcessPdf.Generate(instance, steps, tasks, fields, history, details);
+        return File(bytes, "application/pdf", $"ContractRenewal-Workflow-{request.RequestCode}.pdf");
     }
 
     [HttpGet, Authorize(Policy = "ContractRenewal.Edit")]

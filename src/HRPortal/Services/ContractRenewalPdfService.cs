@@ -1,17 +1,23 @@
+using System.Globalization;
 using HRPortal.Models;
-using QuestPDF.Fluent;
 using QuestPDF.Drawing;
+using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 
 namespace HRPortal.Services;
 
-/// <summary>
-/// Generates contract-renewal PDFs entirely in-process. No external service or network
-/// request is used; fonts are read from the local Windows fonts directory.
-/// </summary>
+/// <summary>One-page A4 management summary for a completed contract-renewal evaluation.</summary>
 public sealed class ContractRenewalPdfService
 {
+    private const string Navy = "#18344D";
+    private const string NavyLight = "#EAF0F5";
+    private const string Accent = "#B18A4A";
+    private const string Muted = "#647587";
+    private const string Border = "#D9E1E8";
+    private static readonly object FontLock = new();
+    private static bool _fontRegistered;
+
     public byte[] Generate(
         ContractRenewalRequest request,
         IReadOnlyList<WorkflowStep> steps,
@@ -20,162 +26,248 @@ public sealed class ContractRenewalPdfService
         IReadOnlyList<WorkflowHistory> history)
     {
         RegisterLocalFont();
+
+        var evaluationScores = scores
+            .Where(x => x.WorkflowStep.Code.StartsWith("Evaluation_H", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(x => x.WorkflowStep.SortOrder).ThenBy(x => x.QuestionId).ThenBy(x => x.Id)
+            .ToList();
+
+        var evaluators = evaluationScores
+            .GroupBy(x => x.EvaluatorEmployeeId ?? 0)
+            .Select(group => new
+            {
+                Id = group.Key,
+                Name = group.Select(x => x.EvaluatorEmployee is null
+                    ? "ارزیاب نامشخص"
+                    : $"{x.EvaluatorEmployee.FirstName} {x.EvaluatorEmployee.LastName}".Trim()).FirstOrDefault()
+                    ?? "ارزیاب نامشخص",
+                FirstOrder = group.Min(x => x.WorkflowStep.SortOrder)
+            })
+            .OrderBy(x => x.FirstOrder).ThenBy(x => x.Id).ToList();
+
+        var questions = evaluationScores
+            .GroupBy(x => x.QuestionId)
+            .Select(group => new
+            {
+                QuestionId = group.Key,
+                Text = group.OrderBy(x => x.WorkflowStep.SortOrder).First().QuestionTextSnapshot,
+                MaxScore = group.Max(x => x.MaxScoreSnapshot),
+                Scores = group
+            })
+            .OrderBy(x => evaluationScores.Where(s => s.QuestionId == x.QuestionId)
+                .Min(s => s.WorkflowStep.SortOrder))
+            .ThenBy(x => x.QuestionId).ToList();
+
+        var initialScore = request.OriginalEvaluationScore ?? evaluationScores
+            .Where(x => x.Score.HasValue)
+            .GroupBy(x => x.WorkflowStepId)
+            .OrderBy(x => x.Key)
+            .Select(g => (decimal?)g.Sum(x => x.Score!.Value))
+            .FirstOrDefault();
+
         return Document.Create(document =>
         {
             document.Page(page =>
             {
                 page.Size(PageSizes.A4);
                 page.ContentFromRightToLeft();
-                page.Margin(28);
-                page.DefaultTextStyle(style => style.FontFamily("Tahoma").FontSize(9));
+                page.MarginHorizontal(22);
+                page.MarginVertical(18);
+                page.DefaultTextStyle(x => x.FontFamily("Tahoma").FontSize(7.5f));
+
                 page.Header().Column(header =>
                 {
-                    header.Item().AlignRight().Text("گزارش نهایی ارزشیابی و تمدید قرارداد").FontSize(18).Bold().FontColor(Colors.Blue.Darken4);
-                    header.Item().AlignRight().Text($"شماره درخواست: {request.RequestCode}").FontSize(10).SemiBold();
-                    header.Item().PaddingTop(5).LineHorizontal(1).LineColor(Colors.Blue.Darken4);
-                });
-                page.Content().PaddingVertical(12).Column(column =>
-                {
-                    column.Spacing(10);
-                    column.Item().Element(c => SectionTitle(c, "۱. مشخصات درخواست و کارمند"));
-                    column.Item().Element(c => KeyValueTable(c, new (string, string)[]
+                    header.Item().Background(Navy).PaddingHorizontal(12).PaddingVertical(9).Row(row =>
                     {
-                        ("نام کارمند", request.EmployeeNameSnapshot),
-                        ("شماره پرسنلی", request.PersonnelNumberSnapshot),
-                        ("واحد سازمانی", request.OrganizationUnitSnapshot),
-                        ("جایگاه سازمانی", request.PositionTitleSnapshot),
-                        ("وضعیت درخواست", request.Status),
-                        ("تاریخ ثبت", FormatDate(request.CreatedAt)),
-                        ("تاریخ تکمیل", request.CompletedAt.HasValue ? FormatDate(request.CompletedAt.Value) : "—"),
-                        ("پایان قرارداد قبلی", request.PreviousContractEndDate.HasValue ? PersianDateService.Format(request.PreviousContractEndDate.Value) : "—"),
-                        ("تمدیدهای قبلی", $"{request.PreviousExtensionMonths1}، {request.PreviousExtensionMonths2}، {request.PreviousExtensionMonths3} ماه"),
-                        ("امتیاز دوره قبلی اول", request.PreviousPeriodScore1.ToString("0.##")),
-                        ("امتیاز دوره قبلی دوم", request.PreviousPeriodScore2.ToString("0.##"))
-                    }));
-
-                    column.Item().Element(c => SectionTitle(c, "۲. اطلاعات تکمیلی عملکرد و سوابق"));
-                    column.Item().Element(c => KeyValueTable(c, new (string, string)[]
-                    {
-                        ("اخطار انضباطی", request.HasDisciplinaryWarnings ? $"بله؛ تعداد {request.DisciplinaryWarningCount}" : "خیر"),
-                        ("آرای کمیته انضباطی", request.HasDisciplinaryCommitteeResolution ? request.DisciplinaryCommitteeResolutionCount.ToString() : "۰"),
-                        ("مرخصی بدون حقوق", request.HasUnpaidLeave ? $"{request.UnpaidLeaveDays} روز" : "۰ روز"),
-                        ("مرخصی استعلاجی", request.HasSickLeave ? $"{request.SickLeaveDays} روز" : "۰ روز"),
-                        ("مرخصی حادثه", request.HasAccidentLeave ? $"{request.AccidentLeaveDays} روز" : "۰ روز"),
-                        ("تقدیرنامه", request.HasCommendations ? request.CommendationCount.ToString() : "۰")
-                    }));
-
-                    column.Item().Element(c => SectionTitle(c, "۳. گردش کار و ارزشیابی مرحله‌ای"));
-                    foreach (var step in steps.OrderBy(x => x.SortOrder).ThenBy(x => x.Id))
-                    {
-                        var stepTasks = tasks.Where(x => x.WorkflowStepId == step.Id).OrderBy(x => x.CreatedAt).ToList();
-                        var stepScores = scores.Where(x => x.WorkflowStepId == step.Id).OrderBy(x => x.Id).ToList();
-                        column.Item().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).Column(stage =>
+                        row.RelativeItem().AlignRight().Column(title =>
                         {
-                            stage.Spacing(5);
-                            stage.Item().Row(row =>
-                            {
-                                row.RelativeItem().AlignRight().Text(step.Title).Bold().FontSize(11).FontColor(Colors.Blue.Darken4);
-                                row.ConstantItem(100).AlignLeft().Text(stepTasks.Any(x => x.Status == "Completed") ? "انجام‌شده" : stepTasks.Any(x => x.Status == "Pending") ? "در انتظار اقدام" : "بدون اقدام").FontSize(8);
-                            });
-                            stage.Item().AlignRight().Text("جایگاه: " + (step.OrganizationNode?.Title ?? (step.AssignmentType == "Hierarchy" ? "مسیر سلسله‌مراتبی" : "—"))).FontSize(8).FontColor(Colors.Grey.Darken2);
-                            if (stepScores.Count > 0)
-                            {
-                                stage.Item().Table(table =>
-                                {
-                                    table.ColumnsDefinition(columns =>
-                                    {
-                                        columns.RelativeColumn(4);
-                                        columns.RelativeColumn(2);
-                                        columns.ConstantColumn(38);
-                                        columns.ConstantColumn(38);
-                                    });
-                                    table.Header(header =>
-                                    {
-                                        header.Cell().Element(HeaderCell).Text("پرسش");
-                                        header.Cell().Element(HeaderCell).Text("ارزیاب");
-                                        header.Cell().Element(HeaderCell).Text("سقف");
-                                        header.Cell().Element(HeaderCell).Text("امتیاز");
-                                    });
-                                    foreach (var score in stepScores)
-                                    {
-                                        table.Cell().Element(BodyCell).Text(score.QuestionTextSnapshot);
-                                        table.Cell().Element(BodyCell).Text(score.EvaluatorEmployee is null ? "—" : $"{score.EvaluatorEmployee.FirstName} {score.EvaluatorEmployee.LastName}");
-                                        table.Cell().Element(BodyCell).Text(score.MaxScoreSnapshot.ToString("0.##"));
-                                        table.Cell().Element(BodyCell).Text(score.Score?.ToString("0.##") ?? "—");
-                                    }
-                                    table.Cell().ColumnSpan(2).Element(BodyCell).Text("مجموع امتیاز مرحله").Bold();
-                                    table.Cell().Element(BodyCell).Text(stepScores.Sum(x => x.MaxScoreSnapshot).ToString("0.##"));
-                                    table.Cell().Element(BodyCell).Text(stepScores.All(x => x.Score.HasValue) ? stepScores.Sum(x => x.Score!.Value).ToString("0.##") : "ناقص").Bold();
-                                });
-                            }
-                            if (step.Code == "Security")
-                                stage.Item().Text("تصمیم مدیر حراست: " + (request.SecurityDecision switch { "ApproveFull" => "موافقت با تمدید قرارداد", "ApproveOneMonth" => "موافقت با تمدید یک‌ماهه", "Reject" => "عدم موافقت", _ => "ثبت نشده" })).Bold().FontSize(9);
-                            if (step.Code == "HumanResources")
-                            {
-                                stage.Item().Text("درصد کسر سوابق انضباطی: " + request.HrDisciplinaryDeductionPercent.ToString("0.##") + "٪").Bold().FontSize(9);
-                                stage.Item().Text("امتیاز نهایی پس از کسر: " + (request.FinalEvaluationScore?.ToString("0.##") ?? "ثبت نشده") + " از ۱۰۰").FontSize(9);
-                                stage.Item().Text("مدت پیشنهادی سیستم: " + Math.Min(ContractRenewalWorkflowService.SuggestedContractMonths(request.FinalEvaluationScore), ContractRenewalWorkflowService.MaximumAllowedContractMonths(request.SecurityDecision)) + " ماه | پیشنهاد مدیر منابع انسانی: " + (request.HrProposedContractMonths?.ToString() ?? "ثبت نشده") + " ماه").FontSize(9);
-                            }
-                            if (step.Code == "CEO")
-                                stage.Item().Text("مدت پیشنهادی سیستم: " + ContractRenewalWorkflowService.SuggestedContractMonths(request.FinalEvaluationScore) + " ماه | پیشنهاد منابع انسانی: " + (request.HrProposedContractMonths?.ToString() ?? "ثبت نشده") + " ماه | مدت نهایی مدیرعامل: " + (request.FinalContractMonths?.ToString() ?? "ثبت نشده") + " ماه").Bold().FontSize(9);
-                            foreach (var task in stepTasks)
-                            {
-                                stage.Item().Text("مسئول: " + (task.AssignedEmployee is not null ? task.AssignedEmployee.FirstName + " " + task.AssignedEmployee.LastName : task.AssignedPosition?.Title ?? "—")).FontSize(8);
-                                stage.Item().Text($"اقدام: {task.Action ?? task.Status} | زمان: {FormatDate(task.CompletedAt ?? task.CreatedAt)}").FontSize(8);
-                                stage.Item().Text("نظر مرحله: " + (string.IsNullOrWhiteSpace(task.Comment) ? "نظری ثبت نشده است." : task.Comment)).FontSize(8);
-                            }
+                            title.Item().Text("گزارش خلاصه ارزشیابی و تمدید قرارداد")
+                                .FontSize(15).Bold().FontColor(Colors.White);
+                            title.Item().PaddingTop(2).Text("خلاصه مدیریتی نهایی پس از تکمیل گردش کار")
+                                .FontSize(8).FontColor("#DCE6EE");
                         });
-                    }
-
-                    column.Item().Element(c => SectionTitle(c, "۴. جمع‌بندی تصمیم‌های نهایی"));
-                    column.Item().Element(c => KeyValueTable(c, new (string, string)[]
-                    {
-                        ("امتیاز اولیه ارزشیابی سازمانی", (request.OriginalEvaluationScore ?? request.FinalEvaluationScore).HasValue ? (request.OriginalEvaluationScore ?? request.FinalEvaluationScore)!.Value.ToString("0.##") + " از ۱۰۰" : "ثبت نشده"),
-                        ("درصد کسر بابت سوابق انضباطی", request.HrDisciplinaryDeductionPercent.ToString("0.##") + "٪"),
-                        ("امتیاز نهایی پس از کسر", request.FinalEvaluationScore.HasValue ? request.FinalEvaluationScore.Value.ToString("0.##") + " از ۱۰۰" : "ثبت نشده"),
-                        ("مدت پیشنهادی سیستم بر اساس امتیاز نهایی", ContractRenewalWorkflowService.SuggestedContractMonths(request.FinalEvaluationScore) + " ماه"),
-                        ("تصمیم ثبت‌شده مدیر حراست", request.SecurityDecision switch { "ApproveFull" => "موافقت با تمدید قرارداد", "ApproveOneMonth" => "موافقت با تمدید یک‌ماهه", "Reject" => "عدم موافقت", _ => "ثبت نشده" }),
-                        ("نظر مدیر حراست", request.SecurityComment ?? "ثبت نشده"),
-                        ("پیشنهاد مدت قرارداد منابع انسانی و خدمات پشتیبانی", request.HrProposedContractMonths.HasValue ? request.HrProposedContractMonths.Value + " ماه" : "ثبت نشده"),
-                        ("نظر مدیر منابع انسانی و خدمات پشتیبانی", request.HrComment ?? "ثبت نشده"),
-                        ("مدت نهایی مصوب مدیرعامل", request.FinalContractMonths.HasValue ? request.FinalContractMonths.Value + " ماه" : "ثبت نشده"),
-                        ("نظر مدیرعامل", request.CeoComment ?? "ثبت نشده")
-                    }));
-
-                    column.Item().Element(c => SectionTitle(c, "۵. تاریخچه اقدامات سامانه"));
-                    if (history.Count == 0)
-                        column.Item().AlignRight().Text("رویدادی در تاریخچه ثبت نشده است.");
-                    foreach (var item in history.OrderBy(x => x.CreatedAt))
-                    {
-                        column.Item().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).PaddingVertical(4).Column(entry =>
-                        {
-                            entry.Item().AlignRight().Text($"{item.Action} — {FormatDate(item.CreatedAt)}").Bold();
-                            entry.Item().AlignRight().Text($"اقدام‌کننده: {(item.ActorEmployee is null ? "سیستم" : item.ActorEmployee.FirstName + " " + item.ActorEmployee.LastName)} | جایگاه: {item.ActorPosition?.Title ?? "—"}").FontSize(8);
-                            entry.Item().AlignRight().Text("توضیحات: " + (string.IsNullOrWhiteSpace(item.Comment) ? "—" : item.Comment)).FontSize(8);
-                        });
-                    }
-                });
-                page.Footer().PaddingTop(6).BorderTop(1).BorderColor(Colors.Grey.Lighten2).Row(row =>
-                {
-                    row.RelativeItem().AlignRight().Text($"گزارش سیستمی | {DateTime.Now:yyyy/MM/dd HH:mm}").FontSize(8).FontColor(Colors.Grey.Darken1);
-                    row.RelativeItem().AlignLeft().Text(text =>
-                    {
-                        text.Span("صفحه ").FontSize(8).FontColor(Colors.Grey.Darken1);
-                        text.CurrentPageNumber();
-                        text.Span(" از ").FontSize(8).FontColor(Colors.Grey.Darken1);
-                        text.TotalPages();
+                        row.ConstantItem(112).AlignLeft().AlignMiddle().Background(Accent).Padding(6)
+                            .Text(request.RequestCode).FontSize(9).Bold().FontColor(Colors.White);
                     });
+                    header.Item().PaddingTop(5).LineHorizontal(1.5f).LineColor(Accent);
+                });
+
+                // Shrink the complete composition to the available A4 content area.
+                page.Content().Shrink().PaddingTop(7).Column(column =>
+                {
+                    column.Spacing(5);
+
+                    column.Item().Element(c => SectionHeader(c, "مشخصات کارمند و درخواست"));
+                    column.Item().Border(1).BorderColor(Border).Background("#FBFCFD").Padding(6).Row(row =>
+                    {
+                        row.RelativeItem().Column(c =>
+                        {
+                            Pair(c, "نام و نام خانوادگی", request.EmployeeNameSnapshot);
+                            Pair(c, "واحد سازمانی", request.OrganizationUnitSnapshot);
+                        });
+                        row.RelativeItem().Column(c =>
+                        {
+                            Pair(c, "شماره پرسنلی", request.PersonnelNumberSnapshot);
+                            Pair(c, "جایگاه سازمانی", request.PositionTitleSnapshot);
+                        });
+                        row.RelativeItem().Column(c =>
+                        {
+                            Pair(c, "تاریخ ثبت", PersianDateService.Format(request.CreatedAt.ToLocalTime()));
+                            Pair(c, "تاریخ تکمیل", request.CompletedAt.HasValue
+                                ? PersianDateService.Format(request.CompletedAt.Value.ToLocalTime()) : "—");
+                        });
+                    });
+
+                    column.Item().Element(c => SectionHeader(c, "خلاصه نتایج و تصمیم نهایی"));
+                    column.Item().Row(row =>
+                    {
+                        Metric(row.RelativeItem(), "امتیاز اولیه", initialScore?.ToString("0.##", CultureInfo.InvariantCulture) ?? "—", "/ ۱۰۰");
+                        Metric(row.RelativeItem(), "درصد کسر", request.HrDisciplinaryDeductionPercent.ToString("0.##", CultureInfo.InvariantCulture) + "٪", "");
+                        Metric(row.RelativeItem(), "امتیاز نهایی", request.FinalEvaluationScore?.ToString("0.##", CultureInfo.InvariantCulture) ?? "—", "/ ۱۰۰");
+                        Metric(row.RelativeItem(), "مدت مصوب", request.FinalContractMonths?.ToString(CultureInfo.InvariantCulture) ?? "—", "ماه");
+                        Metric(row.RelativeItem(), "تعداد ارزیاب", evaluators.Count.ToString(CultureInfo.InvariantCulture), "نفر");
+                    });
+
+                    column.Item().Element(c => SectionHeader(c, "جزئیات پرسش‌ها و امتیاز ارزیابان"));
+                    if (questions.Count == 0)
+                    {
+                        column.Item().Border(1).BorderColor(Border).Padding(8).AlignCenter()
+                            .Text("برای این درخواست امتیاز ارزیابی ثبت نشده است.");
+                    }
+                    else
+                    {
+                        column.Item().Table(table =>
+                        {
+                            table.ColumnsDefinition(cols =>
+                            {
+                                cols.RelativeColumn(5);
+                                cols.RelativeColumn(0.85f);
+                                foreach (var evaluator in evaluators)
+                                    cols.RelativeColumn(1.05f);
+                            });
+
+                            table.Header(header =>
+                            {
+                                header.Cell().Element(HeaderCell).Text("پرسش ارزشیابی");
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("سقف");
+                                foreach (var evaluator in evaluators)
+                                    header.Cell().Element(HeaderCell).AlignCenter()
+                                        .Text(evaluator.Name).FontSize(6.5f);
+                            });
+
+                            var index = 0;
+                            foreach (var question in questions)
+                            {
+                                var alternate = index++ % 2 == 1;
+                                table.Cell().Element(c => DataCell(c, alternate)).Text(question.Text).FontSize(7);
+                                table.Cell().Element(c => DataCell(c, alternate)).AlignCenter()
+                                    .Text(question.MaxScore.ToString("0.##", CultureInfo.InvariantCulture));
+                                foreach (var evaluator in evaluators)
+                                {
+                                    var score = question.Scores
+                                        .Where(x => (x.EvaluatorEmployeeId ?? 0) == evaluator.Id)
+                                        .OrderByDescending(x => x.WorkflowStep.SortOrder)
+                                        .Select(x => x.Score)
+                                        .FirstOrDefault();
+                                    table.Cell().Element(c => DataCell(c, alternate)).AlignCenter()
+                                        .Text(score.HasValue
+                                            ? score.Value.ToString("0.##", CultureInfo.InvariantCulture)
+                                            : "—").Bold();
+                                }
+                            }
+                        });
+                    }
+
+                    column.Item().Element(c => SectionHeader(c, "سوابق و تصمیم‌های کلیدی"));
+                    column.Item().Border(1).BorderColor(Border).Padding(6).Row(row =>
+                    {
+                        row.RelativeItem().Column(c =>
+                        {
+                            Pair(c, "تصمیم حراست", request.SecurityDecision switch
+                            {
+                                "ApproveFull" => "موافقت با تمدید قرارداد",
+                                "ApproveOneMonth" => "موافقت با تمدید یک‌ماهه",
+                                "Reject" => "عدم موافقت",
+                                _ => "ثبت نشده"
+                            });
+                            Pair(c, "پیشنهاد مدت منابع انسانی", request.HrProposedContractMonths.HasValue
+                                ? request.HrProposedContractMonths + " ماه" : "—");
+                        });
+                        row.RelativeItem().Column(c =>
+                        {
+                            Pair(c, "کسر امتیاز انضباطی", request.HrDisciplinaryDeductionPercent.ToString("0.##", CultureInfo.InvariantCulture) + "٪");
+                            Pair(c, "مدت نهایی مدیرعامل", request.FinalContractMonths.HasValue
+                                ? request.FinalContractMonths + " ماه" : "—");
+                        });
+                        row.RelativeItem().Column(c =>
+                        {
+                            Pair(c, "تاریخ شروع قرارداد", request.NewContractStartDate.HasValue
+                                ? PersianDateService.Format(request.NewContractStartDate.Value) : "—");
+                            Pair(c, "تاریخ پایان قرارداد", request.NewContractEndDate.HasValue
+                                ? PersianDateService.Format(request.NewContractEndDate.Value) : "—");
+                        });
+                    });
+
+                    var lastHistory = history.OrderByDescending(x => x.CreatedAt).FirstOrDefault();
+                    column.Item().AlignRight().Text("آخرین اقدام ثبت‌شده: " +
+                        (lastHistory is null ? "—" : lastHistory.Action + " | " +
+                            PersianDateService.Format(lastHistory.CreatedAt.ToLocalTime())))
+                        .FontSize(7).FontColor(Muted);
+                });
+
+                page.Footer().PaddingTop(5).BorderTop(1).BorderColor(Border).Row(row =>
+                {
+                    row.RelativeItem().AlignRight().Text("پورتال جامع منابع انسانی | گزارش سیستمی")
+                        .FontSize(7).FontColor(Muted);
+                    row.RelativeItem().AlignLeft().Text("شماره درخواست: " + request.RequestCode)
+                        .FontSize(7).FontColor(Muted);
                 });
             });
         }).GeneratePdf();
     }
 
-    private static readonly object FontRegistrationLock = new();
-    private static bool _fontRegistered;
+    private static void Pair(ColumnDescriptor column, string label, string? value)
+    {
+        column.Item().Row(row =>
+        {
+            row.AutoItem().Text(label + " : ").FontSize(7).Bold().FontColor(Muted);
+            row.RelativeItem().Text(string.IsNullOrWhiteSpace(value) ? "—" : value).FontSize(7);
+        });
+    }
+
+    private static void Metric(IContainer container, string label, string value, string suffix)
+    {
+        container.Border(1).BorderColor(Border).Background(NavyLight).PaddingVertical(5).PaddingHorizontal(3)
+            .Column(c =>
+            {
+                c.Item().AlignCenter().Text(label).FontSize(7).FontColor(Muted);
+                c.Item().PaddingTop(2).AlignCenter().Text(t =>
+                {
+                    t.Span(value).FontSize(12).Bold().FontColor(Navy);
+                    if (!string.IsNullOrEmpty(suffix))
+                        t.Span(" " + suffix).FontSize(6.5f).FontColor(Muted);
+                });
+            });
+    }
+
+    private static void SectionHeader(IContainer container, string title)
+    {
+        container.Background(Navy).PaddingHorizontal(7).PaddingVertical(4)
+            .AlignRight().Text(title).FontSize(8.5f).Bold().FontColor(Colors.White);
+    }
+
+    private static IContainer HeaderCell(IContainer container) =>
+        container.Background(NavyLight).Border(0.5f).BorderColor(Border)
+            .PaddingVertical(4).PaddingHorizontal(3).AlignMiddle().AlignRight();
+
+    private static IContainer DataCell(IContainer container, bool alternate) =>
+        container.Background(alternate ? "#F6F8FA" : Colors.White)
+            .Border(0.5f).BorderColor(Border).PaddingVertical(3).PaddingHorizontal(3)
+            .AlignMiddle().AlignRight();
 
     private static void RegisterLocalFont()
     {
-        lock (FontRegistrationLock)
+        lock (FontLock)
         {
             if (_fontRegistered) return;
             var fontsDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
@@ -188,39 +280,7 @@ public sealed class ContractRenewalPdfService
                 _fontRegistered = true;
                 return;
             }
-            throw new InvalidOperationException("فونت فارسی محلی Tahoma یا Arial در پوشه فونت‌های سرور یافت نشد؛ برای تولید PDF باید فونت مناسب روی سرور نصب باشد.");
+            throw new InvalidOperationException("فونت فارسی Tahoma یا Arial روی سرور یافت نشد.");
         }
-    }
-
-    private static string FormatDate(DateTime value) => PersianDateService.Format(value.ToLocalTime()) + " " + value.ToLocalTime().ToString("HH:mm");
-
-    private static void SectionTitle(IContainer container, string title)
-    {
-        container.Background(Colors.Grey.Darken4).Padding(7).AlignRight()
-            .Text(title).FontColor(Colors.White).Bold().FontSize(11);
-    }
-
-    private static IContainer HeaderCell(IContainer container) =>
-        container.Background(Colors.Grey.Lighten2).Border(1).BorderColor(Colors.Grey.Lighten1)
-            .Padding(4).AlignRight().AlignMiddle();
-
-    private static IContainer BodyCell(IContainer container) =>
-        container.Border(1).BorderColor(Colors.Grey.Lighten2).Padding(4).AlignRight().AlignMiddle();
-
-    private static void KeyValueTable(IContainer container, IReadOnlyList<(string Label, string Value)> rows)
-    {
-        container.Table(table =>
-        {
-            table.ColumnsDefinition(columns =>
-            {
-                columns.RelativeColumn(1);
-                columns.RelativeColumn(2);
-            });
-            foreach (var row in rows)
-            {
-                table.Cell().Element(HeaderCell).Text(row.Label).Bold();
-                table.Cell().Element(BodyCell).Text(string.IsNullOrWhiteSpace(row.Value) ? "—" : row.Value);
-            }
-        });
     }
 }

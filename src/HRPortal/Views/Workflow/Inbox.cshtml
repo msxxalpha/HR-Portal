@@ -37,11 +37,6 @@
         <article class="workflow-metric metric-types"><div class="metric-icon"><icon name="files" /></div><div><span>گردش‌های دارای سابقه</span><strong>@distinctHistoryWorkflows</strong><small>گردش کار یکتا</small></div></article>
     </div>
 </section>
-    <div class="stat"><span>وظایف آتی</span><strong>@upcomingTasks.Count</strong></div>
-    <div class="stat"><span>انواع گردش کار</span><strong>@Model.Select(x => x.WorkflowTitle).Distinct().Count()</strong></div>
-    <div class="stat"><span>سوابق اقدام‌های من</span><strong>@((ViewBag.ActionHistory as List<HRPortal.Models.WorkflowInboxRow> ?? []).Count)</strong></div>
-</div>
-
 <section class="card workflow-inbox-card">
     <div class="workflow-tabs" role="tablist" aria-label="دسته‌بندی وظایف کارتابل">
         <button type="button" class="workflow-tab active" role="tab" aria-selected="true" aria-controls="currentTasksPanel" data-tab="currentTasksPanel">وظایف جاری <span>@currentTasks.Count</span></button>

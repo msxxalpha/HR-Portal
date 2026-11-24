@@ -341,11 +341,13 @@ public class WorkflowController(
             instance.Status is not ("Approved" or "Completed" or "CompletedBySkip"))
             return BadRequest("گزارش تفصیلی نهایی پس از تکمیل گردش کار قابل دریافت است.");
 
-        instance = await db.WorkflowInstances.AsNoTracking()
+        var loadedInstance = await db.WorkflowInstances.AsNoTracking()
             .Include(x => x.WorkflowDefinition)
             .Include(x => x.RequesterEmployee)
             .Include(x => x.CurrentStep)
-            .FirstOrDefaultAsync(x => x.Id == id) ?? return NotFound();
+            .FirstOrDefaultAsync(x => x.Id == id);
+        if (loadedInstance is null) return NotFound();
+        instance = loadedInstance;
 
         var steps = await db.WorkflowSteps.AsNoTracking().Include(x => x.OrganizationNode)
             .Where(x => x.WorkflowDefinitionId == instance.WorkflowDefinitionId)

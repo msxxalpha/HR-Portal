@@ -839,8 +839,9 @@ public class EmployeeContractsController(
 
         var scores = await db.EmployeePerformanceEvaluationScores.AsNoTracking()
             .Include(x => x.EvaluatorEmployee).Include(x => x.WorkflowStep)
-            .Where(x => x.WorkflowInstanceId == instanceId)
-            .OrderBy(x => x.WorkflowStep.SortOrder).ThenBy(x => x.Id).ToListAsync();
+            .Where(x => x.WorkflowInstanceId == instanceId &&
+                x.WorkflowStep.Code.StartsWith("Evaluation_H"))
+            .OrderBy(x => x.WorkflowStep.SortOrder).ThenBy(x => x.QuestionId).ThenBy(x => x.Id).ToListAsync();
         var history = await db.WorkflowHistory.AsNoTracking()
             .Include(x => x.WorkflowStep).Include(x => x.ActorEmployee).Include(x => x.ActorPosition)
             .Where(x => x.WorkflowInstanceId == instanceId)

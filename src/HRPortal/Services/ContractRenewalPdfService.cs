@@ -121,6 +121,36 @@ public sealed class ContractRenewalPdfService
                         });
                     });
 
+
+                    column.Item().Element(c => SectionHeader(c, "اطلاعات ثبت‌شده در مرحله اول شروع ارزشیابی"));
+                    column.Item().Border(1).BorderColor(Border).Background("#FBFCFD").Padding(6).Column(intake =>
+                    {
+                        intake.Spacing(3);
+                        intake.Item().Row(row =>
+                        {
+                            row.RelativeItem().Column(x =>
+                            {
+                                Pair(x, "تمدید قبلی اول", request.PreviousExtensionMonths1 + " ماه");
+                                Pair(x, "تمدید قبلی دوم", request.PreviousExtensionMonths2 + " ماه");
+                                Pair(x, "تمدید قبلی سوم", request.PreviousExtensionMonths3 + " ماه");
+                                Pair(x, "امتیاز دوره قبلی اول", request.PreviousPeriodScore1.ToString("0.##", CultureInfo.InvariantCulture) + (request.PreviousPeriodScore1FromHistory ? " (از سوابق)" : ""));
+                            });
+                            row.RelativeItem().Column(x =>
+                            {
+                                Pair(x, "امتیاز دوره قبلی دوم", request.PreviousPeriodScore2.ToString("0.##", CultureInfo.InvariantCulture) + (request.PreviousPeriodScore2FromHistory ? " (از سوابق)" : ""));
+                                Pair(x, "اخطار انضباطی", request.HasDisciplinaryWarnings ? "بله - " + request.DisciplinaryWarningCount : "خیر");
+                                Pair(x, "آرای کمیته انضباطی", request.HasDisciplinaryCommitteeResolution ? request.DisciplinaryCommitteeResolutionCount.ToString(CultureInfo.InvariantCulture) : "۰");
+                                Pair(x, "تقدیرنامه", request.HasCommendations ? request.CommendationCount.ToString(CultureInfo.InvariantCulture) : "۰");
+                            });
+                            row.RelativeItem().Column(x =>
+                            {
+                                Pair(x, "مرخصی بدون حقوق", request.HasUnpaidLeave ? request.UnpaidLeaveDays + " روز" : "۰ روز");
+                                Pair(x, "مرخصی استعلاجی", request.HasSickLeave ? request.SickLeaveDays + " روز" : "۰ روز");
+                                Pair(x, "مرخصی حادثه", request.HasAccidentLeave ? request.AccidentLeaveDays + " روز" : "۰ روز");
+                            });
+                        });
+                    });
+
                     column.Item().Element(c => SectionHeader(c, "خلاصه نتایج و تصمیم نهایی"));
                     column.Item().Row(row =>
                     {
@@ -177,6 +207,20 @@ public sealed class ContractRenewalPdfService
                                             ? score.Value.ToString("0.##", CultureInfo.InvariantCulture)
                                             : "—").Bold();
                                 }
+                            }
+                            table.Cell().ColumnSpan(2).Element(c => DataCell(c, false)).AlignRight()
+                                .Text("جمع امتیاز هر ارزیاب").Bold();
+                            foreach (var evaluator in evaluators)
+                            {
+                                var evaluatorTotal = questions.Sum(question => question.Scores
+                                    .Where(x => (x.EvaluatorEmployeeId ?? 0) == evaluator.Id)
+                                    .OrderByDescending(x => x.WorkflowStep!.SortOrder)
+                                    .Select(x => x.Score)
+                                    .FirstOrDefault() ?? 0m);
+                                var hasAnyScore = questions.Any(question => question.Scores.Any(x =>
+                                    (x.EvaluatorEmployeeId ?? 0) == evaluator.Id && x.Score.HasValue));
+                                table.Cell().Element(c => DataCell(c, false)).AlignCenter()
+                                    .Text(hasAnyScore ? evaluatorTotal.ToString("0.##", CultureInfo.InvariantCulture) : "—").Bold();
                             }
                         });
                     }

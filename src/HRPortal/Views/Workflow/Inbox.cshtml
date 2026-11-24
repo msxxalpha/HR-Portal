@@ -2,11 +2,13 @@
 @{
     Layout = "~/Views/Shared/_Layout.cshtml";
     ViewData["Title"] = "کارتابل من";
+    var currentTasks = Model.Where(x => !x.IsUpcomingPreview && x.CanAct).ToList();
+    var upcomingTasks = Model.Where(x => x.IsUpcomingPreview || !x.CanAct).ToList();
 }
 <div class="page-head">
     <div>
         <h1>کارتابل من</h1>
-        <p>در این کارتابل هم وظایف آماده اقدام و هم مراحل آتیِ قابل‌تشخیص گردش‌هایی که در آنها مسئولیت دارید نمایش داده می‌شوند. مراحل آتی تا زمان رسیدن نوبت، فقط برای مشاهده هستند.</p>
+        <p>وظایفی که اکنون باید درباره آن‌ها اقدام کنید از مراحلی که هنوز نوبت آن‌ها نرسیده، جدا شده‌اند.</p>
     </div>
     @if (User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Workflow.Manage"))
     {
@@ -17,66 +19,93 @@
 @if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
 
 <div class="workflow-stats">
-    <div class="stat"><span>آماده اقدام</span><strong>@Model.Count(x => x.CanAct && !x.IsUpcomingPreview)</strong></div>
-    <div class="stat"><span>در انتظار نوبت</span><strong>@Model.Count(x => x.IsUpcomingPreview)</strong></div>
-    <div class="stat"><span>وظایف امروز</span><strong>@Model.Count(x => !x.IsUpcomingPreview && x.CreatedAt.Date == DateTime.UtcNow.Date)</strong></div>
+    <div class="stat"><span>وظایف جاری</span><strong>@currentTasks.Count</strong></div>
+    <div class="stat"><span>وظایف آتی</span><strong>@upcomingTasks.Count</strong></div>
     <div class="stat"><span>انواع گردش کار</span><strong>@Model.Select(x => x.WorkflowTitle).Distinct().Count()</strong></div>
     <div class="stat"><span>سوابق اقدام‌های من</span><strong>@((ViewBag.ActionHistory as List<HRPortal.Models.WorkflowInboxRow> ?? []).Count)</strong></div>
 </div>
 
 <section class="card workflow-inbox-card">
-    <div class="section-head">
-        <div><h3>وظایف جاری و مراحل آتی</h3><span class="muted">@Model.Count مورد؛ شامل @Model.Count(x => x.CanAct && !x.IsUpcomingPreview) وظیفه آماده اقدام و @Model.Count(x => x.IsUpcomingPreview) مرحله فقط‌نمایشی.</span></div>
+    <div class="workflow-tabs" role="tablist" aria-label="دسته‌بندی وظایف کارتابل">
+        <button type="button" class="workflow-tab active" role="tab" aria-selected="true" aria-controls="currentTasksPanel" data-tab="currentTasksPanel">وظایف جاری <span>@currentTasks.Count</span></button>
+        <button type="button" class="workflow-tab" role="tab" aria-selected="false" aria-controls="upcomingTasksPanel" data-tab="upcomingTasksPanel">وظایف آتی <span>@upcomingTasks.Count</span></button>
     </div>
-    @if (Model.Count == 0)
-    {
-        <div class="empty">در حال حاضر نه وظیفه آماده اقدامی دارید و نه مرحله آتیِ قابل‌شناسایی در گردش‌های فعال.</div>
-    }
-    else
-    {
-        <div class="table-wrap">
-            <table>
-                <thead><tr><th>عنوان/نوع درخواست</th><th>درخواست‌کننده</th><th>مرحله مسئولیت من</th><th>جایگاه مسئول این مرحله</th><th>مرحله فعلی گردش</th><th>کاربر جایگاهی مرحله فعلی</th><th>تاریخ</th><th>عملیات</th></tr></thead>
-                <tbody>
-                @foreach (var item in Model)
-                {
-                    <tr class="@(item.IsUpcomingPreview ? "workflow-upcoming-preview-row" : "workflow-actionable-row")">
-                        <td><strong>@item.WorkflowTitle</strong><div class="muted">@item.EntityType #@item.EntityId</div></td>
-                        <td>@item.RequesterName<div class="muted">@item.RequesterPersonnelNumber</div></td>
-                        <td>
-                            <span class="badge @(item.IsUpcomingPreview ? "badge-warning" : "badge-info")">@item.StepTitle</span>
-                            @if (item.IsUpcomingPreview)
-                            {
-                                <div class="workflow-preview-note">مرحله آتی — فقط نمایشی</div>
-                            }
-                        </td>
-                        <td>@(string.IsNullOrWhiteSpace(item.PositionTitle) ? "—" : item.PositionTitle)</td>
-                        <td>@(string.IsNullOrWhiteSpace(item.CurrentStepTitle) ? "—" : item.CurrentStepTitle)</td>
-                        <td>@(string.IsNullOrWhiteSpace(item.CurrentAssigneeName) ? "تعیین نشده" : item.CurrentAssigneeName)</td>
-                        <td>@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
-                        <td>
-                            @if (item.IsUpcomingPreview || !item.CanAct)
-                            {
+
+    <div id="currentTasksPanel" class="workflow-tab-panel active" role="tabpanel">
+        <div class="section-head"><div><h3>وظایف جاری</h3><span class="muted">مواردی که در حال حاضر به شما ارجاع شده و امکان اقدام روی آن‌ها وجود دارد.</span></div></div>
+        @if (currentTasks.Count == 0) { <div class="empty">در حال حاضر وظیفه‌ای برای اقدام ندارید.</div> }
+        else
+        {
+            <div class="inbox-grid-tools" data-grid-tools="currentGrid">
+                <input type="search" class="form-control grid-search" placeholder="جست‌وجو در عنوان، درخواست‌کننده، شماره پرسنلی و مرحله..." aria-label="جست‌وجوی وظایف جاری" />
+                <select class="form-control grid-page-size" aria-label="تعداد ردیف در صفحه"><option value="10">۱۰ ردیف</option><option value="25">۲۵ ردیف</option><option value="50">۵۰ ردیف</option><option value="100">۱۰۰ ردیف</option></select>
+                <input type="text" class="form-control grid-date-from" data-jalali-date placeholder="از تاریخ (شمسی)" aria-label="از تاریخ شمسی" />
+                <input type="text" class="form-control grid-date-to" data-jalali-date placeholder="تا تاریخ (شمسی)" aria-label="تا تاریخ شمسی" />
+                <button type="button" class="btn btn-outline grid-reset">پاک‌کردن فیلترها</button>
+            </div>
+            <div class="table-wrap">
+                <table class="workflow-data-grid" id="currentGrid">
+                    <thead><tr><th>عنوان/نوع درخواست</th><th>درخواست‌کننده</th><th>مرحله مسئولیت من</th><th>جایگاه مسئول این مرحله</th><th>مرحله فعلی گردش</th><th>کاربر جایگاهی مرحله فعلی</th><th>تاریخ ثبت</th><th>عملیات</th></tr></thead>
+                    <tbody>
+                    @foreach (var item in currentTasks)
+                    {
+                        <tr data-date="@item.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")">
+                            <td><strong>@item.WorkflowTitle</strong><div class="muted">@item.EntityType #@item.EntityId</div></td>
+                            <td>@item.RequesterName<div class="muted">@item.RequesterPersonnelNumber</div></td>
+                            <td><span class="badge badge-info">@item.StepTitle</span></td>
+                            <td>@(string.IsNullOrWhiteSpace(item.PositionTitle) ? "—" : item.PositionTitle)</td>
+                            <td>@(string.IsNullOrWhiteSpace(item.CurrentStepTitle) ? "—" : item.CurrentStepTitle)</td>
+                            <td>@(string.IsNullOrWhiteSpace(item.CurrentAssigneeName) ? "تعیین نشده" : item.CurrentAssigneeName)</td>
+                            <td data-sort="@item.CreatedAt.ToString("yyyyMMddHHmmss")">@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                            <td><a class="btn btn-main btn-sm" href="/Workflow/Task/@item.TaskId">مشاهده و اقدام</a></td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+            <div class="grid-footer"><span class="grid-summary"></span><div class="grid-pagination"></div></div>
+        }
+    </div>
+
+    <div id="upcomingTasksPanel" class="workflow-tab-panel" role="tabpanel" hidden>
+        <div class="section-head"><div><h3>وظایف آتی</h3><span class="muted">مراحلی که در گردش‌های فعال به‌صورت قابل تشخیص به شما مربوط هستند، اما هنوز نوبت اقدام آن‌ها نرسیده است. این موارد صرفاً جهت اطلاع هستند.</span></div></div>
+        @if (upcomingTasks.Count == 0) { <div class="empty">در حال حاضر وظیفه آتی قابل‌شناسایی برای شما وجود ندارد.</div> }
+        else
+        {
+            <div class="inbox-grid-tools" data-grid-tools="upcomingGrid">
+                <input type="search" class="form-control grid-search" placeholder="جست‌وجو در عنوان، درخواست‌کننده، شماره پرسنلی و مرحله..." aria-label="جست‌وجوی وظایف آتی" />
+                <select class="form-control grid-page-size" aria-label="تعداد ردیف در صفحه"><option value="10">۱۰ ردیف</option><option value="25">۲۵ ردیف</option><option value="50">۵۰ ردیف</option><option value="100">۱۰۰ ردیف</option></select>
+                <input type="text" class="form-control grid-date-from" data-jalali-date placeholder="از تاریخ (شمسی)" aria-label="از تاریخ شمسی" />
+                <input type="text" class="form-control grid-date-to" data-jalali-date placeholder="تا تاریخ شمسی" aria-label="تا تاریخ شمسی" />
+                <button type="button" class="btn btn-outline grid-reset">پاک‌کردن فیلترها</button>
+            </div>
+            <div class="table-wrap">
+                <table class="workflow-data-grid" id="upcomingGrid">
+                    <thead><tr><th>عنوان/نوع درخواست</th><th>درخواست‌کننده</th><th>مرحله مسئولیت من</th><th>جایگاه مسئول این مرحله</th><th>مرحله فعلی گردش</th><th>کاربر جایگاهی مرحله فعلی</th><th>تاریخ ثبت</th><th>عملیات</th></tr></thead>
+                    <tbody>
+                    @foreach (var item in upcomingTasks)
+                    {
+                        <tr class="workflow-upcoming-preview-row" data-date="@item.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")">
+                            <td><strong>@item.WorkflowTitle</strong><div class="muted">@item.EntityType #@item.EntityId</div></td>
+                            <td>@item.RequesterName<div class="muted">@item.RequesterPersonnelNumber</div></td>
+                            <td><span class="badge badge-warning">@item.StepTitle</span><div class="workflow-preview-note">مرحله آتی — هنوز نوبت اقدام نیست</div></td>
+                            <td>@(string.IsNullOrWhiteSpace(item.PositionTitle) ? "—" : item.PositionTitle)</td>
+                            <td>@(string.IsNullOrWhiteSpace(item.CurrentStepTitle) ? "—" : item.CurrentStepTitle)</td>
+                            <td>@(string.IsNullOrWhiteSpace(item.CurrentAssigneeName) ? "تعیین نشده" : item.CurrentAssigneeName)</td>
+                            <td data-sort="@item.CreatedAt.ToString("yyyyMMddHHmmss")">@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                            <td>
                                 @if (User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "Workflow.ViewOnly"))
-                                {
-                                    <a class="btn btn-outline btn-sm" href="/Workflow/Details/@item.WorkflowInstanceId">مشاهده فقط</a>
-                                }
-                                else
-                                {
-                                    <span class="muted">—</span>
-                                }
-                            }
-                            else
-                            {
-                                <a class="btn btn-main btn-sm" href="/Workflow/Task/@item.TaskId">مشاهده و اقدام</a>
-                            }
-                        </td>
-                    </tr>
-                }
-                </tbody>
-            </table>
-        </div>
-    }
+                                { <a class="btn btn-outline btn-sm" href="/Workflow/Details/@item.WorkflowInstanceId">مشاهده فقط</a> }
+                                else { <span class="muted">صرفاً جهت اطلاع</span> }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+            <div class="grid-footer"><span class="grid-summary"></span><div class="grid-pagination"></div></div>
+        }
+    </div>
 </section>
 
 @{
@@ -138,4 +167,68 @@
 .workflow-upcoming-preview-row:hover > td { background:#f1f5f9 !important; }
 .workflow-upcoming-preview-row .badge-warning { background:#fff7ed;color:#9a3412;border:1px solid #fed7aa; }
 .workflow-preview-note { font-size:.78rem;color:#9a3412;margin-top:.35rem; }
+</style>
+<script>
+(function () {
+    const tabs=[...document.querySelectorAll(".workflow-tab")];
+    tabs.forEach(tab=>tab.addEventListener("click",()=>{
+        tabs.forEach(t=>{const active=t===tab;t.classList.toggle("active",active);t.setAttribute("aria-selected",active?"true":"false");const panel=document.getElementById(t.dataset.tab);if(panel){panel.hidden=!active;panel.classList.toggle("active",active);}});
+    }));
+    function toIsoDate(value){
+        const raw=(value||"").trim().replace(/[۰-۹٠-٩]/g,d=>String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)>=0?"۰۱۲۳۴۵۶۷۸۹".indexOf(d):"٠١٢٣٤٥٦٧٨٩".indexOf(d)));
+        const m=/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(raw);if(!m||!window.HRPortalJalali)return null;
+        try{return window.HRPortalJalali.j2g(+m[1],+m[2],+m[3]).toISOString().slice(0,10);}catch{return null;}
+    }
+    document.querySelectorAll(".workflow-data-grid").forEach(table=>{
+        const tools=document.querySelector('[data-grid-tools="'+table.id+'"]');if(!tools)return;
+        const body=table.tBodies[0],allRows=[...body.rows],search=tools.querySelector(".grid-search"),size=tools.querySelector(".grid-page-size"),from=tools.querySelector(".grid-date-from"),to=tools.querySelector(".grid-date-to");
+        const footer=table.closest(".workflow-tab-panel").querySelector(".grid-footer"),summary=footer.querySelector(".grid-summary"),pagination=footer.querySelector(".grid-pagination");
+        let page=1,sortIndex=-1,sortDirection=1;
+        table.querySelectorAll("thead th").forEach((th,index)=>{if(index===7)return;th.classList.add("grid-sortable");th.tabIndex=0;th.setAttribute("role","button");th.addEventListener("click",()=>sort(index));th.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();sort(index);}});});
+        function sort(index){if(sortIndex===index)sortDirection*=-1;else{sortIndex=index;sortDirection=1;}allRows.sort((a,b)=>{const ac=a.cells[index],bc=b.cells[index],av=ac.dataset.sort||ac.innerText.trim(),bv=bc.dataset.sort||bc.innerText.trim();return av.localeCompare(bv,"fa",{numeric:true,sensitivity:"base"})*sortDirection;});allRows.forEach(r=>body.appendChild(r));render();}
+        function render(){
+            const q=(search.value||"").trim().toLocaleLowerCase("fa");
+            const start=from.value?toIsoDate(from.value):null,end=to.value?toIsoDate(to.value):null;
+            const filtered=allRows.filter(row=>{
+                const hay=row.innerText.toLocaleLowerCase("fa"),date=row.dataset.date||"";
+                return (!q||hay.includes(q))&&(!from.value||(start&&date>=start))&&(!to.value||(end&&date<=end));
+            });
+            const pageSize=Number(size.value)||10,pages=Math.max(1,Math.ceil(filtered.length/pageSize));page=Math.min(page,pages);
+            const visible=new Set(filtered.slice((page-1)*pageSize,page*pageSize));
+            allRows.forEach(row=>row.hidden=!visible.has(row));
+            summary.textContent=filtered.length+" مورد از "+allRows.length+" مورد؛ صفحه "+page+" از "+pages;
+            pagination.innerHTML="";
+            const add=(label,target,disabled)=>{const b=document.createElement("button");b.type="button";b.className="btn btn-outline btn-sm";b.textContent=label;b.disabled=disabled;b.addEventListener("click",()=>{page=target;render();});pagination.appendChild(b);};
+            add("قبلی",page-1,page<=1);
+            const first=Math.max(1,page-2),last=Math.min(pages,page+2);for(let n=first;n<=last;n++){const b=document.createElement("button");b.type="button";b.className="btn btn-sm "+(n===page?"btn-main":"btn-outline");b.textContent=String(n);b.addEventListener("click",()=>{page=n;render();});pagination.appendChild(b);}
+            add("بعدی",page+1,page>=pages);
+        }
+        [search,size,from,to].forEach(el=>el.addEventListener("input",()=>{page=1;render();}));
+        [from,to].forEach(el=>el.addEventListener("change",()=>{page=1;render();}));
+        tools.querySelector(".grid-reset").addEventListener("click",()=>{search.value="";from.value="";to.value="";size.value="10";page=1;render();});
+        render();
+    });
+})();
+</script>
+<style>
+.workflow-tabs{display:flex;gap:8px;border-bottom:1px solid #dbe3ec;margin-bottom:18px;flex-wrap:wrap}
+.workflow-tab{border:0;border-bottom:3px solid transparent;background:transparent;padding:12px 18px;color:#526174;font:inherit;font-weight:800;cursor:pointer}
+.workflow-tab.active{color:#173b60;border-bottom-color:#173b60}
+.workflow-tab span{display:inline-flex;min-width:24px;justify-content:center;margin-right:6px;padding:2px 7px;border-radius:20px;background:#edf2f7;font-size:.8rem}
+.workflow-tab-panel[hidden]{display:none!important}
+.inbox-grid-tools{display:grid;grid-template-columns:minmax(220px,2fr) minmax(110px,.7fr) minmax(145px,1fr) minmax(145px,1fr) auto;gap:9px;margin:12px 0;align-items:center}
+.inbox-grid-tools .form-control{min-width:0;width:100%;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;font:inherit}
+.grid-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;color:#64748b;font-size:.86rem}
+.grid-pagination{display:flex;gap:5px;flex-wrap:wrap}
+.grid-sortable{cursor:pointer;user-select:none;white-space:nowrap}
+.grid-sortable:after{content:"↕";font-size:.75em;color:#94a3b8;margin-right:6px}
+.grid-sortable:focus{outline:2px solid #93c5fd;outline-offset:-2px}
+.workflow-data-grid tbody tr[hidden]{display:none}
+.workflow-upcoming-preview-row>td{background:#f8fafc!important}
+.workflow-preview-note{font-size:.78rem;color:#9a3412;margin-top:.35rem}
+.workflow-result-row-rejected>td{background:#fff1f2!important;border-bottom-color:#fecdd3!important}
+.workflow-result-row-returned>td{background:#fff7ed!important;border-bottom-color:#fed7aa!important}
+.workflow-result-row-completed>td{background:#ecfdf5!important;border-bottom-color:#bbf7d0!important}
+@media(max-width:900px){.inbox-grid-tools{grid-template-columns:1fr 1fr}.inbox-grid-tools .grid-search{grid-column:1/-1}}
+@media(max-width:560px){.inbox-grid-tools{grid-template-columns:1fr}.inbox-grid-tools .grid-search{grid-column:auto}.workflow-tab{padding:10px 12px}}
 </style>

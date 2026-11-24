@@ -61,7 +61,7 @@
         }
         @if (request is not null && request.WorkflowInstanceId.HasValue)
         {
-            <a class="btn btn-outline" href="/Workflow/DownloadFullReport/@request.WorkflowInstanceId.Value">دریافت گزارش تفصیلی گردش کار PDF</a>
+            <a class="btn btn-outline" href="/EmployeeContracts/DownloadWorkflowReport?id=@request.Id">دریافت گزارش تفصیلی گردش کار PDF</a>
         }
         <a class="btn btn-outline" href="/EmployeeContracts/Requests">بازگشت به فهرست درخواست‌ها</a>
     </div>

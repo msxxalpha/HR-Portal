@@ -26,10 +26,7 @@
 <div class="page-head">
     <div><h1>@Model.WorkflowDefinition.Title</h1><p>@Model.EntityType #@Model.EntityId</p></div>
     <div class="actions">
-        @if (Model.CompletedAt.HasValue || Model.Status is "Approved" or "Completed" or "CompletedBySkip")
-        {
-            <a class="btn btn-main" href="/Workflow/DownloadFullReport/@Model.Id">دریافت گزارش تفصیلی گردش کار PDF</a>
-        }
+        <a class="btn btn-main" href="/Workflow/DownloadFullReport/@Model.Id">دریافت گزارش تفصیلی گردش کار PDF</a>
         <a class="btn btn-outline" href="/Workflow/MyRequests">@(User.HasClaim("IsAdmin", "1") ? "بازگشت به مدیریت درخواست‌ها" : User.HasClaim("Permission", "Workflow.SkipStep") ? "بازگشت به گردش‌های فعال" : "بازگشت به درخواست‌های من")</a>
     </div>
 </div>

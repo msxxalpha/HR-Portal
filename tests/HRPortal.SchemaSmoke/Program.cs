@@ -171,7 +171,8 @@ static async Task VerifyEngineeringDocumentArchiveAsync(HRPortalDbContext db)
     {
         EngineeringDocumentId = document.Id,
         VersionNumber = 1,
-        StoredFileName = "11111111111111111111111111111111.pdf",
+        PdfContent = "%PDF-1.4\n% test document\n"u8.ToArray(),
+        Sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData("%PDF-1.4\n% test document\n"u8.ToArray())),
         OriginalFileName = "assembly-a.pdf",
         ContentType = "application/pdf",
         FileSize = 1024,
@@ -191,7 +192,8 @@ static async Task VerifyEngineeringDocumentArchiveAsync(HRPortalDbContext db)
     {
         EngineeringDocumentId = document.Id,
         VersionNumber = 2,
-        StoredFileName = "22222222222222222222222222222222.pdf",
+        PdfContent = "%PDF-1.4\n% revised test document\n"u8.ToArray(),
+        Sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData("%PDF-1.4\n% revised test document\n"u8.ToArray())),
         OriginalFileName = "assembly-b.pdf",
         ContentType = "application/pdf",
         FileSize = 2048,
@@ -208,6 +210,8 @@ static async Task VerifyEngineeringDocumentArchiveAsync(HRPortalDbContext db)
     Check(versions.Count == 2 && versions[0].VersionNumber == 1 && !versions[0].IsCurrent &&
           versions[1].VersionNumber == 2 && versions[1].IsCurrent,
         "Engineering-document version history/current-version behavior is incorrect.");
+    Check(versions.All(x => x.PdfContent.Length > 8 && x.Sha256.Length == 64),
+        "PDF BLOB content and SHA-256 hashes must persist for every version.");
     Check(versions.Count(x => x.IsCurrent) == 1,
         "Exactly one current engineering-document version must be retained.");
 }

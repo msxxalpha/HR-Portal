@@ -53,7 +53,8 @@ public sealed class EngineeringDocumentVersion
     public int Id { get; set; }
     public int EngineeringDocumentId { get; set; }
     public int VersionNumber { get; set; }
-    public string StoredFileName { get; set; } = "";
+    public byte[] PdfContent { get; set; } = [];
+    public string Sha256 { get; set; } = "";
     public string OriginalFileName { get; set; } = "";
     public string ContentType { get; set; } = "application/pdf";
     public long FileSize { get; set; }

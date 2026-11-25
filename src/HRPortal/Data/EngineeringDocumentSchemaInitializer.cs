@@ -67,7 +67,8 @@ BEGIN
         [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_EngineeringDocumentVersions] PRIMARY KEY,
         [EngineeringDocumentId] int NOT NULL,
         [VersionNumber] int NOT NULL,
-        [StoredFileName] nvarchar(100) NOT NULL,
+        [PdfContent] varbinary(max) NOT NULL,
+        [Sha256] nvarchar(64) NOT NULL CONSTRAINT [DF_EngineeringDocumentVersions_Sha256] DEFAULT N'',
         [OriginalFileName] nvarchar(260) NOT NULL,
         [ContentType] nvarchar(100) NOT NULL CONSTRAINT [DF_EngineeringDocumentVersions_ContentType] DEFAULT N'application/pdf',
         [FileSize] bigint NOT NULL,
@@ -81,6 +82,18 @@ BEGIN
         CONSTRAINT [CK_EngineeringDocumentVersions_VersionNumber] CHECK ([VersionNumber] > 0)
     );
 END;
+
+IF COL_LENGTH(N'dbo.EngineeringDocumentVersions', N'PdfContent') IS NULL
+    ALTER TABLE [dbo].[EngineeringDocumentVersions] ADD [PdfContent] varbinary(max) NULL;
+IF COL_LENGTH(N'dbo.EngineeringDocumentVersions', N'Sha256') IS NULL
+    ALTER TABLE [dbo].[EngineeringDocumentVersions] ADD [Sha256] nvarchar(64) NOT NULL
+        CONSTRAINT [DF_EngineeringDocumentVersions_Sha256] DEFAULT N'';
+IF EXISTS (SELECT 1 FROM [dbo].[EngineeringDocumentVersions] WHERE [PdfContent] IS NULL)
+    THROW 51000, 'Engineering document PDF BLOB migration found legacy versions without database content. No file data was moved automatically.', 1;
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID(N'dbo.EngineeringDocumentVersions') AND name=N'PdfContent' AND is_nullable=1)
+    ALTER TABLE [dbo].[EngineeringDocumentVersions] ALTER COLUMN [PdfContent] varbinary(max) NOT NULL;
+IF COL_LENGTH(N'dbo.EngineeringDocumentVersions', N'StoredFileName') IS NOT NULL
+    ALTER TABLE [dbo].[EngineeringDocumentVersions] DROP COLUMN [StoredFileName];
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_EngineeringDocumentNodes_Parent_Sort' AND object_id=OBJECT_ID(N'dbo.EngineeringDocumentNodes'))
     CREATE INDEX [IX_EngineeringDocumentNodes_Parent_Sort] ON [dbo].[EngineeringDocumentNodes]([ParentId],[SortOrder],[Title]);

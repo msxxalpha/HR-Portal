@@ -280,10 +280,10 @@ public sealed class EngineeringDocumentsController(
             if (document is null) return UploadError(nodeId, "مستند انتخاب‌شده متعلق به این گره نیست یا پیدا نشد.");
         }
 
-        string storedName;
+        byte[] pdfContent;
         try
         {
-            storedName = await fileStore.SavePdfAsync(file, HttpContext.RequestAborted);
+            pdfContent = await fileStore.ReadPdfAsync(file, HttpContext.RequestAborted);
         }
         catch (Exception exception) when (exception is InvalidDataException or IOException)
         {
@@ -338,7 +338,8 @@ public sealed class EngineeringDocumentsController(
             {
                 EngineeringDocumentId = document.Id,
                 VersionNumber = nextVersion,
-                StoredFileName = storedName,
+                PdfContent = pdfContent,
+                Sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(pdfContent)),
                 OriginalFileName = originalName,
                 ContentType = "application/pdf",
                 FileSize = file.Length,
@@ -362,7 +363,6 @@ public sealed class EngineeringDocumentsController(
         }
         catch (Exception exception)
         {
-            fileStore.Delete(storedName);
             TempData["Error"] = "ثبت مستند انجام نشد: " + exception.Message;
             return RedirectToAction(nameof(Manage), new { nodeId });
         }
@@ -477,11 +477,11 @@ public sealed class EngineeringDocumentsController(
             {
                 x.Title,
                 x.DocumentNumber,
-                FileName = x.Versions.Where(v => v.IsCurrent).OrderByDescending(v => v.VersionNumber)
-                    .Select(v => v.StoredFileName).FirstOrDefault()
+                PdfContent = x.Versions.Where(v => v.IsCurrent).OrderByDescending(v => v.VersionNumber)
+                    .Select(v => v.PdfContent).FirstOrDefault()
             })
             .FirstOrDefaultAsync();
-        if (document is null || string.IsNullOrWhiteSpace(document.FileName))
+        if (document is null || document.PdfContent is null || document.PdfContent.Length == 0)
             return NotFound();
 
         try
@@ -490,7 +490,7 @@ public sealed class EngineeringDocumentsController(
             var watermark = GetCurrentUserName() + " | " +
                 (User.FindFirst("PersonnelNumber")?.Value ?? User.FindFirst("AdminUsername")?.Value ?? "کاربر سامانه");
             var images = await imageStore.CreateAsync(
-                fileStore.GetPath(document.FileName), ownerKey, watermark, HttpContext.RequestAborted);
+                document.PdfContent, ownerKey, watermark, HttpContext.RequestAborted);
             var tokens = antiforgery.GetAndStoreTokens(HttpContext);
             SetPrivateHeaders();
             await audit.WriteAsync("مشاهده مستند مهندسی", nameof(EngineeringDocument), id.ToString(),

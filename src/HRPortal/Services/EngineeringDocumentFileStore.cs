@@ -8,60 +8,27 @@ using HRPortal.Models;
 
 namespace HRPortal.Services;
 
-public sealed class EngineeringDocumentFileStore(IWebHostEnvironment environment)
+public sealed class EngineeringDocumentFileStore
 {
     private const long MaximumPdfBytes = 35L * 1024 * 1024;
-    private readonly string _root = Path.Combine(environment.ContentRootPath, "App_Data", "EngineeringDocuments");
 
-    public async Task<string> SavePdfAsync(IFormFile file, CancellationToken cancellationToken = default)
+    public async Task<byte[]> ReadPdfAsync(IFormFile file, CancellationToken cancellationToken = default)
     {
         if (file is null || file.Length < 8 || file.Length > MaximumPdfBytes)
             throw new InvalidDataException("حجم فایل PDF باید بیشتر از صفر و حداکثر ۳۵ مگابایت باشد.");
-
-        var extension = Path.GetExtension(file.FileName);
-        if (!string.Equals(extension, ".pdf", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(Path.GetExtension(file.FileName), ".pdf", StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("فقط فایل با پسوند PDF قابل بارگذاری است.");
 
         await using var input = file.OpenReadStream();
         var signature = new byte[5];
-        var read = await input.ReadAsync(signature.AsMemory(0, signature.Length), cancellationToken);
+        var read = await input.ReadAsync(signature.AsMemory(), cancellationToken);
         if (read != 5 || !signature.AsSpan().SequenceEqual("%PDF-"u8))
             throw new InvalidDataException("محتوای فایل انتخاب‌شده یک PDF معتبر نیست.");
 
-        Directory.CreateDirectory(_root);
-        var storedName = Guid.NewGuid().ToString("N") + ".pdf";
-        var path = Path.Combine(_root, storedName);
         input.Position = 0;
-        try
-        {
-            await using var output = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, useAsync: true);
-            await input.CopyToAsync(output, cancellationToken);
-            return storedName;
-        }
-        catch
-        {
-            try { if (File.Exists(path)) File.Delete(path); } catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
-            throw;
-        }
-    }
-
-    public string GetPath(string storedFileName)
-    {
-        if (!Regex.IsMatch(storedFileName ?? "", "^[a-fA-F0-9]{32}\\.pdf$", RegexOptions.CultureInvariant))
-            throw new ArgumentException("شناسه فایل مستند معتبر نیست.", nameof(storedFileName));
-        return Path.Combine(_root, storedFileName);
-    }
-
-    public void Delete(string storedFileName)
-    {
-        try
-        {
-            var path = GetPath(storedFileName);
-            if (File.Exists(path)) File.Delete(path);
-        }
-        catch (IOException) { }
-        catch (UnauthorizedAccessException) { }
+        using var buffer = new MemoryStream(checked((int)file.Length));
+        await input.CopyToAsync(buffer, cancellationToken);
+        return buffer.ToArray();
     }
 }
 
@@ -81,10 +48,11 @@ public sealed class EngineeringDocumentImageStore(
         "pdftoppm";
 
     public async Task<EngineeringDocumentImageSet> CreateAsync(
-        string pdfPath, string ownerKey, string watermark, CancellationToken cancellationToken = default)
+        byte[] pdfContent, string ownerKey, string watermark, CancellationToken cancellationToken = default)
     {
-        if (!File.Exists(pdfPath))
-            throw new FileNotFoundException("فایل مستند در مخزن امن پیدا نشد.");
+        if (pdfContent is null || pdfContent.Length < 8 || pdfContent.Length > 35L * 1024 * 1024 ||
+            !pdfContent.AsSpan(0, 5).SequenceEqual("%PDF-"u8))
+            throw new InvalidDataException("محتوای PDF ذخیره‌شده معتبر نیست.");
 
         Directory.CreateDirectory(_root);
         var token = Guid.NewGuid().ToString("N");
@@ -93,6 +61,8 @@ public sealed class EngineeringDocumentImageStore(
         Directory.CreateDirectory(reportDirectory);
         try
         {
+            var stagedPdfPath = Path.Combine(reportDirectory, "source.pdf");
+            await File.WriteAllBytesAsync(stagedPdfPath, pdfContent, cancellationToken);
             var prefix = Path.Combine(reportDirectory, "render");
             var start = new ProcessStartInfo
             {
@@ -110,7 +80,7 @@ public sealed class EngineeringDocumentImageStore(
             start.ArgumentList.Add("1");
             start.ArgumentList.Add("-l");
             start.ArgumentList.Add((MaximumPages + 1).ToString(CultureInfo.InvariantCulture));
-            start.ArgumentList.Add(pdfPath);
+            start.ArgumentList.Add(stagedPdfPath);
             start.ArgumentList.Add(prefix);
 
             using var process = new Process { StartInfo = start };
@@ -130,6 +100,7 @@ public sealed class EngineeringDocumentImageStore(
                 throw new InvalidOperationException("تبدیل مستند PDF بیش از زمان مجاز طول کشید یا لغو شد.");
             }
 
+            try { File.Delete(stagedPdfPath); } catch (IOException) { }
             var errorText = await errorTask;
             _ = await outputTask;
             if (process.ExitCode != 0)

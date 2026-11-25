@@ -584,7 +584,8 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
         {
             e.ToTable("EngineeringDocumentVersions");
             e.HasKey(x => x.Id);
-            e.Property(x => x.StoredFileName).HasMaxLength(100).IsRequired();
+            e.Property(x => x.PdfContent).HasColumnType("varbinary(max)").IsRequired();
+            e.Property(x => x.Sha256).HasMaxLength(64).IsRequired();
             e.Property(x => x.OriginalFileName).HasMaxLength(260).IsRequired();
             e.Property(x => x.ContentType).HasMaxLength(100).IsRequired();
             e.Property(x => x.UploadedByName).HasMaxLength(200).IsRequired();

@@ -320,6 +320,8 @@ public sealed class EngineeringDocumentsController(
                 .Where(x => x.EngineeringDocumentId == document.Id && x.IsCurrent)
                 .ToListAsync(HttpContext.RequestAborted);
             foreach (var previous in previousVersions) previous.IsCurrent = false;
+            if (previousVersions.Count > 0)
+                await db.SaveChangesAsync(HttpContext.RequestAborted);
 
             var nextVersion = (await db.EngineeringDocumentVersions
                 .Where(x => x.EngineeringDocumentId == document.Id)

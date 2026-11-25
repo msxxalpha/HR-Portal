@@ -94,7 +94,7 @@ IF COL_LENGTH(N'dbo.EngineeringDocuments', N'HasBeenPublished') IS NULL
 IF COL_LENGTH(N'dbo.EngineeringDocuments', N'PublishDate') IS NOT NULL
    AND EXISTS (SELECT 1 FROM sys.columns
        WHERE object_id=OBJECT_ID(N'dbo.EngineeringDocuments') AND name=N'PublishDate' AND is_nullable=0)
-    ALTER TABLE [dbo].[EngineeringDocuments] ALTER COLUMN [PublishDate] date NULL;
+    EXEC sys.sp_executesql N'ALTER TABLE [dbo].[EngineeringDocuments] ALTER COLUMN [PublishDate] date NULL;';
 
 -- Existing documents that had a publication date were visible before the
 -- publication workflow was introduced. Preserve their public status/history.
@@ -107,12 +107,14 @@ IF COL_LENGTH(N'dbo.EngineeringDocumentVersions', N'PdfContent') IS NULL
 IF COL_LENGTH(N'dbo.EngineeringDocumentVersions', N'Sha256') IS NULL
     ALTER TABLE [dbo].[EngineeringDocumentVersions] ADD [Sha256] nvarchar(64) NOT NULL
         CONSTRAINT [DF_EngineeringDocumentVersions_Sha256] DEFAULT N'';
+EXEC sys.sp_executesql N'
 IF EXISTS (SELECT 1 FROM [dbo].[EngineeringDocumentVersions] WHERE [PdfContent] IS NULL)
-    THROW 51000, 'Engineering document PDF BLOB migration found legacy versions without database content. No file data was moved automatically.', 1;
+    THROW 51000, ''Engineering document PDF BLOB migration found legacy versions without database content. No file data was moved automatically.'', 1;';
+
 IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID(N'dbo.EngineeringDocumentVersions') AND name=N'PdfContent' AND is_nullable=1)
-    ALTER TABLE [dbo].[EngineeringDocumentVersions] ALTER COLUMN [PdfContent] varbinary(max) NOT NULL;
+    EXEC sys.sp_executesql N'ALTER TABLE [dbo].[EngineeringDocumentVersions] ALTER COLUMN [PdfContent] varbinary(max) NOT NULL;';
 IF COL_LENGTH(N'dbo.EngineeringDocumentVersions', N'StoredFileName') IS NOT NULL
-    ALTER TABLE [dbo].[EngineeringDocumentVersions] DROP COLUMN [StoredFileName];
+    EXEC sys.sp_executesql N'ALTER TABLE [dbo].[EngineeringDocumentVersions] DROP COLUMN [StoredFileName];'
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_EngineeringDocumentNodes_Parent_Sort' AND object_id=OBJECT_ID(N'dbo.EngineeringDocumentNodes'))
     CREATE INDEX [IX_EngineeringDocumentNodes_Parent_Sort] ON [dbo].[EngineeringDocumentNodes]([ParentId],[SortOrder],[Title]);
@@ -123,7 +125,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_EngineeringDocuments_No
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_EngineeringDocuments_Type_PublishDate' AND object_id=OBJECT_ID(N'dbo.EngineeringDocuments'))
     CREATE INDEX [IX_EngineeringDocuments_Type_PublishDate] ON [dbo].[EngineeringDocuments]([TypeId],[PublishDate]);
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_EngineeringDocuments_PublishState' AND object_id=OBJECT_ID(N'dbo.EngineeringDocuments'))
-    CREATE INDEX [IX_EngineeringDocuments_PublishState] ON [dbo].[EngineeringDocuments]([IsPublished],[IsActive],[UpdatedAtUtc]);
+    EXEC sys.sp_executesql N'CREATE INDEX [IX_EngineeringDocuments_PublishState] ON [dbo].[EngineeringDocuments]([IsPublished],[IsActive],[UpdatedAtUtc]);';
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'UX_EngineeringDocumentVersions_Document_Version' AND object_id=OBJECT_ID(N'dbo.EngineeringDocumentVersions'))
     CREATE UNIQUE INDEX [UX_EngineeringDocumentVersions_Document_Version] ON [dbo].[EngineeringDocumentVersions]([EngineeringDocumentId],[VersionNumber]);
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'UX_EngineeringDocumentVersions_Current' AND object_id=OBJECT_ID(N'dbo.EngineeringDocumentVersions'))

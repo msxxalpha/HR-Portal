@@ -34,11 +34,13 @@ public sealed class EngineeringDocument
     public string Title { get; set; } = "";
     public string DocumentNumber { get; set; } = "";
     public string RevisionLabel { get; set; } = "";
-    public DateTime PublishDate { get; set; }
+    public DateTime? PublishDate { get; set; }
     public DateTime? EffectiveDate { get; set; }
     public string Keywords { get; set; } = "";
     public string Description { get; set; } = "";
     public bool IsActive { get; set; } = true;
+    public bool IsPublished { get; set; }
+    public bool HasBeenPublished { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
     public string CreatedByName { get; set; } = "";
@@ -94,6 +96,32 @@ public sealed class EngineeringDocumentListViewModel
     public string ToDate { get; set; } = "";
     public string Sort { get; set; } = "published";
     public bool Descending { get; set; } = true;
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public int TotalCount { get; set; }
+    public int PageCount { get; set; }
+}
+
+public sealed class EngineeringDocumentPublishItem
+{
+    public int Id { get; set; }
+    public string Title { get; set; } = "";
+    public string TypeTitle { get; set; } = "";
+    public string NodeTitle { get; set; } = "";
+    public string DocumentNumber { get; set; } = "";
+    public string RevisionLabel { get; set; } = "";
+    public int VersionNumber { get; set; }
+    public string OriginalFileName { get; set; } = "";
+    public DateTime UploadedAtUtc { get; set; }
+    public string UploadedByName { get; set; } = "";
+    public string Description { get; set; } = "";
+    public string Keywords { get; set; } = "";
+}
+
+public sealed class EngineeringDocumentPublishViewModel
+{
+    public List<EngineeringDocumentPublishItem> Documents { get; set; } = [];
+    public string Search { get; set; } = "";
     public int Page { get; set; }
     public int PageSize { get; set; }
     public int TotalCount { get; set; }

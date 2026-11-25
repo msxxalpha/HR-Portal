@@ -45,11 +45,13 @@ BEGIN
         [Title] nvarchar(250) NOT NULL,
         [DocumentNumber] nvarchar(100) NOT NULL CONSTRAINT [DF_EngineeringDocuments_DocumentNumber] DEFAULT N'',
         [RevisionLabel] nvarchar(50) NOT NULL CONSTRAINT [DF_EngineeringDocuments_RevisionLabel] DEFAULT N'',
-        [PublishDate] date NOT NULL,
+        [PublishDate] date NULL,
         [EffectiveDate] date NULL,
         [Keywords] nvarchar(500) NOT NULL CONSTRAINT [DF_EngineeringDocuments_Keywords] DEFAULT N'',
         [Description] nvarchar(2000) NOT NULL CONSTRAINT [DF_EngineeringDocuments_Description] DEFAULT N'',
         [IsActive] bit NOT NULL CONSTRAINT [DF_EngineeringDocuments_IsActive] DEFAULT (1),
+        [IsPublished] bit NOT NULL CONSTRAINT [DF_EngineeringDocuments_IsPublished] DEFAULT (0),
+        [HasBeenPublished] bit NOT NULL CONSTRAINT [DF_EngineeringDocuments_HasBeenPublished] DEFAULT (0),
         [CreatedAtUtc] datetime2 NOT NULL CONSTRAINT [DF_EngineeringDocuments_CreatedAtUtc] DEFAULT SYSUTCDATETIME(),
         [UpdatedAtUtc] datetime2 NOT NULL CONSTRAINT [DF_EngineeringDocuments_UpdatedAtUtc] DEFAULT SYSUTCDATETIME(),
         [CreatedByName] nvarchar(200) NOT NULL CONSTRAINT [DF_EngineeringDocuments_CreatedByName] DEFAULT N'',
@@ -83,6 +85,23 @@ BEGIN
     );
 END;
 
+IF COL_LENGTH(N'dbo.EngineeringDocuments', N'IsPublished') IS NULL
+    ALTER TABLE [dbo].[EngineeringDocuments] ADD [IsPublished] bit NOT NULL
+        CONSTRAINT [DF_EngineeringDocuments_IsPublished] DEFAULT (0);
+IF COL_LENGTH(N'dbo.EngineeringDocuments', N'HasBeenPublished') IS NULL
+    ALTER TABLE [dbo].[EngineeringDocuments] ADD [HasBeenPublished] bit NOT NULL
+        CONSTRAINT [DF_EngineeringDocuments_HasBeenPublished] DEFAULT (0);
+IF COL_LENGTH(N'dbo.EngineeringDocuments', N'PublishDate') IS NOT NULL
+   AND EXISTS (SELECT 1 FROM sys.columns
+       WHERE object_id=OBJECT_ID(N'dbo.EngineeringDocuments') AND name=N'PublishDate' AND is_nullable=0)
+    ALTER TABLE [dbo].[EngineeringDocuments] ALTER COLUMN [PublishDate] date NULL;
+
+-- Existing documents that had a publication date were visible before the
+-- publication workflow was introduced. Preserve their public status/history.
+UPDATE [dbo].[EngineeringDocuments]
+SET [IsPublished]=1, [HasBeenPublished]=1
+WHERE [PublishDate] IS NOT NULL AND ([IsPublished]=0 OR [HasBeenPublished]=0);
+
 IF COL_LENGTH(N'dbo.EngineeringDocumentVersions', N'PdfContent') IS NULL
     ALTER TABLE [dbo].[EngineeringDocumentVersions] ADD [PdfContent] varbinary(max) NULL;
 IF COL_LENGTH(N'dbo.EngineeringDocumentVersions', N'Sha256') IS NULL
@@ -103,6 +122,8 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_EngineeringDocuments_No
     CREATE INDEX [IX_EngineeringDocuments_Node_Active] ON [dbo].[EngineeringDocuments]([NodeId],[IsActive],[PublishDate]);
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_EngineeringDocuments_Type_PublishDate' AND object_id=OBJECT_ID(N'dbo.EngineeringDocuments'))
     CREATE INDEX [IX_EngineeringDocuments_Type_PublishDate] ON [dbo].[EngineeringDocuments]([TypeId],[PublishDate]);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_EngineeringDocuments_PublishState' AND object_id=OBJECT_ID(N'dbo.EngineeringDocuments'))
+    CREATE INDEX [IX_EngineeringDocuments_PublishState] ON [dbo].[EngineeringDocuments]([IsPublished],[IsActive],[UpdatedAtUtc]);
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'UX_EngineeringDocumentVersions_Document_Version' AND object_id=OBJECT_ID(N'dbo.EngineeringDocumentVersions'))
     CREATE UNIQUE INDEX [UX_EngineeringDocumentVersions_Document_Version] ON [dbo].[EngineeringDocumentVersions]([EngineeringDocumentId],[VersionNumber]);
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'UX_EngineeringDocumentVersions_Current' AND object_id=OBJECT_ID(N'dbo.EngineeringDocumentVersions'))

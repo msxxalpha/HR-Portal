@@ -64,6 +64,8 @@ public sealed class EngineeringDocumentsController(
                 x.PublishDate,
                 x.EffectiveDate,
                 x.IsActive,
+                x.IsPublished,
+                x.HasBeenPublished,
                 VersionNumber = x.Versions.Where(v => v.IsCurrent).Select(v => (int?)v.VersionNumber).FirstOrDefault() ?? 0,
                 UploadedAtUtc = x.Versions.Where(v => v.IsCurrent).Select(v => (DateTime?)v.UploadedAtUtc).FirstOrDefault(),
                 UploadedByName = x.Versions.Where(v => v.IsCurrent).Select(v => v.UploadedByName).FirstOrDefault() ?? ""
@@ -73,9 +75,9 @@ public sealed class EngineeringDocumentsController(
         return Json(rows.Select(x => new
         {
             x.Id, x.Title, x.TypeId, x.TypeTitle, x.DocumentNumber, x.RevisionLabel, x.Keywords, x.Description,
-            publishDate = PersianDateService.Format(x.PublishDate),
+            publishDate = x.PublishDate.HasValue ? PersianDateService.Format(x.PublishDate.Value) : "—",
             effectiveDate = x.EffectiveDate.HasValue ? PersianDateService.Format(x.EffectiveDate.Value) : "",
-            x.IsActive, x.VersionNumber,
+            x.IsActive, x.IsPublished, x.HasBeenPublished, x.VersionNumber,
             uploadedAt = x.UploadedAtUtc.HasValue ? PersianDateService.FormatDateTime(x.UploadedAtUtc.Value.ToLocalTime()) : "—",
             x.UploadedByName
         }));
@@ -136,16 +138,34 @@ public sealed class EngineeringDocumentsController(
         if (node is null) return Json(new { success = false, message = "گره پیدا نشد." });
         if (await db.EngineeringDocumentNodes.AnyAsync(x => x.ParentId == id))
             return Json(new { success = false, message = "ابتدا زیرگره‌های این گره را جابجا یا حذف کنید." });
-        if (await db.EngineeringDocuments.AnyAsync(x => x.NodeId == id))
-            return Json(new { success = false, message = "این گره دارای مستند یا سابقه نسخه است و قابل حذف نیست." });
 
+        var documents = await db.EngineeringDocuments
+            .Where(x => x.NodeId == id)
+            .ToListAsync();
+        var isAdmin = User.HasClaim("IsAdmin", "1");
+        if (documents.Count > 0 && !isAdmin)
+            return Json(new { success = false, message = "حذف گره دارای مستند فقط برای مدیر سیستم مجاز است." });
+
+        var documentIds = documents.Select(x => x.Id).ToArray();
+        var versions = documentIds.Length == 0
+            ? []
+            : await db.EngineeringDocumentVersions
+                .Where(x => documentIds.Contains(x.EngineeringDocumentId))
+                .ToListAsync();
+
+        await using var transaction = await db.Database.BeginTransactionAsync(HttpContext.RequestAborted);
+        db.EngineeringDocumentVersions.RemoveRange(versions);
+        db.EngineeringDocuments.RemoveRange(documents);
         db.EngineeringDocumentNodes.Remove(node);
-        await db.SaveChangesAsync();
-        await audit.WriteAsync("حذف گره آرشیو مستندات مهندسی", nameof(EngineeringDocumentNode), id.ToString(), node.Title);
+        await db.SaveChangesAsync(HttpContext.RequestAborted);
+        await transaction.CommitAsync(HttpContext.RequestAborted);
+
+        await audit.WriteAsync("حذف گره آرشیو مستندات مهندسی", nameof(EngineeringDocumentNode), id.ToString(),
+            $"گره: {node.Title} | تعداد مستند حذف‌شده: {documents.Count} | تعداد نسخه و فایل PDF حذف‌شده: {versions.Count}");
         return Json(new { success = true });
     }
 
-    [HttpPost, Authorize(Policy = "EngineeringDocuments.Manage"), ValidateAntiForgeryToken]
+        [HttpPost, Authorize(Policy = "EngineeringDocuments.Manage"), ValidateAntiForgeryToken]
     public async Task<IActionResult> MoveNode(int id, int? parentId, int position)
     {
         var node = await db.EngineeringDocumentNodes.FindAsync(id);
@@ -238,15 +258,14 @@ public sealed class EngineeringDocumentsController(
 
     [HttpPost, Authorize(Policy = "EngineeringDocuments.Manage"), ValidateAntiForgeryToken, RequestSizeLimit(40_000_000)]
     public async Task<IActionResult> Upload(
-        int nodeId, int documentId, int typeId, string title, string publishDate,
+        int nodeId, int documentId, int typeId, string title,
         string? effectiveDate, string? documentNumber, string? revisionLabel,
         string? keywords, string? description, string? changeNote, IFormFile? file)
     {
         title = (title ?? "").Trim();
         if (title.Length is < 1 or > 250)
             return UploadError(nodeId, "عنوان مستند الزامی و حداکثر ۲۵۰ نویسه است.");
-        if (!PersianDateService.TryParse(publishDate, out var parsedPublishDate))
-            return UploadError(nodeId, "تاریخ انتشار را با تقویم شمسی وارد کنید.");
+
         DateTime? parsedEffectiveDate = null;
         if (!string.IsNullOrWhiteSpace(effectiveDate))
         {
@@ -311,7 +330,8 @@ public sealed class EngineeringDocumentsController(
             document.Title = title;
             document.DocumentNumber = documentNumber;
             document.RevisionLabel = revisionLabel;
-            document.PublishDate = parsedPublishDate;
+            document.PublishDate = null;
+            document.IsPublished = false;
             document.EffectiveDate = parsedEffectiveDate;
             document.Keywords = keywords;
             document.Description = description;
@@ -353,12 +373,12 @@ public sealed class EngineeringDocumentsController(
             await db.SaveChangesAsync(HttpContext.RequestAborted);
             await transaction.CommitAsync(HttpContext.RequestAborted);
 
-            await audit.WriteAsync(documentId > 0 ? "بارگذاری نسخه جدید مستند مهندسی" : "ثبت مستند مهندسی",
-                nameof(EngineeringDocument), document.Id.ToString(),
-                "عنوان: " + title + " | نسخه: " + nextVersion + " | فایل: " + originalName);
-            TempData["Success"] = documentId > 0
-                ? "نسخه جدید مستند ثبت شد و نسخه قبلی در سوابق باقی ماند."
-                : "مستند مهندسی با موفقیت ثبت شد.";
+            var action = nextVersion > 1 ? "بارگذاری نسخه جدید مستند مهندسی" : "بارگذاری پیش‌نویس مستند مهندسی";
+            await audit.WriteAsync(action, nameof(EngineeringDocument), document.Id.ToString(),
+                $"عنوان: {title} | نسخه جاری: {nextVersion} | فایل: {originalName} | نسخه‌های قبلی غیرفعال‌شده: {previousVersions.Count}");
+            TempData["Success"] = nextVersion > 1
+                ? "نسخه جدید ثبت شد؛ نسخه قبلی غیرفعال و مستند تا انتشار نسخه جدید از فهرست مشاهده خارج شد."
+                : "مستند با وضعیت «انتشار نیافته» ثبت شد و پس از انتشار در فهرست مشاهده قرار می‌گیرد.";
             return RedirectToAction(nameof(Manage), new { nodeId });
         }
         catch (Exception exception)
@@ -369,6 +389,97 @@ public sealed class EngineeringDocumentsController(
     }
 
     [HttpPost, Authorize(Policy = "EngineeringDocuments.Manage"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteDocument(int id, int nodeId)
+    {
+        var document = await db.EngineeringDocuments
+            .FirstOrDefaultAsync(x => x.Id == id && x.NodeId == nodeId);
+        if (document is null) return NotFound();
+        if (document.IsPublished || document.HasBeenPublished)
+        {
+            TempData["Error"] = "مستندی که قبلاً منتشر شده است قابل حذف نیست؛ فقط می‌توانید آن را غیرفعال یا نسخه جدید بارگذاری کنید.";
+            return RedirectToAction(nameof(Manage), new { nodeId });
+        }
+
+        var versions = await db.EngineeringDocumentVersions
+            .Where(x => x.EngineeringDocumentId == id)
+            .ToListAsync();
+        await using var transaction = await db.Database.BeginTransactionAsync(HttpContext.RequestAborted);
+        db.EngineeringDocumentVersions.RemoveRange(versions);
+        db.EngineeringDocuments.Remove(document);
+        await db.SaveChangesAsync(HttpContext.RequestAborted);
+        await transaction.CommitAsync(HttpContext.RequestAborted);
+
+        await audit.WriteAsync("حذف پیش‌نویس مستند مهندسی", nameof(EngineeringDocument), id.ToString(),
+            $"عنوان: {document.Title} | تعداد نسخه‌ها و فایل‌های حذف‌شده: {versions.Count}");
+        TempData["Success"] = "پیش‌نویس و تمام فایل‌های نسخه‌های آن حذف شد.";
+        return RedirectToAction(nameof(Manage), new { nodeId });
+    }
+
+    [HttpPost, Authorize(Policy = "EngineeringDocuments.Manage"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> Publish(int id)
+    {
+        var document = await db.EngineeringDocuments
+            .Include(x => x.Versions)
+            .FirstOrDefaultAsync(x => x.Id == id);
+        if (document is null) return NotFound();
+        if (document.IsPublished && document.IsActive)
+        {
+            TempData["Error"] = "این مستند هم‌اکنون منتشر و فعال است.";
+            return RedirectToAction(nameof(PublishList));
+        }
+        if (!document.Versions.Any(x => x.IsCurrent))
+        {
+            TempData["Error"] = "برای انتشار، نسخه جاری و فایل معتبر لازم است.";
+            return RedirectToAction(nameof(PublishList));
+        }
+        if (!await db.EngineeringDocumentNodes.AnyAsync(x => x.Id == document.NodeId && x.IsActive && !x.Children.Any()))
+        {
+            TempData["Error"] = "گره آرشیو غیرفعال شده یا دیگر گره انتهایی نیست؛ انتشار انجام نشد.";
+            return RedirectToAction(nameof(PublishList));
+        }
+
+        var publishDate = GetTehranToday();
+        await using var transaction = await db.Database.BeginTransactionAsync(HttpContext.RequestAborted);
+        document.IsActive = true;
+        document.IsPublished = true;
+        document.HasBeenPublished = true;
+        document.PublishDate = publishDate;
+        document.UpdatedAtUtc = DateTime.UtcNow;
+        await db.SaveChangesAsync(HttpContext.RequestAborted);
+        await transaction.CommitAsync(HttpContext.RequestAborted);
+
+        await audit.WriteAsync("انتشار مستند مهندسی", nameof(EngineeringDocument), id.ToString(),
+            $"عنوان: {document.Title} | شماره نسخه: {document.Versions.Where(x => x.IsCurrent).Select(x => x.VersionNumber).FirstOrDefault()} | تاریخ انتشار: {PersianDateService.Format(publishDate)}");
+        TempData["Success"] = $"مستند «{document.Title}» با تاریخ انتشار {PersianDateService.Format(publishDate)} منتشر شد.";
+        return RedirectToAction(nameof(PublishList));
+    }
+
+    [HttpPost, Authorize(Policy = "EngineeringDocuments.Manage"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeactivateDocument(int id, int nodeId)
+    {
+        var document = await db.EngineeringDocuments.FirstOrDefaultAsync(x => x.Id == id && x.NodeId == nodeId);
+        if (document is null) return NotFound();
+        if (!document.IsPublished)
+        {
+            TempData["Error"] = "فقط مستند منتشرشده قابل غیرفعال‌سازی است.";
+            return RedirectToAction(nameof(Manage), new { nodeId });
+        }
+        if (!document.IsActive)
+        {
+            TempData["Error"] = "این مستند قبلاً غیرفعال شده است.";
+            return RedirectToAction(nameof(Manage), new { nodeId });
+        }
+
+        document.IsActive = false;
+        document.UpdatedAtUtc = DateTime.UtcNow;
+        await db.SaveChangesAsync(HttpContext.RequestAborted);
+        await audit.WriteAsync("غیرفعال‌سازی مستند مهندسی", nameof(EngineeringDocument), id.ToString(),
+            $"عنوان: {document.Title} | نسخه منتشرشده: {document.Versions?.FirstOrDefault(x => x.IsCurrent)?.VersionNumber}");
+        TempData["Success"] = "مستند غیرفعال شد و از صفحه مشاهده خارج گردید؛ سوابق نسخه‌ها حفظ شدند.";
+        return RedirectToAction(nameof(Manage), new { nodeId });
+    }
+
+        [HttpPost, Authorize(Policy = "EngineeringDocuments.Manage"), ValidateAntiForgeryToken]
     public async Task<IActionResult> ToggleDocument(int id, int nodeId)
     {
         var document = await db.EngineeringDocuments.FirstOrDefaultAsync(x => x.Id == id && x.NodeId == nodeId);
@@ -382,13 +493,68 @@ public sealed class EngineeringDocumentsController(
         return RedirectToAction(nameof(Manage), new { nodeId });
     }
 
+    [HttpGet, Authorize(Policy = "EngineeringDocuments.Manage")]
+    public async Task<IActionResult> PublishList(string? q, int page = 1, int pageSize = 20)
+    {
+        var query = db.EngineeringDocuments.AsNoTracking()
+            .Where(x => !x.IsPublished && x.IsActive && x.Node.IsActive &&
+                !x.Node.Children.Any() && x.Versions.Any(v => v.IsCurrent));
+
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            var term = q.Trim();
+            query = query.Where(x =>
+                x.Title.Contains(term) || x.DocumentNumber.Contains(term) ||
+                x.RevisionLabel.Contains(term) || x.Keywords.Contains(term) ||
+                x.Description.Contains(term) || x.Node.Title.Contains(term) ||
+                x.Type.Title.Contains(term) ||
+                x.Versions.Any(v => v.IsCurrent &&
+                    (v.OriginalFileName.Contains(term) || v.UploadedByName.Contains(term))));
+        }
+
+        var total = await query.CountAsync();
+        pageSize = new[] { 10, 20, 50, 100 }.Contains(pageSize) ? pageSize : 20;
+        var pageCount = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+        page = Math.Clamp(page, 1, pageCount);
+        var documents = await query
+            .OrderBy(x => x.UpdatedAtUtc).ThenBy(x => x.Title)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(x => new EngineeringDocumentPublishItem
+            {
+                Id = x.Id,
+                Title = x.Title,
+                TypeTitle = x.Type.Title,
+                NodeTitle = x.Node.Title,
+                DocumentNumber = x.DocumentNumber,
+                RevisionLabel = x.RevisionLabel,
+                VersionNumber = x.Versions.Where(v => v.IsCurrent).Select(v => v.VersionNumber).FirstOrDefault(),
+                OriginalFileName = x.Versions.Where(v => v.IsCurrent).Select(v => v.OriginalFileName).FirstOrDefault() ?? "",
+                UploadedAtUtc = x.Versions.Where(v => v.IsCurrent).Select(v => (DateTime?)v.UploadedAtUtc).FirstOrDefault() ?? x.UpdatedAtUtc,
+                UploadedByName = x.Versions.Where(v => v.IsCurrent).Select(v => v.UploadedByName).FirstOrDefault() ?? "",
+                Description = x.Description,
+                Keywords = x.Keywords
+            })
+            .ToListAsync();
+
+        return View(new EngineeringDocumentPublishViewModel
+        {
+            Documents = documents,
+            Search = q?.Trim() ?? "",
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = total,
+            PageCount = pageCount
+        });
+    }
+
     [HttpGet, Authorize(Policy = "EngineeringDocuments.View")]
     public async Task<IActionResult> Index(
         string? q, int? nodeId, int? typeId, string? fromDate, string? toDate,
         string sort = "published", bool descending = true, int page = 1, int pageSize = 20)
     {
         var query = db.EngineeringDocuments.AsNoTracking()
-            .Where(x => x.IsActive && x.Node.IsActive && !x.Node.Children.Any() && x.Versions.Any(v => v.IsCurrent));
+            .Where(x => x.IsActive && x.IsPublished && x.PublishDate.HasValue &&
+                x.Node.IsActive && !x.Node.Children.Any() && x.Versions.Any(v => v.IsCurrent));
 
         if (!string.IsNullOrWhiteSpace(q))
         {
@@ -433,7 +599,7 @@ public sealed class EngineeringDocumentsController(
                 NodeTitle = x.Node.Title,
                 DocumentNumber = x.DocumentNumber,
                 RevisionLabel = x.RevisionLabel,
-                PublishDate = x.PublishDate,
+                PublishDate = x.PublishDate!.Value,
                 EffectiveDate = x.EffectiveDate,
                 Keywords = x.Keywords,
                 Description = x.Description,
@@ -471,7 +637,7 @@ public sealed class EngineeringDocumentsController(
     public async Task<IActionResult> ViewDocument(int id)
     {
         var document = await db.EngineeringDocuments.AsNoTracking()
-            .Where(x => x.Id == id && x.IsActive && x.Node.IsActive &&
+            .Where(x => x.Id == id && x.IsActive && x.IsPublished && x.PublishDate.HasValue && x.Node.IsActive &&
                 !x.Node.Children.Any() && x.Versions.Any(v => v.IsCurrent))
             .Select(x => new
             {
@@ -538,6 +704,20 @@ public sealed class EngineeringDocumentsController(
     {
         TempData["Error"] = message;
         return RedirectToAction(nameof(Manage), new { nodeId });
+    }
+
+    private static DateTime GetTehranToday()
+    {
+        TimeZoneInfo zone;
+        try
+        {
+            zone = TimeZoneInfo.FindSystemTimeZoneById("Asia/Tehran");
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            zone = TimeZoneInfo.FindSystemTimeZoneById("Iran Standard Time");
+        }
+        return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, zone).Date;
     }
 
     private string GetCurrentUserName() =>

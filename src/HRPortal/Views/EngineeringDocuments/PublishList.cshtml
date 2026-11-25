@@ -91,8 +91,7 @@
                         <small class="engineering-description">@PersianDateService.FormatDateTime(doc.UploadedAtUtc.ToLocalTime())</small>
                     </td>
                     <td>
-                        <form method="post" action="/EngineeringDocuments/Publish" class="inline-form"
-                              onsubmit="return confirm('مستند «@doc.Title» منتشر شود؟ پس از انتشار، تاریخ روز به‌صورت خودکار ثبت و نسخه برای کاربران قابل مشاهده می‌شود.');">
+                        <form method="post" action="/EngineeringDocuments/Publish" class="inline-form" data-publish-title="@doc.Title">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="id" value="@doc.Id" />
                             <button class="btn btn-main btn-sm" type="submit">انتشار مستند</button>
@@ -125,11 +124,21 @@
 (() => {
     const form = document.getElementById("publishSearchForm");
     const search = document.getElementById("publishSearch");
-    if (!form || !search) return;
-    let handle = 0;
-    search.addEventListener("input", () => {
-        window.clearTimeout(handle);
-        handle = window.setTimeout(() => form.requestSubmit(), 400);
+    if (form && search) {
+        let handle = 0;
+        search.addEventListener("input", () => {
+            window.clearTimeout(handle);
+            handle = window.setTimeout(() => form.requestSubmit(), 400);
+        });
+    }
+
+    document.querySelectorAll("form[data-publish-title]").forEach(publishForm => {
+        publishForm.addEventListener("submit", event => {
+            const title = publishForm.dataset.publishTitle || "";
+            if (!window.confirm("مستند «" + title + "» منتشر شود؟ تاریخ روز به‌صورت خودکار ثبت و نسخه برای کاربران قابل مشاهده می‌شود.")) {
+                event.preventDefault();
+            }
+        });
     });
 })();
 </script>

@@ -422,9 +422,14 @@ public sealed class EngineeringDocumentsController(
             .Include(x => x.Versions)
             .FirstOrDefaultAsync(x => x.Id == id);
         if (document is null) return NotFound();
-        if (document.IsPublished && document.IsActive)
+        if (document.IsPublished)
         {
-            TempData["Error"] = "این مستند هم‌اکنون منتشر و فعال است.";
+            TempData["Error"] = "این سند قبلاً منتشر شده است؛ برای انتشار مجدد ابتدا باید نسخه جدیدی بارگذاری شود.";
+            return RedirectToAction(nameof(PublishList));
+        }
+        if (!document.IsActive)
+        {
+            TempData["Error"] = "سند غیرفعال قابل انتشار نیست؛ ابتدا نسخه جدید آن را بارگذاری کنید.";
             return RedirectToAction(nameof(PublishList));
         }
         if (!document.Versions.Any(x => x.IsCurrent))
@@ -440,7 +445,6 @@ public sealed class EngineeringDocumentsController(
 
         var publishDate = GetTehranToday();
         await using var transaction = await db.Database.BeginTransactionAsync(HttpContext.RequestAborted);
-        document.IsActive = true;
         document.IsPublished = true;
         document.HasBeenPublished = true;
         document.PublishDate = publishDate;

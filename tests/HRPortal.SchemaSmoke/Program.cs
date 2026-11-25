@@ -249,6 +249,7 @@ static async Task VerifyEngineeringDocumentArchiveAsync(HRPortalDbContext db)
     var previousVersion = await db.EngineeringDocumentVersions
         .SingleAsync(x => x.EngineeringDocumentId == document.Id && x.VersionNumber == 1);
     previousVersion.IsCurrent = false;
+    await db.SaveChangesAsync();
     var currentVersion = await db.EngineeringDocumentVersions
         .SingleAsync(x => x.EngineeringDocumentId == document.Id && x.VersionNumber == 2);
     currentVersion.IsCurrent = true;

@@ -98,9 +98,9 @@ IF COL_LENGTH(N'dbo.EngineeringDocuments', N'PublishDate') IS NOT NULL
 
 -- Existing documents that had a publication date were visible before the
 -- publication workflow was introduced. Preserve their public status/history.
-UPDATE [dbo].[EngineeringDocuments]
-SET [IsPublished]=1, [HasBeenPublished]=1
-WHERE [PublishDate] IS NOT NULL AND ([IsPublished]=0 OR [HasBeenPublished]=0);
+EXEC sys.sp_executesql N'UPDATE [dbo].[EngineeringDocuments]
+    SET [IsPublished]=1, [HasBeenPublished]=1
+    WHERE [PublishDate] IS NOT NULL AND ([IsPublished]=0 OR [HasBeenPublished]=0);';
 
 IF COL_LENGTH(N'dbo.EngineeringDocumentVersions', N'PdfContent') IS NULL
     ALTER TABLE [dbo].[EngineeringDocumentVersions] ADD [PdfContent] varbinary(max) NULL;

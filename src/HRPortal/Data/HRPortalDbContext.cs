@@ -575,6 +575,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
             e.Property(x => x.CreatedByPersonnelNumber).HasMaxLength(50).IsRequired();
             e.HasIndex(x => new { x.NodeId, x.IsActive, x.PublishDate }).HasDatabaseName("IX_EngineeringDocuments_Node_Active");
             e.HasIndex(x => new { x.TypeId, x.PublishDate }).HasDatabaseName("IX_EngineeringDocuments_Type_PublishDate");
+            e.HasIndex(x => new { x.IsPublished, x.IsActive, x.UpdatedAtUtc }).HasDatabaseName("IX_EngineeringDocuments_PublishState");
             e.HasOne(x => x.Node).WithMany(x => x.Documents).HasForeignKey(x => x.NodeId)
                 .OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Type).WithMany(x => x.Documents).HasForeignKey(x => x.TypeId)

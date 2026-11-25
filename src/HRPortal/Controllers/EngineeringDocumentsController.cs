@@ -147,7 +147,7 @@ public sealed class EngineeringDocumentsController(
             return Json(new { success = false, message = "حذف گره دارای مستند فقط برای مدیر سیستم مجاز است." });
 
         var documentIds = documents.Select(x => x.Id).ToArray();
-        var versions = documentIds.Length == 0
+        List<EngineeringDocumentVersion> versions = documentIds.Length == 0
             ? []
             : await db.EngineeringDocumentVersions
                 .Where(x => documentIds.Contains(x.EngineeringDocumentId))
@@ -479,21 +479,7 @@ public sealed class EngineeringDocumentsController(
         return RedirectToAction(nameof(Manage), new { nodeId });
     }
 
-        [HttpPost, Authorize(Policy = "EngineeringDocuments.Manage"), ValidateAntiForgeryToken]
-    public async Task<IActionResult> ToggleDocument(int id, int nodeId)
-    {
-        var document = await db.EngineeringDocuments.FirstOrDefaultAsync(x => x.Id == id && x.NodeId == nodeId);
-        if (document is null) return NotFound();
-        document.IsActive = !document.IsActive;
-        document.UpdatedAtUtc = DateTime.UtcNow;
-        await db.SaveChangesAsync();
-        await audit.WriteAsync(document.IsActive ? "فعال‌سازی مستند مهندسی" : "غیرفعال‌سازی مستند مهندسی",
-            nameof(EngineeringDocument), id.ToString(), document.Title);
-        TempData["Success"] = document.IsActive ? "مستند فعال شد." : "مستند از فهرست کاربران خارج شد؛ سوابق نسخه‌ها حفظ شده‌اند.";
-        return RedirectToAction(nameof(Manage), new { nodeId });
-    }
-
-    [HttpGet, Authorize(Policy = "EngineeringDocuments.Manage")]
+        [HttpGet, Authorize(Policy = "EngineeringDocuments.Manage")]
     public async Task<IActionResult> PublishList(string? q, int page = 1, int pageSize = 20)
     {
         var query = db.EngineeringDocuments.AsNoTracking()

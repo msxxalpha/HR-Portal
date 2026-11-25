@@ -55,6 +55,44 @@ foreach (var fixture in new[] { "HRPortal_SchemaLegacy_Test", "HRPortal_SchemaPa
             // The engineering-document archive schema must also upgrade old databases
             // and remain safe to execute on every subsequent application startup.
             await EngineeringDocumentSchemaInitializer.InitializeAsync(db);
+
+            // Insert a document using the legacy publication shape after columns have
+            // been added but before the repeatable migration/backfill pass.
+            var legacyNode = new EngineeringDocumentNode { Title = "گره مستندات قدیمی", SortOrder = 10 };
+            db.EngineeringDocumentNodes.Add(legacyNode);
+            var legacyDocument = new EngineeringDocument
+            {
+                Node = legacyNode,
+                TypeId = await db.EngineeringDocumentTypes.Where(x => x.Title == "نقشه مهندسی")
+                    .Select(x => x.Id).FirstAsync(),
+                Title = "سند قدیمی منتشرشده",
+                DocumentNumber = "DWG-OLD-001",
+                RevisionLabel = "A",
+                PublishDate = new DateTime(2026, 11, 25),
+                IsActive = true,
+                Keywords = "مهاجرت",
+                Description = "سند قدیمی برای آزمون backfill انتشار",
+                CreatedByName = "آزمون CI",
+                CreatedByPersonnelNumber = "TEST-OLD"
+            };
+            db.EngineeringDocuments.Add(legacyDocument);
+            await db.SaveChangesAsync();
+            db.EngineeringDocumentVersions.Add(new EngineeringDocumentVersion
+            {
+                EngineeringDocumentId = legacyDocument.Id,
+                VersionNumber = 1,
+                PdfContent = "%PDF-1.4\\n% legacy document\\n"u8.ToArray(),
+                Sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData("%PDF-1.4\\n% legacy document\\n"u8.ToArray())),
+                OriginalFileName = "legacy.pdf",
+                ContentType = "application/pdf",
+                FileSize = 256,
+                IsCurrent = true,
+                UploadedByName = "آزمون CI",
+                UploadedByPersonnelNumber = "TEST-OLD",
+                ChangeNote = "نسخه قدیمی"
+            });
+            await db.SaveChangesAsync();
+
             await EngineeringDocumentSchemaInitializer.InitializeAsync(db);
             await VerifyEngineeringDocumentArchiveAsync(db);
             var periods = await db.MonthlyPerformancePeriods.AsNoTracking().ToListAsync();
@@ -145,7 +183,15 @@ static async Task VerifyEngineeringDocumentArchiveAsync(HRPortalDbContext db)
     Check(types.Count == 6 && types.Any(x => x.Title == "نقشه مهندسی"),
         "Engineering-document types were not seeded or the initializer was not repeatable.");
 
-    var root = new EngineeringDocumentNode { Title = "آزمون آرشیو", SortOrder = 10 };
+    var legacy = await db.EngineeringDocuments.AsNoTracking()
+        .Include(x => x.Versions)
+        .SingleAsync(x => x.Title == "سند قدیمی منتشرشده");
+    Check(legacy.IsPublished && legacy.HasBeenPublished && legacy.PublishDate == new DateTime(2026, 11, 25) &&
+          legacy.Versions.Count == 1 && legacy.Versions.Single().IsCurrent &&
+          legacy.Versions.Single().PdfContent.Length > 8,
+        "Legacy published documents and their database PDF files must remain published after schema upgrade.");
+
+    var root = new EngineeringDocumentNode { Title = "آزمون آرشیو", SortOrder = 20 };
     var leaf = new EngineeringDocumentNode { Title = "نقشه‌های مونتاژ", Parent = root, SortOrder = 10 };
     db.EngineeringDocumentNodes.AddRange(root, leaf);
     await db.SaveChangesAsync();
@@ -157,7 +203,10 @@ static async Task VerifyEngineeringDocumentArchiveAsync(HRPortalDbContext db)
         Title = "نقشه تستی مجموعه",
         DocumentNumber = "DWG-TEST-001",
         RevisionLabel = "A",
-        PublishDate = new DateTime(2026, 11, 25),
+        PublishDate = null,
+        IsActive = true,
+        IsPublished = false,
+        HasBeenPublished = false,
         EffectiveDate = new DateTime(2026, 11, 26),
         Keywords = "آزمون، مجموعه",
         Description = "مستند آزمایشی برای اعتبارسنجی ساختار پایگاه داده",
@@ -171,8 +220,8 @@ static async Task VerifyEngineeringDocumentArchiveAsync(HRPortalDbContext db)
     {
         EngineeringDocumentId = document.Id,
         VersionNumber = 1,
-        PdfContent = "%PDF-1.4\n% test document\n"u8.ToArray(),
-        Sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData("%PDF-1.4\n% test document\n"u8.ToArray())),
+        PdfContent = "%PDF-1.4\\n% test document\\n"u8.ToArray(),
+        Sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData("%PDF-1.4\\n% test document\\n"u8.ToArray())),
         OriginalFileName = "assembly-a.pdf",
         ContentType = "application/pdf",
         FileSize = 1024,
@@ -181,35 +230,75 @@ static async Task VerifyEngineeringDocumentArchiveAsync(HRPortalDbContext db)
         UploadedByPersonnelNumber = "TEST-001",
         ChangeNote = "نسخه اولیه"
     });
-    await db.SaveChangesAsync();
-
-    var previousVersion = await db.EngineeringDocumentVersions
-        .SingleAsync(x => x.EngineeringDocumentId == document.Id && x.VersionNumber == 1);
-    previousVersion.IsCurrent = false;
-    await db.SaveChangesAsync();
-
-    db.EngineeringDocumentVersions.Add(new EngineeringDocumentVersion
+    await db.EngineeringDocumentVersions.AddAsync(new EngineeringDocumentVersion
     {
         EngineeringDocumentId = document.Id,
         VersionNumber = 2,
-        PdfContent = "%PDF-1.4\n% revised test document\n"u8.ToArray(),
-        Sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData("%PDF-1.4\n% revised test document\n"u8.ToArray())),
+        PdfContent = "%PDF-1.4\\n% revised test document\\n"u8.ToArray(),
+        Sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData("%PDF-1.4\\n% revised test document\\n"u8.ToArray())),
         OriginalFileName = "assembly-b.pdf",
         ContentType = "application/pdf",
         FileSize = 2048,
-        IsCurrent = true,
+        IsCurrent = false,
         UploadedByName = "آزمون CI",
         UploadedByPersonnelNumber = "TEST-001",
         ChangeNote = "اصلاح ابعاد"
     });
     await db.SaveChangesAsync();
 
+    var previousVersion = await db.EngineeringDocumentVersions
+        .SingleAsync(x => x.EngineeringDocumentId == document.Id && x.VersionNumber == 1);
+    previousVersion.IsCurrent = false;
+    var currentVersion = await db.EngineeringDocumentVersions
+        .SingleAsync(x => x.EngineeringDocumentId == document.Id && x.VersionNumber == 2);
+    currentVersion.IsCurrent = true;
+    await db.SaveChangesAsync();
+
+    var publishedFilter = db.EngineeringDocuments.AsNoTracking()
+        .Where(x => x.Id == document.Id && x.IsActive && x.IsPublished && x.PublishDate.HasValue &&
+            x.Node.IsActive && !x.Node.Children.Any() && x.Versions.Any(v => v.IsCurrent));
+    Check(!await publishedFilter.AnyAsync(),
+        "An uploaded document must remain hidden from the public engineering-document list until published.");
+
+    document.IsPublished = true;
+    document.HasBeenPublished = true;
+    document.PublishDate = new DateTime(2026, 11, 25);
+    await db.SaveChangesAsync();
+    Check(await publishedFilter.AnyAsync(),
+        "A published document with one current version must be available in the public list.");
+
+    currentVersion.IsCurrent = false;
+    document.IsPublished = false;
+    document.PublishDate = null;
+    await db.SaveChangesAsync();
+    db.EngineeringDocumentVersions.Add(new EngineeringDocumentVersion
+    {
+        EngineeringDocumentId = document.Id,
+        VersionNumber = 3,
+        PdfContent = "%PDF-1.4\\n% version three\\n"u8.ToArray(),
+        Sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData("%PDF-1.4\\n% version three\\n"u8.ToArray())),
+        OriginalFileName = "assembly-c.pdf",
+        ContentType = "application/pdf",
+        FileSize = 3072,
+        IsCurrent = true,
+        UploadedByName = "آزمون CI",
+        UploadedByPersonnelNumber = "TEST-001",
+        ChangeNote = "نسخه جدید؛ در انتظار انتشار"
+    });
+    await db.SaveChangesAsync();
+
+    Check(document.HasBeenPublished && !document.IsPublished && document.PublishDate is null,
+        "Uploading a new version must retain the historical publication lock while returning the document to unpublished state.");
+    Check(!await publishedFilter.AnyAsync(),
+        "A document with a newly uploaded unpublished version must disappear from the public list.");
+
     var versions = await db.EngineeringDocumentVersions.AsNoTracking()
         .Where(x => x.EngineeringDocumentId == document.Id)
         .OrderBy(x => x.VersionNumber).ToListAsync();
-    Check(versions.Count == 2 && versions[0].VersionNumber == 1 && !versions[0].IsCurrent &&
-          versions[1].VersionNumber == 2 && versions[1].IsCurrent,
-        "Engineering-document version history/current-version behavior is incorrect.");
+    Check(versions.Count == 3 && versions[0].VersionNumber == 1 && !versions[0].IsCurrent &&
+          versions[1].VersionNumber == 2 && !versions[1].IsCurrent &&
+          versions[2].VersionNumber == 3 && versions[2].IsCurrent,
+        "Uploading a new version must automatically deactivate the previous version.");
     Check(versions.All(x => x.PdfContent.Length > 8 && x.Sha256.Length == 64),
         "PDF BLOB content and SHA-256 hashes must persist for every version.");
     Check(versions.Count(x => x.IsCurrent) == 1,
@@ -259,6 +348,55 @@ CREATE TABLE dbo.OutsourcedServiceRequests(
         FOREIGN KEY(RequesterEmployeeId) REFERENCES dbo.Employees(Id));
 CREATE UNIQUE INDEX UX_OutsourcedServiceRequests_Number
     ON dbo.OutsourcedServiceRequests(RequestNumber);
+
+-- Legacy engineering-document schema: publication was implicit and PublishDate
+-- was mandatory; version files were referenced by a disk filename.
+CREATE TABLE dbo.EngineeringDocumentNodes(
+    Id int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    ParentId int NULL,
+    Title nvarchar(200) NOT NULL,
+    SortOrder int NOT NULL DEFAULT(0),
+    IsActive bit NOT NULL DEFAULT(1),
+    CreatedAtUtc datetime2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    UpdatedAtUtc datetime2 NOT NULL DEFAULT SYSUTCDATETIME());
+CREATE TABLE dbo.EngineeringDocumentTypes(
+    Id int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    Title nvarchar(150) NOT NULL,
+    Description nvarchar(500) NOT NULL DEFAULT N'',
+    SortOrder int NOT NULL DEFAULT(0),
+    IsActive bit NOT NULL DEFAULT(1),
+    CreatedAtUtc datetime2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    UpdatedAtUtc datetime2 NOT NULL DEFAULT SYSUTCDATETIME());
+CREATE TABLE dbo.EngineeringDocuments(
+    Id int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    NodeId int NOT NULL,
+    TypeId int NOT NULL,
+    Title nvarchar(250) NOT NULL,
+    DocumentNumber nvarchar(100) NOT NULL DEFAULT N'',
+    RevisionLabel nvarchar(50) NOT NULL DEFAULT N'',
+    PublishDate date NOT NULL,
+    EffectiveDate date NULL,
+    Keywords nvarchar(500) NOT NULL DEFAULT N'',
+    Description nvarchar(2000) NOT NULL DEFAULT N'',
+    IsActive bit NOT NULL DEFAULT(1),
+    CreatedAtUtc datetime2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    UpdatedAtUtc datetime2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedByName nvarchar(200) NOT NULL DEFAULT N'',
+    CreatedByPersonnelNumber nvarchar(50) NOT NULL DEFAULT N'');
+CREATE TABLE dbo.EngineeringDocumentVersions(
+    Id int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    EngineeringDocumentId int NOT NULL,
+    VersionNumber int NOT NULL,
+    StoredFileName nvarchar(260) NOT NULL,
+    OriginalFileName nvarchar(260) NOT NULL,
+    ContentType nvarchar(100) NOT NULL DEFAULT N'application/pdf',
+    FileSize bigint NOT NULL,
+    IsCurrent bit NOT NULL DEFAULT(0),
+    UploadedAtUtc datetime2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    UploadedByName nvarchar(200) NOT NULL DEFAULT N'',
+    UploadedByPersonnelNumber nvarchar(50) NOT NULL DEFAULT N'',
+    ChangeNote nvarchar(500) NOT NULL DEFAULT N'',
+    CONSTRAINT CK_LegacyEngineeringDocumentVersions_VersionNumber CHECK(VersionNumber > 0));
 " );
     await Execute(connection, @"INSERT INTO dbo.Employees DEFAULT VALUES;
 INSERT INTO dbo.OrganizationRankDefinitions(Title) VALUES(N'کارشناس');

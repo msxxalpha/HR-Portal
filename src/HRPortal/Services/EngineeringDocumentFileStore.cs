@@ -1,10 +1,10 @@
-using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Globalization;
-using System.Text.RegularExpressions;
 using HRPortal.Models;
+using PDFtoImage;
+using SkiaSharp;
 
 namespace HRPortal.Services;
 
@@ -34,18 +34,12 @@ public sealed class EngineeringDocumentFileStore
 
 public sealed record EngineeringDocumentImageSet(string Token, int PageCount);
 
-public sealed class EngineeringDocumentImageStore(
-    IWebHostEnvironment environment,
-    IConfiguration configuration)
+public sealed class EngineeringDocumentImageStore(IWebHostEnvironment environment)
 {
     private const int MaximumPages = 100;
     private const long MaximumPagePixels = 30_000_000;
     private static readonly TimeSpan MaximumAge = TimeSpan.FromHours(4);
     private readonly string _root = Path.Combine(environment.ContentRootPath, "App_Data", "EngineeringDocumentTemp");
-    private readonly string _pdfToPpmPath =
-        configuration["EngineeringDocuments:PdfToPpmPath"] ??
-        Environment.GetEnvironmentVariable("HRPORTAL_PDFTOPPM_PATH") ??
-        "pdftoppm";
 
     public async Task<EngineeringDocumentImageSet> CreateAsync(
         byte[] pdfContent, string ownerKey, string watermark, CancellationToken cancellationToken = default)
@@ -59,93 +53,62 @@ public sealed class EngineeringDocumentImageStore(
         var ownerDirectory = Path.Combine(_root, ownerKey);
         var reportDirectory = Path.Combine(ownerDirectory, token);
         Directory.CreateDirectory(reportDirectory);
+
         try
         {
-            var stagedPdfPath = Path.Combine(reportDirectory, "source.pdf");
-            await File.WriteAllBytesAsync(stagedPdfPath, pdfContent, cancellationToken);
-            var prefix = Path.Combine(reportDirectory, "render");
-            var start = new ProcessStartInfo
-            {
-                FileName = _pdfToPpmPath,
-                WorkingDirectory = reportDirectory,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true
-            };
-            start.ArgumentList.Add("-png");
-            start.ArgumentList.Add("-r");
-            start.ArgumentList.Add("120");
-            start.ArgumentList.Add("-f");
-            start.ArgumentList.Add("1");
-            start.ArgumentList.Add("-l");
-            start.ArgumentList.Add((MaximumPages + 1).ToString(CultureInfo.InvariantCulture));
-            start.ArgumentList.Add(stagedPdfPath);
-            start.ArgumentList.Add(prefix);
-
-            using var process = new Process { StartInfo = start };
-            if (!process.Start())
-                throw new InvalidOperationException("ابزار تبدیل PDF به تصویر اجرا نشد. مسیر pdftoppm را در تنظیمات سرور تعیین کنید.");
-            var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
-            var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromMinutes(3));
-            try
-            {
-                await process.WaitForExitAsync(timeout.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                try { process.Kill(entireProcessTree: true); } catch { }
-                throw new InvalidOperationException("تبدیل مستند PDF بیش از زمان مجاز طول کشید یا لغو شد.");
-            }
 
-            try { File.Delete(stagedPdfPath); } catch (IOException) { }
-            var errorText = await errorTask;
-            _ = await outputTask;
-            if (process.ExitCode != 0)
-                throw new InvalidOperationException("تبدیل PDF به تصویر ناموفق بود. ابزار Poppler باید روی سرور نصب و قابل اجرا باشد. " +
-                    (string.IsNullOrWhiteSpace(errorText) ? "" : errorText.Trim()));
-
-            var rendered = Directory.GetFiles(reportDirectory, "render-*.png")
-                .Select(path => new
-                {
-                    Path = path,
-                    Number = int.TryParse(Path.GetFileNameWithoutExtension(path).Split('-').Last(), out var number) ? number : int.MaxValue
-                })
-                .Where(x => x.Number > 0 && x.Number <= MaximumPages + 1)
-                .OrderBy(x => x.Number)
-                .ToList();
-
-            if (rendered.Count == 0)
-                throw new InvalidDataException("از فایل PDF هیچ صفحه قابل نمایشی تولید نشد.");
-            if (rendered.Count > MaximumPages)
+            // PDFium reads the database BLOB directly from memory. No PDF file is
+            // staged on disk and no external executable (such as pdftoppm) is needed.
+            var pageCount = await Task.Run(() => Conversion.GetPageCount(pdfContent), timeout.Token);
+            if (pageCount <= 0)
+                throw new InvalidDataException("فایل PDF هیچ صفحه قابل نمایشی ندارد.");
+            if (pageCount > MaximumPages)
                 throw new InvalidDataException($"تعداد صفحات مستند نمی‌تواند بیشتر از {MaximumPages} صفحه باشد.");
 
-            for (var index = 0; index < rendered.Count; index++)
+            var pageIndex = 0;
+            var renderOptions = new RenderOptions(Dpi: 120, UseTiling: true);
+            await foreach (var renderedPage in Conversion.ToImagesAsync(
+                pdfContent,
+                Enumerable.Range(0, pageCount),
+                options: renderOptions,
+                cancellationToken: timeout.Token))
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                var renderedPath = rendered[index].Path;
-                using (var source = Image.FromFile(renderedPath))
+                using (renderedPage)
                 {
-                    if ((long)source.Width * source.Height > MaximumPagePixels)
+                    timeout.Token.ThrowIfCancellationRequested();
+                    if ((long)renderedPage.Width * renderedPage.Height > MaximumPagePixels)
                         throw new InvalidDataException("ابعاد یکی از صفحات مستند از حد مجاز بیشتر است.");
 
-                    using var bitmap = new Bitmap(source.Width, source.Height, PixelFormat.Format32bppArgb);
-                    using (var graphics = Graphics.FromImage(bitmap))
+                    using var encoded = new MemoryStream();
+                    renderedPage.Encode(encoded, SKEncodedImageFormat.Png, 100);
+                    encoded.Position = 0;
+
+                    using (var source = Image.FromStream(encoded))
+                    using (var bitmap = new Bitmap(source.Width, source.Height, PixelFormat.Format32bppArgb))
                     {
-                        graphics.Clear(Color.White);
-                        graphics.SmoothingMode = SmoothingMode.HighQuality;
-                        graphics.DrawImage(source, 0, 0, source.Width, source.Height);
-                        DrawWatermark(graphics, bitmap.Width, bitmap.Height, watermark);
+                        using (var graphics = Graphics.FromImage(bitmap))
+                        {
+                            graphics.Clear(Color.White);
+                            graphics.SmoothingMode = SmoothingMode.HighQuality;
+                            graphics.DrawImage(source, 0, 0, source.Width, source.Height);
+                            DrawWatermark(graphics, bitmap.Width, bitmap.Height, watermark);
+                        }
+
+                        bitmap.Save(GetPagePath(ownerKey, token, pageIndex), ImageFormat.Png);
                     }
-                    bitmap.Save(GetPagePath(ownerKey, token, index), ImageFormat.Png);
                 }
-                try { File.Delete(renderedPath); } catch (IOException) { }
+
+                pageIndex++;
             }
 
-            File.WriteAllText(Path.Combine(reportDirectory, ".created"), DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
-            return new EngineeringDocumentImageSet(token, rendered.Count);
+            if (pageIndex == 0)
+                throw new InvalidDataException("از فایل PDF هیچ صفحه قابل نمایشی تولید نشد.");
+
+            File.WriteAllText(Path.Combine(reportDirectory, ".created"),
+                DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
+            return new EngineeringDocumentImageSet(token, pageIndex);
         }
         catch
         {
@@ -193,7 +156,6 @@ public sealed class EngineeringDocumentImageStore(
             catch (UnauthorizedAccessException) { }
         }
     }
-
 
     private static void DrawWatermark(Graphics graphics, int width, int height, string watermark)
     {

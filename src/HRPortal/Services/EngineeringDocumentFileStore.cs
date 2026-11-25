@@ -82,7 +82,8 @@ public sealed class EngineeringDocumentImageStore(IWebHostEnvironment environmen
                         throw new InvalidDataException("ابعاد یکی از صفحات مستند از حد مجاز بیشتر است.");
 
                     using var encoded = new MemoryStream();
-                    renderedPage.Encode(encoded, SKEncodedImageFormat.Png, 100);
+                    if (!renderedPage.Encode(encoded, SKEncodedImageFormat.Png, 100))
+                        throw new InvalidDataException("تبدیل صفحه PDF به تصویر PNG ناموفق بود.");
                     encoded.Position = 0;
 
                     using (var source = Image.FromStream(encoded))

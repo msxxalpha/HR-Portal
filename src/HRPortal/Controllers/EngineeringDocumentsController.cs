@@ -139,29 +139,37 @@ public sealed class EngineeringDocumentsController(
         if (await db.EngineeringDocumentNodes.AnyAsync(x => x.ParentId == id))
             return Json(new { success = false, message = "ابتدا زیرگره‌های این گره را جابجا یا حذف کنید." });
 
-        var documents = await db.EngineeringDocuments
+        var documents = await db.EngineeringDocuments.AsNoTracking()
             .Where(x => x.NodeId == id)
-            .ToListAsync();
+            .Select(x => new { x.Id, x.Title })
+            .ToListAsync(HttpContext.RequestAborted);
         var isAdmin = User.HasClaim("IsAdmin", "1");
         if (documents.Count > 0 && !isAdmin)
             return Json(new { success = false, message = "حذف گره دارای مستند فقط برای مدیر سیستم مجاز است." });
 
         var documentIds = documents.Select(x => x.Id).ToArray();
-        List<EngineeringDocumentVersion> versions = documentIds.Length == 0
-            ? []
-            : await db.EngineeringDocumentVersions
-                .Where(x => documentIds.Contains(x.EngineeringDocumentId))
-                .ToListAsync();
-
         await using var transaction = await db.Database.BeginTransactionAsync(HttpContext.RequestAborted);
-        db.EngineeringDocumentVersions.RemoveRange(versions);
-        db.EngineeringDocuments.RemoveRange(documents);
+        var versionQuery = db.EngineeringDocumentVersions
+            .Where(x => documentIds.Contains(x.EngineeringDocumentId));
+        var versionCount = documentIds.Length == 0
+            ? 0
+            : await versionQuery.CountAsync(HttpContext.RequestAborted);
+
+        // Delete BLOB rows in SQL Server without materializing PDF byte arrays in application memory.
+        if (documentIds.Length > 0)
+        {
+            await versionQuery.ExecuteDeleteAsync(HttpContext.RequestAborted);
+            await db.EngineeringDocuments.Where(x => x.NodeId == id)
+                .ExecuteDeleteAsync(HttpContext.RequestAborted);
+        }
+
         db.EngineeringDocumentNodes.Remove(node);
         await db.SaveChangesAsync(HttpContext.RequestAborted);
         await transaction.CommitAsync(HttpContext.RequestAborted);
 
+        var deletedTitles = string.Join("؛ ", documents.Select(x => $"{x.Id}:{x.Title}"));
         await audit.WriteAsync("حذف گره آرشیو مستندات مهندسی", nameof(EngineeringDocumentNode), id.ToString(),
-            $"گره: {node.Title} | تعداد مستند حذف‌شده: {documents.Count} | تعداد نسخه و فایل PDF حذف‌شده: {versions.Count}");
+            $"گره: {node.Title} | تعداد مستند حذف‌شده: {documents.Count} | تعداد نسخه و فایل PDF حذف‌شده: {versionCount} | اسناد: {deletedTitles}");
         return Json(new { success = true });
     }
 
@@ -400,17 +408,17 @@ public sealed class EngineeringDocumentsController(
             return RedirectToAction(nameof(Manage), new { nodeId });
         }
 
-        var versions = await db.EngineeringDocumentVersions
-            .Where(x => x.EngineeringDocumentId == id)
-            .ToListAsync();
         await using var transaction = await db.Database.BeginTransactionAsync(HttpContext.RequestAborted);
-        db.EngineeringDocumentVersions.RemoveRange(versions);
+        var versionsQuery = db.EngineeringDocumentVersions
+            .Where(x => x.EngineeringDocumentId == id);
+        var versionCount = await versionsQuery.CountAsync(HttpContext.RequestAborted);
+        await versionsQuery.ExecuteDeleteAsync(HttpContext.RequestAborted);
         db.EngineeringDocuments.Remove(document);
         await db.SaveChangesAsync(HttpContext.RequestAborted);
         await transaction.CommitAsync(HttpContext.RequestAborted);
 
         await audit.WriteAsync("حذف پیش‌نویس مستند مهندسی", nameof(EngineeringDocument), id.ToString(),
-            $"عنوان: {document.Title} | تعداد نسخه‌ها و فایل‌های حذف‌شده: {versions.Count}");
+            $"عنوان: {document.Title} | تعداد نسخه‌ها و فایل‌های حذف‌شده: {versionCount}");
         TempData["Success"] = "پیش‌نویس و تمام فایل‌های نسخه‌های آن حذف شد.";
         return RedirectToAction(nameof(Manage), new { nodeId });
     }

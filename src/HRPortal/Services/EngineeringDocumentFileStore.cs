@@ -42,8 +42,10 @@ public sealed class EngineeringDocumentImageStore(IWebHostEnvironment environmen
     private readonly string _root = Path.Combine(environment.ContentRootPath, "App_Data", "EngineeringDocumentTemp");
 
     public async Task<EngineeringDocumentImageSet> CreateAsync(
-        byte[] pdfContent, string ownerKey, string watermark, CancellationToken cancellationToken = default)
+        byte[] pdfContent, int documentId, string ownerKey, string watermark, CancellationToken cancellationToken = default)
     {
+        if (documentId <= 0)
+            throw new ArgumentOutOfRangeException(nameof(documentId));
         if (pdfContent is null || pdfContent.Length < 8 || pdfContent.Length > 35L * 1024 * 1024 ||
             !pdfContent.AsSpan(0, 5).SequenceEqual("%PDF-"u8))
             throw new InvalidDataException("محتوای PDF ذخیره‌شده معتبر نیست.");
@@ -107,6 +109,8 @@ public sealed class EngineeringDocumentImageStore(IWebHostEnvironment environmen
             if (pageIndex == 0)
                 throw new InvalidDataException("از فایل PDF هیچ صفحه قابل نمایشی تولید نشد.");
 
+            File.WriteAllText(Path.Combine(reportDirectory, ".document-id"),
+                documentId.ToString(CultureInfo.InvariantCulture));
             File.WriteAllText(Path.Combine(reportDirectory, ".created"),
                 DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
             return new EngineeringDocumentImageSet(token, pageIndex);
@@ -129,6 +133,38 @@ public sealed class EngineeringDocumentImageStore(IWebHostEnvironment environmen
     {
         if (!Guid.TryParseExact(token, "N", out _)) return;
         TryDeleteDirectory(Path.Combine(_root, ownerKey, token));
+    }
+
+    public void DeleteForDocuments(IEnumerable<int> documentIds)
+    {
+        var ids = documentIds.Where(x => x > 0).ToHashSet();
+        if (ids.Count == 0 || !Directory.Exists(_root)) return;
+
+        foreach (var owner in Directory.EnumerateDirectories(_root))
+        {
+            foreach (var directory in Directory.EnumerateDirectories(owner))
+            {
+                try
+                {
+                    var marker = Path.Combine(directory, ".document-id");
+                    if (!File.Exists(marker)) continue;
+                    var value = File.ReadAllText(marker).Trim();
+                    if (int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var documentId) &&
+                        ids.Contains(documentId))
+                        TryDeleteDirectory(directory);
+                }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+
+            try
+            {
+                if (Directory.Exists(owner) && !Directory.EnumerateFileSystemEntries(owner).Any())
+                    Directory.Delete(owner);
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
     }
 
     public void DeleteExpired()

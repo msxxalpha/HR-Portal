@@ -166,6 +166,7 @@ public sealed class EngineeringDocumentsController(
         db.EngineeringDocumentNodes.Remove(node);
         await db.SaveChangesAsync(HttpContext.RequestAborted);
         await transaction.CommitAsync(HttpContext.RequestAborted);
+        imageStore.DeleteForDocuments(documentIds);
 
         var deletedTitles = string.Join("؛ ", documents.Select(x => $"{x.Id}:{x.Title}"));
         await audit.WriteAsync("حذف گره آرشیو مستندات مهندسی", nameof(EngineeringDocumentNode), id.ToString(),
@@ -381,6 +382,8 @@ public sealed class EngineeringDocumentsController(
             await db.SaveChangesAsync(HttpContext.RequestAborted);
             await transaction.CommitAsync(HttpContext.RequestAborted);
 
+            // Revoke image-page tokens created from the previous published version.
+            imageStore.DeleteForDocuments([document.Id]);
             var action = nextVersion > 1 ? "بارگذاری نسخه جدید مستند مهندسی" : "بارگذاری پیش‌نویس مستند مهندسی";
             await audit.WriteAsync(action, nameof(EngineeringDocument), document.Id.ToString(),
                 $"عنوان: {title} | نسخه جاری: {nextVersion} | فایل: {originalName} | نسخه‌های قبلی غیرفعال‌شده: {previousVersions.Count}");
@@ -416,6 +419,7 @@ public sealed class EngineeringDocumentsController(
         db.EngineeringDocuments.Remove(document);
         await db.SaveChangesAsync(HttpContext.RequestAborted);
         await transaction.CommitAsync(HttpContext.RequestAborted);
+        imageStore.DeleteForDocuments([id]);
 
         await audit.WriteAsync("حذف پیش‌نویس مستند مهندسی", nameof(EngineeringDocument), id.ToString(),
             $"عنوان: {document.Title} | تعداد نسخه‌ها و فایل‌های حذف‌شده: {versionCount}");
@@ -485,6 +489,7 @@ public sealed class EngineeringDocumentsController(
         document.IsActive = false;
         document.UpdatedAtUtc = DateTime.UtcNow;
         await db.SaveChangesAsync(HttpContext.RequestAborted);
+        imageStore.DeleteForDocuments([id]);
         await audit.WriteAsync("غیرفعال‌سازی مستند مهندسی", nameof(EngineeringDocument), id.ToString(),
             $"عنوان: {document.Title} | تاریخ انتشار: {(document.PublishDate.HasValue ? PersianDateService.Format(document.PublishDate.Value) : "—")}");
         TempData["Success"] = "مستند غیرفعال شد و از صفحه مشاهده خارج گردید؛ سوابق نسخه‌ها حفظ شدند.";
@@ -655,7 +660,7 @@ public sealed class EngineeringDocumentsController(
             var watermark = GetCurrentUserName() + " | " +
                 (User.FindFirst("PersonnelNumber")?.Value ?? User.FindFirst("AdminUsername")?.Value ?? "کاربر سامانه");
             var images = await imageStore.CreateAsync(
-                document.PdfContent, ownerKey, watermark, HttpContext.RequestAborted);
+                document.PdfContent, id, ownerKey, watermark, HttpContext.RequestAborted);
             var tokens = antiforgery.GetAndStoreTokens(HttpContext);
             SetPrivateHeaders();
             await audit.WriteAsync("مشاهده مستند مهندسی", nameof(EngineeringDocument), id.ToString(),

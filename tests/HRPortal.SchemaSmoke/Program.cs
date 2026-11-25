@@ -1,4 +1,5 @@
 using HRPortal.Data;
+using HRPortal.Models;
 using HRPortal.Services;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -51,6 +52,11 @@ foreach (var fixture in new[] { "HRPortal_SchemaLegacy_Test", "HRPortal_SchemaPa
             await MonthlyPerformanceSchemaInitializer.InitializeAsync(db);
             await OutsourcedServiceSchemaInitializer.InitializeAsync(db);
             await OutsourcedServiceSchemaInitializer.InitializeAsync(db);
+            // The engineering-document archive schema must also upgrade old databases
+            // and remain safe to execute on every subsequent application startup.
+            await EngineeringDocumentSchemaInitializer.InitializeAsync(db);
+            await EngineeringDocumentSchemaInitializer.InitializeAsync(db);
+            await VerifyEngineeringDocumentArchiveAsync(db);
             var periods = await db.MonthlyPerformancePeriods.AsNoTracking().ToListAsync();
             Check(periods.Count == 1 && periods[0].Title == "شهریور ۱۴۰۵",
                 "Legacy evaluation period was not preserved.");
@@ -131,6 +137,80 @@ VALUES
     }
 }
 Console.WriteLine("Monthly performance schema integration tests passed.");
+
+static async Task VerifyEngineeringDocumentArchiveAsync(HRPortalDbContext db)
+{
+    var types = await db.EngineeringDocumentTypes.AsNoTracking()
+        .OrderBy(x => x.SortOrder).ToListAsync();
+    Check(types.Count == 6 && types.Any(x => x.Title == "نقشه مهندسی"),
+        "Engineering-document types were not seeded or the initializer was not repeatable.");
+
+    var root = new EngineeringDocumentNode { Title = "آزمون آرشیو", SortOrder = 10 };
+    var leaf = new EngineeringDocumentNode { Title = "نقشه‌های مونتاژ", Parent = root, SortOrder = 10 };
+    db.EngineeringDocumentNodes.AddRange(root, leaf);
+    await db.SaveChangesAsync();
+
+    var document = new EngineeringDocument
+    {
+        NodeId = leaf.Id,
+        TypeId = types.First(x => x.Title == "نقشه مهندسی").Id,
+        Title = "نقشه تستی مجموعه",
+        DocumentNumber = "DWG-TEST-001",
+        RevisionLabel = "A",
+        PublishDate = new DateTime(2026, 11, 25),
+        EffectiveDate = new DateTime(2026, 11, 26),
+        Keywords = "آزمون، مجموعه",
+        Description = "مستند آزمایشی برای اعتبارسنجی ساختار پایگاه داده",
+        CreatedByName = "آزمون CI",
+        CreatedByPersonnelNumber = "TEST-001"
+    };
+    db.EngineeringDocuments.Add(document);
+    await db.SaveChangesAsync();
+
+    db.EngineeringDocumentVersions.Add(new EngineeringDocumentVersion
+    {
+        EngineeringDocumentId = document.Id,
+        VersionNumber = 1,
+        StoredFileName = "11111111111111111111111111111111.pdf",
+        OriginalFileName = "assembly-a.pdf",
+        ContentType = "application/pdf",
+        FileSize = 1024,
+        IsCurrent = true,
+        UploadedByName = "آزمون CI",
+        UploadedByPersonnelNumber = "TEST-001",
+        ChangeNote = "نسخه اولیه"
+    });
+    await db.SaveChangesAsync();
+
+    var previousVersion = await db.EngineeringDocumentVersions
+        .SingleAsync(x => x.EngineeringDocumentId == document.Id && x.VersionNumber == 1);
+    previousVersion.IsCurrent = false;
+    await db.SaveChangesAsync();
+
+    db.EngineeringDocumentVersions.Add(new EngineeringDocumentVersion
+    {
+        EngineeringDocumentId = document.Id,
+        VersionNumber = 2,
+        StoredFileName = "22222222222222222222222222222222.pdf",
+        OriginalFileName = "assembly-b.pdf",
+        ContentType = "application/pdf",
+        FileSize = 2048,
+        IsCurrent = true,
+        UploadedByName = "آزمون CI",
+        UploadedByPersonnelNumber = "TEST-001",
+        ChangeNote = "اصلاح ابعاد"
+    });
+    await db.SaveChangesAsync();
+
+    var versions = await db.EngineeringDocumentVersions.AsNoTracking()
+        .Where(x => x.EngineeringDocumentId == document.Id)
+        .OrderBy(x => x.VersionNumber).ToListAsync();
+    Check(versions.Count == 2 && versions[0].VersionNumber == 1 && !versions[0].IsCurrent &&
+          versions[1].VersionNumber == 2 && versions[1].IsCurrent,
+        "Engineering-document version history/current-version behavior is incorrect.");
+    Check(versions.Count(x => x.IsCurrent) == 1,
+        "Exactly one current engineering-document version must be retained.");
+}
 
 static async Task CreateLegacyFixture(SqlConnection connection)
 {

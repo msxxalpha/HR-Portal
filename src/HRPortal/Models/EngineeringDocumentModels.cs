@@ -79,6 +79,7 @@ public sealed class EngineeringDocumentListItem
     public DateTime PublishDate { get; set; }
     public DateTime? EffectiveDate { get; set; }
     public int VersionNumber { get; set; }
+    public bool HasBeenPublished { get; set; }
     public string OriginalFileName { get; set; } = "";
     public DateTime UploadedAtUtc { get; set; }
     public string UploadedByName { get; set; } = "";

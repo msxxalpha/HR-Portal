@@ -1,0 +1,136 @@
+@model HRPortal.Models.EngineeringDocumentPublishViewModel
+@using HRPortal.Services
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "لیست انتشار مستندات مهندسی";
+    string PageLink(int targetPage) => Url.Action("PublishList", "EngineeringDocuments", new {
+        q = Model.Search, page = targetPage, pageSize = Model.PageSize
+    }) ?? "#";
+}
+<link rel="stylesheet" href="@Url.Content("~/css/engineering-documents.css")" asp-append-version="true" />
+<div class="page-head">
+    <div>
+        <h1>لیست انتشار مستندات مهندسی</h1>
+        <p>بازبینی مستندات و نسخه‌های بارگذاری‌شده‌ای که هنوز منتشر نشده‌اند</p>
+    </div>
+    <div class="actions">
+        <a class="btn btn-outline" href="/EngineeringDocuments/Manage">مدیریت مستندات مهندسی</a>
+        <a class="btn btn-outline" href="/EngineeringDocuments/Index">مشاهده مستندات منتشرشده</a>
+    </div>
+</div>
+@if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
+@if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
+
+<section class="card engineering-search-card">
+    <form method="get" action="/EngineeringDocuments/PublishList" id="publishSearchForm" class="engineering-filter-form">
+        <div class="engineering-search-main">
+            <label class="engineering-search-field">جستجوی مستندهای در انتظار انتشار
+                <input type="search" name="q" id="publishSearch" value="@Model.Search" autocomplete="off"
+                       placeholder="عنوان، شماره مستند، نوع، گره، نام فایل یا کلیدواژه..." />
+            </label>
+            <label>تعداد در صفحه
+                <select name="pageSize">
+                    @foreach (var size in new[] { 10, 20, 50, 100 })
+                    {
+                        <option value="@size" selected="@(Model.PageSize == size)">@size</option>
+                    }
+                </select>
+            </label>
+            <input type="hidden" name="page" value="1" />
+            <div class="engineering-filter-actions">
+                <button class="btn btn-main" type="submit">جستجو</button>
+                <a class="btn btn-outline" href="/EngineeringDocuments/PublishList">پاک‌کردن فیلتر</a>
+            </div>
+        </div>
+    </form>
+</section>
+
+<section class="card">
+    <div class="section-head">
+        <div>
+            <h3>مستندهای انتشار نیافته</h3>
+            <span class="muted">تاریخ انتشار هنگام فشردن دکمه انتشار، به‌صورت خودکار از تاریخ روز شمسی سامانه ثبت می‌شود.</span>
+        </div>
+        <span class="engineering-result-count">@Model.TotalCount مستند در انتظار انتشار</span>
+    </div>
+
+    <div class="table-wrap">
+        <table class="engineering-doc-table">
+            <thead>
+                <tr>
+                    <th>عنوان مستند</th>
+                    <th>نوع</th>
+                    <th>گره آرشیو</th>
+                    <th>شماره / بازنگری</th>
+                    <th>نسخه جاری</th>
+                    <th>وضعیت درخواست</th>
+                    <th>بارگذاری‌کننده / زمان</th>
+                    <th>عملیات</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var doc in Model.Documents)
+            {
+                <tr>
+                    <td>
+                        <strong>@doc.Title</strong>
+                        @if (!string.IsNullOrWhiteSpace(doc.Description))
+                        {
+                            <small class="engineering-description">@doc.Description</small>
+                        }
+                    </td>
+                    <td>@doc.TypeTitle</td>
+                    <td>@doc.NodeTitle</td>
+                    <td>@(string.IsNullOrWhiteSpace(doc.DocumentNumber) ? "—" : doc.DocumentNumber) / @(string.IsNullOrWhiteSpace(doc.RevisionLabel) ? "—" : doc.RevisionLabel)</td>
+                    <td><span class="engineering-version">V@doc.VersionNumber</span></td>
+                    <td>
+                        <span class="engineering-state inactive">@(doc.HasBeenPublished ? "نسخه جدید؛ انتشار مجدد" : "اولین انتشار")</span>
+                    </td>
+                    <td>
+                        <strong>@(string.IsNullOrWhiteSpace(doc.UploadedByName) ? "—" : doc.UploadedByName)</strong>
+                        <small class="engineering-description">@PersianDateService.FormatDateTime(doc.UploadedAtUtc.ToLocalTime())</small>
+                    </td>
+                    <td>
+                        <form method="post" action="/EngineeringDocuments/Publish" class="inline-form"
+                              onsubmit="return confirm('مستند «@doc.Title» منتشر شود؟ پس از انتشار، تاریخ روز به‌صورت خودکار ثبت و نسخه برای کاربران قابل مشاهده می‌شود.');">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="id" value="@doc.Id" />
+                            <button class="btn btn-main btn-sm" type="submit">انتشار مستند</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            @if (Model.Documents.Count == 0)
+            {
+                <tr><td colspan="8" class="empty">در حال حاضر مستندی برای انتشار وجود ندارد.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    <div class="engineering-pagination">
+        <span>صفحه @Model.Page از @Model.PageCount · تعداد نتایج: @Model.TotalCount</span>
+        <div class="engineering-page-links">
+            @if (Model.Page > 1) { <a class="btn btn-outline btn-sm" href="@PageLink(Model.Page - 1)">قبلی</a> }
+            @for (var p = Math.Max(1, Model.Page - 2); p <= Math.Min(Model.PageCount, Model.Page + 2); p++)
+            {
+                <a class="btn @(p == Model.Page ? "btn-main" : "btn-outline") btn-sm" href="@PageLink(p)" aria-current="@(p == Model.Page ? "page" : null)">@p</a>
+            }
+            @if (Model.Page < Model.PageCount) { <a class="btn btn-outline btn-sm" href="@PageLink(Model.Page + 1)">بعدی</a> }
+        </div>
+    </div>
+</section>
+
+@section Scripts {
+<script>
+(() => {
+    const form = document.getElementById("publishSearchForm");
+    const search = document.getElementById("publishSearch");
+    if (!form || !search) return;
+    let handle = 0;
+    search.addEventListener("input", () => {
+        window.clearTimeout(handle);
+        handle = window.setTimeout(() => form.requestSubmit(), 400);
+    });
+})();
+</script>
+}

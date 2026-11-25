@@ -474,7 +474,7 @@ public sealed class EngineeringDocumentsController(
         document.UpdatedAtUtc = DateTime.UtcNow;
         await db.SaveChangesAsync(HttpContext.RequestAborted);
         await audit.WriteAsync("غیرفعال‌سازی مستند مهندسی", nameof(EngineeringDocument), id.ToString(),
-            $"عنوان: {document.Title} | نسخه منتشرشده: {document.Versions?.FirstOrDefault(x => x.IsCurrent)?.VersionNumber}");
+            $"عنوان: {document.Title} | تاریخ انتشار: {(document.PublishDate.HasValue ? PersianDateService.Format(document.PublishDate.Value) : "—")}");
         TempData["Success"] = "مستند غیرفعال شد و از صفحه مشاهده خارج گردید؛ سوابق نسخه‌ها حفظ شدند.";
         return RedirectToAction(nameof(Manage), new { nodeId });
     }
@@ -528,6 +528,7 @@ public sealed class EngineeringDocumentsController(
                 DocumentNumber = x.DocumentNumber,
                 RevisionLabel = x.RevisionLabel,
                 VersionNumber = x.Versions.Where(v => v.IsCurrent).Select(v => v.VersionNumber).FirstOrDefault(),
+                HasBeenPublished = x.HasBeenPublished,
                 OriginalFileName = x.Versions.Where(v => v.IsCurrent).Select(v => v.OriginalFileName).FirstOrDefault() ?? "",
                 UploadedAtUtc = x.Versions.Where(v => v.IsCurrent).Select(v => (DateTime?)v.UploadedAtUtc).FirstOrDefault() ?? x.UpdatedAtUtc,
                 UploadedByName = x.Versions.Where(v => v.IsCurrent).Select(v => v.UploadedByName).FirstOrDefault() ?? "",

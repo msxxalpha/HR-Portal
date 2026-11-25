@@ -508,7 +508,7 @@ public sealed class EngineeringDocumentsController(
         catch (Exception exception)
         {
             Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
-            return Content("نمایش تصویری مستند انجام نشد. ابزار تبدیل PDF به تصویر باید روی سرور نصب و مسیر آن در تنظیمات EngineeringDocuments:PdfToPpmPath تعیین شود. جزئیات: " +
+            return Content("نمایش تصویری مستند انجام نشد. موتور داخلی تبدیل PDF به تصویر نتوانست مستند را پردازش کند. جزئیات: " +
                 System.Net.WebUtility.HtmlEncode(exception.Message), "text/plain; charset=utf-8");
         }
     }

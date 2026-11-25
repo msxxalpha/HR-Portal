@@ -112,8 +112,8 @@
                 </details>
             }
             @if (isAdmin || Can("ContractRenewal.Manage") || Can("ContractRenewal.View") || Can("ContractRenewal.List") || Can("ContractRenewal.Reports") || Can("ContractRenewal.Create") || Can("ContractRenewal.Settings") || Can("ContractRenewal.Evaluation.Manage") || Can("ContractRenewal.Workflow") || Can("MonthlyPerformance.View") ||
-                Can("MonthlyPerformance.Evaluate") || Can("MonthlyPerformance.Manage") || Can("MonthlyPerformance.Reports") || Can("Suggestions.Submit") || Can("Suggestions.ViewAll") || Can("Suggestions.Manage") || Can("Suggestions.Reports")) {
-                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/EmployeeContracts") || (Context.Request.Path.StartsWithSegments("/MonthlyPerformance") || Context.Request.Path.StartsWithSegments("/MonthlyPerformanceAdmin") || Context.Request.Path.StartsWithSegments("/MonthlyPerformanceReports") || Context.Request.Path.StartsWithSegments("/Suggestions")) ? "open" : null)">
+                Can("MonthlyPerformance.Evaluate") || Can("MonthlyPerformance.Manage") || Can("MonthlyPerformance.Reports") || Can("Suggestions.Submit") || Can("Suggestions.ViewAll") || Can("Suggestions.Manage") || Can("Suggestions.Reports") || Can("EngineeringDocuments.View") || Can("EngineeringDocuments.Manage")) {
+                <details class="nav-group" open="@(Context.Request.Path.StartsWithSegments("/EmployeeContracts") || (Context.Request.Path.StartsWithSegments("/MonthlyPerformance") || Context.Request.Path.StartsWithSegments("/MonthlyPerformanceAdmin") || Context.Request.Path.StartsWithSegments("/MonthlyPerformanceReports") || Context.Request.Path.StartsWithSegments("/Suggestions") || Context.Request.Path.StartsWithSegments("/EngineeringDocuments")) ? "open" : null)">
                     <summary><span class="nav-icon">▦</span>ماژول‌ها</summary>
                     <div class="nav-submenu">
                         @if (isAdmin || Can("ContractRenewal.Manage") || Can("ContractRenewal.View") || Can("ContractRenewal.List") || Can("ContractRenewal.Reports") || Can("ContractRenewal.Create") || Can("ContractRenewal.Settings") || Can("ContractRenewal.Evaluation.Manage") || Can("ContractRenewal.Workflow")) {
@@ -148,6 +148,23 @@
                                 @if (isAdmin || Can("MonthlyPerformance.Reports")) { <a href="/MonthlyPerformanceReports/Index">گزارش‌های مدیریتی عملکرد</a> }
                                 @if (Can("MonthlyPerformance.Evaluate") && User.HasClaim("IsPerformanceEvaluator","1")) { <a href="/MonthlyPerformance/Dashboard">داشبورد ارزیاب و کارتابل عملکرد</a> }
                                 @if (Can("MonthlyPerformance.View")) { <a href="/MonthlyPerformance/Mine">داشبورد عملکرد شخصی</a> }
+                            </div>
+                        </details>
+                        }
+                        @if (Can("EngineeringDocuments.View") || Can("EngineeringDocuments.Manage")) {
+                        <details class="nav-subgroup" open="@(Context.Request.Path.StartsWithSegments("/EngineeringDocuments") ? "open" : null)">
+                            <summary>ماژولهای مدیریت عملیات کارخانه</summary>
+                            <div class="nav-submenu nav-submenu-nested">
+                                <details class="nav-subgroup" open="@(Context.Request.Path.StartsWithSegments("/EngineeringDocuments") ? "open" : null)">
+                                    <summary>آرشیو مستندات مهندسی</summary>
+                                    <div class="nav-submenu nav-submenu-nested">
+                                        @if (Can("EngineeringDocuments.Manage")) {
+                                            <a href="/EngineeringDocuments/Manage">مدیریت مستندات مهندسی</a>
+                                            <a href="/EngineeringDocuments/BasicInfo">اطلاعات پایه آرشیو مستندات</a>
+                                        }
+                                        @if (Can("EngineeringDocuments.View")) { <a href="/EngineeringDocuments/Index">مشاهده مستندات مهندسی</a> }
+                                    </div>
+                                </details>
                             </div>
                         </details>
                         }

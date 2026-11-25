@@ -1,0 +1,284 @@
+using System.Diagnostics;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
+using System.Globalization;
+using System.Text.RegularExpressions;
+using HRPortal.Models;
+
+namespace HRPortal.Services;
+
+public sealed class EngineeringDocumentFileStore(IWebHostEnvironment environment)
+{
+    private const long MaximumPdfBytes = 35L * 1024 * 1024;
+    private readonly string _root = Path.Combine(environment.ContentRootPath, "App_Data", "EngineeringDocuments");
+
+    public async Task<string> SavePdfAsync(IFormFile file, CancellationToken cancellationToken = default)
+    {
+        if (file is null || file.Length < 8 || file.Length > MaximumPdfBytes)
+            throw new InvalidDataException("حجم فایل PDF باید بیشتر از صفر و حداکثر ۳۵ مگابایت باشد.");
+
+        var extension = Path.GetExtension(file.FileName);
+        if (!string.Equals(extension, ".pdf", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("فقط فایل با پسوند PDF قابل بارگذاری است.");
+
+        await using var input = file.OpenReadStream();
+        var signature = new byte[5];
+        var read = await input.ReadAsync(signature.AsMemory(0, signature.Length), cancellationToken);
+        if (read != 5 || !signature.AsSpan().SequenceEqual("%PDF-"u8))
+            throw new InvalidDataException("محتوای فایل انتخاب‌شده یک PDF معتبر نیست.");
+
+        Directory.CreateDirectory(_root);
+        var storedName = Guid.NewGuid().ToString("N") + ".pdf";
+        var path = Path.Combine(_root, storedName);
+        input.Position = 0;
+        try
+        {
+            await using var output = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, useAsync: true);
+            await input.CopyToAsync(output, cancellationToken);
+            return storedName;
+        }
+        catch
+        {
+            try { if (File.Exists(path)) File.Delete(path); } catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+            throw;
+        }
+    }
+
+    public string GetPath(string storedFileName)
+    {
+        if (!Regex.IsMatch(storedFileName ?? "", "^[a-fA-F0-9]{32}\\.pdf$", RegexOptions.CultureInvariant))
+            throw new ArgumentException("شناسه فایل مستند معتبر نیست.", nameof(storedFileName));
+        return Path.Combine(_root, storedFileName);
+    }
+
+    public void Delete(string storedFileName)
+    {
+        try
+        {
+            var path = GetPath(storedFileName);
+            if (File.Exists(path)) File.Delete(path);
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+}
+
+public sealed record EngineeringDocumentImageSet(string Token, int PageCount);
+
+public sealed class EngineeringDocumentImageStore(
+    IWebHostEnvironment environment,
+    IConfiguration configuration)
+{
+    private const int MaximumPages = 100;
+    private const long MaximumPagePixels = 30_000_000;
+    private static readonly TimeSpan MaximumAge = TimeSpan.FromHours(4);
+    private readonly string _root = Path.Combine(environment.ContentRootPath, "App_Data", "EngineeringDocumentTemp");
+    private readonly string _pdfToPpmPath =
+        configuration["EngineeringDocuments:PdfToPpmPath"] ??
+        Environment.GetEnvironmentVariable("HRPORTAL_PDFTOPPM_PATH") ??
+        "pdftoppm";
+
+    public async Task<EngineeringDocumentImageSet> CreateAsync(
+        string pdfPath, string ownerKey, string watermark, CancellationToken cancellationToken = default)
+    {
+        if (!File.Exists(pdfPath))
+            throw new FileNotFoundException("فایل مستند در مخزن امن پیدا نشد.");
+
+        Directory.CreateDirectory(_root);
+        var token = Guid.NewGuid().ToString("N");
+        var ownerDirectory = Path.Combine(_root, ownerKey);
+        var reportDirectory = Path.Combine(ownerDirectory, token);
+        Directory.CreateDirectory(reportDirectory);
+        try
+        {
+            var prefix = Path.Combine(reportDirectory, "render");
+            var start = new ProcessStartInfo
+            {
+                FileName = _pdfToPpmPath,
+                WorkingDirectory = reportDirectory,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardError = true,
+                RedirectStandardOutput = true
+            };
+            start.ArgumentList.Add("-png");
+            start.ArgumentList.Add("-r");
+            start.ArgumentList.Add("120");
+            start.ArgumentList.Add("-f");
+            start.ArgumentList.Add("1");
+            start.ArgumentList.Add("-l");
+            start.ArgumentList.Add((MaximumPages + 1).ToString(CultureInfo.InvariantCulture));
+            start.ArgumentList.Add(pdfPath);
+            start.ArgumentList.Add(prefix);
+
+            using var process = new Process { StartInfo = start };
+            if (!process.Start())
+                throw new InvalidOperationException("ابزار تبدیل PDF به تصویر اجرا نشد. مسیر pdftoppm را در تنظیمات سرور تعیین کنید.");
+            var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+            var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromMinutes(3));
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                throw new InvalidOperationException("تبدیل مستند PDF بیش از زمان مجاز طول کشید یا لغو شد.");
+            }
+
+            var errorText = await errorTask;
+            _ = await outputTask;
+            if (process.ExitCode != 0)
+                throw new InvalidOperationException("تبدیل PDF به تصویر ناموفق بود. ابزار Poppler باید روی سرور نصب و قابل اجرا باشد. " +
+                    (string.IsNullOrWhiteSpace(errorText) ? "" : errorText.Trim()));
+
+            var rendered = Directory.GetFiles(reportDirectory, "render-*.png")
+                .Select(path => new
+                {
+                    Path = path,
+                    Number = int.TryParse(Path.GetFileNameWithoutExtension(path).Split('-').Last(), out var number) ? number : int.MaxValue
+                })
+                .Where(x => x.Number > 0 && x.Number <= MaximumPages + 1)
+                .OrderBy(x => x.Number)
+                .ToList();
+
+            if (rendered.Count == 0)
+                throw new InvalidDataException("از فایل PDF هیچ صفحه قابل نمایشی تولید نشد.");
+            if (rendered.Count > MaximumPages)
+                throw new InvalidDataException($"تعداد صفحات مستند نمی‌تواند بیشتر از {MaximumPages} صفحه باشد.");
+
+            for (var index = 0; index < rendered.Count; index++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var renderedPath = rendered[index].Path;
+                using (var source = Image.FromFile(renderedPath))
+                {
+                    if ((long)source.Width * source.Height > MaximumPagePixels)
+                        throw new InvalidDataException("ابعاد یکی از صفحات مستند از حد مجاز بیشتر است.");
+
+                    using var bitmap = new Bitmap(source.Width, source.Height, PixelFormat.Format32bppArgb);
+                    using (var graphics = Graphics.FromImage(bitmap))
+                    {
+                        graphics.Clear(Color.White);
+                        graphics.SmoothingMode = SmoothingMode.HighQuality;
+                        graphics.DrawImage(source, 0, 0, source.Width, source.Height);
+                        DrawWatermark(graphics, bitmap.Width, bitmap.Height, watermark);
+                    }
+                    bitmap.Save(GetPagePath(ownerKey, token, index), ImageFormat.Png);
+                }
+                try { File.Delete(renderedPath); } catch (IOException) { }
+            }
+
+            File.WriteAllText(Path.Combine(reportDirectory, ".created"), DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
+            return new EngineeringDocumentImageSet(token, rendered.Count);
+        }
+        catch
+        {
+            TryDeleteDirectory(reportDirectory);
+            throw;
+        }
+    }
+
+    public string GetPagePath(string ownerKey, string token, int page)
+    {
+        if (!Guid.TryParseExact(token, "N", out _) || page < 0 || page >= MaximumPages)
+            throw new ArgumentException("شناسه تصویر یا شماره صفحه نامعتبر است.");
+        return Path.Combine(_root, ownerKey, token, $"page-{page + 1:000}.png");
+    }
+
+    public void Delete(string ownerKey, string token)
+    {
+        if (!Guid.TryParseExact(token, "N", out _)) return;
+        TryDeleteDirectory(Path.Combine(_root, ownerKey, token));
+    }
+
+    public void DeleteExpired()
+    {
+        if (!Directory.Exists(_root)) return;
+        foreach (var owner in Directory.EnumerateDirectories(_root))
+        {
+            foreach (var directory in Directory.EnumerateDirectories(owner))
+            {
+                try
+                {
+                    var marker = Path.Combine(directory, ".created");
+                    var created = File.Exists(marker) ? File.GetLastWriteTimeUtc(marker) : Directory.GetCreationTimeUtc(directory);
+                    if (DateTime.UtcNow - created > MaximumAge)
+                        TryDeleteDirectory(directory);
+                }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+            try
+            {
+                if (Directory.Exists(owner) && !Directory.EnumerateFileSystemEntries(owner).Any())
+                    Directory.Delete(owner);
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+    }
+
+
+    private static void DrawWatermark(Graphics graphics, int width, int height, string watermark)
+    {
+        var label = (watermark ?? "کاربر سامانه") + " | " + DateTime.Now.ToString("yyyy/MM/dd HH:mm");
+        using var font = new Font("Tahoma", Math.Max(18f, width / 55f), FontStyle.Bold, GraphicsUnit.Pixel);
+        using var brush = new SolidBrush(Color.FromArgb(34, 85, 96, 108));
+        var measured = graphics.MeasureString(label, font);
+        graphics.TranslateTransform(width / 2f, height / 2f);
+        graphics.RotateTransform(-25f);
+        var step = Math.Max(160, (int)(measured.Height * 5));
+        for (var y = -height; y < height; y += step)
+            graphics.DrawString(label, font, brush, -measured.Width / 2f, y);
+        graphics.ResetTransform();
+
+        using var footerFont = new Font("Tahoma", Math.Max(12f, width / 100f), FontStyle.Bold, GraphicsUnit.Pixel);
+        using var footerBrush = new SolidBrush(Color.FromArgb(100, 85, 96, 108));
+        using var footerBackground = new SolidBrush(Color.FromArgb(30, 255, 255, 255));
+        var footer = graphics.MeasureString(label, footerFont);
+        var footerY = Math.Max(0, height - footer.Height - 16);
+        graphics.FillRectangle(footerBackground, 8, footerY, width - 16, footer.Height + 8);
+        graphics.DrawString(label, footerFont, footerBrush, 12, footerY + 4);
+    }
+
+    private static void TryDeleteDirectory(string path)
+    {
+        for (var attempt = 0; attempt < 4; attempt++)
+        {
+            try
+            {
+                if (!Directory.Exists(path)) return;
+                foreach (var file in Directory.EnumerateFiles(path))
+                {
+                    try { File.SetAttributes(file, FileAttributes.Normal); File.Delete(file); }
+                    catch (IOException) { }
+                    catch (UnauthorizedAccessException) { }
+                }
+                Directory.Delete(path, recursive: true);
+                return;
+            }
+            catch (IOException) { Thread.Sleep(100 * (attempt + 1)); }
+            catch (UnauthorizedAccessException) { Thread.Sleep(100 * (attempt + 1)); }
+        }
+    }
+}
+
+public sealed class EngineeringDocumentImageCleanupService(
+    EngineeringDocumentImageStore store,
+    ILogger<EngineeringDocumentImageCleanupService> logger) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try { store.DeleteExpired(); }
+            catch (Exception exception) { logger.LogWarning(exception, "Engineering document image cleanup failed."); }
+            await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+        }
+    }
+}

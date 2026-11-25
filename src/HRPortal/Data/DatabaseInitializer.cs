@@ -36,6 +36,7 @@ AND COL_LENGTH(N'dbo.SystemSettings', N'EnableHrDisciplinaryScoreDeduction') IS 
         await MonthlyPerformanceSchemaInitializer.InitializeAsync(db);
         await SuggestionSchemaInitializer.InitializeAsync(db);
         await OutsourcedServiceSchemaInitializer.InitializeAsync(db);
+        await EngineeringDocumentSchemaInitializer.InitializeAsync(db);
         await SeedLegacyOrganizationPositionsAsync(db);
         await HRPortal.Services.EmployeePositionAssignmentHistoryService.BackfillMissingRevisionsAsync(db);
 

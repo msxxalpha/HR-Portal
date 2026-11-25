@@ -1,0 +1,476 @@
+@using HRPortal.Models
+@using HRPortal.Services
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "مدیریت مستندات مهندسی";
+    var treeJson = (string?)ViewBag.TreeJson ?? "[]";
+    var selectedNodeId = (int?)ViewBag.SelectedNodeId ?? 0;
+    var types = ViewBag.Types as List<EngineeringDocumentType> ?? [];
+}
+<link rel="stylesheet" href="@Url.Content("~/css/engineering-documents.css")" asp-append-version="true" />
+<div class="page-head">
+    <div>
+        <h1>مدیریت مستندات مهندسی</h1>
+        <p>تعریف ساختار درختی آرشیو و بارگذاری مستندات PDF در آخرین گره هر شاخه</p>
+    </div>
+    <div class="actions">
+        <a class="btn btn-outline" href="/EngineeringDocuments/BasicInfo">اطلاعات پایه</a>
+        <a class="btn btn-outline" href="/EngineeringDocuments/Index">مشاهده مستندات مهندسی</a>
+        <button class="btn btn-main" type="button" id="addNodeButton">＋ افزودن گره</button>
+        <button class="btn btn-outline" type="button" id="uploadDocumentButton" disabled>بارگذاری مستند</button>
+    </div>
+</div>
+@if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
+@if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
+
+<form id="requestTokenForm" class="hidden">@Html.AntiForgeryToken()</form>
+<div class="engineering-manage-grid">
+    <section class="card engineering-tree-card">
+        <div class="section-head">
+            <div><h3>ساختار آرشیو مستندات مهندسی</h3><span class="muted">برای انتخاب گره کلیک و برای عملیات مدیریتی کلیک راست کنید.</span></div>
+            <span class="badge">درختواره</span>
+        </div>
+        <div class="engineering-tree-toolbar">
+            <input type="search" id="treeSearch" placeholder="جستجوی سریع در عنوان گره‌ها..." autocomplete="off" />
+            <button class="btn btn-outline btn-sm" type="button" id="expandTree">باز کردن همه</button>
+            <button class="btn btn-outline btn-sm" type="button" id="collapseTree">بستن همه</button>
+        </div>
+        <div id="engineeringTree" class="engineering-tree" role="tree" aria-label="ساختار آرشیو مستندات"></div>
+        <div class="engineering-tree-help">بارگذاری سند فقط در گره‌های انتهایی امکان‌پذیر است. با کشیدن یک گره و رها کردن آن روی گره مقصد، جایگاه آن تغییر می‌کند.</div>
+    </section>
+
+    <section class="card engineering-node-documents">
+        <div class="section-head">
+            <div>
+                <h3 id="selectedNodeTitle">مستندهای گره انتخاب‌شده</h3>
+                <span class="muted" id="selectedNodeHint">برای مشاهده مستندهای یک شاخه، گره موردنظر را انتخاب کنید.</span>
+            </div>
+            <button class="btn btn-main btn-sm" type="button" id="addDocumentButton" disabled>＋ مستند جدید</button>
+        </div>
+        <div id="nodeDocumentsEmpty" class="empty engineering-doc-empty">هنوز گره‌ای انتخاب نشده است.</div>
+        <div class="table-wrap" id="nodeDocumentsWrap" hidden>
+            <table class="engineering-doc-table">
+                <thead><tr><th>عنوان مستند</th><th>نوع</th><th>شماره / بازنگری</th><th>تاریخ انتشار</th><th>نسخه جاری</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+                <tbody id="nodeDocumentsBody"></tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<div id="engineeringTreeMenu" class="tree-context-menu hidden" role="menu"></div>
+
+<div id="engineeringNodeModal" class="modal-backdrop hidden">
+    <div class="modal-card engineering-modal-card">
+        <div class="modal-head">
+            <div><h3 id="nodeModalTitle">افزودن گره</h3><span>تعریف عنوان و جایگاه گره در ساختار آرشیو</span></div>
+            <button type="button" class="modal-close" data-close="engineeringNodeModal">×</button>
+        </div>
+        <form id="engineeringNodeForm" class="form-stack">
+            <input type="hidden" id="engineeringNodeId" />
+            <input type="hidden" id="engineeringNodeParentId" />
+            <label>عنوان گره *
+                <input id="engineeringNodeTitle" maxlength="200" required autocomplete="off" />
+            </label>
+            <div id="engineeringNodeError" class="alert error hidden"></div>
+            <div class="form-actions">
+                <button class="btn btn-outline" type="button" data-close="engineeringNodeModal">انصراف</button>
+                <button class="btn btn-main" type="submit">ذخیره</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="engineeringDocumentModal" class="modal-backdrop hidden">
+    <div class="modal-card engineering-modal-card engineering-document-modal">
+        <div class="modal-head">
+            <div><h3 id="documentModalTitle">بارگذاری مستند مهندسی</h3><span>فایل PDF پس از بارگذاری در مخزن امن خارج از مسیر عمومی سایت نگهداری می‌شود.</span></div>
+            <button type="button" class="modal-close" data-close="engineeringDocumentModal">×</button>
+        </div>
+        <form id="documentUploadForm" method="post" action="/EngineeringDocuments/Upload" enctype="multipart/form-data" class="form-stack">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="nodeId" id="documentNodeId" value="@selectedNodeId" />
+            <input type="hidden" name="documentId" id="documentId" value="0" />
+            <div class="engineering-form-grid">
+                <label class="wide">عنوان مستند *
+                    <input name="title" id="documentTitle" maxlength="250" required />
+                </label>
+                <label>نوع مستند *
+                    <select name="typeId" id="documentTypeId" required>
+                        <option value="">انتخاب نوع مستند...</option>
+                        @foreach (var type in types.Where(x => x.IsActive))
+                        {
+                            <option value="@type.Id">@type.Title</option>
+                        }
+                    </select>
+                </label>
+                <label>شماره مستند / نقشه
+                    <input name="documentNumber" id="documentNumber" maxlength="100" placeholder="مثلاً DWG-1001" />
+                </label>
+                <label>تاریخ انتشار *
+                    <div class="jalali-date-input">
+                        <input type="text" name="publishDate" id="documentPublishDate" data-jalali-date autocomplete="off" inputmode="numeric" required placeholder="۱۴۰۵/۰۸/۰۴" />
+                        <button type="button" class="btn btn-outline jalali-date-open" data-jalali-trigger aria-label="انتخاب تاریخ انتشار">تقویم</button>
+                    </div>
+                </label>
+                <label>تاریخ اجرا / اعتبار
+                    <div class="jalali-date-input">
+                        <input type="text" name="effectiveDate" id="documentEffectiveDate" data-jalali-date autocomplete="off" inputmode="numeric" placeholder="اختیاری" />
+                        <button type="button" class="btn btn-outline jalali-date-open" data-jalali-trigger aria-label="انتخاب تاریخ اجرا">تقویم</button>
+                    </div>
+                </label>
+                <label>شماره بازنگری
+                    <input name="revisionLabel" id="documentRevision" maxlength="50" placeholder="مثلاً Rev.02" />
+                </label>
+                <label>کلیدواژه‌ها
+                    <input name="keywords" id="documentKeywords" maxlength="500" placeholder="جستجوپذیری با نام قطعه، کد یا موضوع..." />
+                </label>
+                <label class="wide">شرح / توضیحات
+                    <textarea name="description" id="documentDescription" maxlength="2000" rows="3"></textarea>
+                </label>
+                <label class="wide">فایل PDF *
+                    <input type="file" name="file" id="documentFile" accept=".pdf,application/pdf" required />
+                    <small class="muted">حداکثر حجم فایل ۳۵ مگابایت است. بارگذاری نسخه جدید، نسخه قبلی را حذف نمی‌کند.</small>
+                </label>
+                <label class="wide">یادداشت تغییرات این نسخه
+                    <input name="changeNote" id="documentChangeNote" maxlength="500" placeholder="مثلاً اصلاح ابعاد سوراخ‌کاری طبق ECN-..." />
+                </label>
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-outline" type="button" data-close="engineeringDocumentModal">انصراف</button>
+                <button class="btn btn-main" type="submit" id="saveDocumentButton">ثبت مستند و فایل</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(() => {
+    const nodes = @Html.Raw(treeJson);
+    const initialNodeId = @selectedNodeId;
+    const treeHost = document.getElementById("engineeringTree");
+    const menu = document.getElementById("engineeringTreeMenu");
+    const token = document.querySelector('#requestTokenForm input[name="__RequestVerificationToken"]')?.value || "";
+    const nodeById = new Map(nodes.map(x => [String(x.id), x]));
+    const childrenByParent = new Map();
+    nodes.forEach(x => {
+        const key = x.parentId == null ? "root" : String(x.parentId);
+        if (!childrenByParent.has(key)) childrenByParent.set(key, []);
+        childrenByParent.get(key).push(x);
+    });
+    const collapsed = new Set();
+    let selectedNodeId = null;
+    let menuNodeId = null;
+    let draggedId = null;
+    let nodeDocuments = [];
+
+    const $ = id => document.getElementById(id);
+    const sorted = list => (list || []).slice().sort((a,b) => Number(a.sortOrder || 0)-Number(b.sortOrder || 0) || String(a.title).localeCompare(String(b.title),"fa"));
+    const hasChildren = id => (childrenByParent.get(String(id)) || []).length > 0;
+    const hasDocuments = id => String(id) === String(selectedNodeId) && nodeDocuments.length > 0;
+    const leaf = id => !hasChildren(id);
+
+    async function post(url, values) {
+        const body = new URLSearchParams();
+        Object.entries(values || {}).forEach(([key,value]) => body.set(key, value == null ? "" : String(value)));
+        body.set("__RequestVerificationToken", token);
+        const response = await fetch(url, {
+            method:"POST", credentials:"same-origin",
+            headers:{"Content-Type":"application/x-www-form-urlencoded; charset=UTF-8"},
+            body
+        });
+        if (!response.ok) throw new Error("درخواست به سرور انجام نشد.");
+        return await response.json();
+    }
+
+    function closeModal(id) { $(id)?.classList.add("hidden"); }
+    document.querySelectorAll("[data-close]").forEach(button =>
+        button.addEventListener("click", () => closeModal(button.dataset.close)));
+    document.querySelectorAll(".modal-backdrop").forEach(backdrop =>
+        backdrop.addEventListener("click", e => { if (e.target === backdrop) backdrop.classList.add("hidden"); }));
+
+    function create(tag, className, text) {
+        const element = document.createElement(tag);
+        if (className) element.className = className;
+        if (text != null) element.textContent = text;
+        return element;
+    }
+
+    function showMenu(nodeId, x, y) {
+        menuNodeId = nodeId;
+        menu.innerHTML = "";
+        const node = nodeId === "root" ? null : nodeById.get(String(nodeId));
+        const actions = [];
+        if (nodeId === "root" || !hasDocuments(nodeId))
+            actions.push(["create", nodeId === "root" ? "＋ افزودن گره اصلی" : "＋ افزودن زیرگره"]);
+        if (node) {
+            actions.push(["edit", "ویرایش عنوان گره"]);
+            actions.push(["delete", "حذف گره"]);
+            if (leaf(nodeId)) actions.push(["upload", "بارگذاری مستند"]);
+        }
+        actions.forEach(([action,label]) => {
+            const button = create("button", action === "delete" ? "danger" : "", label);
+            button.type = "button";
+            button.addEventListener("click", () => runMenuAction(action));
+            menu.appendChild(button);
+        });
+        menu.classList.remove("hidden");
+        const width = 205, height = actions.length * 40 + 12;
+        menu.style.left = Math.min(x, window.innerWidth - width - 8) + "px";
+        menu.style.top = Math.min(y, window.innerHeight - height - 8) + "px";
+    }
+
+    function hideMenu() { menu.classList.add("hidden"); menuNodeId = null; }
+    document.addEventListener("click", e => { if (!menu.contains(e.target)) hideMenu(); });
+    document.addEventListener("keydown", e => { if (e.key === "Escape") { hideMenu(); closeModal("engineeringNodeModal"); closeModal("engineeringDocumentModal"); } });
+
+    function renderTree() {
+        treeHost.innerHTML = "";
+        const term = ($("treeSearch").value || "").trim().toLocaleLowerCase();
+        const root = create("div", "engineering-tree-root");
+        const rootRow = create("div", "org-tree-row engineering-root-row");
+        rootRow.appendChild(create("span", "org-tree-icon", "▦"));
+        rootRow.appendChild(create("span", "org-tree-title", "آرشیو مستندات مهندسی"));
+        rootRow.addEventListener("contextmenu", e => { e.preventDefault(); showMenu("root",e.clientX,e.clientY); });
+        rootRow.addEventListener("dragover", e => { e.preventDefault(); rootRow.classList.add("is-drop-target"); });
+        rootRow.addEventListener("dragleave", () => rootRow.classList.remove("is-drop-target"));
+        rootRow.addEventListener("drop", e => { e.preventDefault(); rootRow.classList.remove("is-drop-target"); moveNode("root"); });
+        root.appendChild(rootRow);
+        const list = create("ul", "org-tree-children");
+        appendNodes(list, "root", term);
+        root.appendChild(list);
+        treeHost.appendChild(root);
+        if (!nodes.length) list.appendChild(create("li","org-tree-empty","هنوز گره‌ای تعریف نشده است. از دکمه افزودن گره اصلی شروع کنید."));
+    }
+
+    function subtreeMatches(node, term) {
+        if (!term || String(node.title).toLocaleLowerCase().includes(term)) return true;
+        return sorted(childrenByParent.get(String(node.id))).some(child => subtreeMatches(child,term));
+    }
+
+    function appendNodes(parent, parentId, term) {
+        const items = sorted(childrenByParent.get(parentId) || []).filter(x => subtreeMatches(x,term));
+        items.forEach(node => {
+            const id = String(node.id);
+            const li = create("li","org-tree-item");
+            const row = create("div","org-tree-row" + (selectedNodeId === id ? " is-selected" : ""));
+            row.dataset.nodeId = id;
+            row.draggable = true;
+            row.appendChild(create("span","org-tree-icon",hasChildren(id) ? "▸" : "▧"));
+            row.appendChild(create("span","org-tree-title",node.title));
+            row.appendChild(create("span","org-tree-code","#" + id));
+            if (selectedNodeId === id) row.appendChild(create("span","org-tree-status","انتخاب‌شده"));
+            row.addEventListener("click", () => selectNode(id));
+            row.addEventListener("contextmenu", e => {
+                e.preventDefault(); e.stopPropagation();
+                const x = e.clientX, y = e.clientY;
+                selectNode(id).then(() => showMenu(id,x,y)).catch(() => showMenu(id,x,y));
+            });
+            row.addEventListener("dragstart", e => {
+                draggedId = id;
+                e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData("text/plain",id);
+                row.classList.add("is-dragging");
+            });
+            row.addEventListener("dragend", () => {
+                draggedId = null;
+                row.classList.remove("is-dragging");
+                document.querySelectorAll(".is-drop-target").forEach(x => x.classList.remove("is-drop-target"));
+            });
+            row.addEventListener("dragover", e => {
+                if (!draggedId || draggedId === id) return;
+                e.preventDefault();
+                row.classList.add("is-drop-target");
+            });
+            row.addEventListener("dragleave", () => row.classList.remove("is-drop-target"));
+            row.addEventListener("drop", e => {
+                e.preventDefault(); e.stopPropagation();
+                row.classList.remove("is-drop-target");
+                moveNode(id);
+            });
+            li.appendChild(row);
+
+            const children = sorted(childrenByParent.get(id) || []).filter(x => subtreeMatches(x,term));
+            if (children.length) {
+                const childList = create("ul","org-tree-children");
+                const caret = create("button","org-tree-caret",collapsed.has(id) && !term ? "‹" : "⌄");
+                caret.type = "button";
+                caret.addEventListener("click", e => {
+                    e.stopPropagation();
+                    if (collapsed.has(id)) collapsed.delete(id); else collapsed.add(id);
+                    renderTree();
+                });
+                row.insertBefore(caret,row.firstChild);
+                childList.classList.toggle("collapsed",collapsed.has(id) && !term);
+                appendNodes(childList,id,term);
+                li.appendChild(childList);
+            }
+            parent.appendChild(li);
+        });
+    }
+
+    async function selectNode(id) {
+        selectedNodeId = id ? String(id) : null;
+        renderTree();
+        $("uploadDocumentButton").disabled = !selectedNodeId || !leaf(selectedNodeId);
+        $("addDocumentButton").disabled = !selectedNodeId || !leaf(selectedNodeId);
+        $("addNodeButton").disabled = !!selectedNodeId && nodeDocuments.length > 0;
+        $("documentNodeId").value = selectedNodeId || "";
+        if (!selectedNodeId) {
+            nodeDocuments = [];
+            $("selectedNodeTitle").textContent = "مستندهای گره انتخاب‌شده";
+            $("selectedNodeHint").textContent = "برای مشاهده مستندهای یک شاخه، گره موردنظر را انتخاب کنید.";
+            $("nodeDocumentsEmpty").hidden = false;
+            $("nodeDocumentsWrap").hidden = true;
+            return;
+        }
+        const node = nodeById.get(selectedNodeId);
+        nodeDocuments = [];
+        $("nodeDocumentsBody").innerHTML = "";
+        $("nodeDocumentsEmpty").hidden = false;
+        $("nodeDocumentsWrap").hidden = true;
+        $("selectedNodeTitle").textContent = "مستندهای «" + (node?.title || "") + "»";
+        $("selectedNodeHint").textContent = leaf(selectedNodeId)
+            ? "این گره انتهایی است؛ می‌توانید چند مستند مستقل یا نسخه‌های بعدی یک مستند را ثبت کنید."
+            : "این گره دارای زیرگره است؛ برای ثبت مستند، یکی از گره‌های انتهایی را انتخاب کنید.";
+        await loadNodeDocuments();
+    }
+
+    async function loadNodeDocuments() {
+        if (!selectedNodeId) return;
+        const response = await fetch("/EngineeringDocuments/NodeDocuments?nodeId=" + encodeURIComponent(selectedNodeId), {credentials:"same-origin"});
+        if (!response.ok) throw new Error("دریافت فهرست مستندها ناموفق بود.");
+        nodeDocuments = await response.json();
+        renderNodeDocuments();
+        $("addNodeButton").disabled = nodeDocuments.length > 0;
+        $("uploadDocumentButton").disabled = !leaf(selectedNodeId);
+        $("addDocumentButton").disabled = !leaf(selectedNodeId);
+    }
+
+    function renderNodeDocuments() {
+        const body = $("nodeDocumentsBody");
+        body.innerHTML = "";
+        $("nodeDocumentsEmpty").hidden = nodeDocuments.length > 0;
+        $("nodeDocumentsWrap").hidden = nodeDocuments.length === 0;
+        if (!nodeDocuments.length) {
+            $("nodeDocumentsEmpty").textContent = selectedNodeId
+                ? (leaf(selectedNodeId) ? "برای این گره هنوز مستندی ثبت نشده است." : "این گره دارای زیرگره است و محل بارگذاری سند نیست.")
+                : "هنوز گره‌ای انتخاب نشده است.";
+            return;
+        }
+        nodeDocuments.forEach(doc => {
+            const row = create("tr");
+            [doc.title,doc.typeTitle,(doc.documentNumber || "—") + " / " + (doc.revisionLabel || "—"),doc.publishDate,"نسخه " + doc.versionNumber,doc.isActive ? "فعال" : "غیرفعال"].forEach(value => row.appendChild(create("td","",value)));
+            const actions = create("td","engineering-row-actions");
+            const version = create("button","btn btn-outline btn-sm","نسخه جدید");
+            version.type = "button"; version.disabled = !leaf(selectedNodeId);
+            version.addEventListener("click",() => openDocumentModal(doc));
+            actions.appendChild(version);
+            const toggleForm = create("form","inline-form");
+            toggleForm.method = "post"; toggleForm.action = "/EngineeringDocuments/ToggleDocument";
+            const anti = document.createElement("input"); anti.type = "hidden"; anti.name = "__RequestVerificationToken"; anti.value = token;
+            const idInput = document.createElement("input"); idInput.type = "hidden"; idInput.name = "id"; idInput.value = doc.id;
+            const nodeInput = document.createElement("input"); nodeInput.type = "hidden"; nodeInput.name = "nodeId"; nodeInput.value = selectedNodeId;
+            const toggle = create("button","btn btn-outline btn-sm",doc.isActive ? "غیرفعال‌سازی" : "فعال‌سازی");
+            toggle.type = "submit";
+            toggleForm.append(anti,idInput,nodeInput,toggle);
+            actions.appendChild(toggleForm);
+            row.appendChild(actions);
+            body.appendChild(row);
+        });
+    }
+
+    async function runMenuAction(action) {
+        const id = menuNodeId;
+        hideMenu();
+        if (action === "create") return openNodeModal("create",id);
+        if (action === "edit") return openNodeModal("edit",id);
+        if (action === "upload") return openDocumentModal(null);
+        if (action === "delete") {
+            const node = nodeById.get(String(id));
+            if (!confirm("گره «" + (node?.title || "") + "» حذف شود؟ گره دارای زیرگره یا سابقه مستند قابل حذف نیست.")) return;
+            try {
+                const result = await post("/EngineeringDocuments/DeleteNode",{id});
+                if (!result.success) return alert(result.message || "حذف گره انجام نشد.");
+                window.location.href = "/EngineeringDocuments/Manage";
+            } catch(error) { alert(error.message); }
+        }
+    }
+
+    function openNodeModal(mode,id) {
+        const node = mode === "edit" ? nodeById.get(String(id)) : null;
+        $("nodeModalTitle").textContent = node ? "ویرایش عنوان گره" : "افزودن گره";
+        $("engineeringNodeId").value = node ? node.id : "";
+        $("engineeringNodeParentId").value = mode === "create" && id !== "root" ? id : "";
+        $("engineeringNodeTitle").value = node ? node.title : "";
+        $("engineeringNodeError").classList.add("hidden");
+        $("engineeringNodeModal").classList.remove("hidden");
+        $("engineeringNodeTitle").focus();
+    }
+
+    $("engineeringNodeForm").addEventListener("submit",async event => {
+        event.preventDefault();
+        const id = $("engineeringNodeId").value;
+        const title = $("engineeringNodeTitle").value.trim();
+        const error = $("engineeringNodeError");
+        try {
+            const result = id
+                ? await post("/EngineeringDocuments/UpdateNode",{id,title})
+                : await post("/EngineeringDocuments/CreateNode",{parentId:$("engineeringNodeParentId").value,title,sortOrder:0});
+            if (!result.success) {
+                error.textContent = result.message || "ذخیره گره انجام نشد.";
+                error.classList.remove("hidden");
+                return;
+            }
+            window.location.href = "/EngineeringDocuments/Manage" + (result.id ? "?nodeId=" + result.id : "");
+        } catch(ex) {
+            error.textContent = ex.message;
+            error.classList.remove("hidden");
+        }
+    });
+
+    async function moveNode(targetId) {
+        const sourceId = draggedId || (window.event?.dataTransfer?.getData("text/plain"));
+        if (!sourceId) return;
+        const childList = childrenByParent.get(targetId === "root" ? "root" : String(targetId)) || [];
+        const parentId = targetId === "root" ? "" : targetId;
+        try {
+            const result = await post("/EngineeringDocuments/MoveNode",{id:sourceId,parentId,position:childList.length});
+            if (!result.success) return alert(result.message || "جابجایی گره انجام نشد.");
+            window.location.href = "/EngineeringDocuments/Manage?nodeId=" + encodeURIComponent(sourceId);
+        } catch(ex) { alert(ex.message); }
+    }
+
+    function openDocumentModal(doc) {
+        if (!selectedNodeId || !leaf(selectedNodeId)) return alert("بارگذاری مستند فقط در گره انتهایی مجاز است.");
+        $("documentUploadForm").reset();
+        $("documentNodeId").value = selectedNodeId;
+        $("documentId").value = doc ? doc.id : 0;
+        $("documentModalTitle").textContent = doc ? "بارگذاری نسخه جدید مستند" : "بارگذاری مستند مهندسی";
+        $("saveDocumentButton").textContent = doc ? "ثبت نسخه جدید" : "ثبت مستند و فایل";
+        $("documentTitle").value = doc ? doc.title : "";
+        $("documentTypeId").value = doc ? String(doc.typeId) : "";
+        $("documentNumber").value = doc ? doc.documentNumber : "";
+        $("documentRevision").value = doc ? doc.revisionLabel : "";
+        $("documentPublishDate").value = doc ? doc.publishDate : "@PersianDateService.Format(DateTime.Today)";
+        $("documentEffectiveDate").value = doc ? doc.effectiveDate : "";
+        $("documentKeywords").value = doc ? (doc.keywords || "") : "";
+        $("documentDescription").value = doc ? (doc.description || "") : "";
+        $("documentChangeNote").value = doc ? "بارگذاری نسخه جدید" : "";
+        $("documentFile").value = "";
+        $("engineeringDocumentModal").classList.remove("hidden");
+    }
+
+    $("addNodeButton").addEventListener("click",() => openNodeModal("create",selectedNodeId || "root"));
+    $("uploadDocumentButton").addEventListener("click",() => openDocumentModal(null));
+    $("addDocumentButton").addEventListener("click",() => openDocumentModal(null));
+    $("treeSearch").addEventListener("input",renderTree);
+    $("expandTree").addEventListener("click",() => { collapsed.clear(); renderTree(); });
+    $("collapseTree").addEventListener("click",() => { nodes.forEach(n => collapsed.add(String(n.id))); renderTree(); });
+
+    renderTree();
+    if (initialNodeId && nodeById.has(String(initialNodeId))) selectNode(String(initialNodeId));
+    else selectNode(null);
+})();
+</script>
+}

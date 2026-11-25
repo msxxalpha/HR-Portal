@@ -11,7 +11,7 @@ public class RoleService(HRPortalDbContext db)
     {
         "HR_MANAGER", "ORG_MANAGER", "SETTINGS_MANAGER", "PAYROLL_USER", "EMPLOYEE",
         "USER_MANAGER", "ROLE_MANAGER", "WORKFLOW_MANAGER", "SUGGESTION_MANAGER",
-        "PERFORMANCE_MANAGER", "PERFORMANCE_EVALUATOR", "OUTSOURCED_SERVICES_MANAGER"
+        "PERFORMANCE_MANAGER", "PERFORMANCE_EVALUATOR", "OUTSOURCED_SERVICES_MANAGER", "ENGINEERING_DOCUMENTS_MANAGER"
     };
 
     public static bool IsBuiltInRoleCode(string? code) =>
@@ -70,7 +70,9 @@ public class RoleService(HRPortalDbContext db)
         ("MonthlyPerformance.View", "مشاهده ارزیابی عملکرد شخصی", "ماژول ارزیابی عملکرد کارکنان"),
         ("MonthlyPerformance.Evaluate", "ارزیابی کارکنان زیرمجموعه", "ماژول ارزیابی عملکرد کارکنان"),
         ("MonthlyPerformance.Manage", "مدیریت اطلاعات پایه و دوره‌های ارزیابی", "ماژول ارزیابی عملکرد کارکنان"),
-        ("MonthlyPerformance.Reports", "مشاهده گزارش‌های مدیریتی عملکرد", "ماژول ارزیابی عملکرد کارکنان")
+        ("MonthlyPerformance.Reports", "مشاهده گزارش‌های مدیریتی عملکرد", "ماژول ارزیابی عملکرد کارکنان"),
+        ("EngineeringDocuments.View", "مشاهده مستندات مهندسی", "مدیریت عملیات کارخانه"),
+        ("EngineeringDocuments.Manage", "مدیریت ساختار و مستندات مهندسی", "مدیریت عملیات کارخانه")
     ];
 
     public sealed record OrganizationRankNode(
@@ -150,7 +152,7 @@ public class RoleService(HRPortalDbContext db)
         await EnsureRoleAsync("PAYROLL_USER", "گزارش فیش حقوقی", "دسترسی به فیش حقوقی",
             ["Payroll.View", "PersonnelOrder.View", "Workflow.Inbox"]);
         await EnsureRoleAsync("EMPLOYEE", "کاربر کارکنان", "نقش پیش‌فرض کارکنان برای استفاده از خدمات پرسنلی و مشاهده عملکرد شخصی",
-            ["Payroll.View", "PersonnelOrder.View", "Workflow.Inbox", "MonthlyPerformance.View", "Suggestions.Submit", "OutsourcedServices.Create"]);
+            ["Payroll.View", "PersonnelOrder.View", "Workflow.Inbox", "MonthlyPerformance.View", "Suggestions.Submit", "OutsourcedServices.Create", "EngineeringDocuments.View"]);
         var defaultRoleId = await db.Roles.Where(x => x.Code == "EMPLOYEE").Select(x => x.Id).SingleAsync();
         var assignedEmployees = await db.EmployeeRoles
             .Where(x => x.Role.Code == "EMPLOYEE")
@@ -176,6 +178,9 @@ public class RoleService(HRPortalDbContext db)
             ["Suggestions.ViewAll", "Suggestions.Manage", "Suggestions.Evaluate", "Suggestions.Reports", "Suggestions.Export"]);
         await EnsureRoleAsync("OUTSOURCED_SERVICES_MANAGER", "مدیریت سفارش خدمات برونسپاری", "مشاهده همه درخواست‌ها و گزارش‌های سفارش خدمات برونسپاری",
             ["OutsourcedServices.Create", "OutsourcedServices.ViewAll", "OutsourcedServices.Reports"]);
+        await EnsureRoleAsync("ENGINEERING_DOCUMENTS_MANAGER", "مدیریت آرشیو مستندات مهندسی",
+            "مدیریت درختواره و بارگذاری نسخه‌های مستندات مهندسی",
+            ["EngineeringDocuments.View", "EngineeringDocuments.Manage"]);
 
         // Existing roles that already hold the legacy all-access renewal permission
         // receive the new granular capabilities too; no existing assignment is revoked.
@@ -229,6 +234,12 @@ public class RoleService(HRPortalDbContext db)
             }
             if (added > 0) await db.SaveChangesAsync();
         }
+
+        // Keep read-only access available to employees holding any built-in operational role.
+        var builtInRoles = (await db.Roles.ToListAsync())
+            .Where(x => BuiltInRoleCodes.Contains(x.Code)).ToList();
+        foreach (var builtInRole in builtInRoles)
+            await EnsureRolePermissionsAsync(builtInRole, ["EngineeringDocuments.View"]);
     }
 
     private async Task<Role> EnsureRoleAsync(string code, string title, string description, IEnumerable<string> permissionCodes)

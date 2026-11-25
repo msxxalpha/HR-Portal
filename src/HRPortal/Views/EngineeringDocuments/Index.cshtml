@@ -1,0 +1,151 @@
+@model HRPortal.Models.EngineeringDocumentListViewModel
+@using HRPortal.Models
+@using HRPortal.Services
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "مشاهده مستندات مهندسی";
+    var types = ViewBag.Types as List<EngineeringDocumentType> ?? [];
+    var nodes = ViewBag.Nodes as List<EngineeringDocumentNode> ?? [];
+    bool canManage = User.HasClaim("IsAdmin", "1") || User.HasClaim("Permission", "EngineeringDocuments.Manage");
+    string PageLink(int targetPage) => Url.Action("Index", "EngineeringDocuments", new {
+        q = Model.Search, nodeId = Model.NodeId, typeId = Model.TypeId,
+        fromDate = Model.FromDate, toDate = Model.ToDate, sort = Model.Sort,
+        descending = Model.Descending, page = targetPage, pageSize = Model.PageSize
+    }) ?? "#";
+}
+<link rel="stylesheet" href="@Url.Content("~/css/engineering-documents.css")" asp-append-version="true" />
+<div class="page-head">
+    <div><h1>مشاهده مستندات مهندسی</h1><p>جستجو و مشاهده آخرین نسخه فعال نقشه‌ها، مدارک و دستورالعمل‌های مهندسی</p></div>
+    <div class="actions">
+        @if (canManage) { <a class="btn btn-outline" href="/EngineeringDocuments/Manage">مدیریت مستندات مهندسی</a> }
+    </div>
+</div>
+
+<section class="card engineering-search-card">
+    <form method="get" action="/EngineeringDocuments/Index" id="engineeringDocumentFilters" class="engineering-filter-form">
+        <div class="engineering-search-main">
+            <label class="engineering-search-field">جستجوی سریع
+                <input type="search" name="q" id="documentSearch" value="@Model.Search" autocomplete="off" placeholder="بخشی از عنوان، شماره نقشه، بازنگری، نوع، گره یا کلیدواژه را وارد کنید..." />
+            </label>
+            <label>ساختار / گره
+                <select name="nodeId">
+                    <option value="">همه گره‌ها</option>
+                    @foreach (var node in nodes)
+                    {
+                        <option value="@node.Id" selected="@(Model.NodeId == node.Id)">@node.Title</option>
+                    }
+                </select>
+            </label>
+            <label>نوع مستند
+                <select name="typeId">
+                    <option value="">همه انواع</option>
+                    @foreach (var type in types)
+                    {
+                        <option value="@type.Id" selected="@(Model.TypeId == type.Id)">@type.Title @(type.IsActive ? "" : "(غیرفعال)")</option>
+                    }
+                </select>
+            </label>
+        </div>
+        <div class="engineering-search-secondary">
+            <label>از تاریخ انتشار
+                <div class="jalali-date-input">
+                    <input type="text" name="fromDate" value="@Model.FromDate" data-jalali-date autocomplete="off" inputmode="numeric" placeholder="۱۴۰۵/۰۱/۰۱" />
+                    <button type="button" class="btn btn-outline jalali-date-open" data-jalali-trigger aria-label="انتخاب تاریخ شروع">تقویم</button>
+                </div>
+            </label>
+            <label>تا تاریخ انتشار
+                <div class="jalali-date-input">
+                    <input type="text" name="toDate" value="@Model.ToDate" data-jalali-date autocomplete="off" inputmode="numeric" placeholder="۱۴۰۵/۱۲/۲۹" />
+                    <button type="button" class="btn btn-outline jalali-date-open" data-jalali-trigger aria-label="انتخاب تاریخ پایان">تقویم</button>
+                </div>
+            </label>
+            <label>مرتب‌سازی
+                <select name="sort">
+                    <option value="published" selected="@(Model.Sort == "published")">تاریخ انتشار</option>
+                    <option value="title" selected="@(Model.Sort == "title")">عنوان مستند</option>
+                    <option value="type" selected="@(Model.Sort == "type")">نوع مستند</option>
+                    <option value="node" selected="@(Model.Sort == "node")">گره آرشیو</option>
+                    <option value="number" selected="@(Model.Sort == "number")">شماره مستند</option>
+                    <option value="uploaded" selected="@(Model.Sort == "uploaded")">آخرین بارگذاری</option>
+                </select>
+            </label>
+            <label>ترتیب
+                <select name="descending">
+                    <option value="true" selected="@Model.Descending">نزولی</option>
+                    <option value="false" selected="@(!Model.Descending)">صعودی</option>
+                </select>
+            </label>
+            <label>تعداد در صفحه
+                <select name="pageSize">
+                    @foreach (var size in new[] { 10, 20, 50, 100 })
+                    {
+                        <option value="@size" selected="@(Model.PageSize == size)">@size</option>
+                    }
+                </select>
+            </label>
+            <input type="hidden" name="page" value="1" />
+            <div class="engineering-filter-actions">
+                <button class="btn btn-main" type="submit">اعمال فیلتر</button>
+                <a class="btn btn-outline" href="/EngineeringDocuments/Index">پاک‌کردن فیلترها</a>
+            </div>
+        </div>
+    </form>
+</section>
+
+<section class="card">
+    <div class="section-head">
+        <div><h3>فهرست مستندات فعال</h3><span class="muted">نمایش آخرین نسخه فعال هر مستند؛ نسخه‌های پیشین در آرشیو مدیریتی حفظ می‌شوند.</span></div>
+        <span class="engineering-result-count">@Model.TotalCount مستند</span>
+    </div>
+    <div class="table-wrap">
+        <table class="engineering-doc-table engineering-list-table">
+            <thead><tr><th>عنوان مستند</th><th>نوع</th><th>ساختار</th><th>شماره مستند</th><th>بازنگری</th><th>تاریخ انتشار</th><th>تاریخ اجرا</th><th>نسخه</th><th>عملیات</th></tr></thead>
+            <tbody>
+            @foreach (var doc in Model.Documents)
+            {
+                <tr>
+                    <td><strong>@doc.Title</strong>@if (!string.IsNullOrWhiteSpace(doc.Description)) { <small class="engineering-description">@doc.Description</small> }</td>
+                    <td>@doc.TypeTitle</td>
+                    <td>@doc.NodeTitle</td>
+                    <td>@(string.IsNullOrWhiteSpace(doc.DocumentNumber) ? "—" : doc.DocumentNumber)</td>
+                    <td>@(string.IsNullOrWhiteSpace(doc.RevisionLabel) ? "—" : doc.RevisionLabel)</td>
+                    <td>@PersianDateService.Format(doc.PublishDate)</td>
+                    <td>@(doc.EffectiveDate.HasValue ? PersianDateService.Format(doc.EffectiveDate.Value) : "—")</td>
+                    <td><span class="engineering-version">V@doc.VersionNumber</span></td>
+                    <td><a class="btn btn-main btn-sm" href="/EngineeringDocuments/ViewDocument/@doc.Id" target="_blank" rel="noopener">مشاهده تصویر</a></td>
+                </tr>
+            }
+            @if (Model.Documents.Count == 0)
+            {
+                <tr><td colspan="9" class="empty">با فیلترهای انتخاب‌شده مستند فعالی پیدا نشد.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    <div class="engineering-pagination">
+        <span>صفحه @Model.Page از @Model.PageCount · تعداد نتایج: @Model.TotalCount</span>
+        <div class="engineering-page-links">
+            @if (Model.Page > 1) { <a class="btn btn-outline btn-sm" href="@PageLink(Model.Page - 1)">قبلی</a> }
+            @for (var p = Math.Max(1, Model.Page - 2); p <= Math.Min(Model.PageCount, Model.Page + 2); p++)
+            {
+                <a class="btn @(p == Model.Page ? "btn-main" : "btn-outline") btn-sm" href="@PageLink(p)" aria-current="@(p == Model.Page ? "page" : null)">@p</a>
+            }
+            @if (Model.Page < Model.PageCount) { <a class="btn btn-outline btn-sm" href="@PageLink(Model.Page + 1)">بعدی</a> }
+        </div>
+    </div>
+</section>
+
+@section Scripts {
+<script>
+(() => {
+    const form = document.getElementById("engineeringDocumentFilters");
+    const search = document.getElementById("documentSearch");
+    if (!form || !search) return;
+    let handle = 0;
+    search.addEventListener("input", () => {
+        window.clearTimeout(handle);
+        handle = window.setTimeout(() => form.requestSubmit(), 400);
+    });
+})();
+</script>
+}

@@ -58,6 +58,10 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
     public DbSet<ContractRenewalRequest> ContractRenewalRequests => Set<ContractRenewalRequest>();
     public DbSet<ContractRenewalRequestRevision> ContractRenewalRequestRevisions => Set<ContractRenewalRequestRevision>();
     public DbSet<ContractRenewalWorkflowSettings> ContractRenewalWorkflowSettings => Set<ContractRenewalWorkflowSettings>();
+    public DbSet<EngineeringDocumentNode> EngineeringDocumentNodes => Set<EngineeringDocumentNode>();
+    public DbSet<EngineeringDocumentType> EngineeringDocumentTypes => Set<EngineeringDocumentType>();
+    public DbSet<EngineeringDocument> EngineeringDocuments => Set<EngineeringDocument>();
+    public DbSet<EngineeringDocumentVersion> EngineeringDocumentVersions => Set<EngineeringDocumentVersion>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -140,7 +144,7 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
         modelBuilder.Entity<MonthlyPerformanceRank>(e =>
         {
             e.ToTable("MonthlyPerformanceRanks"); e.HasKey(x => x.Id); e.HasIndex(x => x.Code).IsUnique();
-            e.HasIndex(x => x.Title).IsUnique();
+            e.HasIndex(x => x.Title).IsUnique().HasDatabaseName("UX_EngineeringDocumentTypes_Title");
         });
         modelBuilder.Entity<MonthlyPerformanceQuestion>(e =>
         {
@@ -537,6 +541,59 @@ public class HRPortalDbContext(DbContextOptions<HRPortalDbContext> options) : Db
                 .HasForeignKey(x => x.RoleId)
                 .IsRequired()
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<EngineeringDocumentNode>(e =>
+        {
+            e.ToTable("EngineeringDocumentNodes");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Title).HasMaxLength(200).IsRequired();
+            e.HasIndex(x => new { x.ParentId, x.SortOrder, x.Title }).HasDatabaseName("IX_EngineeringDocumentNodes_Parent_Sort");
+            e.HasOne(x => x.Parent).WithMany(x => x.Children).HasForeignKey(x => x.ParentId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<EngineeringDocumentType>(e =>
+        {
+            e.ToTable("EngineeringDocumentTypes");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Title).HasMaxLength(150).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(500).IsRequired();
+            e.HasIndex(x => x.Title).IsUnique();
+        });
+        modelBuilder.Entity<EngineeringDocument>(e =>
+        {
+            e.ToTable("EngineeringDocuments");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Title).HasMaxLength(250).IsRequired();
+            e.Property(x => x.DocumentNumber).HasMaxLength(100).IsRequired();
+            e.Property(x => x.RevisionLabel).HasMaxLength(50).IsRequired();
+            e.Property(x => x.PublishDate).HasColumnType("date");
+            e.Property(x => x.EffectiveDate).HasColumnType("date");
+            e.Property(x => x.Keywords).HasMaxLength(500).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(2000).IsRequired();
+            e.Property(x => x.CreatedByName).HasMaxLength(200).IsRequired();
+            e.Property(x => x.CreatedByPersonnelNumber).HasMaxLength(50).IsRequired();
+            e.HasIndex(x => new { x.NodeId, x.IsActive, x.PublishDate }).HasDatabaseName("IX_EngineeringDocuments_Node_Active");
+            e.HasIndex(x => new { x.TypeId, x.PublishDate }).HasDatabaseName("IX_EngineeringDocuments_Type_PublishDate");
+            e.HasOne(x => x.Node).WithMany(x => x.Documents).HasForeignKey(x => x.NodeId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Type).WithMany(x => x.Documents).HasForeignKey(x => x.TypeId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<EngineeringDocumentVersion>(e =>
+        {
+            e.ToTable("EngineeringDocumentVersions");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.StoredFileName).HasMaxLength(100).IsRequired();
+            e.Property(x => x.OriginalFileName).HasMaxLength(260).IsRequired();
+            e.Property(x => x.ContentType).HasMaxLength(100).IsRequired();
+            e.Property(x => x.UploadedByName).HasMaxLength(200).IsRequired();
+            e.Property(x => x.UploadedByPersonnelNumber).HasMaxLength(50).IsRequired();
+            e.Property(x => x.ChangeNote).HasMaxLength(500).IsRequired();
+            e.HasIndex(x => new { x.EngineeringDocumentId, x.VersionNumber }).IsUnique().HasDatabaseName("UX_EngineeringDocumentVersions_Document_Version");
+            e.HasIndex(x => x.EngineeringDocumentId).IsUnique().HasFilter("[IsCurrent] = 1").HasDatabaseName("UX_EngineeringDocumentVersions_Current");
+            e.HasOne(x => x.Document).WithMany(x => x.Versions).HasForeignKey(x => x.EngineeringDocumentId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

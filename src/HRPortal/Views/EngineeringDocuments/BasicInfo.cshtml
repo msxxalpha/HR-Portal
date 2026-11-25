@@ -1,0 +1,73 @@
+@model List<HRPortal.Models.EngineeringDocumentType>
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "اطلاعات پایه آرشیو مستندات مهندسی";
+    var editing = ViewBag.Editing as HRPortal.Models.EngineeringDocumentType;
+}
+<link rel="stylesheet" href="@Url.Content("~/css/engineering-documents.css")" asp-append-version="true" />
+<div class="page-head">
+    <div><h1>اطلاعات پایه آرشیو مستندات مهندسی</h1><p>مدیریت انواع مدارک و مستندات قابل انتخاب هنگام بارگذاری</p></div>
+    <div class="actions"><a class="btn btn-outline" href="/EngineeringDocuments/Manage">مدیریت مستندات مهندسی</a><a class="btn btn-outline" href="/EngineeringDocuments/Index">مشاهده مستندات</a></div>
+</div>
+@if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
+@if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }
+
+<div class="engineering-tabs" role="tablist" aria-label="اطلاعات پایه">
+    <a class="engineering-tab active" role="tab" aria-selected="true" href="/EngineeringDocuments/BasicInfo">مدیریت انواع مستندات مهندسی</a>
+</div>
+<div class="split engineering-basic-grid">
+    <section class="card">
+        <div class="section-head"><div><h3>@(editing is null ? "تعریف نوع مستند جدید" : "ویرایش نوع مستند")</h3><span class="muted">این فهرست در فرم بارگذاری مستند استفاده می‌شود.</span></div></div>
+        <form method="post" action="/EngineeringDocuments/SaveType" class="form-stack">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@(editing?.Id ?? 0)" />
+            <label>عنوان نوع مستند *
+                <input name="title" value="@editing?.Title" maxlength="150" required placeholder="مثلاً نقشه مونتاژی" />
+            </label>
+            <label>شرح
+                <textarea name="description" maxlength="500" rows="3">@editing?.Description</textarea>
+            </label>
+            <label>ترتیب نمایش
+                <input name="sortOrder" type="number" min="0" value="@(editing?.SortOrder ?? 0)" />
+            </label>
+            <label class="inline-check">فعال برای انتخاب در فرم بارگذاری
+                <input type="checkbox" name="isActive" value="true" checked="@(editing?.IsActive ?? true)" />
+            </label>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-main">@(editing is null ? "ثبت نوع مستند" : "ذخیره تغییرات")</button>
+                @if (editing is not null) { <a class="btn btn-outline" href="/EngineeringDocuments/BasicInfo">انصراف</a> }
+            </div>
+        </form>
+    </section>
+    <section class="card">
+        <div class="section-head"><div><h3>انواع مستندات تعریف‌شده</h3><span class="muted">@Model.Count نوع</span></div></div>
+        <div class="table-wrap">
+            <table class="engineering-doc-table">
+                <thead><tr><th>عنوان</th><th>شرح</th><th>ترتیب</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+                <tbody>
+                @foreach (var type in Model)
+                {
+                    <tr>
+                        <td><strong>@type.Title</strong></td>
+                        <td>@(string.IsNullOrWhiteSpace(type.Description) ? "—" : type.Description)</td>
+                        <td>@type.SortOrder</td>
+                        <td><span class="engineering-state @(type.IsActive ? "active" : "inactive")">@(type.IsActive ? "فعال" : "غیرفعال")</span></td>
+                        <td>
+                            <div class="engineering-row-actions">
+                                <a class="btn btn-outline btn-sm" href="/EngineeringDocuments/BasicInfo?editId=@type.Id">ویرایش</a>
+                                <form method="post" action="/EngineeringDocuments/ToggleType">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@type.Id" />
+                                    <button class="btn btn-outline btn-sm" type="submit">@(type.IsActive ? "غیرفعال‌سازی" : "فعال‌سازی")</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                @if (Model.Count == 0) { <tr><td colspan="5" class="empty">هنوز نوع مستندی تعریف نشده است.</td></tr> }
+                </tbody>
+            </table>
+        </div>
+        <div class="engineering-tree-help">غیرفعال‌سازی نوعی که قبلاً استفاده شده باشد، سوابق مستندهای ثبت‌شده را حذف نمی‌کند؛ فقط از انتخاب آن برای مستند جدید جلوگیری می‌شود.</div>
+    </section>
+</div>

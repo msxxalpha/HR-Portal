@@ -6,6 +6,7 @@
     var treeJson = (string?)ViewBag.TreeJson ?? "[]";
     var selectedNodeId = (int?)ViewBag.SelectedNodeId ?? 0;
     var types = ViewBag.Types as List<EngineeringDocumentType> ?? [];
+    var isAdmin = User.HasClaim("IsAdmin", "1");
 }
 <link rel="stylesheet" href="@Url.Content("~/css/engineering-documents.css")" asp-append-version="true" />
 <div class="page-head">
@@ -15,6 +16,7 @@
     </div>
     <div class="actions">
         <a class="btn btn-outline" href="/EngineeringDocuments/BasicInfo">اطلاعات پایه</a>
+        <a class="btn btn-outline" href="/EngineeringDocuments/PublishList">لیست انتشار مستندات مهندسی</a>
         <a class="btn btn-outline" href="/EngineeringDocuments/Index">مشاهده مستندات مهندسی</a>
         <button class="btn btn-main" type="button" id="addNodeButton">＋ افزودن گره</button>
         <button class="btn btn-outline" type="button" id="uploadDocumentButton" disabled>بارگذاری مستند</button>
@@ -83,7 +85,7 @@
 <div id="engineeringDocumentModal" class="modal-backdrop hidden">
     <div class="modal-card engineering-modal-card engineering-document-modal">
         <div class="modal-head">
-            <div><h3 id="documentModalTitle">بارگذاری مستند مهندسی</h3><span>فایل PDF پس از بارگذاری در مخزن امن خارج از مسیر عمومی سایت نگهداری می‌شود.</span></div>
+            <div><h3 id="documentModalTitle">بارگذاری مستند مهندسی</h3><span>فایل PDF در پایگاه داده ذخیره می‌شود و تا زمان انتشار در فهرست مشاهده قرار نمی‌گیرد.</span></div>
             <button type="button" class="modal-close" data-close="engineeringDocumentModal">×</button>
         </div>
         <form id="documentUploadForm" method="post" action="/EngineeringDocuments/Upload" enctype="multipart/form-data" class="form-stack">
@@ -106,12 +108,6 @@
                 <label>شماره مستند / نقشه
                     <input name="documentNumber" id="documentNumber" maxlength="100" placeholder="مثلاً DWG-1001" />
                 </label>
-                <label>تاریخ انتشار *
-                    <div class="jalali-date-input">
-                        <input type="text" name="publishDate" id="documentPublishDate" data-jalali-date autocomplete="off" inputmode="numeric" required placeholder="۱۴۰۵/۰۸/۰۴" />
-                        <button type="button" class="btn btn-outline jalali-date-open" data-jalali-trigger aria-label="انتخاب تاریخ انتشار">تقویم</button>
-                    </div>
-                </label>
                 <label>تاریخ اجرا / اعتبار
                     <div class="jalali-date-input">
                         <input type="text" name="effectiveDate" id="documentEffectiveDate" data-jalali-date autocomplete="off" inputmode="numeric" placeholder="اختیاری" />
@@ -129,7 +125,7 @@
                 </label>
                 <label class="wide">فایل PDF *
                     <input type="file" name="file" id="documentFile" accept=".pdf,application/pdf" required />
-                    <small class="muted">حداکثر حجم فایل ۳۵ مگابایت است. بارگذاری نسخه جدید، نسخه قبلی را حذف نمی‌کند.</small>
+                    <small class="muted">حداکثر حجم فایل ۳۵ مگابایت است. سند پس از ثبت در وضعیت «انتشار نیافته» قرار می‌گیرد؛ بارگذاری نسخه جدید، نسخه قبلی را غیرفعال و سند را برای انتشار مجدد آماده می‌کند.</small>
                 </label>
                 <label class="wide">یادداشت تغییرات این نسخه
                     <input name="changeNote" id="documentChangeNote" maxlength="500" placeholder="مثلاً اصلاح ابعاد سوراخ‌کاری طبق ECN-..." />
@@ -148,6 +144,7 @@
 (() => {
     const nodes = @Html.Raw(treeJson);
     const initialNodeId = @selectedNodeId;
+    const isAdmin = @Html.Raw(isAdmin.ToString().ToLowerInvariant());
     const treeHost = document.getElementById("engineeringTree");
     const menu = document.getElementById("engineeringTreeMenu");
     const token = document.querySelector('#requestTokenForm input[name="__RequestVerificationToken"]')?.value || "";
@@ -205,7 +202,7 @@
             actions.push(["create", nodeId === "root" ? "＋ افزودن گره اصلی" : "＋ افزودن زیرگره"]);
         if (node) {
             actions.push(["edit", "ویرایش عنوان گره"]);
-            actions.push(["delete", "حذف گره"]);
+            if (!hasDocuments(nodeId) || isAdmin) actions.push(["delete", "حذف گره"]);
             if (leaf(nodeId)) actions.push(["upload", "بارگذاری مستند"]);
         }
         actions.forEach(([action,label]) => {
@@ -358,27 +355,65 @@
                 : "هنوز گره‌ای انتخاب نشده است.";
             return;
         }
+
         nodeDocuments.forEach(doc => {
             const row = create("tr");
-            [doc.title,doc.typeTitle,(doc.documentNumber || "—") + " / " + (doc.revisionLabel || "—"),doc.publishDate,"نسخه " + doc.versionNumber,doc.isActive ? "فعال" : "غیرفعال"].forEach(value => row.appendChild(create("td","",value)));
+            const publishState = !doc.isActive ? "غیرفعال" : doc.isPublished ? "منتشرشده" : "انتشار نیافته";
+            [
+                doc.title,
+                doc.typeTitle,
+                (doc.documentNumber || "—") + " / " + (doc.revisionLabel || "—"),
+                doc.isPublished ? (doc.publishDate || "—") : "—",
+                "نسخه " + doc.versionNumber,
+                publishState
+            ].forEach(value => row.appendChild(create("td","",value)));
+
             const actions = create("td","engineering-row-actions");
-            const version = create("button","btn btn-outline btn-sm","نسخه جدید");
-            version.type = "button"; version.disabled = !leaf(selectedNodeId);
+            const version = create("button","btn btn-outline btn-sm","بارگذاری نسخه جدید");
+            version.type = "button";
+            version.disabled = !leaf(selectedNodeId);
             version.addEventListener("click",() => openDocumentModal(doc));
             actions.appendChild(version);
-            const toggleForm = create("form","inline-form");
-            toggleForm.method = "post"; toggleForm.action = "/EngineeringDocuments/ToggleDocument";
-            const anti = document.createElement("input"); anti.type = "hidden"; anti.name = "__RequestVerificationToken"; anti.value = token;
-            const idInput = document.createElement("input"); idInput.type = "hidden"; idInput.name = "id"; idInput.value = doc.id;
-            const nodeInput = document.createElement("input"); nodeInput.type = "hidden"; nodeInput.name = "nodeId"; nodeInput.value = selectedNodeId;
-            const toggle = create("button","btn btn-outline btn-sm",doc.isActive ? "غیرفعال‌سازی" : "فعال‌سازی");
-            toggle.type = "submit";
-            toggleForm.append(anti,idInput,nodeInput,toggle);
-            actions.appendChild(toggleForm);
+
+            const appendPostAction = (url,label,confirmMessage) => {
+                const form = create("form","inline-form");
+                form.method = "post";
+                form.action = url;
+                const anti = document.createElement("input");
+                anti.type = "hidden"; anti.name = "__RequestVerificationToken"; anti.value = token;
+                const idInput = document.createElement("input");
+                idInput.type = "hidden"; idInput.name = "id"; idInput.value = doc.id;
+                const nodeInput = document.createElement("input");
+                nodeInput.type = "hidden"; nodeInput.name = "nodeId"; nodeInput.value = selectedNodeId;
+                const button = create("button","btn btn-outline btn-sm",label);
+                button.type = "submit";
+                form.append(anti,idInput,nodeInput,button);
+                form.addEventListener("submit",event => {
+                    if (!confirm(confirmMessage)) event.preventDefault();
+                });
+                actions.appendChild(form);
+            };
+
+            if (doc.isPublished && doc.isActive) {
+                appendPostAction(
+                    "/EngineeringDocuments/DeactivateDocument",
+                    "غیرفعال‌سازی",
+                    "مستند منتشرشده غیرفعال و از فهرست مشاهده خارج شود؟ سوابق و فایل‌ها حفظ می‌شوند."
+                );
+            } else if (!doc.isPublished && !doc.hasBeenPublished) {
+                appendPostAction(
+                    "/EngineeringDocuments/DeleteDocument",
+                    "حذف پیش‌نویس",
+                    "پیش‌نویس و تمام فایل‌های نسخه‌های آن حذف شوند؟ این عملیات قابل بازگشت نیست."
+                );
+            }
+
             row.appendChild(actions);
             body.appendChild(row);
         });
     }
+
+
 
     async function runMenuAction(action) {
         const id = menuNodeId;
@@ -388,7 +423,7 @@
         if (action === "upload") return openDocumentModal(null);
         if (action === "delete") {
             const node = nodeById.get(String(id));
-            if (!confirm("گره «" + (node?.title || "") + "» حذف شود؟ گره دارای زیرگره یا سابقه مستند قابل حذف نیست.")) return;
+            if (!confirm("گره «" + (node?.title || "") + "» و تمام اطلاعات مستندها و فایل‌های ذخیره‌شده در آن حذف شود؟ این عملیات قابل بازگشت نیست.")) return;
             try {
                 const result = await post("/EngineeringDocuments/DeleteNode",{id});
                 if (!result.success) return alert(result.message || "حذف گره انجام نشد.");
@@ -452,7 +487,6 @@
         $("documentTypeId").value = doc ? String(doc.typeId) : "";
         $("documentNumber").value = doc ? doc.documentNumber : "";
         $("documentRevision").value = doc ? doc.revisionLabel : "";
-        $("documentPublishDate").value = doc ? doc.publishDate : "@PersianDateService.Format(DateTime.Today)";
         $("documentEffectiveDate").value = doc ? doc.effectiveDate : "";
         $("documentKeywords").value = doc ? (doc.keywords || "") : "";
         $("documentDescription").value = doc ? (doc.description || "") : "";

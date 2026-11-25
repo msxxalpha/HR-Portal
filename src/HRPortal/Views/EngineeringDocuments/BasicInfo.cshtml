@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="@Url.Content("~/css/engineering-documents.css")" asp-append-version="true" />
 <div class="page-head">
     <div><h1>اطلاعات پایه آرشیو مستندات مهندسی</h1><p>مدیریت انواع مدارک و مستندات قابل انتخاب هنگام بارگذاری</p></div>
-    <div class="actions"><a class="btn btn-outline" href="/EngineeringDocuments/Manage">مدیریت مستندات مهندسی</a><a class="btn btn-outline" href="/EngineeringDocuments/Index">مشاهده مستندات</a></div>
+    <div class="actions"><a class="btn btn-outline" href="/EngineeringDocuments/Manage">مدیریت مستندات مهندسی</a><a class="btn btn-outline" href="/EngineeringDocuments/PublishList">لیست انتشار</a><a class="btn btn-outline" href="/EngineeringDocuments/Index">مشاهده مستندات</a></div>
 </div>
 @if (TempData["Error"] != null) { <div class="alert error">@TempData["Error"]</div> }
 @if (TempData["Success"] != null) { <div class="alert success">@TempData["Success"]</div> }

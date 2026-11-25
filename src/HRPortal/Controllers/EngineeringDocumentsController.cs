@@ -97,11 +97,15 @@ public sealed class EngineeringDocumentsController(
                 return Json(new { success = false, message = "گره‌ای که مستند دارد نمی‌تواند زیرگره جدید داشته باشد؛ ابتدا مستندها را به گره دیگری منتقل کنید." });
         }
 
+        var lastOrder = await db.EngineeringDocumentNodes
+            .Where(x => x.ParentId == parentId)
+            .Select(x => (int?)x.SortOrder)
+            .MaxAsync() ?? 0;
         var node = new EngineeringDocumentNode
         {
             ParentId = parentId,
             Title = title,
-            SortOrder = Math.Max(0, sortOrder),
+            SortOrder = sortOrder > 0 ? sortOrder : lastOrder + 10,
             IsActive = true
         };
         db.EngineeringDocumentNodes.Add(node);

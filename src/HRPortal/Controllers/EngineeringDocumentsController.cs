@@ -661,6 +661,19 @@ public sealed class EngineeringDocumentsController(
                 (User.FindFirst("PersonnelNumber")?.Value ?? User.FindFirst("AdminUsername")?.Value ?? "کاربر سامانه");
             var images = await imageStore.CreateAsync(
                 document.PdfContent, id, ownerKey, watermark, HttpContext.RequestAborted);
+
+            // The publication state may change while PDFium is rendering. Recheck
+            // after rendering so an old BLOB cannot create a fresh viewer token.
+            var stillPublished = await db.EngineeringDocuments.AsNoTracking().AnyAsync(x =>
+                x.Id == id && x.IsActive && x.IsPublished && x.PublishDate.HasValue &&
+                x.Node.IsActive && !x.Node.Children.Any() && x.Versions.Any(v => v.IsCurrent),
+                HttpContext.RequestAborted);
+            if (!stillPublished)
+            {
+                imageStore.Delete(ownerKey, images.Token);
+                return NotFound();
+            }
+
             var tokens = antiforgery.GetAndStoreTokens(HttpContext);
             SetPrivateHeaders();
             await audit.WriteAsync("مشاهده مستند مهندسی", nameof(EngineeringDocument), id.ToString(),

@@ -137,34 +137,39 @@ public sealed class EngineeringDocumentImageStore(IWebHostEnvironment environmen
 
     public void DeleteForDocuments(IEnumerable<int> documentIds)
     {
-        var ids = documentIds.Where(x => x > 0).ToHashSet();
-        if (ids.Count == 0 || !Directory.Exists(_root)) return;
-
-        foreach (var owner in Directory.EnumerateDirectories(_root))
+        try
         {
-            foreach (var directory in Directory.EnumerateDirectories(owner))
+            var ids = documentIds.Where(x => x > 0).ToHashSet();
+            if (ids.Count == 0 || !Directory.Exists(_root)) return;
+
+            foreach (var owner in Directory.EnumerateDirectories(_root))
             {
+                foreach (var directory in Directory.EnumerateDirectories(owner))
+                {
+                    try
+                    {
+                        var marker = Path.Combine(directory, ".document-id");
+                        if (!File.Exists(marker)) continue;
+                        var value = File.ReadAllText(marker).Trim();
+                        if (int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var documentId) &&
+                            ids.Contains(documentId))
+                            TryDeleteDirectory(directory);
+                    }
+                    catch (IOException) { }
+                    catch (UnauthorizedAccessException) { }
+                }
+
                 try
                 {
-                    var marker = Path.Combine(directory, ".document-id");
-                    if (!File.Exists(marker)) continue;
-                    var value = File.ReadAllText(marker).Trim();
-                    if (int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var documentId) &&
-                        ids.Contains(documentId))
-                        TryDeleteDirectory(directory);
+                    if (Directory.Exists(owner) && !Directory.EnumerateFileSystemEntries(owner).Any())
+                        Directory.Delete(owner);
                 }
                 catch (IOException) { }
                 catch (UnauthorizedAccessException) { }
             }
-
-            try
-            {
-                if (Directory.Exists(owner) && !Directory.EnumerateFileSystemEntries(owner).Any())
-                    Directory.Delete(owner);
-            }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
         }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 
     public void DeleteExpired()

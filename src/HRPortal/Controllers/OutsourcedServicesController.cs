@@ -177,6 +177,7 @@ public sealed class OutsourcedServicesController(
         ViewBag.CanCreate = Has("OutsourcedServices.Create");
         ViewBag.CanViewAll = Has("OutsourcedServices.ViewAll");
         ViewBag.CanArchiveFilter = IsAdmin;
+        ViewBag.CanRepairWorkflow = Has("Workflow.Manage");
         return View(model);
     }
 
@@ -484,6 +485,57 @@ public sealed class OutsourcedServicesController(
         await audit.WriteAsync("حذف نرم سفارش خدمات برونسپاری", nameof(OutsourcedServiceRequest),
             item.Id.ToString(), $"بایگانی درخواست {item.RequestNumber} با حفظ سوابق گردش کار", actorId);
         TempData["Success"] = "درخواست بایگانی شد؛ سوابق درخواست و گردش کار حذف نشده‌اند.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost]
+    [Authorize(Policy = "Workflow.Manage")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> StartMissingWorkflows()
+    {
+        // Repair only active business requests that have no workflow instance at all.
+        // Existing instances, tasks, approvals and history are never duplicated or changed.
+        var missingRequests = await db.OutsourcedServiceRequests.AsNoTracking()
+            .Where(request => !request.IsDeleted &&
+                !db.WorkflowInstances.Any(instance =>
+                    instance.EntityType == "OutsourcedServiceRequest" &&
+                    instance.EntityId == request.Id.ToString()))
+            .OrderBy(request => request.CreatedAtUtc).ThenBy(request => request.Id)
+            .Select(request => new { request.Id, request.RequesterEmployeeId, request.RequestNumber })
+            .ToListAsync();
+
+        if (missingRequests.Count == 0)
+        {
+            TempData["Success"] = "تمام درخواست‌های فعال این فرم قبلاً دارای نمونه گردش کار هستند؛ موردی برای اصلاح وجود ندارد.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var startedCount = 0;
+        var errors = new List<string>();
+        foreach (var request in missingRequests)
+        {
+            try
+            {
+                var instance = await workflowSubmission.StartForFormAsync(
+                    "OutsourcedServices", "OutsourcedServiceRequest",
+                    request.Id.ToString(), request.RequesterEmployeeId,
+                    subjectEmployeeId: request.RequesterEmployeeId);
+                if (instance is null)
+                    errors.Add($"{request.RequestNumber}: تعریف فعال OutSourceReqFlow به فرم سفارش خدمات برونسپاری متصل نیست.");
+                else
+                    startedCount++;
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"{request.RequestNumber}: {ex.Message}");
+            }
+        }
+
+        if (errors.Count == 0)
+            TempData["Success"] = $"گردش کار برای {startedCount:N0} درخواست ثبت‌شده قبلی با موفقیت ایجاد شد.";
+        else
+            TempData["Warning"] = $"از {missingRequests.Count:N0} درخواست فاقد گردش کار، {startedCount:N0} مورد راه‌اندازی شد و {errors.Count:N0} مورد به دلیل خطای تنظیمات/تخصیص باقی ماند: {string.Join(" | ", errors.Take(5))}";
+
         return RedirectToAction(nameof(Index));
     }
 

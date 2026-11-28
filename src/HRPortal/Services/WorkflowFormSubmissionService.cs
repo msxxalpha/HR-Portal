@@ -26,13 +26,14 @@ public sealed class WorkflowFormSubmissionService(
             string.IsNullOrWhiteSpace(entityId))
             throw new ArgumentException("مشخصات فرم یا شناسه درخواست برای شروع گردش کار کامل نیست.");
 
-        var definitionCode = await db.WorkflowDefinitions.AsNoTracking()
+        var definition = await db.WorkflowDefinitions.AsNoTracking()
             .Where(x => x.FormCode == formCode && x.IsActive && !x.IsRuntimeInstance)
             .OrderByDescending(x => x.Version)
-            .Select(x => x.Code)
+            .ThenByDescending(x => x.Id)
+            .Select(x => new { x.Id, x.Code })
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (string.IsNullOrWhiteSpace(definitionCode))
+        if (definition is null || string.IsNullOrWhiteSpace(definition.Code))
             return null;
 
         var existing = await db.WorkflowInstances
@@ -44,6 +45,7 @@ public sealed class WorkflowFormSubmissionService(
             return existing;
 
         return await workflow.StartAsync(
-            definitionCode, entityType, entityId, requesterEmployeeId, cancellationToken, subjectEmployeeId: subjectEmployeeId);
+            definition.Code, entityType, entityId, requesterEmployeeId, cancellationToken,
+            subjectEmployeeId: subjectEmployeeId, definitionId: definition.Id);
     }
 }

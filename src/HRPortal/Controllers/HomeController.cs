@@ -30,17 +30,23 @@ public class HomeController(HRPortalDbContext db, AnnouncementService announceme
         var isAdmin = User.HasClaim("IsAdmin", "1");
         var canViewWorkflow = isAdmin || User.HasClaim("Permission", "Workflow.Inbox");
         ViewBag.CanViewWorkflowDashboard = canViewWorkflow;
-        ViewBag.WorkflowInbox = new List<HRPortal.Models.WorkflowInboxRow>();
+        ViewBag.WorkflowCurrentTasks = new List<HRPortal.Models.WorkflowInboxRow>();
+        ViewBag.WorkflowUpcomingTasks = new List<HRPortal.Models.WorkflowInboxRow>();
+        ViewBag.WorkflowCurrentTaskCount = 0;
+        ViewBag.WorkflowUpcomingTaskCount = 0;
         ViewBag.DashboardRequests = new List<HRPortal.Models.WorkflowInboxRow>();
-        ViewBag.WorkflowInboxCount = 0;
         ViewBag.DashboardRequestCount = 0;
         if (canViewWorkflow)
         {
             if (int.TryParse(User.FindFirst("EmployeeId")?.Value, out var workflowEmployeeId))
             {
                 var inboxItems = await workflow.GetInboxAsync(workflowEmployeeId);
-                ViewBag.WorkflowInbox = inboxItems.Take(5).ToList();
-                ViewBag.WorkflowInboxCount = inboxItems.Count;
+                var currentTasks = inboxItems.Where(x => !x.IsUpcomingPreview && x.CanAct).ToList();
+                var upcomingTasks = inboxItems.Where(x => x.IsUpcomingPreview || !x.CanAct).ToList();
+                ViewBag.WorkflowCurrentTasks = currentTasks.Take(5).ToList();
+                ViewBag.WorkflowUpcomingTasks = upcomingTasks.Take(5).ToList();
+                ViewBag.WorkflowCurrentTaskCount = currentTasks.Count;
+                ViewBag.WorkflowUpcomingTaskCount = upcomingTasks.Count;
                 if (isAdmin)
                 {
                     var allRequests = await workflow.GetAllRequestsAsync();

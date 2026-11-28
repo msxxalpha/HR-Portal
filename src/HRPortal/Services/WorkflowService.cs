@@ -725,14 +725,18 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         string entityId,
         int requesterEmployeeId,
         CancellationToken cancellationToken = default,
-        int? subjectEmployeeId = null)
+        int? subjectEmployeeId = null,
+        int? definitionId = null)
     {
-        var definition = await db.WorkflowDefinitions
+        var definitionQuery = db.WorkflowDefinitions
             .Include(x => x.Steps.OrderBy(s => s.SortOrder)).ThenInclude(x => x.Fields)
             .Include(x => x.Steps).ThenInclude(x => x.OutgoingTransitions)
-            .Where(x => x.Code == definitionCode && x.IsActive && !x.IsRuntimeInstance)
-            .OrderByDescending(x => x.Version).FirstOrDefaultAsync(cancellationToken)
-            ?? throw new InvalidOperationException("گردش کار فعال با این کد یافت نشد.");
+            .Where(x => x.IsActive && !x.IsRuntimeInstance);
+        definitionQuery = definitionId.HasValue
+            ? definitionQuery.Where(x => x.Id == definitionId.Value)
+            : definitionQuery.Where(x => x.Code == definitionCode).OrderByDescending(x => x.Version);
+        var definition = await definitionQuery.FirstOrDefaultAsync(cancellationToken)
+            ?? throw new InvalidOperationException("گردش کار فعال با این کد یا نسخه یافت نشد.");
 
         var requester = await db.Employees.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == requesterEmployeeId && x.Status == "فعال", cancellationToken)

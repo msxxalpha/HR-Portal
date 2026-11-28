@@ -863,3 +863,29 @@
 
 /* A single active announcement should span the full dashboard content width. */
 .announcement-dashboard-list.single-announcement{grid-template-columns:minmax(0,1fr)}
+
+
+/* Keep the build link in a dedicated footer row; it must never cover accordion items. */
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding-bottom: 0;
+}
+.sidebar > .nav {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-bottom: 12px;
+}
+.sidebar-foot {
+    position: static;
+    inset: auto;
+    flex: 0 0 auto;
+    margin-top: auto;
+    width: auto;
+    padding: 12px 8px 4px;
+    background: linear-gradient(180deg, rgba(15,37,53,0), rgba(15,37,53,.98) 18%);
+}

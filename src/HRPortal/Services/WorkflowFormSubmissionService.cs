@@ -26,6 +26,9 @@ public sealed class WorkflowFormSubmissionService(
             string.IsNullOrWhiteSpace(entityId))
             throw new ArgumentException("مشخصات فرم یا شناسه درخواست برای شروع گردش کار کامل نیست.");
 
+        // Prefer the explicit form binding. The outsourced-services integration
+        // also recognizes its established workflow code so a revision whose FormCode
+        // was left blank (or stale) cannot silently leave submissions outside workflow.
         var definition = await db.WorkflowDefinitions.AsNoTracking()
             .Where(x => x.FormCode == formCode && x.IsActive && !x.IsRuntimeInstance)
             .OrderByDescending(x => x.Version)
@@ -33,13 +36,35 @@ public sealed class WorkflowFormSubmissionService(
             .Select(x => new { x.Id, x.Code })
             .FirstOrDefaultAsync(cancellationToken);
 
+        if (definition is null &&
+            string.Equals(formCode, "OutsourcedServices", StringComparison.OrdinalIgnoreCase))
+        {
+            definition = await db.WorkflowDefinitions.AsNoTracking()
+                .Where(x => x.Code == "OutSourceReqFlow" && x.IsActive && !x.IsRuntimeInstance)
+                .OrderByDescending(x => x.Version)
+                .ThenByDescending(x => x.Id)
+                .Select(x => new { x.Id, x.Code })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (definition is not null)
+            {
+                var mappedDefinition = await db.WorkflowDefinitions
+                    .FirstAsync(x => x.Id == definition.Id, cancellationToken);
+                mappedDefinition.FormCode = formCode;
+                mappedDefinition.UpdatedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync(cancellationToken);
+            }
+        }
+
         if (definition is null || string.IsNullOrWhiteSpace(definition.Code))
             return null;
 
+        // EntityType + EntityId is the idempotency key. Do not create another
+        // instance merely because a historical definition's FormCode is stale.
         var existing = await db.WorkflowInstances
-            .Where(x => x.EntityType == entityType && x.EntityId == entityId &&
-                x.WorkflowDefinition.FormCode == formCode)
+            .Where(x => x.EntityType == entityType && x.EntityId == entityId)
             .OrderByDescending(x => x.StartedAt)
+            .ThenByDescending(x => x.Id)
             .FirstOrDefaultAsync(cancellationToken);
         if (existing is not null)
             return existing;

@@ -84,7 +84,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                     {
                         WorkflowDefinitionId = entity.Id, Code = source.Code, Title = source.Title,
                         SortOrder = source.SortOrder, AssignmentType = source.AssignmentType,
-                        HierarchyStopRankType = source.HierarchyStopRankType, HierarchyVacancyPolicy = source.HierarchyVacancyPolicy, HierarchySubstitutePositionId = source.HierarchySubstitutePositionId, OrganizationNodeId = source.OrganizationNodeId, AssignedEmployeeId = source.AssignedEmployeeId, AssignmentMode = source.AssignmentMode,
+                        HierarchyStopRankType = source.HierarchyStopRankType, HierarchyVacancyPolicy = source.HierarchyVacancyPolicy, HierarchySubstitutePositionId = source.HierarchySubstitutePositionId, OrganizationNodeId = source.OrganizationNodeId, AssignedEmployeeId = source.AssignedEmployeeId, AssignmentFieldCode = source.AssignmentFieldCode, AssignmentMode = source.AssignmentMode,
                         AllowApprove = source.AllowApprove, AllowReject = source.AllowReject, AllowReturn = source.AllowReturn,
                         RequireCommentOnReject = source.RequireCommentOnReject,
                         RequireCommentOnReturn = source.RequireCommentOnReturn, IsFinalStep = source.IsFinalStep,

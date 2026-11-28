@@ -38,6 +38,11 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
     {
         var code = model.Code.Trim();
         var formCode = string.IsNullOrWhiteSpace(model.FormCode) ? null : model.FormCode.Trim();
+        // OutSourceReqFlow is the established workflow code for the outsourced-services
+        // form. Keep the form binding even when an older definition had no FormCode
+        // and the editor posts an empty selection while creating its next version.
+        if (string.Equals(code, "OutSourceReqFlow", StringComparison.OrdinalIgnoreCase))
+            formCode = "OutsourcedServices";
         if (model.Id == 0 && formCode is null)
             throw new InvalidOperationException("برای گردش کار جدید، انتخاب فرم عملیاتی الزامی است.");
         if (formCode is not null && !await db.SystemFormDefinitions.AnyAsync(x => x.Code == formCode && x.IsActive && x.ImplementationType == "GenericWorkflow"))

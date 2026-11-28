@@ -16,10 +16,12 @@
 @{
     var activeAnnouncements = ViewBag.Announcements as List<HRPortal.Models.Announcement> ?? [];
     var canViewWorkflowDashboard = (bool?)ViewBag.CanViewWorkflowDashboard ?? false;
-    var dashboardInbox = ViewBag.WorkflowInbox as List<HRPortal.Models.WorkflowInboxRow> ?? [];
+    var dashboardCurrentTasks = ViewBag.WorkflowCurrentTasks as List<HRPortal.Models.WorkflowInboxRow> ?? [];
+    var dashboardUpcomingTasks = ViewBag.WorkflowUpcomingTasks as List<HRPortal.Models.WorkflowInboxRow> ?? [];
+    var dashboardCurrentTaskCount = (int?)ViewBag.WorkflowCurrentTaskCount ?? 0;
+    var dashboardUpcomingTaskCount = (int?)ViewBag.WorkflowUpcomingTaskCount ?? 0;
     var dashboardRequests = ViewBag.DashboardRequests as List<HRPortal.Models.WorkflowInboxRow> ?? [];
     var dashboardRequestCount = (int?)ViewBag.DashboardRequestCount ?? 0;
-    var dashboardInboxCount = (int?)ViewBag.WorkflowInboxCount ?? 0;
 }
 @if (!isAdmin && !((bool?)ViewBag.HasPersonalPassword ?? true))
 {
@@ -83,30 +85,69 @@
             <section class="workflow-widget inbox-widget">
                 <div class="workflow-widget-head">
                     <div class="workflow-widget-icon inbox-icon"><span>✓</span></div>
-                    <div><h3>کارتابل من</h3><p>موارد منتظر اقدام شما</p></div>
-                    <span class="workflow-widget-count">@dashboardInboxCount</span>
+                    <div><h3>کارتابل من</h3><p>تفکیک وظایف قابل اقدام و مراحل آتی</p></div>
                 </div>
-                @if (dashboardInbox.Count == 0)
-                {
-                    <div class="workflow-empty"><span class="workflow-empty-mark">✓</span><strong>کارتابل شما به‌روز است</strong><p>در حال حاضر موردی برای اقدام نمایش داده نمی‌شود.</p></div>
-                }
-                else
-                {
-                    <div class="workflow-widget-list">
-                        @foreach (var item in dashboardInbox)
-                        {
-                            <article class="workflow-list-item">
-                                <div class="workflow-list-main">
-                                    <strong>@item.WorkflowTitle</strong>
-                                    <span>@item.StepTitle · @item.RequesterName</span>
-                                    <small>@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</small>
-                                </div>
-                                <a class="workflow-open-link" href="/Workflow/Task/@item.TaskId" aria-label="مشاهده و اقدام">بررسی <span>←</span></a>
-                            </article>
-                        }
-                    </div>
-                }
-                <a class="workflow-widget-footer" href="/Workflow/Inbox">مشاهده همه موارد کارتابل <span>←</span></a>
+                <div class="dashboard-inbox-tabs" role="tablist" aria-label="دسته‌بندی وظایف کارتابل داشبورد">
+                    <button type="button" class="dashboard-inbox-tab active" role="tab" aria-selected="true" aria-controls="dashboardCurrentTasksPanel" data-dashboard-tab="dashboardCurrentTasksPanel">
+                        وظایف جاری <span>@dashboardCurrentTaskCount</span>
+                    </button>
+                    <button type="button" class="dashboard-inbox-tab" role="tab" aria-selected="false" aria-controls="dashboardUpcomingTasksPanel" data-dashboard-tab="dashboardUpcomingTasksPanel">
+                        وظایف آتی <span>@dashboardUpcomingTaskCount</span>
+                    </button>
+                </div>
+                <div id="dashboardCurrentTasksPanel" class="dashboard-inbox-panel active" role="tabpanel">
+                    @if (dashboardCurrentTasks.Count == 0)
+                    {
+                        <div class="workflow-empty"><span class="workflow-empty-mark">✓</span><strong>وظیفه جاری ندارید</strong><p>در حال حاضر موردی برای اقدام به شما ارجاع نشده است.</p></div>
+                    }
+                    else
+                    {
+                        <div class="workflow-widget-list">
+                            @foreach (var item in dashboardCurrentTasks)
+                            {
+                                <article class="workflow-list-item">
+                                    <div class="workflow-list-main">
+                                        <strong>@item.WorkflowTitle</strong>
+                                        <span>@item.StepTitle · @item.RequesterName</span>
+                                        <small>@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</small>
+                                    </div>
+                                    <a class="workflow-open-link" href="/Workflow/Task/@item.TaskId" aria-label="مشاهده و اقدام">مشاهده و اقدام <span>←</span></a>
+                                </article>
+                            }
+                        </div>
+                    }
+                    <a class="workflow-widget-footer" href="/Workflow/Inbox">مشاهده همه وظایف جاری <span>←</span></a>
+                </div>
+                <div id="dashboardUpcomingTasksPanel" class="dashboard-inbox-panel" role="tabpanel" hidden>
+                    @if (dashboardUpcomingTasks.Count == 0)
+                    {
+                        <div class="workflow-empty"><span class="workflow-empty-mark">◷</span><strong>وظیفه آتی ندارید</strong><p>در حال حاضر مرحله آتی قابل‌شناسایی برای شما وجود ندارد.</p></div>
+                    }
+                    else
+                    {
+                        <div class="workflow-widget-list">
+                            @foreach (var item in dashboardUpcomingTasks)
+                            {
+                                <article class="workflow-list-item dashboard-upcoming-item">
+                                    <div class="workflow-list-main">
+                                        <strong>@item.WorkflowTitle</strong>
+                                        <span>@item.StepTitle · @item.RequesterName</span>
+                                        <small>@item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm") · هنوز نوبت اقدام نیست</small>
+                                    </div>
+                                    @if (isAdmin || User.HasClaim("Permission", "Workflow.ViewOnly"))
+                                    {
+                                        <a class="workflow-open-link" href="/Workflow/Details/@item.WorkflowInstanceId" aria-label="مشاهده فقط">مشاهده فقط <span>←</span></a>
+                                    }
+                                    else
+                                    {
+                                        <span class="workflow-upcoming-label">صرفاً جهت اطلاع</span>
+                                    }
+                                </article>
+                            }
+                        </div>
+                    }
+                    <a class="workflow-widget-footer" href="/Workflow/Inbox">مشاهده همه وظایف آتی <span>←</span></a>
+                </div>
             </section>
             <section class="workflow-widget requests-widget">
                 <div class="workflow-widget-head">
@@ -182,6 +223,26 @@
     </section>
 }
 
+<script>
+(function () {
+    document.querySelectorAll(".dashboard-inbox-tabs").forEach(tabList => {
+        const tabs = [...tabList.querySelectorAll(".dashboard-inbox-tab")];
+        tabs.forEach(tab => tab.addEventListener("click", () => {
+            tabs.forEach(item => {
+                const active = item === tab;
+                item.classList.toggle("active", active);
+                item.setAttribute("aria-selected", active ? "true" : "false");
+                const panel = document.getElementById(item.dataset.dashboardTab);
+                if (panel) {
+                    panel.hidden = !active;
+                    panel.classList.toggle("active", active);
+                }
+            });
+        }));
+    });
+})();
+</script>
+
 <div class="module-grid">
     @if (canViewEmployees) { <a class="module" href="/Employees"><b>01</b><h3>مدیریت کارکنان</h3><p>ثبت، ویرایش، غیرفعال‌سازی، جستجو، فیلتر و تبادل Excel.</p></a> }
     @if (canViewOrg) { <a class="module" href="/Organization"><b>02</b><h3>ساختار سازمانی</h3><p>ساختار درختی، بازنگری، نسخه‌بندی و تاریخچه تغییرات.</p></a> }
@@ -201,5 +262,14 @@ color:#fff;box-shadow:0 10px 24px #0f27472b}
 .performance-tile-eyebrow{font-size:.82rem;color:#9bdbe3}
 .performance-tile-cta{margin-top:8px;border-radius:8px;background:#ffffff1f;padding:12px;font-weight:700}
 .performance-quick-tile:hover{filter:brightness(1.06);color:#fff}
+.dashboard-inbox-tabs{display:flex;gap:6px;border-bottom:1px solid #dbe3ec;margin:8px 0 12px;flex-wrap:wrap}
+.dashboard-inbox-tab{border:0;border-bottom:3px solid transparent;background:transparent;padding:9px 12px;color:#526174;font:inherit;font-weight:800;cursor:pointer}
+.dashboard-inbox-tab.active{color:#173b60;border-bottom-color:#173b60}
+.dashboard-inbox-tab span{display:inline-flex;min-width:22px;justify-content:center;margin-right:5px;padding:1px 7px;border-radius:20px;background:#edf2f7;font-size:.78rem}
+.dashboard-inbox-tab:focus-visible{outline:2px solid #93c5fd;outline-offset:2px}
+.dashboard-inbox-panel[hidden]{display:none!important}
+.dashboard-upcoming-item{background:#fbfcfe}
+.workflow-upcoming-label{font-size:.78rem;color:#9a3412;white-space:nowrap}
 @@media(max-width:880px){.employee-home-tiles{grid-template-columns:1fr}}
+@@media(max-width:560px){.dashboard-inbox-tab{padding:8px 9px}.workflow-list-item{gap:8px}.workflow-upcoming-label{white-space:normal}}
 </style>

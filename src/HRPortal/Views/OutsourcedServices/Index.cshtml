@@ -41,7 +41,17 @@
     <div class="outsourced-hero">
         <div class="outsourced-hero-icon">↗</div>
         <div><span>خدمات کارکنان</span><h1>سفارش خدمات برونسپاری</h1><p>درخواست‌های ثبت‌شده برای انجام خدمات توسط پیمانکاران برون‌سازمانی.</p></div>
-        @if (canCreate) { <a class="btn btn-main" href="/OutsourcedServices/Create">＋ ثبت سفارش جدید</a> }
+        <div class="actions">
+            @if ((bool)(ViewBag.CanRepairWorkflow ?? false))
+            {
+                <form method="post" action="/OutsourcedServices/StartMissingWorkflows"
+                      onsubmit="return confirm('برای تمام سفارش‌های فعال فاقد گردش کار، با استفاده از گردش کار فعال OutSourceReqFlow نمونه گردش کار ایجاد شود؟ درخواست‌ها و سوابق موجود حذف یا تکراری نمی‌شوند.');">
+                    @Html.AntiForgeryToken()
+                    <button class="btn btn-outline" type="submit">راه‌اندازی گردش کار درخواست‌های قبلی</button>
+                </form>
+            }
+            @if (canCreate) { <a class="btn btn-main" href="/OutsourcedServices/Create">＋ ثبت سفارش جدید</a> }
+        </div>
     </div>
     @if (TempData["Success"] is string success) { <div class="alert success">@success</div> }
     @if (TempData["Warning"] is string warning) { <div class="alert warning">@warning</div> }

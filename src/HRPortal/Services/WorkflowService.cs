@@ -751,7 +751,7 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             ? await db.Database.BeginTransactionAsync(cancellationToken)
             : null;
 
-        List<OrganizationNode> skippedHierarchyPositions = [];
+        List<SkippedHierarchyPosition> skippedHierarchyPositions = [];
         if (definition.Steps.Any(x => x.AssignmentType == "Hierarchy"))
         {
             if (!subjectEmployeeId.HasValue)
@@ -788,20 +788,21 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
             ActorEmployeeId = requester.Id,
             Comment = "شروع گردش کار"
         });
-        var vacancyPolicy = definition.Steps.Select(x => x.HierarchyVacancyPolicy).FirstOrDefault(x => x != "Skip") ?? "Skip";
         foreach (var skippedPosition in skippedHierarchyPositions)
         {
+            var substituted = string.Equals(
+                skippedPosition.VacancyPolicy, "Substitute", StringComparison.OrdinalIgnoreCase);
             db.WorkflowHistory.Add(new WorkflowHistory
             {
                 WorkflowInstanceId = instance.Id,
-                WorkflowStepId = first.Id,
+                WorkflowStepId = skippedPosition.RuntimeStepId ?? first.Id,
                 FromStatus = "InProgress",
                 ToStatus = "InProgress",
-                Action = vacancyPolicy == "Substitute" ? "HierarchyVacancySubstituted" : "HierarchyVacancySkipped",
+                Action = substituted ? "HierarchyVacancySubstituted" : "HierarchyVacancySkipped",
                 ActorEmployeeId = requester.Id,
-                Comment = vacancyPolicy == "Substitute"
-                    ? $"جایگاه «{skippedPosition.Title}» متصدی فعال نداشت و طبق تنظیم مرحله به جایگاه جانشین از پیش تعیین‌شده ارجاع شد."
-                    : $"جایگاه «{skippedPosition.Title}» به دلیل نداشتن متصدی فعال، طبق تنظیم مرحله از مسیر ارزیابی عبور داده شد."
+                Comment = substituted
+                    ? $"در زنجیره «{skippedPosition.StageTitle}»، جایگاه «{skippedPosition.Position.Title}» به دلیل نداشتن متصدی فعال، طبق تنظیم همین مرحله به جایگاه جانشین از پیش تعیین‌شده ارجاع شد."
+                    : $"در زنجیره «{skippedPosition.StageTitle}»، جایگاه «{skippedPosition.Position.Title}» به دلیل نداشتن متصدی فعال، طبق تنظیم همین مرحله از مسیر ارزیابی عبور داده شد."
             });
         }
         await db.SaveChangesAsync(cancellationToken);
@@ -812,25 +813,45 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         return instance;
     }
 
-    private async Task<(WorkflowDefinition Definition, List<OrganizationNode> SkippedPositions)> BuildRuntimeDefinitionAsync(
+    private sealed record SkippedHierarchyPosition(
+        string StageTitle,
+        string VacancyPolicy,
+        OrganizationNode Position,
+        int? RuntimeStepId);
+
+    private async Task<(WorkflowDefinition Definition, List<SkippedHierarchyPosition> SkippedPositions)> BuildRuntimeDefinitionAsync(
         WorkflowDefinition source, int subjectEmployeeId, CancellationToken cancellationToken)
     {
-        var hierarchyTemplates = source.Steps.Where(x => x.AssignmentType == "Hierarchy").ToList();
-        if (hierarchyTemplates.Count != 1)
-            throw new InvalidOperationException("هر گردش کار می‌تواند دقیقاً یک مرحله زنجیره جایگاه‌های سازمانی داشته باشد.");
+        // Each hierarchy template is an independent route segment. Build the route
+        // from the same request subject using that stage's own stop rank and vacancy
+        // policy, then expand it in place in the original workflow order.
+        var hierarchyTemplates = source.Steps
+            .Where(x => x.AssignmentType == "Hierarchy")
+            .OrderBy(x => x.SortOrder).ThenBy(x => x.Id)
+            .ToList();
+        var isContractRenewal = source.Code.StartsWith(
+            "__internal_contractrenewal_", StringComparison.Ordinal);
 
-        var template = hierarchyTemplates[0];
-        var isContractRenewal = source.Code.StartsWith("__internal_contractrenewal_", StringComparison.Ordinal);
-        var routeResult = await BuildHierarchyRouteAsync(
-            subjectEmployeeId,
-            template.HierarchyStopRankType,
-            template.HierarchyVacancyPolicy,
-            template.HierarchySubstitutePositionId,
-            cancellationToken,
-            contractRenewalEvaluationPath: isContractRenewal);
-        var route = routeResult.Route;
-        if (route.Count == 0 && !isContractRenewal)
-            throw new InvalidOperationException("در مسیر بالادستی کارمند هیچ جایگاه دارای متصدی فعالی برای ارزیابی پیدا نشد؛ انتساب‌های ساختار سازمانی را بررسی کنید.");
+        var hierarchyRoutes = new Dictionary<int, List<OrganizationNode>>();
+        var skippedByTemplate = new List<(WorkflowStep Template, OrganizationNode Position)>();
+        foreach (var template in hierarchyTemplates)
+        {
+            var routeResult = await BuildHierarchyRouteAsync(
+                subjectEmployeeId,
+                template.HierarchyStopRankType,
+                template.HierarchyVacancyPolicy,
+                template.HierarchySubstitutePositionId,
+                cancellationToken,
+                contractRenewalEvaluationPath: isContractRenewal);
+
+            if (routeResult.Route.Count == 0 && !isContractRenewal)
+                throw new InvalidOperationException(
+                    $"برای مرحله زنجیره‌ای «{template.Title}» در مسیر بالادستی کارمند هیچ جایگاه دارای متصدی فعالی پیدا نشد؛ تنظیم رده توقف و انتساب‌های ساختار سازمانی را بررسی کنید.");
+
+            hierarchyRoutes[template.Id] = routeResult.Route;
+            skippedByTemplate.AddRange(
+                routeResult.SkippedPositions.Select(position => (template, position)));
+        }
 
         var runtime = new WorkflowDefinition
         {
@@ -851,23 +872,31 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
         var map = new Dictionary<int, List<WorkflowStep>>();
         var allRuntimeSteps = new List<WorkflowStep>();
         var order = 10;
-        foreach (var original in source.Steps.OrderBy(x => x.SortOrder))
+        foreach (var original in source.Steps.OrderBy(x => x.SortOrder).ThenBy(x => x.Id))
         {
             var clones = new List<WorkflowStep>();
             if (original.AssignmentType == "Hierarchy")
             {
+                var route = hierarchyRoutes[original.Id];
                 for (var i = 0; i < route.Count; i++)
                 {
                     var position = route[i];
-                    clones.Add(CloneStep(original, runtime.Id, $"{TrimCode(original.Code, 75)}_H{i + 1}",
-                        $"{original.Title} — {position.Title}", order, position.Id, false, "Position"));
+                    // A final hierarchy template becomes final only on its last
+                    // generated position; intermediate positions must continue.
+                    var isFinalClone = original.IsFinalStep && i == route.Count - 1;
+                    clones.Add(CloneStep(
+                        original, runtime.Id,
+                        $"{TrimCode(original.Code, 75)}_H{i + 1}",
+                        $"{original.Title} — {position.Title}",
+                        order, position.Id, isFinalClone, "Position"));
                     order += 10;
                 }
             }
             else
             {
                 clones.Add(CloneStep(original, runtime.Id, original.Code, original.Title, order,
-                    original.OrganizationNodeId, original.IsFinalStep, original.AssignmentType, original.AssignedEmployeeId));
+                    original.OrganizationNodeId, original.IsFinalStep,
+                    original.AssignmentType, original.AssignedEmployeeId));
                 order += 10;
             }
 
@@ -909,14 +938,19 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
                 foreach (var transition in original.OutgoingTransitions)
                 {
                     int? targetId;
-                    if (isHierarchyClone && transition.Action == "Approve" && cloneIndex < map[original.Id].Count - 1)
+                    if (isHierarchyClone &&
+                        transition.Action == "Approve" &&
+                        cloneIndex < map[original.Id].Count - 1)
                     {
+                        // Approval within a chain always advances to the next
+                        // position generated from this same hierarchy template.
                         targetId = map[original.Id][cloneIndex + 1].Id;
                     }
                     else
                     {
                         targetId = transition.ToStepId.HasValue
-                            ? ResolveFirstRuntimeTargetId(transition.ToStepId.Value, orderedSourceSteps, map)
+                            ? ResolveFirstRuntimeTargetId(
+                                transition.ToStepId.Value, orderedSourceSteps, map)
                             : null;
                     }
 
@@ -936,7 +970,20 @@ public class WorkflowService(HRPortalDbContext db, AuditService audit)
 
         await db.SaveChangesAsync(cancellationToken);
         runtime.Steps = allRuntimeSteps;
-        return (runtime, routeResult.SkippedPositions);
+
+        // Preserve stage-specific vacancy policy and attach every skipped-position
+        // audit entry to the first generated step of its own hierarchy segment.
+        var skippedPositions = skippedByTemplate.Select(item =>
+        {
+            var runtimeStepId = map[item.Template.Id].FirstOrDefault()?.Id;
+            return new SkippedHierarchyPosition(
+                item.Template.Title,
+                item.Template.HierarchyVacancyPolicy,
+                item.Position,
+                runtimeStepId);
+        }).ToList();
+
+        return (runtime, skippedPositions);
     }
 
     private static int? ResolveFirstRuntimeTargetId(
